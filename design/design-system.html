@@ -1,0 +1,730 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vendora Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Noto+Nastaliq+Urdu:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<style>
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--color-bg); color: var(--color-text); font: var(--font-weight-regular) var(--font-size-400)/var(--line-height-normal) var(--font-sans); }
+:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+h1, h2, h3 { margin: 0; line-height: var(--line-height-tight); letter-spacing: -0.02em; }
+code { font-family: var(--font-mono); font-size: 0.85em; }
+.num, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.urdu { font-family: var(--font-urdu); direction: rtl; line-height: var(--line-height-urdu); }
+.muted { color: var(--color-text-secondary); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Doc chrome ---------- */
+.doc-header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: var(--space-400); padding: var(--space-300) var(--space-600); background: var(--color-bg-surface); border-bottom: 1px solid var(--color-border); }
+.doc-header nav { display: flex; gap: var(--space-100); overflow-x: auto; flex: 1; }
+.doc-header nav a { padding: 6px 10px; border-radius: var(--radius-200); color: var(--color-text-secondary); text-decoration: none; font-size: var(--font-size-350); white-space: nowrap; }
+.doc-header nav a:hover { background: var(--color-bg-surface-hover); color: var(--color-text); }
+main { max-width: 1180px; margin: 0 auto; padding: var(--space-800) var(--space-600) 96px; }
+section { padding-top: var(--space-1600); scroll-margin-top: 64px; }
+section > h2 { font-size: var(--font-size-700); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-200); }
+section > .lede { color: var(--color-text-secondary); max-width: 72ch; margin: 0 0 var(--space-600); }
+.panel { background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-300); padding: var(--space-600); }
+.grid { display: grid; gap: var(--space-400); }
+.g2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.g3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.label { font-size: var(--font-size-300); font-weight: var(--font-weight-semibold); letter-spacing: var(--letter-spacing-caps); text-transform: uppercase; color: var(--color-text-tertiary); margin-bottom: var(--space-300); }
+.row { display: flex; flex-wrap: wrap; gap: var(--space-300); align-items: center; }
+.rules { margin: 0; padding-left: 20px; color: var(--color-text-secondary); }
+.rules li { margin-bottom: 6px; }
+.dodont { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-300); }
+.dodont > div { padding: var(--space-400); border-radius: var(--radius-200); border: 1px solid var(--color-border); background: var(--color-bg-surface); }
+.dodont strong { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; font-size: var(--font-size-350); }
+.dodont .do strong { color: var(--color-text-success); }
+.dodont .dont strong { color: var(--color-text-critical); }
+.dodont svg { width: 16px; height: 16px; }
+
+/* ---------- Brand ---------- */
+.hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-800); align-items: center; }
+.hero h1 { font-size: 48px; font-weight: var(--font-weight-semibold); letter-spacing: var(--letter-spacing-tight); }
+.hero p { font-size: var(--font-size-450); color: var(--color-text-secondary); }
+.wordmark { font-weight: var(--font-weight-semibold); letter-spacing: var(--letter-spacing-tight); }
+.wordmark i { font-style: normal; color: var(--color-bg-fill-brand); }
+.logo-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-300); }
+.logo-tile { display: grid; place-items: center; aspect-ratio: 1.3; border-radius: var(--radius-300); border: 1px solid var(--color-border); }
+
+/* ---------- Swatches ---------- */
+.sw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--space-200); }
+.sw { border: 1px solid var(--color-border); border-radius: var(--radius-200); overflow: hidden; background: var(--color-bg-surface); }
+.sw .chip { height: 56px; display: grid; place-items: center; font-weight: var(--font-weight-semibold); }
+.sw .meta { padding: var(--space-200) var(--space-300); font-size: var(--font-size-300); border-top: 1px solid var(--color-border); }
+.sw .meta b { display: block; font: var(--font-weight-medium) 12px var(--font-mono); word-break: break-all; }
+.sw .meta span { color: var(--color-text-tertiary); font-family: var(--font-mono); }
+
+/* ---------- Type specimen ---------- */
+.type-row { display: grid; grid-template-columns: 170px 1fr; gap: var(--space-400); align-items: baseline; padding: var(--space-300) 0; border-bottom: 1px solid var(--color-border); }
+.type-row:last-child { border-bottom: 0; }
+.type-row .spec { font: 12px var(--font-mono); color: var(--color-text-tertiary); }
+
+/* ---------- Keycap ---------- */
+.kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: var(--radius-100); font: var(--font-weight-medium) 11px/1 var(--font-mono); color: var(--color-text-secondary); background: var(--color-bg-surface-secondary); border: 1px solid var(--color-border-strong); }
+
+/* ---------- Button ---------- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-200); min-height: var(--height-control-md); padding: 0 var(--space-400); border-radius: var(--radius-200); border: 1px solid transparent; font: var(--font-weight-medium) var(--font-size-350)/1 var(--font-sans); cursor: pointer; user-select: none; transition: background var(--duration-100) var(--ease-out), border-color var(--duration-100) var(--ease-out); }
+.btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+.btn-primary { background: var(--color-bg-fill-brand); color: var(--color-text-on-brand); }
+.btn-primary:hover { background: var(--color-bg-fill-brand-hover); }
+.btn-primary:active { background: var(--color-bg-fill-brand-active); }
+.btn-primary .kbd { background: transparent; color: inherit; border-color: currentColor; opacity: .75; }
+.btn-secondary { background: var(--color-bg-fill-secondary); color: var(--color-text); border-color: var(--color-border-strong); box-shadow: var(--shadow-100); }
+.btn-secondary:hover { background: var(--color-bg-fill-secondary-hover); }
+.btn-secondary:active { background: var(--color-bg-fill-secondary-active); }
+.btn-ghost { background: transparent; color: var(--color-text-secondary); }
+.btn-ghost:hover { background: var(--color-bg-surface-hover); color: var(--color-text); }
+.btn-critical { background: var(--color-bg-fill-critical); color: var(--color-text-on-critical); }
+.btn-critical:hover { background: var(--color-bg-fill-critical-hover); }
+.btn-sm { min-height: var(--height-control-sm); padding: 0 var(--space-300); font-size: var(--font-size-350); }
+.btn-lg { min-height: var(--height-control-lg); padding: 0 var(--space-600); font-size: var(--font-size-450); font-weight: var(--font-weight-semibold); }
+.btn-block { width: 100%; }
+.btn-icon { width: var(--height-control-md); padding: 0; }
+.btn-icon.btn-sm { width: var(--height-control-sm); }
+.btn[disabled] { background: var(--color-bg-surface-secondary); color: var(--color-text-disabled); border-color: var(--color-border); box-shadow: none; cursor: not-allowed; }
+.tender { min-height: var(--height-control-lg); font: var(--font-weight-medium) var(--font-size-450) var(--font-mono); }
+
+/* ---------- Form controls ---------- */
+.field { display: grid; gap: 6px; }
+.field > label, .field > .flabel { font-size: var(--font-size-350); font-weight: var(--font-weight-medium); }
+.help { font-size: var(--font-size-300); color: var(--color-text-tertiary); }
+.err { font-size: var(--font-size-300); color: var(--color-text-critical); display: flex; gap: 4px; align-items: center; font-weight: var(--font-weight-medium); }
+.err svg { width: 14px; height: 14px; }
+.input, .select { width: 100%; min-height: var(--height-control-md); padding: 0 var(--space-300); font: var(--font-size-400) var(--font-sans); color: var(--color-text); background: var(--color-bg-surface); border: 1px solid var(--color-input-border); border-radius: var(--radius-200); box-shadow: var(--shadow-100); }
+.input:hover, .select:hover { border-color: var(--color-border-hover); }
+.input:focus-visible, .select:focus-visible { border-color: var(--color-border-focus); box-shadow: 0 0 0 3px var(--color-bg-fill-brand-secondary); }
+.input::placeholder { color: var(--color-text-tertiary); }
+.input[aria-invalid="true"] { border-color: var(--color-border-critical-strong); }
+.input.num { font-family: var(--font-mono); }
+.affix { position: relative; }
+.affix > svg, .affix > .pre { position: absolute; left: 12px; top: 50%; translate: 0 -50%; color: var(--color-icon-secondary); pointer-events: none; }
+.affix > svg { width: 18px; height: 18px; }
+.affix > .pre { font: var(--font-weight-medium) var(--font-size-350) var(--font-mono); }
+.affix .input { padding-left: 40px; }
+.affix > .kbd { position: absolute; right: 12px; top: 50%; translate: 0 -50%; }
+.scan { min-height: var(--height-control-lg); font-size: var(--font-size-450); border-width: 2px; border-color: var(--color-text); }
+.scan:focus-visible { border-color: var(--color-border-focus); }
+.stepper { display: inline-flex; border: 1px solid var(--color-input-border); border-radius: var(--radius-200); overflow: hidden; box-shadow: var(--shadow-100); }
+.stepper button { width: var(--height-control-md); min-height: var(--height-control-md); border: 0; background: var(--color-bg-surface-secondary); color: var(--color-text); font-size: 20px; cursor: pointer; }
+.stepper button:hover { background: var(--color-bg-surface-active); }
+.stepper input { width: 72px; border: 0; text-align: center; font: var(--font-weight-semibold) var(--font-size-400) var(--font-mono); background: var(--color-bg-surface); color: var(--color-text); border-inline: 1px solid var(--color-border); }
+.segmented { display: inline-flex; padding: 3px; gap: 3px; background: var(--color-bg-surface-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-200); }
+.segmented button { min-height: 38px; padding: 0 var(--space-400); display: inline-flex; gap: 8px; align-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); font: var(--font-weight-medium) var(--font-size-350) var(--font-sans); cursor: pointer; }
+.segmented button svg { width: 16px; height: 16px; }
+.segmented button[aria-pressed="true"] { background: var(--color-bg-surface); color: var(--color-text); box-shadow: var(--shadow-100), 0 0 0 1px var(--color-border); }
+.check { display: flex; gap: var(--space-300); align-items: center; min-height: var(--height-control-md); cursor: pointer; }
+.check input { width: 18px; height: 18px; accent-color: var(--color-bg-fill-brand); }
+
+/* ---------- Badge ---------- */
+.badge { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: var(--radius-full); font: var(--font-weight-medium) var(--font-size-300)/1 var(--font-sans); white-space: nowrap; }
+.badge svg { width: 12px; height: 12px; }
+.badge-neutral { background: var(--color-bg-fill-neutral-secondary); color: var(--color-text-secondary); }
+.badge-brand { background: var(--color-bg-fill-brand-secondary); color: var(--color-text-brand); }
+.badge-success { background: var(--color-bg-fill-success-secondary); color: var(--color-text-success); }
+.badge-warning { background: var(--color-bg-fill-warning-secondary); color: var(--color-text-warning); }
+.badge-critical { background: var(--color-bg-fill-critical-secondary); color: var(--color-text-critical); }
+
+/* ---------- Money ---------- */
+.money { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.money-neg { color: var(--color-text-critical); }
+.total { display: grid; gap: var(--space-100); padding: var(--space-500); border-radius: var(--radius-300); background: var(--color-bg-surface-inverse); color: var(--color-text-on-inverse); }
+.total .k { font-size: var(--font-size-300); font-weight: var(--font-weight-semibold); letter-spacing: var(--letter-spacing-caps); text-transform: uppercase; opacity: .7; }
+.total .v { font-size: var(--font-size-1400); font-weight: var(--font-weight-semibold); line-height: 1; letter-spacing: var(--letter-spacing-tight); font-variant-numeric: tabular-nums; }
+.total .v small { font-size: .45em; font-weight: var(--font-weight-medium); opacity: .6; margin-right: 6px; letter-spacing: 0; }
+.total-change { background: var(--color-bg-fill-success); color: var(--color-text-on-success); }
+
+/* ---------- Table ---------- */
+.table-wrap { overflow-x: auto; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-300); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: var(--font-size-300); font-weight: var(--font-weight-medium); color: var(--color-text-tertiary); padding: 10px var(--space-400); background: var(--color-bg-surface-secondary); border-bottom: 1px solid var(--color-border); white-space: nowrap; }
+td { height: var(--height-row); padding: 0 var(--space-400); border-bottom: 1px solid var(--color-border); }
+tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: var(--color-bg-surface-hover); }
+tr[aria-selected="true"] td { background: var(--color-bg-surface-selected); }
+tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--color-border-brand); }
+td.r, th.r { text-align: right; }
+td.r { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+td .sub { display: block; font: var(--font-size-300) var(--font-mono); color: var(--color-text-tertiary); }
+td .urdu { display: block; font-size: 14px; line-height: 1.9; text-align: left; color: var(--color-text-secondary); }
+
+/* ---------- Status bar ---------- */
+.statusbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-200) var(--space-500); padding: 8px var(--space-400); background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-300); font-size: var(--font-size-350); }
+.status { display: inline-flex; gap: 6px; align-items: center; color: var(--color-text-secondary); }
+.status b { color: var(--color-text); font-weight: var(--font-weight-medium); }
+.status svg { width: 16px; height: 16px; color: var(--color-icon-secondary); }
+.status .dot { width: 8px; height: 8px; border-radius: 50%; }
+.dot-ok { background: var(--color-icon-success); }
+.dot-warn { background: var(--color-icon-warning); }
+.dot-bad { background: var(--color-icon-critical); }
+
+/* ---------- Banner / toast ---------- */
+.banner { display: grid; grid-template-columns: 20px 1fr auto; gap: var(--space-300); align-items: start; padding: var(--space-400); border-radius: var(--radius-300); border: 1px solid; }
+.banner > svg { width: 20px; height: 20px; margin-top: 1px; }
+.banner b { display: block; font-weight: var(--font-weight-semibold); }
+.banner p { margin: 2px 0 0; font-size: var(--font-size-350); color: var(--color-text-secondary); }
+.banner-info { background: var(--color-bg-surface-info); border-color: var(--color-border); } .banner-info > svg { color: var(--color-icon); }
+.banner-success { background: var(--color-bg-surface-success); border-color: var(--color-border-success); } .banner-success > svg { color: var(--color-icon-success); }
+.banner-warning { background: var(--color-bg-surface-warning); border-color: var(--color-border-warning); } .banner-warning > svg { color: var(--color-icon-warning); }
+.banner-critical { background: var(--color-bg-surface-critical); border-color: var(--color-border-critical); } .banner-critical > svg { color: var(--color-icon-critical); }
+.toast { display: inline-flex; gap: var(--space-300); align-items: center; padding: var(--space-300) var(--space-400); border-radius: var(--radius-200); background: var(--color-bg-surface-inverse); color: var(--color-text-on-inverse); box-shadow: var(--shadow-200); font-size: var(--font-size-350); }
+.toast svg { width: 18px; height: 18px; }
+.toast button { margin-left: var(--space-400); background: none; border: 0; color: inherit; font: var(--font-weight-semibold) var(--font-size-350) var(--font-sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; min-height: 32px; }
+
+/* ---------- Dialog ---------- */
+dialog { padding: 0; border: 1px solid var(--color-border); border-radius: var(--radius-300); background: var(--color-bg-surface); color: var(--color-text); box-shadow: var(--shadow-300); width: min(420px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgb(9 9 11 / .6); }
+.dialog-static { display: block; position: static; max-width: 420px; box-shadow: var(--shadow-200); }
+.d-body { padding: var(--space-600); display: grid; gap: var(--space-400); }
+.d-body h3 { font-size: var(--font-size-550); font-weight: var(--font-weight-semibold); }
+.d-body p { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-350); }
+.d-actions { display: flex; justify-content: flex-end; gap: var(--space-300); padding: var(--space-400) var(--space-600); border-top: 1px solid var(--color-border); background: var(--color-bg-surface-secondary); border-radius: 0 0 var(--radius-300) var(--radius-300); }
+.pin-dots { display: flex; gap: var(--space-300); justify-content: center; padding: var(--space-200) 0; }
+.pin-dots span { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--color-border-strong); }
+.pin-dots span.on { background: var(--color-text); border-color: var(--color-text); }
+.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-200); }
+.keypad button { min-height: var(--height-control-lg); border-radius: var(--radius-200); border: 1px solid var(--color-border); background: var(--color-bg-surface-secondary); color: var(--color-text); font: var(--font-weight-medium) var(--font-size-550) var(--font-mono); cursor: pointer; }
+.keypad button:hover { background: var(--color-bg-surface-active); }
+
+/* ---------- Empty state ---------- */
+.empty { display: grid; justify-items: center; gap: var(--space-300); padding: var(--space-1000) var(--space-600); text-align: center; }
+.empty .icon { width: 52px; height: 52px; display: grid; place-items: center; border-radius: var(--radius-300); border: 1px solid var(--color-border); background: var(--color-bg-surface-secondary); color: var(--color-icon-secondary); }
+.empty .icon svg { width: 24px; height: 24px; }
+.empty h3 { font-size: var(--font-size-450); font-weight: var(--font-weight-semibold); }
+.empty p { margin: 0; max-width: 44ch; font-size: var(--font-size-350); color: var(--color-text-secondary); }
+
+/* ---------- Receipt (always black on white) ---------- */
+.receipt { width: 302px; margin: 0 auto; padding: 16px 14px 20px; background: #fff; color: #000; font: 12px/1.45 "Geist Mono", "Courier New", monospace; box-shadow: var(--shadow-200); }
+.receipt .c { text-align: center; } .receipt .b { font-weight: 600; } .receipt .lg { font-size: 15px; }
+.receipt .rule { border-top: 1px dashed #000; margin: 8px 0; }
+.receipt .ln { display: flex; justify-content: space-between; gap: 8px; }
+.receipt .ur { font-family: var(--font-urdu); direction: rtl; font-size: 13px; line-height: 2; }
+.receipt .barcode { height: 40px; width: 80%; margin: 10px auto 4px; background: repeating-linear-gradient(90deg, #000 0 2px, #fff 2px 3px, #000 3px 4px, #fff 4px 7px, #000 7px 10px, #fff 10px 11px); }
+
+/* ---------- Composition ---------- */
+.compose { display: grid; grid-template-columns: 1fr 320px; gap: var(--space-400); }
+@media (max-width: 860px) { .compose { grid-template-columns: 1fr; } }
+.sums { display: grid; gap: 6px; padding: var(--space-400); font-size: var(--font-size-350); background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-300); }
+.sums div { display: flex; justify-content: space-between; }
+
+@media (max-width: 640px) {
+  main { padding: var(--space-600) var(--space-400) 64px; }
+  .doc-header { padding: var(--space-300) var(--space-400); }
+  .hero h1 { font-size: 34px; }
+  .type-row { grid-template-columns: 1fr; gap: 4px; }
+  .total .v { font-size: 44px; }
+  .panel { padding: var(--space-400); }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-scan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M11 8v8M14 8v8M17 8v8"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-cash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></symbol>
+  <symbol id="i-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></symbol>
+  <symbol id="i-printer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-x-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7h14M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0zM8 21h8"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+  <symbol id="logo" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="var(--color-bg-surface-inverse)"/><path d="M12 14l8 14 8-14" fill="none" stroke="var(--color-text-on-inverse)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="29.5" cy="28" r="3" fill="var(--color-bg-fill-brand)"/></symbol>
+</defs></svg>
+
+<header class="doc-header">
+  <svg width="28" height="28" aria-hidden="true"><use href="#logo"/></svg>
+  <nav aria-label="Sections">
+    <a href="#brand">Brand</a><a href="#tokens">Tokens</a><a href="#color">Colour</a><a href="#type">Type</a><a href="#layout">Space &amp; shape</a>
+    <a href="#buttons">Buttons</a><a href="#forms">Forms</a><a href="#data">Data</a><a href="#feedback">Feedback</a><a href="#overlays">Overlays</a><a href="#receipt">Receipt</a><a href="#compose">In context</a><a href="#principles">Principles</a>
+  </nav>
+  <button class="btn btn-secondary btn-sm" id="theme-toggle" type="button" aria-pressed="false"><svg aria-hidden="true"><use href="#i-moon"/></svg><span>Dark</span></button>
+</header>
+
+<main>
+
+<section id="brand" style="padding-top:0">
+  <div class="hero">
+    <div>
+      <div class="row" style="gap:14px;margin-bottom:var(--space-600)">
+        <svg width="52" height="52" aria-hidden="true"><use href="#logo"/></svg>
+        <span class="wordmark" style="font-size:40px">vendora<i>.</i></span>
+      </div>
+      <h1>Bill fast, know your stock — even when the light goes.</h1>
+      <p>The Vendora design system: <b>Mono Pro</b>. Black, white and one indigo accent. The interface stays quiet so prices, totals and the next action stand out.</p>
+    </div>
+    <div class="panel">
+      <div class="label">Personality</div>
+      <ul class="rules">
+        <li><b>Precise</b> — numbers line up, every value is exact.</li>
+        <li><b>Quiet</b> — greys do the structure; colour only when it means something.</li>
+        <li><b>Fast</b> — every pixel serves the next scan.</li>
+        <li><b>Premium, not cold</b> — plain local words: Rs, JazzCash, Urdu names.</li>
+      </ul>
+      <div class="label" style="margin-top:var(--space-600)">Logo</div>
+      <div class="logo-tiles">
+        <div class="logo-tile" style="background:var(--color-bg-surface)"><svg width="44" height="44" aria-label="Mark on surface"><use href="#logo"/></svg></div>
+        <div class="logo-tile" style="background:var(--color-bg-surface-secondary)"><span class="wordmark" style="font-size:22px">vendora<i>.</i></span></div>
+        <div class="logo-tile" style="background:var(--color-bg-fill-brand-secondary)"><svg width="44" height="44" aria-label="Mark on tint"><use href="#logo"/></svg></div>
+      </div>
+      <p class="muted" style="font-size:var(--font-size-350);margin-bottom:0">Lowercase wordmark in Geist Semibold with an indigo full stop. The mark is a <b>v</b> with the same indigo dot. It inverts in dark mode. Minimum size 16 px.</p>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:var(--space-600)">
+    <div class="label">Voice</div>
+    <div class="dodont">
+      <div class="do"><strong><svg aria-hidden="true"><use href="#i-check"/></svg>Say what happened and what to do</strong>"Printer offline — check paper or cable. Sale saved."</div>
+      <div class="dont"><strong><svg aria-hidden="true"><use href="#i-x"/></svg>Vague or technical</strong>"Error: ESC/POS write failed (code -4)."</div>
+      <div class="do"><strong><svg aria-hidden="true"><use href="#i-check"/></svg>Short verbs on buttons</strong>"Pay", "Hold bill", "Close shift"</div>
+      <div class="dont"><strong><svg aria-hidden="true"><use href="#i-x"/></svg>Blame or alarm</strong>"Invalid operation! You can't do that."</div>
+    </div>
+  </div>
+</section>
+
+<section id="tokens">
+  <h2>Token system</h2>
+  <p class="lede">All values live in <code>design/tokens.css</code>. Names are built from the same parts, so they can be guessed without looking them up — and every fill has a matching readable text colour.</p>
+  <div class="grid g2">
+    <div class="panel">
+      <div class="label">Anatomy</div>
+      <div class="row mono" style="gap:4px;font-size:15px">
+        <span class="badge badge-neutral" style="height:auto;padding:6px 10px;border-radius:6px">--color</span>
+        <span class="badge badge-brand" style="height:auto;padding:6px 10px;border-radius:6px">bg-fill</span>
+        <span class="badge badge-critical" style="height:auto;padding:6px 10px;border-radius:6px">critical</span>
+        <span class="badge badge-warning" style="height:auto;padding:6px 10px;border-radius:6px">hover</span>
+      </div>
+      <p class="muted" style="font-size:var(--font-size-350)">category · <b>property</b> (bg, bg-surface, bg-fill, text, icon, border) · <b>role</b> (brand, secondary, success, warning, critical, inverse) · <b>state</b> (hover, active, selected, disabled)</p>
+    </div>
+    <div class="panel">
+      <div class="label">Pairs &amp; scales</div>
+      <ul class="rules" style="font-size:var(--font-size-350)">
+        <li><code>bg-fill-brand</code> → <code>text-on-brand</code>; <code>bg-fill-critical</code> → <code>text-on-critical</code>; <code>bg-surface-inverse</code> → <code>text-on-inverse</code>.</li>
+        <li>Scales use one rule: <b>number ÷ 100 × 4 px</b>. <code>space-400</code> = 16 px, <code>font-size-1400</code> = 56 px.</li>
+        <li>Components use only semantic tokens — never raw hex values.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="color">
+  <h2>Colour</h2>
+  <p class="lede">Zinc greys build the structure. <b>Indigo means "act or selected"</b> — the main button, focus ring, selected row. Green, amber and red only carry status, always with an icon or word. Light is the default; dark is a full theme.</p>
+  <div class="label">Brand &amp; inverse</div>
+  <div class="sw-grid" style="margin-bottom:var(--space-600)">
+    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-brand);color:var(--color-text-on-brand)">Pay</div><div class="meta"><b>bg-fill-brand</b><span>#4F46E5 · 6.3:1</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-brand-hover);color:var(--color-text-on-brand)">Hover</div><div class="meta"><b>bg-fill-brand-hover</b><span>#4338CA</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-brand-secondary);color:var(--color-text-brand)">Selected</div><div class="meta"><b>bg-fill-brand-secondary</b><span>#E0E7FF</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface-inverse);color:var(--color-text-on-inverse)">Rs 4,770</div><div class="meta"><b>bg-surface-inverse</b><span>#09090B · totals</span></div></div>
+  </div>
+  <div class="label">Neutrals</div>
+  <div class="sw-grid" style="margin-bottom:var(--space-600)">
+    <div class="sw"><div class="chip" style="background:var(--color-bg)"></div><div class="meta"><b>bg</b><span>#FAFAFA · page</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface)"></div><div class="meta"><b>bg-surface</b><span>#FFFFFF · panels</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface-secondary)"></div><div class="meta"><b>bg-surface-secondary</b><span>#F4F4F5 · headers</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-border)"></div><div class="meta"><b>border</b><span>#E4E4E7</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-input-border)"></div><div class="meta"><b>input-border</b><span>#8A8A93 · 3.4:1</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface);color:var(--color-text)">Aa</div><div class="meta"><b>text</b><span>#09090B · 19.8:1</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface);color:var(--color-text-secondary)">Aa</div><div class="meta"><b>text-secondary</b><span>#52525B · 7.7:1</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface);color:var(--color-text-tertiary)">Aa</div><div class="meta"><b>text-tertiary</b><span>#66666E · 5.7:1</span></div></div>
+  </div>
+  <div class="label">Status</div>
+  <div class="sw-grid">
+    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-success);color:var(--color-text-on-success)">Change Rs 230</div><div class="meta"><b>bg-fill-success</b><span>#15803D · 5.0:1 · money in</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-warning-secondary);color:var(--color-text-warning)">Low stock</div><div class="meta"><b>text-warning</b><span>#A16207 · attention</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-critical);color:var(--color-text-on-critical)">Void</div><div class="meta"><b>bg-fill-critical</b><span>#DC2626 · 4.8:1 · destructive</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface-info);color:var(--color-text)">Note</div><div class="meta"><b>bg-surface-info</b><span>neutral — info isn't a colour</span></div></div>
+  </div>
+</section>
+
+<section id="type">
+  <h2>Typography</h2>
+  <p class="lede"><b>Geist</b> for the interface. <b>Geist Mono</b> for every number a cashier compares — prices, quantities, barcodes, invoice numbers — so columns line up and 1/l/7 never get confused. <b>Noto Nastaliq Urdu</b> for Urdu names. All three ship with the app.</p>
+  <div class="panel">
+    <div class="type-row"><div class="spec">font-size-1400 · 56 · 600</div><div style="font-size:var(--font-size-1400);font-weight:600;line-height:1;letter-spacing:var(--letter-spacing-tight)"><span style="font-size:.45em;opacity:.55;margin-right:6px">Rs</span>12,480</div></div>
+    <div class="type-row"><div class="spec">font-size-900 · 36 · 600</div><div style="font-size:var(--font-size-900);font-weight:600;letter-spacing:-.02em">Close shift</div></div>
+    <div class="type-row"><div class="spec">font-size-700 · 28 · 600</div><div style="font-size:var(--font-size-700);font-weight:600;letter-spacing:-.02em">Goods received</div></div>
+    <div class="type-row"><div class="spec">font-size-550 · 22 · 600</div><div style="font-size:var(--font-size-550);font-weight:600">Manager approval needed</div></div>
+    <div class="type-row"><div class="spec">font-size-450 · 18 · 500</div><div style="font-size:var(--font-size-450);font-weight:500">Scan or search a product</div></div>
+    <div class="type-row"><div class="spec">font-size-400 · 16 · 400</div><div>Bill lines, inputs and most text. Default size — nothing a cashier must read goes below 14 px.</div></div>
+    <div class="type-row"><div class="spec">font-size-350 · 14 · 400</div><div style="font-size:var(--font-size-350)" class="muted">Helper text, secondary actions, table metadata.</div></div>
+    <div class="type-row"><div class="spec">font-size-300 · 12 · 600 caps</div><div class="label" style="margin:0">Section labels · column headers</div></div>
+    <div class="type-row"><div class="spec">Geist Mono · 16</div><div class="mono">8964000110012 · T1-000231 · 1.250 kg · Rs 3,480</div></div>
+    <div class="type-row"><div class="spec">Nastaliq · 18 / 2.1</div><div class="urdu" style="font-size:18px;text-align:left">چینی ایک کلو · دودھ پیک · آٹا دس کلو</div></div>
+  </div>
+  <div class="panel" style="margin-top:var(--space-400)">
+    <div class="label">Money &amp; numbers</div>
+    <ul class="rules">
+      <li><b>Rs</b> before the amount with a space, commas for thousands: <span class="money">Rs 1,250,000</span>.</li>
+      <li>Whole rupees by default; paisa only when an amount has them: <span class="money">Rs 727.63</span>.</li>
+      <li>Refunds and discounts: minus sign plus critical colour — <span class="money money-neg">−Rs 80</span>.</li>
+      <li>Weights to 3 decimals with unit (<span class="mono">1.250 kg</span>); pieces whole (<span class="mono">12 pcs</span>). Numbers right-aligned in tables.</li>
+      <li>Dates: <span class="mono">27 Oct 2026, 4:05 pm</span>.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="layout">
+  <h2>Space, shape &amp; size</h2>
+  <p class="lede">4 px grid. Controls are 44 px by default and 56 px for the billing screen's main actions — every target works by touch as well as mouse. Minimum screen 1366×768.</p>
+  <div class="grid g2">
+    <div class="panel">
+      <div class="label">Space</div>
+      <div style="display:grid;gap:8px;font-size:var(--font-size-350)">
+        <div class="row"><span style="width:56px" class="mono">100</span><span style="width:4px;height:14px;background:var(--color-text)"></span>4</div>
+        <div class="row"><span style="width:56px" class="mono">200</span><span style="width:8px;height:14px;background:var(--color-text)"></span>8</div>
+        <div class="row"><span style="width:56px" class="mono">300</span><span style="width:12px;height:14px;background:var(--color-text)"></span>12</div>
+        <div class="row"><span style="width:56px" class="mono">400</span><span style="width:16px;height:14px;background:var(--color-text)"></span>16</div>
+        <div class="row"><span style="width:56px" class="mono">600</span><span style="width:24px;height:14px;background:var(--color-text)"></span>24</div>
+        <div class="row"><span style="width:56px" class="mono">800</span><span style="width:32px;height:14px;background:var(--color-text)"></span>32</div>
+        <div class="row"><span style="width:56px" class="mono">1200</span><span style="width:48px;height:14px;background:var(--color-text)"></span>48</div>
+        <div class="row"><span style="width:56px" class="mono">1600</span><span style="width:64px;height:14px;background:var(--color-text)"></span>64</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">Control heights</div>
+      <div class="grid" style="gap:var(--space-300)">
+        <div class="row"><button class="btn btn-secondary btn-sm" type="button">36 · sm</button><span class="muted" style="font-size:var(--font-size-350)">Toolbars and dense tables (mouse only).</span></div>
+        <div class="row"><button class="btn btn-secondary" type="button">44 · md</button><span class="muted" style="font-size:var(--font-size-350)">Default. Minimum touch target.</span></div>
+        <div class="row"><button class="btn btn-secondary btn-lg" type="button">56 · lg</button><span class="muted" style="font-size:var(--font-size-350)">Pay, tender, scan, keypad.</span></div>
+      </div>
+      <div class="label" style="margin-top:var(--space-600)">Radius &amp; elevation</div>
+      <div class="row">
+        <div style="width:60px;height:44px;border-radius:var(--radius-100);border:1px solid var(--color-border-strong);display:grid;place-items:center;font:11px var(--font-mono)">100</div>
+        <div style="width:60px;height:44px;border-radius:var(--radius-200);border:1px solid var(--color-border-strong);display:grid;place-items:center;font:11px var(--font-mono)">200</div>
+        <div style="width:60px;height:44px;border-radius:var(--radius-300);border:1px solid var(--color-border-strong);display:grid;place-items:center;font:11px var(--font-mono)">300</div>
+        <div style="width:60px;height:44px;border-radius:var(--radius-200);background:var(--color-bg-surface);box-shadow:var(--shadow-100);display:grid;place-items:center;font:11px var(--font-mono)">sh-100</div>
+        <div style="width:60px;height:44px;border-radius:var(--radius-200);background:var(--color-bg-surface);box-shadow:var(--shadow-200);display:grid;place-items:center;font:11px var(--font-mono)">sh-200</div>
+        <div style="width:60px;height:44px;border-radius:var(--radius-200);background:var(--color-bg-surface);box-shadow:var(--shadow-300);display:grid;place-items:center;font:11px var(--font-mono)">sh-300</div>
+      </div>
+      <p class="muted" style="font-size:var(--font-size-350);margin-bottom:0">8 px for controls, 12 px for panels. Borders separate surfaces; shadows only lift controls slightly (100) or float menus (200) and dialogs (300).</p>
+    </div>
+  </div>
+</section>
+
+<section id="buttons">
+  <h2>Buttons &amp; shortcuts</h2>
+  <p class="lede">Main actions show their shortcut on the button so cashiers learn keys by using the app. One indigo button per area.</p>
+  <div class="grid g2">
+    <div class="panel">
+      <div class="label">Variants</div>
+      <div class="row">
+        <button class="btn btn-primary" type="button">Pay <span class="kbd">F12</span></button>
+        <button class="btn btn-secondary" type="button"><svg aria-hidden="true"><use href="#i-pause"/></svg>Hold bill <span class="kbd">F8</span></button>
+        <button class="btn btn-ghost" type="button">Cancel</button>
+        <button class="btn btn-critical" type="button"><svg aria-hidden="true"><use href="#i-trash"/></svg>Void sale</button>
+      </div>
+      <div class="label" style="margin-top:var(--space-600)">States</div>
+      <div class="row">
+        <button class="btn btn-primary" type="button">Default</button>
+        <button class="btn btn-primary" type="button" style="background:var(--color-bg-fill-brand-hover)">Hover</button>
+        <button class="btn btn-primary" type="button" style="box-shadow:var(--shadow-focus)">Focus</button>
+        <button class="btn btn-primary" type="button" disabled>Disabled</button>
+      </div>
+      <div class="label" style="margin-top:var(--space-600)">Icon-only (always named)</div>
+      <div class="row">
+        <button class="btn btn-secondary btn-icon" type="button" aria-label="Print receipt" title="Print receipt"><svg aria-hidden="true"><use href="#i-printer"/></svg></button>
+        <button class="btn btn-ghost btn-icon" type="button" aria-label="Remove line" title="Remove line"><svg aria-hidden="true"><use href="#i-trash"/></svg></button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">Tender (56 px)</div>
+      <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:var(--space-200)">
+        <button class="btn btn-secondary tender" type="button">Exact</button>
+        <button class="btn btn-secondary tender" type="button">500</button>
+        <button class="btn btn-secondary tender" type="button">1,000</button>
+        <button class="btn btn-secondary tender" type="button">5,000</button>
+      </div>
+      <button class="btn btn-primary btn-lg btn-block" type="button" style="margin-top:var(--space-300)"><svg aria-hidden="true"><use href="#i-check"/></svg>Complete sale <span class="kbd">Enter</span></button>
+      <div class="label" style="margin-top:var(--space-600)">Keycaps</div>
+      <div class="row muted" style="font-size:var(--font-size-350)">
+        <span><span class="kbd">F2</span> Search</span><span><span class="kbd">F4</span> Qty</span><span><span class="kbd">F6</span> Discount</span><span><span class="kbd">Ctrl</span>+<span class="kbd">R</span> Return</span><span><span class="kbd">Esc</span> Back</span>
+      </div>
+      <p class="help" style="margin-bottom:0">Keys shown are examples; the real map is the billing-screen design challenge.</p>
+    </div>
+  </div>
+</section>
+
+<section id="forms">
+  <h2>Forms &amp; inputs</h2>
+  <p class="lede">The scan field is the most important control: always visible on the billing screen, larger, with a strong border — and focus returns to it after every action.</p>
+  <div class="grid g2">
+    <div class="panel grid" style="gap:var(--space-500)">
+      <div class="field">
+        <label for="scan">Scan or search</label>
+        <div class="affix"><svg aria-hidden="true"><use href="#i-scan"/></svg><input id="scan" class="input scan" placeholder="Scan barcode or type a name" autocomplete="off"><span class="kbd">F2</span></div>
+      </div>
+      <div class="field">
+        <label for="name">Product name</label>
+        <input id="name" class="input" value="Dalda Cooking Oil 1L">
+        <span class="help">Shown on screen and receipt.</span>
+      </div>
+      <div class="field">
+        <label for="nameur">Urdu name <span class="muted" style="font-weight:400">(optional)</span></label>
+        <input id="nameur" class="input urdu" dir="rtl" value="ڈالڈا کوکنگ آئل" style="line-height:1.6">
+      </div>
+      <div class="field">
+        <label for="price">Sale price</label>
+        <div class="affix"><span class="pre">Rs</span><input id="price" class="input num" value="560" inputmode="decimal" aria-invalid="true" aria-describedby="price-err"></div>
+        <span class="err" id="price-err"><svg aria-hidden="true"><use href="#i-x-circle"/></svg>Sale price is below cost (Rs 585).</span>
+      </div>
+    </div>
+    <div class="panel grid" style="gap:var(--space-500);align-content:start">
+      <div class="field">
+        <span class="flabel" id="qty-l">Quantity</span>
+        <div class="stepper" role="group" aria-labelledby="qty-l">
+          <button type="button" aria-label="Decrease quantity" data-step="-1">−</button>
+          <input id="qty" value="2" inputmode="numeric" aria-label="Quantity">
+          <button type="button" aria-label="Increase quantity" data-step="1">+</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="cat">Category</label>
+        <select id="cat" class="select"><option>Cooking oil &amp; ghee</option><option>Flour &amp; grains</option><option>Dairy</option></select>
+      </div>
+      <div class="field">
+        <span class="flabel" id="pm-l">Payment method</span>
+        <div class="segmented" role="group" aria-labelledby="pm-l">
+          <button type="button" aria-pressed="true"><svg aria-hidden="true"><use href="#i-cash"/></svg>Cash</button>
+          <button type="button" aria-pressed="false"><svg aria-hidden="true"><use href="#i-card"/></svg>Card</button>
+          <button type="button" aria-pressed="false"><svg aria-hidden="true"><use href="#i-wallet"/></svg>Wallet</button>
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" checked> Print receipt automatically</label>
+    </div>
+  </div>
+</section>
+
+<section id="data">
+  <h2>Data display</h2>
+  <p class="lede">Rows are 48 px for touch. Numbers are monospaced and right-aligned. The selected row has an indigo bar as well as a tint, so it's clear without relying on colour.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Disc.</th><th class="r">Amount</th><th><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody>
+        <tr><td>Dalda Cooking Oil 1L<span class="sub">8964000110012</span></td><td class="r">2</td><td class="r">585</td><td class="r">—</td><td class="r"><b>1,170</b></td><td class="r"><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Remove Dalda Cooking Oil"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></td></tr>
+        <tr aria-selected="true"><td>Sugar loose <span class="badge badge-neutral" style="margin-left:6px"><svg aria-hidden="true"><use href="#i-scale"/></svg>Weighed</span><span class="urdu">چینی کھلی</span></td><td class="r">1.250 kg</td><td class="r">160</td><td class="r">—</td><td class="r"><b>200</b></td><td class="r"><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Remove Sugar loose"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></td></tr>
+        <tr><td>Olpers Milk 1L — carton of 12<span class="sub">Pack · moves 12 pcs</span></td><td class="r">1</td><td class="r">3,480</td><td class="r money-neg">−80</td><td class="r"><b>3,400</b></td><td class="r"><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Remove Olpers Milk carton"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="grid g2" style="margin-top:var(--space-400)">
+    <div class="panel">
+      <div class="label">Badges — icon or word, never colour alone</div>
+      <div class="row">
+        <span class="badge badge-success"><svg aria-hidden="true"><use href="#i-check"/></svg>In stock</span>
+        <span class="badge badge-warning"><svg aria-hidden="true"><use href="#i-alert"/></svg>Low stock · 4</span>
+        <span class="badge badge-critical"><svg aria-hidden="true"><use href="#i-x-circle"/></svg>Negative · −3</span>
+        <span class="badge badge-neutral">Archived</span>
+        <span class="badge badge-brand">Held</span>
+        <span class="badge badge-neutral"><svg aria-hidden="true"><use href="#i-lock"/></svg>Manager override</span>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">Status bar</div>
+      <div class="statusbar">
+        <span class="status"><svg aria-hidden="true"><use href="#i-user"/></svg><b>Ayesha</b> · Cashier</span>
+        <span class="status"><span class="dot dot-ok" aria-hidden="true"></span>Shift open · 3h 12m</span>
+        <span class="status"><span class="dot dot-ok" aria-hidden="true"></span>Printer ready</span>
+        <span class="status"><span class="dot dot-warn" aria-hidden="true"></span>Backup 2 days old</span>
+      </div>
+    </div>
+  </div>
+  <div class="grid g2" style="margin-top:var(--space-400)">
+    <div class="total" role="status" aria-label="Total due Rs 4,770"><span class="k">Total due</span><span class="v"><small>Rs</small>4,770</span></div>
+    <div class="total total-change" role="status" aria-label="Change due Rs 230"><span class="k">Change due</span><span class="v"><small>Rs</small>230</span></div>
+  </div>
+</section>
+
+<section id="feedback">
+  <h2>Feedback</h2>
+  <p class="lede">Say what happened and what to do next. A failure that doesn't stop the sale is a warning, not an error. Info stays neutral grey — it isn't a status.</p>
+  <div class="grid" style="gap:var(--space-300)">
+    <div class="banner banner-warning" role="status"><svg aria-hidden="true"><use href="#i-alert"/></svg><div><b>Printer offline — sale saved</b><p>Check the paper and cable, then reprint from Recent sales.</p></div><button class="btn btn-secondary btn-sm" type="button">Retry print</button></div>
+    <div class="banner banner-critical" role="alert"><svg aria-hidden="true"><use href="#i-x-circle"/></svg><div><b>Backup folder not found</b><p>The USB drive "BACKUP" isn't connected. Today's backup is saved on this PC only.</p></div><button class="btn btn-secondary btn-sm" type="button">Choose folder</button></div>
+    <div class="banner banner-info" role="status"><svg aria-hidden="true"><use href="#i-info"/></svg><div><b>3 bills on hold</b><p>Held bills are kept even if the app closes.</p></div><button class="btn btn-ghost btn-sm" type="button">View</button></div>
+    <div class="banner banner-success" role="status"><svg aria-hidden="true"><use href="#i-check-circle"/></svg><div><b>Goods received</b><p>48 items added to stock. Average cost updated for 6 products.</p></div><span></span></div>
+  </div>
+  <div class="label" style="margin-top:var(--space-600)">Toast — brief, with undo where possible</div>
+  <div class="toast" role="status"><svg aria-hidden="true"><use href="#i-check"/></svg>Line removed: Dalda Cooking Oil 1L<button type="button">Undo</button></div>
+  <div class="label" style="margin-top:var(--space-600)">Empty state</div>
+  <div class="panel"><div class="empty">
+    <div class="icon"><svg aria-hidden="true"><use href="#i-scan"/></svg></div>
+    <h3>Scan the first item</h3>
+    <p>Use the scanner, or press <span class="kbd">F2</span> to search by name. Weighed items read their weight from the scale label.</p>
+  </div></div>
+</section>
+
+<section id="overlays">
+  <h2>Overlays</h2>
+  <p class="lede">Dialogs are for decisions that need full attention. The manager PIN prompt opens over the bill, so the cashier never logs out to get approval.</p>
+  <div class="grid g2">
+    <dialog class="dialog-static" open aria-labelledby="pin-title">
+      <div class="d-body">
+        <span class="badge badge-warning" style="justify-self:start"><svg aria-hidden="true"><use href="#i-lock"/></svg>Approval needed</span>
+        <h3 id="pin-title">Discount of 12% needs a manager</h3>
+        <p>Your limit is 5%. A manager or owner can approve with their PIN. The approval is recorded.</p>
+        <div class="pin-dots" role="img" aria-label="2 of 4 digits entered"><span class="on"></span><span class="on"></span><span></span><span></span></div>
+        <div class="keypad">
+          <button type="button">1</button><button type="button">2</button><button type="button">3</button>
+          <button type="button">4</button><button type="button">5</button><button type="button">6</button>
+          <button type="button">7</button><button type="button">8</button><button type="button">9</button>
+          <button type="button" aria-label="Clear">C</button><button type="button">0</button><button type="button" aria-label="Delete digit">⌫</button>
+        </div>
+      </div>
+      <div class="d-actions"><button class="btn btn-ghost" type="button">Cancel <span class="kbd">Esc</span></button><button class="btn btn-primary" type="button">Approve</button></div>
+    </dialog>
+    <div class="panel" style="align-self:start">
+      <div class="label">Rules</div>
+      <ul class="rules">
+        <li>One dialog at a time. <span class="kbd">Esc</span> cancels; <span class="kbd">Enter</span> confirms the primary action.</li>
+        <li>Focus moves into the dialog on open and back to the scan field on close.</li>
+        <li>Destructive confirms name the thing: "Void sale T1-000231 (Rs 4,770)?" — not "Are you sure?".</li>
+        <li>Nothing opens mid-scan without a reason the cashier can see.</li>
+      </ul>
+      <button class="btn btn-secondary" type="button" id="open-dialog" style="margin-top:var(--space-400)">Open a live dialog</button>
+    </div>
+  </div>
+  <dialog id="demo-dialog" aria-labelledby="dd-title">
+    <form method="dialog">
+      <div class="d-body"><h3 id="dd-title">Void sale T1-000231?</h3><p>This cancels Rs 4,770 and returns 3 items to stock. A credit note will print. This can't be undone.</p></div>
+      <div class="d-actions"><button class="btn btn-ghost" value="cancel">Keep sale</button><button class="btn btn-critical" value="void">Void sale</button></div>
+    </form>
+  </dialog>
+</section>
+
+<section id="receipt">
+  <h2>Receipt (80 mm)</h2>
+  <p class="lede">Printed in the printer's monospace font, 48 characters per line (32 on 58 mm). Urdu lines print as an image. Black only.</p>
+  <div class="receipt" aria-label="Sample receipt">
+    <div class="c b lg">AL-MADINA GENERAL STORE</div>
+    <div class="c">Shop 4, Main Bazaar, Gulberg, Lahore</div>
+    <div class="c">0300-1234567 · NTN 1234567-8</div>
+    <div class="c ur">خریداری کا شکریہ</div>
+    <div class="rule"></div>
+    <div class="ln"><span>Invoice: T1-000231</span><span>27-10-2026</span></div>
+    <div class="ln"><span>Cashier: Ayesha</span><span>4:05 PM</span></div>
+    <div class="rule"></div>
+    <div>Dalda Cooking Oil 1L</div><div class="ln"><span>&nbsp;&nbsp;2 x 585</span><span>1,170</span></div>
+    <div>Sugar loose</div><div class="ln"><span>&nbsp;&nbsp;1.250 kg x 160</span><span>200</span></div>
+    <div>Olpers Milk 1L (Ctn 12)</div><div class="ln"><span>&nbsp;&nbsp;1 x 3,480</span><span>3,480</span></div><div class="ln"><span>&nbsp;&nbsp;Discount</span><span>-80</span></div>
+    <div class="rule"></div>
+    <div class="ln"><span>Subtotal</span><span>4,770</span></div>
+    <div class="ln"><span>Sales tax (incl.)</span><span>727.63</span></div>
+    <div class="ln b lg"><span>TOTAL</span><span>Rs 4,770</span></div>
+    <div class="ln"><span>Cash</span><span>5,000</span></div>
+    <div class="ln"><span>Change</span><span>230</span></div>
+    <div class="rule"></div>
+    <div class="barcode" aria-hidden="true"></div>
+    <div class="c">T1-000231</div>
+    <div class="c" style="margin-top:6px">Exchange within 7 days with receipt.</div>
+    <div class="c">vendora.</div>
+  </div>
+</section>
+
+<section id="compose">
+  <h2>In context</h2>
+  <p class="lede">The components together. This is not the final billing layout — that's still an open design challenge.</p>
+  <div class="statusbar" style="margin-bottom:var(--space-300)">
+    <span class="wordmark" style="font-size:18px;margin-right:var(--space-200)">vendora<i>.</i></span>
+    <span class="status"><svg aria-hidden="true"><use href="#i-user"/></svg><b>Ayesha</b></span>
+    <span class="status"><span class="dot dot-ok" aria-hidden="true"></span>Shift open</span>
+    <span class="status"><span class="dot dot-ok" aria-hidden="true"></span>Printer ready</span>
+    <span class="badge badge-brand" style="margin-left:auto">2 held</span>
+  </div>
+  <div class="compose">
+    <div class="grid" style="gap:var(--space-300);align-content:start">
+      <div class="affix"><svg aria-hidden="true"><use href="#i-scan"/></svg><input class="input scan" placeholder="Scan barcode or type a name" aria-label="Scan or search"><span class="kbd">F2</span></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Amount</th></tr></thead>
+          <tbody>
+            <tr><td>Dalda Cooking Oil 1L<span class="sub">8964000110012</span></td><td class="r">2</td><td class="r">585</td><td class="r">1,170</td></tr>
+            <tr aria-selected="true"><td>Sugar loose <span class="badge badge-neutral" style="margin-left:6px">Weighed</span></td><td class="r">1.250 kg</td><td class="r">160</td><td class="r">200</td></tr>
+            <tr><td>Olpers Milk 1L — carton<span class="sub">Moves 12 pcs</span></td><td class="r">1</td><td class="r">3,480</td><td class="r">3,400</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="row">
+        <button class="btn btn-secondary" type="button">Qty <span class="kbd">F4</span></button>
+        <button class="btn btn-secondary" type="button">Discount <span class="kbd">F6</span></button>
+        <button class="btn btn-secondary" type="button">Hold <span class="kbd">F8</span></button>
+      </div>
+    </div>
+    <div class="grid" style="gap:var(--space-300);align-content:start">
+      <div class="sums">
+        <div><span class="muted">Subtotal · 3 items</span><span class="money">4,850</span></div>
+        <div><span class="muted">Discount</span><span class="money money-neg">−80</span></div>
+        <div><span class="muted">Sales tax (incl.)</span><span class="money">727.63</span></div>
+      </div>
+      <div class="total"><span class="k">Total due</span><span class="v"><small>Rs</small>4,770</span></div>
+      <button class="btn btn-primary btn-lg btn-block" type="button">Pay <span class="kbd">F12</span></button>
+    </div>
+  </div>
+</section>
+
+<section id="principles">
+  <h2>Principles</h2>
+  <div class="grid g2">
+    <div class="panel"><b>1. The next scan is sacred.</b><p class="muted" style="margin:6px 0 0">Focus returns to the scan field after every action. Nothing steals focus without a visible reason.</p></div>
+    <div class="panel"><b>2. Indigo means act.</b><p class="muted" style="margin:6px 0 0">The main action, focus and selection are indigo — and nothing else is. Status colours never look like buttons.</p></div>
+    <div class="panel"><b>3. Numbers are the content.</b><p class="muted" style="margin:6px 0 0">Monospaced, right-aligned, and the total is the largest thing on screen — readable at arm's length.</p></div>
+    <div class="panel"><b>4. Keyboard first, touch friendly.</b><p class="muted" style="margin:6px 0 0">Every main action shows its key. Every target is at least 44 px.</p></div>
+    <div class="panel"><b>5. Failure degrades, never blocks.</b><p class="muted" style="margin:6px 0 0">Printer, network or backup problems show as warnings. The sale always completes.</p></div>
+    <div class="panel"><b>6. Never colour alone.</b><p class="muted" style="margin:6px 0 0">Status pairs colour with an icon and a word; selection pairs tint with a bar.</p></div>
+  </div>
+</section>
+
+</main>
+
+<script>
+(() => {
+  const root = document.documentElement;
+  const btn = document.getElementById('theme-toggle');
+  let saved = null;
+  try { saved = localStorage.getItem('vendora-theme'); } catch {}
+  const apply = (t) => {
+    root.dataset.theme = t;
+    btn.setAttribute('aria-pressed', String(t === 'dark'));
+    btn.querySelector('span').textContent = t === 'dark' ? 'Light' : 'Dark';
+  };
+  apply(saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+  btn.addEventListener('click', () => {
+    const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    apply(next);
+    try { localStorage.setItem('vendora-theme', next); } catch {}
+  });
+
+  const qty = document.getElementById('qty');
+  document.querySelectorAll('[data-step]').forEach((b) => b.addEventListener('click', () => {
+    qty.value = Math.max(0, (parseInt(qty.value, 10) || 0) + Number(b.dataset.step));
+  }));
+
+  document.querySelectorAll('.segmented').forEach((g) => g.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b) g.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+
+  const dlg = document.getElementById('demo-dialog');
+  document.getElementById('open-dialog').addEventListener('click', () => dlg.showModal());
+})();
+</script>
+</body>
+</html>
