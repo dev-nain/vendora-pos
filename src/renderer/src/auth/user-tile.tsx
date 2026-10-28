@@ -32,12 +32,12 @@ export function UserTile({
       onClick={onClick}
       onKeyDown={onKeyDown}
       className={cn(
-        "relative grid min-h-[88px] content-center justify-items-start gap-100 overflow-hidden rounded-300 border border-line bg-surface p-400 text-left outline-none transition-colors hover:bg-surface-hover focus-visible:shadow-focus",
+        "relative grid min-h-[calc(var(--space-1000)+var(--space-1200))] content-center justify-items-start gap-100 overflow-hidden rounded-300 border border-line bg-surface p-400 text-left outline-none transition-colors hover:bg-surface-hover focus-visible:shadow-focus",
         selected && "bg-surface-selected hover:bg-surface-selected",
       )}
     >
       {selected ? (
-        <span aria-hidden="true" className="absolute inset-y-0 left-0 w-[4px] bg-fill-brand" />
+        <span aria-hidden="true" className="absolute inset-y-0 left-0 w-100 bg-fill-brand" />
       ) : null}
       <span className="text-[length:var(--font-size-450)] font-semibold text-foreground">
         {user.displayName}
