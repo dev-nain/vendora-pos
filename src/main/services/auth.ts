@@ -141,7 +141,16 @@ export function createAuthService({ database, audit, sessions, now = () => new D
         }
       });
 
-      if (attempt.outcome === "wrong") return invalidPin;
+      if (attempt.outcome === "wrong") {
+        const retryAt = attempt.state.pinRetryAfter;
+        if (!retryAt) return invalidPin;
+        return {
+          ok: false,
+          reason: "pin-locked",
+          message: authMessages.invalidPin,
+          retryAfterMs: retryAt.getTime() - at.getTime(),
+        };
+      }
       sessions.start({ userId: user.id, role: user.role, storeId: storeId(), loggedInAt: at });
       return { ok: true, user: toSafeUser(user) };
     });
