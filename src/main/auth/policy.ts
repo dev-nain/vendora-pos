@@ -1,4 +1,5 @@
 import type { UserRole } from "../db/schema";
+import type { GatedDecision } from "../../shared/gated-actions";
 import { ForbiddenError } from "./errors";
 import type { Session } from "./session";
 
@@ -19,19 +20,9 @@ export const permissions = [
 ] as const;
 export type Permission = (typeof permissions)[number];
 
-export const gatedActions = [
-  "discount.above-limit",
-  "price.override",
-  "sale.void-completed",
-  "return.without-receipt",
-  "drawer.open-no-sale",
-  "stock.adjust",
-  "product.cost-change",
-  "product.delete",
-] as const;
-export type GatedAction = (typeof gatedActions)[number];
+export { gatedActions, gatedActionDecision } from "../../shared/gated-actions";
+export type { GatedAction, GatedDecision } from "../../shared/gated-actions";
 
-export type GatedDecision = "allowed" | "needs-approval";
 export type ReportScope = "own-shift" | "all";
 
 const rolePermissions: Record<UserRole, ReadonlySet<Permission>> = {
@@ -77,10 +68,6 @@ export function hasPermission(role: UserRole, permission: Permission): boolean {
 
 export function requirePermission(session: Session, permission: Permission): void {
   if (!hasPermission(session.role, permission)) throw new ForbiddenError(permission);
-}
-
-export function gatedActionDecision(role: UserRole, _action: GatedAction): GatedDecision {
-  return role === "cashier" ? "needs-approval" : "allowed";
 }
 
 export function reportScope(role: UserRole): ReportScope {

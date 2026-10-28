@@ -7,6 +7,7 @@ import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
 import { createAuthService } from "./services/auth";
+import { createApprovalStore } from "./auth/approvals";
 import { createSessionStore } from "./auth/session";
 import { createMainWindow } from "./window";
 
@@ -28,10 +29,13 @@ function startDatabase(): VendoraDatabase {
 void app.whenReady().then(async () => {
   database = startDatabase();
   if (!app.isPackaged && process.env.VENDORA_DEV_USERS === "1") await seedDevUsers(database);
+  const sessions = createSessionStore();
+  const approvals = createApprovalStore({ sessions });
   const auth = createAuthService({
     database,
     audit: createAuditService(database),
-    sessions: createSessionStore(),
+    sessions,
+    approvals,
   });
   registerIpcHandlers({ auth });
   createMainWindow();

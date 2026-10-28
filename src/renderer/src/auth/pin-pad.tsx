@@ -8,7 +8,6 @@ import {
   type KeyboardEvent,
 } from "react";
 
-import type { SafeUser } from "@shared/auth";
 import { Button } from "@renderer/components/ui/button";
 import { Input } from "@renderer/components/ui/input";
 import { Kbd } from "@renderer/components/ui/kbd";
@@ -22,11 +21,16 @@ const keepFocus = (event: { preventDefault: () => void }) => event.preventDefaul
 
 const digitKeys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
+export type PinSubmitResult =
+  | { ok: true }
+  | { ok: false; reason: "pin-locked"; retryAfterMs: number; message: string }
+  | { ok: false; reason: string; message: string };
+
 interface PinPadProps {
   userId: string;
   submitLabel: string;
   cooldown: PinCooldown;
-  onSuccess: (user: SafeUser) => void;
+  submitPin: (pin: string) => Promise<PinSubmitResult>;
   onUnauthenticated: () => void;
   onEscape?: () => void;
 }
@@ -35,7 +39,7 @@ export function PinPad({
   userId,
   submitLabel,
   cooldown,
-  onSuccess,
+  submitPin,
   onUnauthenticated,
   onEscape,
 }: PinPadProps) {
@@ -64,13 +68,11 @@ export function PinPad({
     const attempted = value;
     setValue("");
     try {
-      const result = await window.vendora.auth.switchByPin(userId, attempted);
-      if (result.ok) {
-        onSuccess(result.user);
-        return;
-      }
-      if (result.reason === "pin-locked") cooldown.start(userId, result.retryAfterMs);
-      else setError(result.message);
+      const result = await submitPin(attempted);
+      if (result.ok) return;
+      if (result.reason === "pin-locked" && "retryAfterMs" in result) {
+        cooldown.start(userId, result.retryAfterMs);
+      } else setError(result.message);
     } catch (caught) {
       if (isUnauthenticatedError(caught)) {
         onUnauthenticated();

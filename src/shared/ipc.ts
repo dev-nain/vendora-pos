@@ -1,5 +1,13 @@
 import { z } from "zod";
-import type { AuthResult, CreateOwnerInput, CreateOwnerResult, LoginUser, SafeUser } from "./auth";
+import type {
+  ApprovalResult,
+  AuthResult,
+  CreateOwnerInput,
+  CreateOwnerResult,
+  LoginUser,
+  SafeUser,
+} from "./auth";
+import type { GatedAction } from "./gated-actions";
 
 export const appInfoSchema = z.object({ version: z.string() });
 
@@ -9,6 +17,7 @@ export const ipcChannels = {
   appGetInfo: "app:get-info",
   authLogin: "auth:login",
   authSwitchByPin: "auth:switch-by-pin",
+  authApprove: "auth:approve",
   authLogout: "auth:logout",
   authCurrent: "auth:current",
   authListLoginUsers: "auth:list-login-users",
@@ -19,6 +28,7 @@ export const ipcChannels = {
 export const ipcErrorMessages = {
   unauthenticated: "Log in to continue.",
   forbidden: "You don't have permission to do this. Ask the owner or a manager.",
+  approvalInvalid: "Approval expired or was already used. Ask for approval again.",
 } as const;
 
 export interface VendoraApi {
@@ -28,6 +38,7 @@ export interface VendoraApi {
   auth: {
     login: (username: string, password: string) => Promise<AuthResult>;
     switchByPin: (userId: string, pin: string) => Promise<AuthResult>;
+    approve: (action: GatedAction, approverUserId: string, pin: string) => Promise<ApprovalResult>;
     logout: () => Promise<void>;
     current: () => Promise<SafeUser | null>;
     listLoginUsers: () => Promise<LoginUser[]>;

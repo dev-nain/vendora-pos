@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  approvalResultSchema,
+  approveInputSchema,
   authMessages,
   authResultSchema,
   createOwnerInputSchema,
@@ -67,6 +69,36 @@ describe("authResultSchema", () => {
     expect(
       authResultSchema.safeParse({ ok: false, reason: "pin-locked", message: "x" }).success,
     ).toBe(false);
+  });
+});
+
+describe("approval schemas", () => {
+  it("rejects an unknown action, a non-UUID approver and extra keys", () => {
+    const valid = { action: "drawer.open-no-sale", approverUserId: uuid, pin: "1234" };
+
+    expect(approveInputSchema.safeParse(valid).success).toBe(true);
+    expect(approveInputSchema.safeParse({ ...valid, action: "bogus" }).success).toBe(false);
+    expect(approveInputSchema.safeParse({ ...valid, approverUserId: "nope" }).success).toBe(false);
+    expect(approveInputSchema.safeParse({ ...valid, x: 1 }).success).toBe(false);
+  });
+
+  it("accepts each result variant", () => {
+    expect(approvalResultSchema.safeParse({ ok: true, token: "abc" }).success).toBe(true);
+    expect(
+      approvalResultSchema.safeParse({ ok: false, reason: "invalid-pin", message: "x" }).success,
+    ).toBe(true);
+    expect(
+      approvalResultSchema.safeParse({
+        ok: false,
+        reason: "pin-locked",
+        message: "x",
+        retryAfterMs: 1000,
+      }).success,
+    ).toBe(true);
+    expect(
+      approvalResultSchema.safeParse({ ok: false, reason: "not-allowed", message: "x" }).success,
+    ).toBe(true);
+    expect(approvalResultSchema.safeParse({ ok: true }).success).toBe(false);
   });
 });
 

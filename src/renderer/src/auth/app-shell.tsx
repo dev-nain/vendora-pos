@@ -15,7 +15,6 @@ interface AppShellProps {
 
 export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
   const [error, setError] = useState<string | null>(null);
-
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey && event.key.toLowerCase() === "l") {

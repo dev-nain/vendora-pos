@@ -1,5 +1,7 @@
 import { app, ipcMain, type IpcMainInvokeEvent } from "electron";
 import {
+  approvalResultSchema,
+  approveInputSchema,
   authResultSchema,
   createOwnerInputSchema,
   createOwnerResultSchema,
@@ -33,6 +35,9 @@ export function registerIpcHandlers({ auth }: { auth: AuthService }): void {
   );
   handle(ipcChannels.authSwitchByPin, async (_event, input) =>
     authResultSchema.parse(await auth.switchByPin(pinSwitchInputSchema.parse(input))),
+  );
+  handle(ipcChannels.authApprove, async (_event, input) =>
+    approvalResultSchema.parse(await auth.approve(approveInputSchema.parse(input))),
   );
   handle(ipcChannels.authLogout, () => auth.logout());
   handle(ipcChannels.authCurrent, () => safeUserSchema.nullable().parse(auth.current()));
