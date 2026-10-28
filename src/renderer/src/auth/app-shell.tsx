@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { SafeUser } from "@shared/auth";
 import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
+import { AutoLockSetting } from "../settings/auto-lock-setting";
 import { serviceErrorMessage } from "./messages";
 import { roleLabel } from "./role-label";
 
@@ -62,6 +63,7 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
         <p className="m-0">
           Signed in as {user.displayName} ({roleLabel(user.role)}).
         </p>
+        {user.role === "owner" ? <AutoLockSetting /> : null}
         {error ? (
           <p role="alert" className="m-0 text-[length:var(--font-size-350)] text-critical">
             {error}

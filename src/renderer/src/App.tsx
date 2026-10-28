@@ -43,7 +43,10 @@ export function App() {
 
   useActivityReport(view.name === "signed-in" && view.overlay === null);
 
-  const toLogin = useCallback(() => setView({ name: "login" }), []);
+  const toLogin = useCallback(() => {
+    savedFocus.current = null;
+    setView({ name: "login" });
+  }, []);
 
   const lock = () => {
     savedFocus.current ??= document.activeElement;
