@@ -7,6 +7,7 @@ import {
   type loginInputSchema,
   type pinSwitchInputSchema,
   type SafeUser,
+  type SessionState,
 } from "../../shared/auth";
 import { attemptPin } from "../auth/pin-lockout";
 import { hashCredential, verifyCredential } from "../auth/credentials";
@@ -170,7 +171,7 @@ export function createAuthService({ database, audit, sessions, now = () => new D
     sessions.lock();
   }
 
-  function current(): SafeUser | null {
+  function current(): SessionState | null {
     const session = sessions.current();
     if (!session) return null;
     const user = db
@@ -182,7 +183,7 @@ export function createAuthService({ database, audit, sessions, now = () => new D
       sessions.end();
       return null;
     }
-    return toSafeUser(user);
+    return { user: toSafeUser(user), locked: sessions.isLocked() };
   }
 
   function listLoginUsers(): LoginUser[] {

@@ -50,6 +50,9 @@ export const authResultSchema = z.union([
   authRefusalSchema,
 ]);
 
+export const sessionStateSchema = z.strictObject({ user: safeUserSchema, locked: z.boolean() });
+
 export type SafeUser = z.infer<typeof safeUserSchema>;
+export type SessionState = z.infer<typeof sessionStateSchema>;
 export type LoginUser = z.infer<typeof loginUserSchema>;
 export type AuthResult = z.infer<typeof authResultSchema>;

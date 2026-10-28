@@ -4,12 +4,15 @@ import {
   loginInputSchema,
   loginUserSchema,
   pinSwitchInputSchema,
-  safeUserSchema,
+  sessionStateSchema,
 } from "@shared/auth";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
+import { autoLockInputSchema, autoLockSettingSchema } from "@shared/settings";
 import { z } from "zod";
 import { toIpcError } from "./ipc-errors";
 import type { AuthService } from "./services/auth";
+import type { AutoLock } from "./services/auto-lock";
+import type { SettingsService } from "./services/settings";
 
 function handle(
   channel: string,
@@ -24,7 +27,13 @@ function handle(
   });
 }
 
-export function registerIpcHandlers({ auth }: { auth: AuthService }): void {
+interface IpcServices {
+  auth: AuthService;
+  autoLock: AutoLock;
+  settings: SettingsService;
+}
+
+export function registerIpcHandlers({ auth, autoLock, settings }: IpcServices): void {
   handle(ipcChannels.appGetInfo, () => appInfoSchema.parse({ version: app.getVersion() }));
   handle(ipcChannels.authLogin, async (_event, input) =>
     authResultSchema.parse(await auth.login(loginInputSchema.parse(input))),
@@ -33,8 +42,16 @@ export function registerIpcHandlers({ auth }: { auth: AuthService }): void {
     authResultSchema.parse(await auth.switchByPin(pinSwitchInputSchema.parse(input))),
   );
   handle(ipcChannels.authLogout, () => auth.logout());
-  handle(ipcChannels.authCurrent, () => safeUserSchema.nullable().parse(auth.current()));
+  handle(ipcChannels.authLock, () => auth.lock());
+  handle(ipcChannels.authCurrent, () => sessionStateSchema.nullable().parse(auth.current()));
   handle(ipcChannels.authListLoginUsers, () =>
     z.array(loginUserSchema).parse(auth.listLoginUsers()),
+  );
+  ipcMain.on(ipcChannels.activityReport, () => autoLock.reportActivity());
+  handle(ipcChannels.settingsGetAutoLock, () =>
+    autoLockSettingSchema.parse(settings.getAutoLock()),
+  );
+  handle(ipcChannels.settingsSetAutoLock, (_event, input) =>
+    autoLockSettingSchema.parse(settings.setAutoLock(autoLockInputSchema.parse(input))),
   );
 }

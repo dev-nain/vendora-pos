@@ -5,7 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   authResultSchema,
   loginUserSchema,
-  safeUserSchema,
+  sessionStateSchema,
   type AuthResult,
 } from "../../shared/auth";
 import { hashCredential } from "../auth/credentials";
@@ -297,7 +297,12 @@ describe("createAuthService", () => {
     it("current clears the session once the user is deactivated", async () => {
       const owner = addUser("owner", "Owner", "owner");
       await asUser("owner");
-      expect(service.current()?.id).toBe(owner.id);
+      expect(service.current()).toEqual({
+        user: expect.objectContaining({ id: owner.id }),
+        locked: false,
+      });
+      service.lock();
+      expect(service.current()?.locked).toBe(true);
 
       database.sqlite.prepare("UPDATE users SET is_active = 0 WHERE id = ?").run(owner.id);
 
@@ -362,7 +367,7 @@ describe("createAuthService", () => {
         } else if ("ok" in (value as object)) {
           expect(authResultSchema.safeParse(value as AuthResult).success).toBe(true);
         } else {
-          expect(safeUserSchema.safeParse(value).success).toBe(true);
+          expect(sessionStateSchema.safeParse(value).success).toBe(true);
         }
       }
     });

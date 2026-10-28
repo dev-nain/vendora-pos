@@ -19,7 +19,11 @@ export function App() {
   useEffect(() => {
     void window.vendora.auth
       .current()
-      .then((user) => setView(user ? { name: "shell", user } : { name: "login" }))
+      .then((state) => {
+        if (!state) setView({ name: "login" });
+        else if (state.locked) setView({ name: "locked", user: state.user });
+        else setView({ name: "shell", user: state.user });
+      })
       .catch(() => setView({ name: "login" }));
   }, []);
 

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { contextBridge, ipcRenderer } from "electron";
-import { authResultSchema, loginUserSchema, safeUserSchema } from "@shared/auth";
+import { authResultSchema, loginUserSchema, sessionStateSchema } from "@shared/auth";
+import { autoLockSettingSchema } from "@shared/settings";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 
 const api: VendoraApi = {
@@ -19,10 +20,31 @@ const api: VendoraApi = {
     logout: async () => {
       await ipcRenderer.invoke(ipcChannels.authLogout);
     },
+    lock: async () => {
+      await ipcRenderer.invoke(ipcChannels.authLock);
+    },
+    onLocked: (listener) => {
+      const handler = () => listener();
+      ipcRenderer.on(ipcChannels.authLocked, handler);
+      return () => {
+        ipcRenderer.removeListener(ipcChannels.authLocked, handler);
+      };
+    },
     current: async () =>
-      safeUserSchema.nullable().parse(await ipcRenderer.invoke(ipcChannels.authCurrent)),
+      sessionStateSchema.nullable().parse(await ipcRenderer.invoke(ipcChannels.authCurrent)),
     listLoginUsers: async () =>
       z.array(loginUserSchema).parse(await ipcRenderer.invoke(ipcChannels.authListLoginUsers)),
+  },
+  activity: {
+    report: () => ipcRenderer.send(ipcChannels.activityReport),
+  },
+  settings: {
+    getAutoLock: async () =>
+      autoLockSettingSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsGetAutoLock)),
+    setAutoLock: async (minutes) =>
+      autoLockSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsSetAutoLock, { minutes }),
+      ),
   },
 };
 

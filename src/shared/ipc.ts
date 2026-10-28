@@ -1,5 +1,6 @@
 import { z } from "zod";
-import type { AuthResult, LoginUser, SafeUser } from "./auth";
+import type { AuthResult, LoginUser, SessionState } from "./auth";
+import type { AutoLockSetting } from "./settings";
 
 export const appInfoSchema = z.object({ version: z.string() });
 
@@ -10,8 +11,13 @@ export const ipcChannels = {
   authLogin: "auth:login",
   authSwitchByPin: "auth:switch-by-pin",
   authLogout: "auth:logout",
+  authLock: "auth:lock",
+  authLocked: "auth:locked",
   authCurrent: "auth:current",
   authListLoginUsers: "auth:list-login-users",
+  activityReport: "activity:report",
+  settingsGetAutoLock: "settings:get-auto-lock",
+  settingsSetAutoLock: "settings:set-auto-lock",
 } as const;
 
 export const ipcErrorMessages = {
@@ -28,7 +34,16 @@ export interface VendoraApi {
     login: (username: string, password: string) => Promise<AuthResult>;
     switchByPin: (userId: string, pin: string) => Promise<AuthResult>;
     logout: () => Promise<void>;
-    current: () => Promise<SafeUser | null>;
+    lock: () => Promise<void>;
+    onLocked: (listener: () => void) => () => void;
+    current: () => Promise<SessionState | null>;
     listLoginUsers: () => Promise<LoginUser[]>;
+  };
+  activity: {
+    report: () => void;
+  };
+  settings: {
+    getAutoLock: () => Promise<AutoLockSetting>;
+    setAutoLock: (minutes: number | null) => Promise<AutoLockSetting>;
   };
 }

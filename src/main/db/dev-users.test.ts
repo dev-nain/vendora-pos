@@ -57,13 +57,13 @@ describe("seedDevUsers", () => {
     const [owner, manager, cashier] = devUsers;
     const login = await auth.login({ username: owner.username, password: owner.password });
     expect(login.ok).toBe(true);
-    expect(auth.current()?.role).toBe("owner");
+    expect(auth.current()?.user.role).toBe("owner");
 
     for (const target of [manager, cashier]) {
       const id = auth.listLoginUsers().find((user) => user.displayName === target.displayName)!.id;
       const result = await auth.switchByPin({ userId: id, pin: target.pin });
       expect(result.ok).toBe(true);
-      expect(auth.current()?.displayName).toBe(target.displayName);
+      expect(auth.current()?.user.displayName).toBe(target.displayName);
     }
   });
 
