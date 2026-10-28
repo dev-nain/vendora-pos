@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { app, BrowserWindow } from "electron";
 import { openDatabase, type VendoraDatabase } from "./db/client";
 import { runMigrations } from "./db/migrate";
+import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createMainWindow } from "./window";
 
@@ -10,12 +11,13 @@ let database: VendoraDatabase | null = null;
 function startDatabase(): VendoraDatabase {
   const userData = app.getPath("userData");
   const opened = openDatabase(join(userData, "vendora.db"));
-  runMigrations(opened, {
+  const migration = runMigrations(opened, {
     migrationsFolder: app.isPackaged
       ? join(process.resourcesPath, "drizzle")
       : join(app.getAppPath(), "drizzle"),
     backupDir: join(userData, "backups"),
   });
+  if (migration !== "no-journal") seedStoreAndTerminal(opened);
   return opened;
 }
 
