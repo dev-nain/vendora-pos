@@ -185,10 +185,16 @@ describe("createAuthService", () => {
       const cashier = addUser("cashier", "Cashier", "cashier");
       await asUser("owner");
 
-      for (let i = 0; i < 5; i += 1) {
+      for (let i = 0; i < 4; i += 1) {
         const result = await service.switchByPin({ userId: cashier.id, pin: "0000" });
         expect(result).toMatchObject({ reason: "invalid-pin" });
       }
+      expect(await service.switchByPin({ userId: cashier.id, pin: "0000" })).toEqual({
+        ok: false,
+        reason: "pin-locked",
+        message: "PIN is incorrect",
+        retryAfterMs: 30_000,
+      });
 
       clock = new Date(t0.getTime() + 10_000);
       const locked = await service.switchByPin({ userId: cashier.id, pin: PIN });
