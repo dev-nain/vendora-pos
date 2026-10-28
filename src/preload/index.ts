@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { contextBridge, ipcRenderer } from "electron";
-import { authResultSchema, loginUserSchema, safeUserSchema } from "@shared/auth";
+import {
+  authResultSchema,
+  createOwnerResultSchema,
+  loginUserSchema,
+  safeUserSchema,
+} from "@shared/auth";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 
 const api: VendoraApi = {
@@ -23,6 +28,10 @@ const api: VendoraApi = {
       safeUserSchema.nullable().parse(await ipcRenderer.invoke(ipcChannels.authCurrent)),
     listLoginUsers: async () =>
       z.array(loginUserSchema).parse(await ipcRenderer.invoke(ipcChannels.authListLoginUsers)),
+    needsOwnerSetup: async () =>
+      z.boolean().parse(await ipcRenderer.invoke(ipcChannels.authNeedsOwnerSetup)),
+    createOwner: async (input) =>
+      createOwnerResultSchema.parse(await ipcRenderer.invoke(ipcChannels.authCreateOwner, input)),
   },
 };
 
