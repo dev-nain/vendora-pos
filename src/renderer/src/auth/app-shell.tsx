@@ -1,18 +1,31 @@
-import { LogOutIcon } from "lucide-react";
-import { useState } from "react";
+import { LockIcon, LogOutIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import type { SafeUser } from "@shared/auth";
 import { Button } from "@renderer/components/ui/button";
+import { Kbd } from "@renderer/components/ui/kbd";
 import { serviceErrorMessage } from "./messages";
 import { roleLabel } from "./role-label";
 
 interface AppShellProps {
   user: SafeUser;
+  onLock: () => void;
   onLoggedOut: () => void;
 }
 
-export function AppShell({ user, onLoggedOut }: AppShellProps) {
+export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.key.toLowerCase() === "l") {
+        event.preventDefault();
+        onLock();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onLock]);
 
   const logOut = async () => {
     try {
@@ -34,6 +47,11 @@ export function AppShell({ user, onLoggedOut }: AppShellProps) {
           <span className="text-[length:var(--font-size-350)] text-secondary">
             {roleLabel(user.role)}
           </span>
+          <Button variant="secondary" autoFocus onClick={onLock}>
+            <LockIcon aria-hidden="true" size={16} strokeWidth={2} />
+            Lock
+            <Kbd>Ctrl L</Kbd>
+          </Button>
           <Button variant="ghost" onClick={logOut}>
             <LogOutIcon aria-hidden="true" size={16} strokeWidth={2} />
             Log out
