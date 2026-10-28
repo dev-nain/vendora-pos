@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "ignorePatterns": [
+    "drizzle/",
+    "out/",
+    "dist/",
+    "design/",
+    ".claude/",
+    ".agents/",
+    "pnpm-lock.yaml",
+    "spec/",
+    "guidance/",
+    "prompts/",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "skills-lock.json"
+  ]
+}
