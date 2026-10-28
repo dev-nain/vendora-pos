@@ -3,6 +3,8 @@ import type { z } from "zod";
 import {
   authMessages,
   type AuthResult,
+  type CreateOwnerResult,
+  type createOwnerInputSchema,
   type LoginUser,
   type loginInputSchema,
   type pinSwitchInputSchema,
@@ -17,6 +19,7 @@ import { terminals, users } from "../db/schema";
 import type { createAuditService } from "./audit";
 
 type LoginInput = z.output<typeof loginInputSchema>;
+type CreateOwnerInput = z.output<typeof createOwnerInputSchema>;
 type PinSwitchInput = z.output<typeof pinSwitchInputSchema>;
 
 interface AuthDeps {
@@ -156,6 +159,57 @@ export function createAuthService({ database, audit, sessions, now = () => new D
     });
   }
 
+  function needsOwnerSetup(): boolean {
+    return db.select({ id: users.id }).from(users).limit(1).get() === undefined;
+  }
+
+  const ownerExists: CreateOwnerResult = {
+    ok: false,
+    reason: "owner-exists",
+    message: authMessages.ownerExists,
+  };
+
+  async function createOwner(input: CreateOwnerInput): Promise<CreateOwnerResult> {
+    if (!needsOwnerSetup()) return ownerExists;
+
+    const [passwordHash, pinHash] = await Promise.all([
+      hashCredential(input.password),
+      hashCredential(input.pin),
+    ]);
+
+    const loggedInAt = now();
+    const row = db.transaction((tx) => {
+      if (tx.select({ id: users.id }).from(users).limit(1).get()) return null;
+      const owner = tx
+        .insert(users)
+        .values({
+          username: input.username,
+          displayName: input.displayName,
+          role: "owner",
+          passwordHash,
+          pinHash,
+        })
+        .returning()
+        .get();
+      audit.record(
+        {
+          action: "user_create",
+          actorUserId: owner.id,
+          entityType: "user",
+          entityId: owner.id,
+          details: { username: owner.username, role: "owner" },
+        },
+        tx,
+      );
+      audit.record({ action: "login", actorUserId: owner.id, details: { method: "password" } }, tx);
+      return owner;
+    });
+    if (!row) return ownerExists;
+
+    sessions.start({ userId: row.id, role: "owner", storeId: storeId(), loggedInAt });
+    return { ok: true, user: toSafeUser(row) };
+  }
+
   function logout(): void {
     const session = sessions.current();
     if (!session) return;
@@ -190,7 +244,7 @@ export function createAuthService({ database, audit, sessions, now = () => new D
       .map(toLoginUser);
   }
 
-  return { login, switchByPin, logout, current, listLoginUsers };
+  return { login, switchByPin, logout, current, listLoginUsers, needsOwnerSetup, createOwner };
 }
 
 export type AuthService = ReturnType<typeof createAuthService>;
