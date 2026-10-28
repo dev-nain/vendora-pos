@@ -3,12 +3,14 @@ import { useCallback, useEffect, useState } from "react";
 import type { SafeUser } from "@shared/auth";
 import { ApprovalProvider } from "./auth/approval-provider";
 import { AppShell } from "./auth/app-shell";
+import { CreateOwnerScreen } from "./auth/create-owner-screen";
 import { LockScreen } from "./auth/lock-screen";
 import { LoginScreen } from "./auth/login-screen";
 import { PinSwitchScreen } from "./auth/pin-switch-screen";
 
 type AuthView =
   | { name: "starting" }
+  | { name: "setup" }
   | { name: "login" }
   | { name: "shell"; user: SafeUser }
   | { name: "locked"; user: SafeUser }
@@ -20,7 +22,11 @@ export function App() {
   useEffect(() => {
     void window.vendora.auth
       .current()
-      .then((user) => setView(user ? { name: "shell", user } : { name: "login" }))
+      .then(async (user) => {
+        if (user) return setView({ name: "shell", user });
+        const needsSetup = await window.vendora.auth.needsOwnerSetup();
+        setView(needsSetup ? { name: "setup" } : { name: "login" });
+      })
       .catch(() => setView({ name: "login" }));
   }, []);
 
@@ -30,6 +36,8 @@ export function App() {
   switch (view.name) {
     case "starting":
       return <div className="min-h-screen bg-page" />;
+    case "setup":
+      return <CreateOwnerScreen onCreated={toShell} onOwnerExists={toLogin} />;
     case "login":
       return <LoginScreen onLoggedIn={toShell} />;
     case "shell":

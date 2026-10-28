@@ -4,12 +4,14 @@ import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   approvalResultSchema,
+  authMessages,
   authResultSchema,
+  createOwnerInputSchema,
   loginUserSchema,
   safeUserSchema,
   type AuthResult,
 } from "../../shared/auth";
-import { hashCredential } from "../auth/credentials";
+import { hashCredential, verifyCredential } from "../auth/credentials";
 import { createApprovalStore, type ApprovalStore } from "../auth/approvals";
 import { ApprovalError, UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
@@ -507,6 +509,93 @@ describe("createAuthService", () => {
           expect(safeUserSchema.safeParse(value).success).toBe(true);
         }
       }
+    });
+  });
+
+  describe("owner setup", () => {
+    const ownerInput = createOwnerInputSchema.parse({
+      username: " owner1 ",
+      displayName: " Imran ",
+      password: "ab12",
+      pin: "1234",
+    });
+
+    it("creates the Owner, starts a session and audits it", async () => {
+      expect(service.needsOwnerSetup()).toBe(true);
+
+      const result = await service.createOwner(ownerInput);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.user).toMatchObject({
+        username: "owner1",
+        displayName: "Imran",
+        role: "owner",
+      });
+      expect(service.needsOwnerSetup()).toBe(false);
+      expect(service.current()).toEqual(result.user);
+
+      const row = userRow(result.user.id);
+      expect(row.passwordHash).not.toBe("ab12");
+      expect(row.pinHash).not.toBe("1234");
+      expect(await verifyCredential(row.passwordHash, "ab12")).toBe(true);
+      expect(await verifyCredential(row.pinHash, "1234")).toBe(true);
+      expect((await service.login({ username: "owner1", password: "ab12" })).ok).toBe(true);
+
+      const created = auditRows().filter((r) => r.action === "user_create");
+      expect(created).toHaveLength(1);
+      expect(created[0]).toMatchObject({
+        actorUserId: result.user.id,
+        entityType: "user",
+        entityId: result.user.id,
+      });
+      expect(JSON.parse(created[0]!.details!)).toEqual({ username: "owner1", role: "owner" });
+    });
+
+    it("writes one user_create and one login row on creation", async () => {
+      await service.createOwner(ownerInput);
+      expect(
+        auditRows()
+          .map((r) => r.action)
+          .toSorted(),
+      ).toEqual(["login", "user_create"]);
+    });
+
+    it("refuses a second Owner without writing or switching the session", async () => {
+      const first = await service.createOwner(ownerInput);
+      const auditCount = auditRows().length;
+
+      const second = await service.createOwner({ ...ownerInput, username: "other" });
+
+      expect(second).toEqual({
+        ok: false,
+        reason: "owner-exists",
+        message: authMessages.ownerExists,
+      });
+      expect(database.db.select().from(users).all()).toHaveLength(1);
+      expect(auditRows()).toHaveLength(auditCount);
+      expect(sessions.current()?.userId).toBe(first.ok ? first.user.id : "");
+    });
+
+    it("counts inactive and soft-deleted users as existing", async () => {
+      addUser("gone", "Gone", "cashier", { isActive: false, deletedAt: t0 });
+
+      expect(service.needsOwnerSetup()).toBe(false);
+      const result = await service.createOwner(ownerInput);
+      expect(result.ok).toBe(false);
+      expect(sessions.current()).toBeNull();
+      expect(auditRows()).toHaveLength(0);
+    });
+
+    it("lets exactly one of two concurrent calls win", async () => {
+      const results = await Promise.all([
+        service.createOwner(ownerInput),
+        service.createOwner({ ...ownerInput, username: "other" }),
+      ]);
+
+      expect(results.filter((r) => r.ok)).toHaveLength(1);
+      expect(results.filter((r) => !r.ok && r.reason === "owner-exists")).toHaveLength(1);
+      expect(database.db.select().from(users).all()).toHaveLength(1);
     });
   });
 });

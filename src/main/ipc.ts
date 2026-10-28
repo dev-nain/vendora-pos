@@ -3,6 +3,8 @@ import {
   approvalResultSchema,
   approveInputSchema,
   authResultSchema,
+  createOwnerInputSchema,
+  createOwnerResultSchema,
   loginInputSchema,
   loginUserSchema,
   pinSwitchInputSchema,
@@ -41,5 +43,9 @@ export function registerIpcHandlers({ auth }: { auth: AuthService }): void {
   handle(ipcChannels.authCurrent, () => safeUserSchema.nullable().parse(auth.current()));
   handle(ipcChannels.authListLoginUsers, () =>
     z.array(loginUserSchema).parse(auth.listLoginUsers()),
+  );
+  handle(ipcChannels.authNeedsOwnerSetup, () => z.boolean().parse(auth.needsOwnerSetup()));
+  handle(ipcChannels.authCreateOwner, async (_event, input) =>
+    createOwnerResultSchema.parse(await auth.createOwner(createOwnerInputSchema.parse(input))),
   );
 }
