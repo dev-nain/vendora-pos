@@ -106,8 +106,18 @@ const QA_SCHEMA = {
       type: 'array',
       items: {
         type: 'object',
-        properties: { severity: { type: 'string' }, file: { type: 'string' }, issue: { type: 'string' }, fix: { type: 'string' } },
-        required: ['severity', 'issue'],
+        properties: {
+          severity: { type: 'string' },
+          target: {
+            type: 'string',
+            enum: ['code', 'plan'],
+            description: 'plan when only the prompt file can fix it (e.g. its Screenshots section or a missing requirement), code when a commit on the branch can',
+          },
+          file: { type: 'string' },
+          issue: { type: 'string' },
+          fix: { type: 'string' },
+        },
+        required: ['severity', 'target', 'issue'],
       },
     },
   },
@@ -328,6 +338,17 @@ Run every check yourself and return your JSON.`,
     if (!qa) return await giveUp(id, `QA reviewer died in round ${round}`)
     if (qa.pass) break
     findings = JSON.stringify({ checks: qa.checks, acceptance: (qa.acceptance ?? []).filter((a) => a.result === 'fail'), findings: qa.findings }, null, 2)
+
+    const blockers = (qa.findings ?? []).filter((f) => f.severity === 'blocker')
+    const codeFailing =
+      Object.values(qa.checks ?? {}).some((c) => c !== 'pass') ||
+      (qa.acceptance ?? []).some((a) => a.result === 'fail') ||
+      blockers.some((f) => f.target !== 'plan')
+    if (!codeFailing && blockers.length)
+      return await giveUp(
+        id,
+        `QA found only plan problems, which another implementer round can't fix. Branch ${plan.branch} is pushed; all checks pass. Fix the plan (or waive the finding) and rerun. Findings:\n${findings}`,
+      )
   }
 
   if (!qa.pass)
@@ -339,6 +360,7 @@ Run every check yourself and return your JSON.`,
 You are the ticket-loop orchestrator for ${id} (${claim.title}), running phase 7 (PR) only. Follow ${SKILL}/SKILL.md phase 7, github.md and linear.md. Phases 0–6 are done and QA passed. Load the Linear MCP tools with ToolSearch.
 
 ${base.pr}
+If the prompt has a Stack section, open one PR per group exactly as SKILL.md phase 7 and github.md §4 say; never collapse a planned stack into one PR on your own.
 Run screenshots from develop's copy of the tooling, since a stacked branch may carry an older one: T=$(mktemp -d) && git archive origin/develop .claude/skills/ticket-loop | tar -x -C "$T", then call bash "$T/.claude/skills/ticket-loop/screenshots.sh" from your worktree. Use SCREENSHOT_PORT=${cdpPort} for every call (other lanes run at the same time). If screenshots.sh publish fails on push because another lane pushed first, run it again. Kill only processes you started.
 In the PR's acceptance checklist and Checks section, use this independent QA result as evidence:
 ${JSON.stringify(qa, null, 2)}
