@@ -3,13 +3,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
+  approvalResultSchema,
   authResultSchema,
   loginUserSchema,
   safeUserSchema,
   type AuthResult,
 } from "../../shared/auth";
 import { hashCredential } from "../auth/credentials";
-import { UnauthenticatedError } from "../auth/errors";
+import { createApprovalStore, type ApprovalStore } from "../auth/approvals";
+import { ApprovalError, UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
@@ -29,10 +31,17 @@ beforeAll(async () => {
   pinHash = await hashCredential(PIN);
 });
 
+const approveInput = (approverUserId: string, pin: string) => ({
+  action: "drawer.open-no-sale" as const,
+  approverUserId,
+  pin,
+});
+
 describe("createAuthService", () => {
   let dir: string;
   let database: VendoraDatabase;
   let sessions: SessionStore;
+  let approvals: ApprovalStore;
   let clock: Date;
   let service: ReturnType<typeof createAuthService>;
 
@@ -73,10 +82,12 @@ describe("createAuthService", () => {
     seedStoreAndTerminal(database);
     sessions = createSessionStore();
     clock = t0;
+    approvals = createApprovalStore({ sessions, now: () => clock });
     service = createAuthService({
       database,
       audit: createAuditService(database),
       sessions,
+      approvals,
       now: () => clock,
     });
   });
@@ -224,6 +235,7 @@ describe("createAuthService", () => {
         database,
         audit: createAuditService(database),
         sessions,
+        approvals,
         now: () => clock,
       });
 
@@ -252,6 +264,155 @@ describe("createAuthService", () => {
       await expect(service.switchByPin({ userId: cashier.id, pin: PIN })).rejects.toBeInstanceOf(
         UnauthenticatedError,
       );
+    });
+  });
+
+  describe("approve", () => {
+    it("lets a manager approve for a cashier session", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+      const cashier = addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+
+      const result = await service.approve(approveInput(manager.id, PIN));
+
+      expect(result).toMatchObject({ ok: true });
+      if (!result.ok) throw new Error("expected approval");
+      expect(approvals.consumeApproval(result.token, "drawer.open-no-sale")).toEqual({
+        approverUserId: manager.id,
+        requestedByUserId: cashier.id,
+      });
+    });
+
+    it("lets an owner approve", async () => {
+      const owner = addUser("owner", "Owner", "owner");
+      addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+
+      expect(await service.approve(approveInput(owner.id, PIN))).toMatchObject({ ok: true });
+    });
+
+    it("refuses a cashier approver without touching their PIN state", async () => {
+      const other = addUser("other", "Other", "cashier");
+      addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+
+      const result = await service.approve(approveInput(other.id, "0000"));
+
+      expect(result).toEqual({
+        ok: false,
+        reason: "not-allowed",
+        message: "Only a manager or the owner can approve this.",
+      });
+      expect(userRow(other.id).failedPinAttempts).toBe(0);
+    });
+
+    it("treats inactive and soft-deleted approvers as an invalid PIN", async () => {
+      const inactive = addUser("inactive", "Inactive", "manager", { isActive: false });
+      const deleted = addUser("deleted", "Deleted", "manager", { deletedAt: t0 });
+      addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+
+      for (const approver of [inactive, deleted]) {
+        expect(await service.approve(approveInput(approver.id, PIN))).toEqual({
+          ok: false,
+          reason: "invalid-pin",
+          message: "PIN is incorrect",
+        });
+      }
+    });
+
+    it("counts a wrong PIN against the approver, not the session user", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+      const cashier = addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+
+      const result = await service.approve(approveInput(manager.id, "0000"));
+
+      expect(result).toMatchObject({ ok: false, reason: "invalid-pin" });
+      expect(userRow(manager.id).failedPinAttempts).toBe(1);
+      expect(userRow(cashier.id).failedPinAttempts).toBe(0);
+    });
+
+    it("locks the approver after five wrong PINs until the cooldown passes", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+      addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+
+      for (let i = 0; i < 4; i += 1) {
+        expect(await service.approve(approveInput(manager.id, "0000"))).toMatchObject({
+          reason: "invalid-pin",
+        });
+      }
+      expect(await service.approve(approveInput(manager.id, "0000"))).toEqual({
+        ok: false,
+        reason: "pin-locked",
+        message: "PIN is incorrect",
+        retryAfterMs: 30_000,
+      });
+
+      clock = new Date(t0.getTime() + 10_000);
+      expect(await service.approve(approveInput(manager.id, PIN))).toMatchObject({
+        reason: "pin-locked",
+        retryAfterMs: 20_000,
+      });
+
+      clock = new Date(t0.getTime() + 30_001);
+      expect(await service.approve(approveInput(manager.id, PIN))).toMatchObject({ ok: true });
+    });
+
+    it("throws UnauthenticatedError without a session", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+
+      await expect(service.approve(approveInput(manager.id, PIN))).rejects.toBeInstanceOf(
+        UnauthenticatedError,
+      );
+    });
+
+    it("clears outstanding tokens on logout", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+      addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+      const result = await service.approve(approveInput(manager.id, PIN));
+      if (!result.ok) throw new Error("expected approval");
+
+      service.logout();
+      await asUser("cashier");
+
+      expect(() => approvals.consumeApproval(result.token, "drawer.open-no-sale")).toThrow(
+        ApprovalError,
+      );
+    });
+
+    it("clears outstanding tokens on a PIN switch", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+      const cashier = addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+      const result = await service.approve(approveInput(manager.id, PIN));
+      if (!result.ok) throw new Error("expected approval");
+
+      await service.switchByPin({ userId: manager.id, pin: PIN });
+      await service.switchByPin({ userId: cashier.id, pin: PIN });
+
+      expect(() => approvals.consumeApproval(result.token, "drawer.open-no-sale")).toThrow(
+        ApprovalError,
+      );
+    });
+
+    it("never returns PINs or hashes", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+      addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+
+      const returned = [
+        await service.approve(approveInput(manager.id, "0000")),
+        await service.approve(approveInput(manager.id, PIN)),
+      ];
+
+      const text = JSON.stringify(returned);
+      for (const secret of [PIN, pinHash, passwordHash]) expect(text).not.toContain(secret);
+      for (const value of returned) {
+        expect(approvalResultSchema.safeParse(value).success).toBe(true);
+      }
     });
   });
 
