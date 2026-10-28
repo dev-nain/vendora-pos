@@ -60,5 +60,6 @@ for (const line of lines) {
   console.log(file);
 }
 
-await send("Browser.close").catch(() => {});
+// A page target never answers Browser.close, which left the await unsettled and
+// exited 13; screenshots.sh kills Electron's process group instead.
 ws.close();
