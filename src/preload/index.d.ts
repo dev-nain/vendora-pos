@@ -1,3 +1,7 @@
-interface Window {
-  vendora: Record<string, never>;
+import type { VendoraApi } from "@shared/ipc";
+
+declare global {
+  interface Window {
+    vendora: VendoraApi;
+  }
 }

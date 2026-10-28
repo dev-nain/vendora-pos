@@ -1,3 +1,10 @@
-import { contextBridge } from "electron";
+import { contextBridge, ipcRenderer } from "electron";
+import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 
-contextBridge.exposeInMainWorld("vendora", {});
+const api: VendoraApi = {
+  app: {
+    getInfo: async () => appInfoSchema.parse(await ipcRenderer.invoke(ipcChannels.appGetInfo)),
+  },
+};
+
+contextBridge.exposeInMainWorld("vendora", api);
