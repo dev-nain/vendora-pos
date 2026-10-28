@@ -17,6 +17,7 @@ export const ipcChannels = {
 export const ipcErrorMessages = {
   unauthenticated: "Log in to continue.",
   forbidden: "You don't have permission to do this. Ask the owner or a manager.",
+  approvalInvalid: "Approval expired or was already used. Ask for approval again.",
 } as const;
 
 export interface VendoraApi {
