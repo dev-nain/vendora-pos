@@ -16,12 +16,22 @@ const updatedAt = () =>
     .$defaultFn(() => new Date())
     .$onUpdateFn(() => new Date());
 
-export const stores = sqliteTable("stores", {
-  id: id(),
-  name: text("name"),
-  createdAt: createdAt(),
-  updatedAt: updatedAt(),
-});
+export const stores = sqliteTable(
+  "stores",
+  {
+    id: id(),
+    name: text("name"),
+    cashierDiscountLimitBps: integer("cashier_discount_limit_bps").notNull().default(500),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check(
+      "stores_cashier_discount_limit_bps_check",
+      sql`${t.cashierDiscountLimitBps} BETWEEN 0 AND 10000`,
+    ),
+  ],
+);
 
 export const terminals = sqliteTable(
   "terminals",

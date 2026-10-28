@@ -82,8 +82,9 @@ describe("auth schema migration", () => {
   });
 
   it("uses no SQLite-only constructs", () => {
-    const file = readdirSync(migrationsFolder).find((f) => f.endsWith(".sql")) ?? "";
-    const sqlText = readFileSync(join(migrationsFolder, file), "utf8");
+    const files = readdirSync(migrationsFolder).filter((f) => f.endsWith(".sql"));
+    expect(files.length).toBeGreaterThan(1);
+    const sqlText = files.map((f) => readFileSync(join(migrationsFolder, f), "utf8")).join("\n");
     for (const banned of [
       /AUTOINCREMENT/i,
       /COLLATE\s+NOCASE/i,
