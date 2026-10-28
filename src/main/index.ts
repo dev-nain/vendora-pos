@@ -1,9 +1,13 @@
 import { join } from "node:path";
 import { app, BrowserWindow } from "electron";
 import { openDatabase, type VendoraDatabase } from "./db/client";
+import { seedDevUsers } from "./db/dev-users";
 import { runMigrations } from "./db/migrate";
 import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
+import { createAuditService } from "./services/audit";
+import { createAuthService } from "./services/auth";
+import { createSessionStore } from "./auth/session";
 import { createMainWindow } from "./window";
 
 let database: VendoraDatabase | null = null;
@@ -21,9 +25,15 @@ function startDatabase(): VendoraDatabase {
   return opened;
 }
 
-void app.whenReady().then(() => {
+void app.whenReady().then(async () => {
   database = startDatabase();
-  registerIpcHandlers();
+  if (!app.isPackaged && process.env.VENDORA_DEV_USERS === "1") await seedDevUsers(database);
+  const auth = createAuthService({
+    database,
+    audit: createAuditService(database),
+    sessions: createSessionStore(),
+  });
+  registerIpcHandlers({ auth });
   createMainWindow();
 
   app.on("activate", () => {

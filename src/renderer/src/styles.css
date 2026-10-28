@@ -110,6 +110,23 @@
   --color-line: var(--color-border);
   --color-strong: var(--color-border-strong);
   --color-focus: var(--color-border-focus);
+  --color-line-hover: var(--color-border-hover);
+  --color-line-brand: var(--color-border-brand);
+  --color-line-critical: var(--color-border-critical-strong);
+  --color-brand: var(--color-text-brand);
+  --color-success: var(--color-text-success);
+  --color-warning: var(--color-text-warning);
+  --color-critical: var(--color-text-critical);
+  --color-fill-neutral-secondary: var(--color-bg-fill-neutral-secondary);
+  --color-fill-brand-secondary: var(--color-bg-fill-brand-secondary);
+  --color-fill-success-secondary: var(--color-bg-fill-success-secondary);
+  --color-fill-warning-secondary: var(--color-bg-fill-warning-secondary);
+  --color-fill-critical-secondary: var(--color-bg-fill-critical-secondary);
+  --color-icon-muted: var(--color-icon-secondary);
+  --color-overlay: var(--color-bg-overlay);
+  --color-surface-warning: var(--color-bg-surface-warning);
+  --color-line-warning: var(--color-border-warning);
+  --color-icon-warning: var(--color-icon-warning);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
