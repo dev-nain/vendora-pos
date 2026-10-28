@@ -12,6 +12,8 @@
     "lint": "oxlint",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
+    "test": "node scripts/test.mjs",
+    "db:generate": "drizzle-kit generate",
     "postinstall": "electron-builder install-app-deps",
     "prepare": "lefthook install"
   },
@@ -20,8 +22,10 @@
     "@fontsource-variable/geist": "5.3.0",
     "@fontsource-variable/geist-mono": "5.3.0",
     "@fontsource/noto-nastaliq-urdu": "5.3.0",
+    "better-sqlite3": "13.0.3",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
+    "drizzle-orm": "0.45.4",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "tailwind-merge": "3.7.0",
@@ -29,10 +33,12 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",
+    "@types/better-sqlite3": "9.6.0",
     "@types/node": "26.6.5",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
+    "drizzle-kit": "0.31.11",
     "electron": "45.1.0",
     "electron-builder": "26.18.0",
     "electron-vite": "6.0.0",
@@ -41,7 +47,8 @@
     "oxlint": "1.90.0",
     "tailwindcss": "4.3.3",
     "typescript": "7.0.2",
-    "vite": "8.3.5"
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
   },
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
@@ -51,5 +58,6 @@
       "esbuild",
       "lefthook"
     ]
-  }
+  },
+  "productName": "Vendora"
 }
