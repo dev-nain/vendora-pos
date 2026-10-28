@@ -2,10 +2,14 @@ pre-commit:
   jobs:
     - name: format
       glob: "*.{ts,tsx,js,mjs,json,jsonc,css,html,yml,yaml}"
+      exclude:
+        - ".claude/**"
       run: pnpm exec oxfmt {staged_files}
       stage_fixed: true
     - name: lint
       glob: "*.{ts,tsx,js,mjs}"
+      exclude:
+        - ".claude/**"
       run: pnpm exec oxlint {staged_files}
     - name: typecheck
       glob: "*.{ts,tsx}"
