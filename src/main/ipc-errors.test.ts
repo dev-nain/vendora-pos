@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ipcErrorMessages } from "@shared/ipc";
+import { ipcErrorMessages } from "../shared/ipc";
 import { ForbiddenError } from "./auth/errors";
 import { toIpcError } from "./ipc-errors";
 
