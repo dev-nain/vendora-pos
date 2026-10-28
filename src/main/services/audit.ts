@@ -16,6 +16,9 @@ export const auditActions = [
   "settings_change",
   "backup",
   "restore",
+  "user_create",
+  "user_update",
+  "user_deactivate",
 ] as const;
 export type AuditAction = (typeof auditActions)[number];
 

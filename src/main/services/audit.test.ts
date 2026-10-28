@@ -144,7 +144,7 @@ describe("auditRecordInputSchema", () => {
           : { action, actorUserId: actor };
       expect(auditRecordInputSchema.safeParse(input).success).toBe(true);
     }
-    expect(auditActions).toHaveLength(12);
+    expect(auditActions).toHaveLength(15);
   });
 
   it("rejects an unknown action", () => {
