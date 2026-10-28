@@ -61,8 +61,8 @@ The Linear workflow status follows along: **In Progress** from phase 5,
 - The Linear MCP must answer (`list_teams` returns `VEN`); if it doesn't, tell
   the user to run `/mcp` and authenticate Linear, and stop. `gh auth status`
   must pass.
-- `git status --porcelain` must be empty (ignore untracked files under
-  gitignored paths); otherwise stop and tell the user — never stash or discard
+- `git status --porcelain` must be empty (gitignored files such as `prompts/`
+  don't show there and don't count); otherwise stop and tell the user — never stash or discard
   their work.
 - `git fetch origin`. `origin/develop` must exist; if not, stop and tell the user.
 
@@ -130,8 +130,10 @@ is trusted.
    exists, switch to it and continue.
 2. Swap `agent:plan-review`/`agent:plan-approved` → `agent:in-progress` (an
    `agent:auto` issue already holds it) and set the status to **In Progress**.
-3. Commit the prompt file first (`docs: added ven-<n> implementation prompt`)
-   so the approved plan travels with the branch.
+3. `prompts/` is gitignored, so the plan comment on the issue is the durable
+   copy. If `prompts/ven-<n>-<slug>.md` is missing locally (another machine, a
+   fresh clone), recreate it from the full prompt in the latest
+   `ticket-loop:plan` comment.
 4. Spawn `implementer` with the prompt path and, after a failed QA round, the
    QA findings. It re-reads the approved prompt (AGENTS.md §2 step 7) and makes
    one commit per task.
