@@ -11,10 +11,16 @@ import { usePinCooldown } from "./use-pin-cooldown";
 interface LockScreenProps {
   user: SafeUser;
   onUnlocked: (user: SafeUser) => void;
+  onSwitchUser: () => void;
   onLogInWithPassword: () => void;
 }
 
-export function LockScreen({ user, onUnlocked, onLogInWithPassword }: LockScreenProps) {
+export function LockScreen({
+  user,
+  onUnlocked,
+  onSwitchUser,
+  onLogInWithPassword,
+}: LockScreenProps) {
   const cooldown = usePinCooldown(user.id);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +57,9 @@ export function LockScreen({ user, onUnlocked, onLogInWithPassword }: LockScreen
         />
         <div className="grid gap-200">
           <div className="flex gap-200">
+            <Button variant="secondary" onClick={onSwitchUser} className="flex-1">
+              Switch user
+            </Button>
             <Button variant="secondary" onClick={logInWithPassword} className="flex-1">
               Log in with password
             </Button>
