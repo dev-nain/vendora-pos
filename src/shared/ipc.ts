@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AuthResult, LoginUser, SafeUser } from "./auth";
+import type { AuthResult, CreateOwnerInput, CreateOwnerResult, LoginUser, SafeUser } from "./auth";
 
 export const appInfoSchema = z.object({ version: z.string() });
 
@@ -12,6 +12,8 @@ export const ipcChannels = {
   authLogout: "auth:logout",
   authCurrent: "auth:current",
   authListLoginUsers: "auth:list-login-users",
+  authNeedsOwnerSetup: "auth:needs-owner-setup",
+  authCreateOwner: "auth:create-owner",
 } as const;
 
 export const ipcErrorMessages = {
@@ -29,5 +31,7 @@ export interface VendoraApi {
     logout: () => Promise<void>;
     current: () => Promise<SafeUser | null>;
     listLoginUsers: () => Promise<LoginUser[]>;
+    needsOwnerSetup: () => Promise<boolean>;
+    createOwner: (input: CreateOwnerInput) => Promise<CreateOwnerResult>;
   };
 }
