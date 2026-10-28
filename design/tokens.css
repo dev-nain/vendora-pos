@@ -87,6 +87,7 @@
   --color-bg-fill-critical-secondary: #FEE2E2;
   --color-bg-fill-brand-secondary: #E0E7FF;
   --color-bg-fill-neutral-secondary: #F4F4F5;
+  --color-bg-overlay: rgb(9 9 11 / 0.6);
 
   /* Text */
   --color-text: #09090B;
@@ -162,6 +163,7 @@
     --color-bg-fill-critical-secondary: #3A1212;
     --color-bg-fill-brand-secondary: #1E1B4B;
     --color-bg-fill-neutral-secondary: #27272A;
+    --color-bg-overlay: rgb(9 9 11 / 0.6);
     --color-text: #FAFAFA;
     --color-text-secondary: #A1A1AA;
     --color-text-tertiary: #8E8E97;
@@ -225,6 +227,7 @@
   --color-bg-fill-critical-secondary: #3A1212;
   --color-bg-fill-brand-secondary: #1E1B4B;
   --color-bg-fill-neutral-secondary: #27272A;
+  --color-bg-overlay: rgb(9 9 11 / 0.6);
   --color-text: #FAFAFA;
   --color-text-secondary: #A1A1AA;
   --color-text-tertiary: #8E8E97;
