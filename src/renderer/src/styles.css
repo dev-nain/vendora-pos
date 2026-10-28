@@ -1,0 +1,156 @@
+@import "tailwindcss";
+@import "../../../design/tokens.css";
+@import "@fontsource/noto-nastaliq-urdu/400.css";
+@import "@fontsource/noto-nastaliq-urdu/700.css";
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("../../../node_modules/@fontsource-variable/geist/files/geist-latin-ext-wght-normal.woff2")
+    format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("../../../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2")
+    format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("../../../node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-ext-wght-normal.woff2")
+    format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("../../../node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2")
+    format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *) {
+      @slot;
+    }
+  }
+}
+
+:root {
+  --background: var(--color-bg);
+  --foreground: var(--color-text);
+  --card: var(--color-bg-surface);
+  --card-foreground: var(--color-text);
+  --popover: var(--color-bg-surface);
+  --popover-foreground: var(--color-text);
+  --primary: var(--color-bg-fill-brand);
+  --primary-foreground: var(--color-text-on-brand);
+  --secondary: var(--color-bg-fill-secondary);
+  --secondary-foreground: var(--color-text);
+  --muted: var(--color-bg-surface-secondary);
+  --muted-foreground: var(--color-text-secondary);
+  --accent: var(--color-bg-surface-hover);
+  --accent-foreground: var(--color-text);
+  --destructive: var(--color-bg-fill-critical);
+  --border: var(--color-border-strong);
+  --input: var(--color-input-border);
+  --ring: var(--color-border-focus);
+  --radius: var(--radius-200);
+}
+
+@theme inline {
+  --color-page: var(--color-bg);
+  --color-surface: var(--color-bg-surface);
+  --color-surface-secondary: var(--color-bg-surface-secondary);
+  --color-surface-hover: var(--color-bg-surface-hover);
+  --color-surface-active: var(--color-bg-surface-active);
+  --color-surface-selected: var(--color-bg-surface-selected);
+  --color-fill-brand: var(--color-bg-fill-brand);
+  --color-fill-brand-hover: var(--color-bg-fill-brand-hover);
+  --color-fill-brand-active: var(--color-bg-fill-brand-active);
+  --color-fill-secondary: var(--color-bg-fill-secondary);
+  --color-fill-secondary-hover: var(--color-bg-fill-secondary-hover);
+  --color-fill-secondary-active: var(--color-bg-fill-secondary-active);
+  --color-fill-critical: var(--color-bg-fill-critical);
+  --color-fill-critical-hover: var(--color-bg-fill-critical-hover);
+  --color-secondary: var(--color-text-secondary);
+  --color-tertiary: var(--color-text-tertiary);
+  --color-disabled: var(--color-text-disabled);
+  --color-on-brand: var(--color-text-on-brand);
+  --color-on-critical: var(--color-text-on-critical);
+  --color-line: var(--color-border);
+  --color-strong: var(--color-border-strong);
+  --color-focus: var(--color-border-focus);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-100: var(--radius-100);
+  --radius-200: var(--radius-200);
+  --radius-300: var(--radius-300);
+  --radius-full: var(--radius-full);
+
+  --spacing-100: var(--space-100);
+  --spacing-200: var(--space-200);
+  --spacing-300: var(--space-300);
+  --spacing-400: var(--space-400);
+  --spacing-600: var(--space-600);
+  --spacing-800: var(--space-800);
+
+  --shadow-100: var(--shadow-100);
+  --shadow-200: var(--shadow-200);
+  --shadow-300: var(--shadow-300);
+  --shadow-focus: var(--shadow-focus);
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-400);
+  line-height: var(--line-height-normal);
+}

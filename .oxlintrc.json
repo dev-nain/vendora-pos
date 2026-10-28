@@ -1,0 +1,55 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "react-hooks", "import", "unicorn", "oxc"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "react/react-in-jsx-scope": "off",
+    "import/no-unassigned-import": [
+      "error",
+      {
+        "allow": ["**/*.css"]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/renderer/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "electron",
+                "message": "The renderer has no Node access."
+              },
+              {
+                "name": "better-sqlite3",
+                "message": "Database access is main-process only."
+              },
+              {
+                "name": "drizzle-orm",
+                "message": "Database access is main-process only."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["node:*"],
+                "message": "The renderer has no Node access."
+              },
+              {
+                "group": ["drizzle-orm/*"],
+                "message": "Database access is main-process only."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "ignorePatterns": ["out", "dist", "node_modules", "drizzle", "design", ".claude", ".agents"]
+}
