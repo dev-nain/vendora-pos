@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { userRoleSchema } from "../../shared/auth";
 import { userRoles, type UserRole } from "../db/schema";
-import { ForbiddenError, UnauthenticatedError } from "./errors";
+import { ForbiddenError, SessionLockedError, UnauthenticatedError } from "./errors";
 import { requireSession, requireSessionPermission } from "./guard";
 import { createSessionStore, type Session } from "./session";
 
@@ -39,6 +39,15 @@ describe("requireSession", () => {
     expect(() => requireSession(createSessionStore())).toThrow(UnauthenticatedError);
   });
 
+  it("still returns the session while locked", () => {
+    const sessions = createSessionStore();
+    const session = sessionFor("manager");
+    sessions.start(session);
+    sessions.lock();
+
+    expect(requireSession(sessions)).toBe(session);
+  });
+
   it("returns the current session", () => {
     const sessions = createSessionStore();
     const session = sessionFor("manager");
@@ -60,6 +69,14 @@ describe("requireSessionPermission", () => {
     sessions.start(sessionFor("cashier"));
 
     expect(() => requireSessionPermission(sessions, "users.manage")).toThrow(ForbiddenError);
+  });
+
+  it("throws SessionLockedError while locked", () => {
+    const sessions = createSessionStore();
+    sessions.start(sessionFor("owner"));
+    sessions.lock();
+
+    expect(() => requireSessionPermission(sessions, "sale.sell")).toThrow(SessionLockedError);
   });
 
   it("returns the session for an owner", () => {

@@ -165,6 +165,11 @@ export function createAuthService({ database, audit, sessions, now = () => new D
     sessions.end();
   }
 
+  function lock(): void {
+    requireSession(sessions);
+    sessions.lock();
+  }
+
   function current(): SafeUser | null {
     const session = sessions.current();
     if (!session) return null;
@@ -190,7 +195,7 @@ export function createAuthService({ database, audit, sessions, now = () => new D
       .map(toLoginUser);
   }
 
-  return { login, switchByPin, logout, current, listLoginUsers };
+  return { login, switchByPin, logout, lock, current, listLoginUsers };
 }
 
 export type AuthService = ReturnType<typeof createAuthService>;

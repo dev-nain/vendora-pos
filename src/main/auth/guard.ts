@@ -1,4 +1,4 @@
-import { UnauthenticatedError } from "./errors";
+import { SessionLockedError, UnauthenticatedError } from "./errors";
 import { requirePermission, type Permission } from "./policy";
 import type { Session, SessionStore } from "./session";
 
@@ -10,6 +10,7 @@ export function requireSession(sessions: SessionStore): Session {
 
 export function requireSessionPermission(sessions: SessionStore, permission: Permission): Session {
   const session = requireSession(sessions);
+  if (sessions.isLocked()) throw new SessionLockedError();
   requirePermission(session, permission);
   return session;
 }

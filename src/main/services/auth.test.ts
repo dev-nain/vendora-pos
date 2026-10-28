@@ -255,6 +255,25 @@ describe("createAuthService", () => {
     });
   });
 
+  describe("lock", () => {
+    it("locks the session, and switchByPin from the locked state unlocks it", async () => {
+      const owner = addUser("owner", "Owner", "owner");
+      await asUser("owner");
+
+      service.lock();
+      expect(sessions.isLocked()).toBe(true);
+
+      const result = await service.switchByPin({ userId: owner.id, pin: PIN });
+
+      expect(result.ok).toBe(true);
+      expect(sessions.isLocked()).toBe(false);
+    });
+
+    it("throws with no session", () => {
+      expect(() => service.lock()).toThrow(UnauthenticatedError);
+    });
+  });
+
   describe("logout", () => {
     it("clears the session and audits once", async () => {
       const owner = addUser("owner", "Owner", "owner");

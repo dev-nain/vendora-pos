@@ -20,3 +20,12 @@ export class UnauthenticatedError extends Error {
     this.name = "UnauthenticatedError";
   }
 }
+
+export class SessionLockedError extends Error {
+  readonly code = "locked";
+
+  constructor() {
+    super("Locked");
+    this.name = "SessionLockedError";
+  }
+}

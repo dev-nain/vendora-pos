@@ -16,6 +16,7 @@ export const ipcChannels = {
 
 export const ipcErrorMessages = {
   unauthenticated: "Log in to continue.",
+  locked: "Vendora is locked. Unlock to continue.",
   forbidden: "You don't have permission to do this. Ask the owner or a manager.",
 } as const;
 
