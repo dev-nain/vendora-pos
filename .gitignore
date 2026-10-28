@@ -1,1 +1,10 @@
 prompts/
+node_modules/
+out/
+dist/
+*.db
+*.db-*
+.env*
+coverage/
+.DS_Store
+Thumbs.db
