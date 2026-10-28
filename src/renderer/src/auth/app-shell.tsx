@@ -1,9 +1,10 @@
-import { LockIcon, LogOutIcon } from "lucide-react";
+import { LockIcon, LogOutIcon, ShieldCheckIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { SafeUser } from "@shared/auth";
 import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
+import { useApproval } from "./approval-provider";
 import { serviceErrorMessage } from "./messages";
 import { roleLabel } from "./role-label";
 
@@ -15,6 +16,16 @@ interface AppShellProps {
 
 export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
   const [error, setError] = useState<string | null>(null);
+  const [approvalStatus, setApprovalStatus] = useState<string | null>(null);
+  const { requestApproval } = useApproval();
+
+  const tryApproval = async () => {
+    const outcome = await requestApproval("drawer.open-no-sale");
+    if (outcome.status === "not-needed") setApprovalStatus("No approval needed");
+    else if (outcome.status === "approved") {
+      setApprovalStatus(`Approved by ${outcome.approver.displayName}`);
+    } else setApprovalStatus("Approval cancelled");
+  };
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -52,6 +63,12 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
             Lock
             <Kbd>Ctrl L</Kbd>
           </Button>
+          {import.meta.env.DEV ? (
+            <Button variant="secondary" onClick={tryApproval}>
+              <ShieldCheckIcon aria-hidden="true" size={16} strokeWidth={2} />
+              Try approval
+            </Button>
+          ) : null}
           <Button variant="ghost" onClick={logOut}>
             <LogOutIcon aria-hidden="true" size={16} strokeWidth={2} />
             Log out
@@ -62,6 +79,11 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
         <p className="m-0">
           Signed in as {user.displayName} ({roleLabel(user.role)}).
         </p>
+        {approvalStatus ? (
+          <p role="status" className="m-0 text-foreground">
+            {approvalStatus}
+          </p>
+        ) : null}
         {error ? (
           <p role="alert" className="m-0 text-[length:var(--font-size-350)] text-critical">
             {error}

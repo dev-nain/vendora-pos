@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type { SafeUser } from "@shared/auth";
+import { ApprovalProvider } from "./auth/approval-provider";
 import { AppShell } from "./auth/app-shell";
 import { LockScreen } from "./auth/lock-screen";
 import { LoginScreen } from "./auth/login-screen";
@@ -33,11 +34,13 @@ export function App() {
       return <LoginScreen onLoggedIn={toShell} />;
     case "shell":
       return (
-        <AppShell
-          user={view.user}
-          onLock={() => setView({ name: "locked", user: view.user })}
-          onLoggedOut={toLogin}
-        />
+        <ApprovalProvider user={view.user} onUnauthenticated={toLogin}>
+          <AppShell
+            user={view.user}
+            onLock={() => setView({ name: "locked", user: view.user })}
+            onLoggedOut={toLogin}
+          />
+        </ApprovalProvider>
       );
     case "locked":
       return (
