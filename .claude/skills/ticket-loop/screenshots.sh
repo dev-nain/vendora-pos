@@ -4,11 +4,17 @@
 #   screenshots.sh capture <out_dir> <shots_file>
 #       Builds the app, launches Electron against a throwaway profile with
 #       remote debugging, captures every shot over CDP, then quits.
-#       shots_file lines: name|route|WIDTHxHEIGHT|light|dark  e.g.
-#         checkout|/|1366x768|light
-#         checkout-dark|/|1366x768|dark
-#         reports|/reports|1920x1080|light
+#       shots_file lines: name|route|WIDTHxHEIGHT|light|dark[|as=<user>][|js=<expr>]
+#         login|/|1366x768|light
+#         shell-dark|/|1366x768|dark|as=owner
+#         approval|/|1366x768|light|as=cashier|js=<renderer expression>
 #       route is applied as location.hash; "/" leaves the start screen.
+#       as= signs in as a dev fixture user from src/main/db/dev-users.ts (its
+#       password is looked up there); a shot without as= is taken signed out.
+#       js= is evaluated in the page (awaited) before the capture, e.g. to click
+#       a button; it can't contain "|".
+#       The fixture users are seeded only when some shot uses as=, so a
+#       signed-out run still starts from a fresh, empty database.
 #
 #   screenshots.sh publish <pr_branch> <dir>
 #       Commits <dir>/*.png to the orphan `pr-screenshots` branch under
@@ -34,10 +40,12 @@ capture() {
 	profile=$(mktemp -d)
 	local run=()
 	[[ -z ${DISPLAY:-} && -z ${WAYLAND_DISPLAY:-} ]] && run=(xvfb-run -a)
+	local dev_users=0
+	grep -q '|as=' "$shots" && dev_users=1
 
 	# setsid gives Electron its own process group, so one kill stops it and its
 	# helper processes without matching this script.
-	XDG_CONFIG_HOME=$profile HOME=$profile setsid "${run[@]}" pnpm exec electron . \
+	VENDORA_DEV_USERS=$dev_users XDG_CONFIG_HOME=$profile HOME=$profile setsid "${run[@]}" pnpm exec electron . \
 		--remote-debugging-port="$PORT" --user-data-dir="$profile/chromium" \
 		--force-prefers-reduced-motion >"$out/electron.log" 2>&1 &
 	local pgid=$!
