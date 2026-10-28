@@ -47,7 +47,7 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
           <span className="text-[length:var(--font-size-350)] text-secondary">
             {roleLabel(user.role)}
           </span>
-          <Button variant="secondary" autoFocus onClick={onLock}>
+          <Button variant="secondary" autoFocus data-lock-trigger onClick={onLock}>
             <LockIcon aria-hidden="true" size={16} strokeWidth={2} />
             Lock
             <Kbd>Ctrl L</Kbd>
