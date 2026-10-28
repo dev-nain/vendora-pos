@@ -77,12 +77,30 @@ describe("store settings", () => {
     database.sqlite
       .prepare("INSERT INTO stores (id, name, created_at, updated_at) VALUES ('s1', 'Old', 1, 2)")
       .run();
+    database.sqlite
+      .prepare(
+        "INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 2)",
+      )
+      .run();
+    database.sqlite
+      .prepare(
+        "INSERT INTO users (id, username, display_name, role, password_hash, pin_hash, created_at, updated_at) VALUES ('u1', 'owner', 'Owner', 'owner', 'p', 'q', 1, 2)",
+      )
+      .run();
+    database.sqlite
+      .prepare(
+        "INSERT INTO audit_log (id, store_id, terminal_id, actor_user_id, action, created_at) VALUES ('a1', 's1', 't1', 'u1', 'x', 1)",
+      )
+      .run();
 
     runMigrations(database, { migrationsFolder, backupDir });
 
     expect(database.db.select().from(stores).all()).toEqual([
       expect.objectContaining({ id: "s1", name: "Old", cashierDiscountLimitBps: 500 }),
     ]);
+    for (const table of ["terminals", "users", "audit_log"]) {
+      expect(database.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get()).toEqual({ n: 1 });
+    }
     expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
   });
 });
