@@ -42,6 +42,9 @@ const permissionCases = userRoles.flatMap((role) =>
 describe("permission matrix", () => {
   it("has a row for every permission", () => {
     expect(Object.keys(expected).toSorted()).toEqual([...permissions].toSorted());
+    for (const row of Object.values(expected)) {
+      expect(Object.keys(row).toSorted()).toEqual([...userRoles].toSorted());
+    }
   });
 
   it.each(permissionCases)("%s / %s -> %s", (role, permission, granted) => {
