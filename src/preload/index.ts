@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { contextBridge, ipcRenderer } from "electron";
-import { authResultSchema, loginUserSchema, safeUserSchema } from "@shared/auth";
+import {
+  approvalResultSchema,
+  authResultSchema,
+  loginUserSchema,
+  safeUserSchema,
+} from "@shared/auth";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 
 const api: VendoraApi = {
@@ -15,6 +20,10 @@ const api: VendoraApi = {
     switchByPin: async (userId, pin) =>
       authResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.authSwitchByPin, { userId, pin }),
+      ),
+    approve: async (action, approverUserId, pin) =>
+      approvalResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.authApprove, { action, approverUserId, pin }),
       ),
     logout: async () => {
       await ipcRenderer.invoke(ipcChannels.authLogout);

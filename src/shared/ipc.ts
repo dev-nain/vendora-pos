@@ -1,5 +1,6 @@
 import { z } from "zod";
-import type { AuthResult, LoginUser, SafeUser } from "./auth";
+import type { ApprovalResult, AuthResult, LoginUser, SafeUser } from "./auth";
+import type { GatedAction } from "./gated-actions";
 
 export const appInfoSchema = z.object({ version: z.string() });
 
@@ -9,6 +10,7 @@ export const ipcChannels = {
   appGetInfo: "app:get-info",
   authLogin: "auth:login",
   authSwitchByPin: "auth:switch-by-pin",
+  authApprove: "auth:approve",
   authLogout: "auth:logout",
   authCurrent: "auth:current",
   authListLoginUsers: "auth:list-login-users",
@@ -27,6 +29,7 @@ export interface VendoraApi {
   auth: {
     login: (username: string, password: string) => Promise<AuthResult>;
     switchByPin: (userId: string, pin: string) => Promise<AuthResult>;
+    approve: (action: GatedAction, approverUserId: string, pin: string) => Promise<ApprovalResult>;
     logout: () => Promise<void>;
     current: () => Promise<SafeUser | null>;
     listLoginUsers: () => Promise<LoginUser[]>;
