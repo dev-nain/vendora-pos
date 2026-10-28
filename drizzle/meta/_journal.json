@@ -15,6 +15,13 @@
       "when": 1793203199477,
       "tag": "0001_cashier_discount_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793210448430,
+      "tag": "0002_auto_lock_minutes",
+      "breakpoints": true
     }
   ]
 }

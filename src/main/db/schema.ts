@@ -22,6 +22,7 @@ export const stores = sqliteTable(
     id: id(),
     name: text("name"),
     cashierDiscountLimitBps: integer("cashier_discount_limit_bps").notNull().default(500),
+    autoLockMinutes: integer("auto_lock_minutes").default(5),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -29,6 +30,10 @@ export const stores = sqliteTable(
     check(
       "stores_cashier_discount_limit_bps_check",
       sql`${t.cashierDiscountLimitBps} BETWEEN 0 AND 10000`,
+    ),
+    check(
+      "stores_auto_lock_minutes_check",
+      sql`${t.autoLockMinutes} IS NULL OR ${t.autoLockMinutes} BETWEEN 1 AND 60`,
     ),
   ],
 );
