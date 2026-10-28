@@ -339,7 +339,7 @@ Run every check yourself and return your JSON.`,
 You are the ticket-loop orchestrator for ${id} (${claim.title}), running phase 7 (PR) only. Follow ${SKILL}/SKILL.md phase 7, github.md and linear.md. Phases 0–6 are done and QA passed. Load the Linear MCP tools with ToolSearch.
 
 ${base.pr}
-Use SCREENSHOT_PORT=${cdpPort} for every screenshots.sh call (other lanes run at the same time). If screenshots.sh publish fails on push because another lane pushed first, run it again. Kill only processes you started.
+Run screenshots from develop's copy of the tooling, since a stacked branch may carry an older one: T=$(mktemp -d) && git archive origin/develop .claude/skills/ticket-loop | tar -x -C "$T", then call bash "$T/.claude/skills/ticket-loop/screenshots.sh" from your worktree. Use SCREENSHOT_PORT=${cdpPort} for every call (other lanes run at the same time). If screenshots.sh publish fails on push because another lane pushed first, run it again. Kill only processes you started.
 In the PR's acceptance checklist and Checks section, use this independent QA result as evidence:
 ${JSON.stringify(qa, null, 2)}
 
