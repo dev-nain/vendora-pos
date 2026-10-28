@@ -4,6 +4,9 @@ import { openDatabase, type VendoraDatabase } from "./db/client";
 import { runMigrations } from "./db/migrate";
 import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
+import { createAuditService } from "./services/audit";
+import { createAuthService } from "./services/auth";
+import { createSessionStore } from "./auth/session";
 import { createMainWindow } from "./window";
 
 let database: VendoraDatabase | null = null;
@@ -23,7 +26,12 @@ function startDatabase(): VendoraDatabase {
 
 void app.whenReady().then(() => {
   database = startDatabase();
-  registerIpcHandlers();
+  const auth = createAuthService({
+    database,
+    audit: createAuditService(database),
+    sessions: createSessionStore(),
+  });
+  registerIpcHandlers({ auth });
   createMainWindow();
 
   app.on("activate", () => {

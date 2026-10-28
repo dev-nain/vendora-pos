@@ -1,6 +1,8 @@
 import { ipcErrorMessages } from "../shared/ipc";
-import { ForbiddenError } from "./auth/errors";
+import { ForbiddenError, UnauthenticatedError } from "./auth/errors";
 
 export function toIpcError(error: unknown): unknown {
-  return error instanceof ForbiddenError ? new Error(ipcErrorMessages.forbidden) : error;
+  if (error instanceof ForbiddenError) return new Error(ipcErrorMessages.forbidden);
+  if (error instanceof UnauthenticatedError) return new Error(ipcErrorMessages.unauthenticated);
+  return error;
 }
