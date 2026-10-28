@@ -52,7 +52,11 @@ export function LockScreen({
           userId={user.id}
           submitLabel="Unlock"
           cooldown={cooldown}
-          onSuccess={onUnlocked}
+          submitPin={async (pin) => {
+            const result = await window.vendora.auth.switchByPin(user.id, pin);
+            if (result.ok) onUnlocked(result.user);
+            return result;
+          }}
           onUnauthenticated={onLogInWithPassword}
         />
         <div className="grid gap-200">

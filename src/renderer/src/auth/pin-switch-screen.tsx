@@ -4,10 +4,9 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "re
 import type { LoginUser, SafeUser } from "@shared/auth";
 import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
-import { cn } from "@renderer/lib/utils";
 import { isUnauthenticatedError } from "./messages";
 import { PinPad } from "./pin-pad";
-import { roleLabel } from "./role-label";
+import { UserTile } from "./user-tile";
 import { usePinCooldown } from "./use-pin-cooldown";
 
 type UsersState = { name: "loading" } | { name: "error" } | { name: "ready"; users: LoginUser[] };
@@ -90,36 +89,19 @@ export function PinSwitchScreen({
               {usersState.users.map((user, index) => {
                 const isSelected = selected?.id === user.id;
                 return (
-                  <button
+                  <UserTile
                     key={user.id}
-                    ref={(node) => {
+                    user={user}
+                    selected={isSelected}
+                    detail={user.id === currentUserId ? "Signed in" : undefined}
+                    autoFocus={index === 0}
+                    tileRef={(node) => {
                       if (node) tiles.current.set(user.id, node);
                       else tiles.current.delete(user.id);
                     }}
-                    type="button"
-                    autoFocus={index === 0}
-                    aria-pressed={isSelected}
                     onClick={() => setSelected(user)}
                     onKeyDown={onTileKeyDown}
-                    className={cn(
-                      "relative grid min-h-[88px] content-center justify-items-start gap-100 overflow-hidden rounded-300 border border-line bg-surface p-400 text-left outline-none transition-colors hover:bg-surface-hover focus-visible:shadow-focus",
-                      isSelected && "bg-surface-selected hover:bg-surface-selected",
-                    )}
-                  >
-                    {isSelected ? (
-                      <span
-                        aria-hidden="true"
-                        className="absolute inset-y-0 left-0 w-[4px] bg-fill-brand"
-                      />
-                    ) : null}
-                    <span className="text-[length:var(--font-size-450)] font-semibold text-foreground">
-                      {user.displayName}
-                    </span>
-                    <span className="text-[length:var(--font-size-350)] text-secondary">
-                      {roleLabel(user.role)}
-                      {user.id === currentUserId ? " · Signed in" : ""}
-                    </span>
-                  </button>
+                  />
                 );
               })}
             </div>
@@ -137,7 +119,11 @@ export function PinSwitchScreen({
                 userId={selected.id}
                 submitLabel="Switch"
                 cooldown={cooldown}
-                onSuccess={onSwitched}
+                submitPin={async (pin) => {
+                  const result = await window.vendora.auth.switchByPin(selected.id, pin);
+                  if (result.ok) onSwitched(result.user);
+                  return result;
+                }}
                 onUnauthenticated={onUnauthenticated}
                 onEscape={clearSelection}
               />
