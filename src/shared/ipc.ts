@@ -9,6 +9,7 @@ export const ipcChannels = {
 } as const;
 
 export const ipcErrorMessages = {
+  unauthenticated: "Log in to continue.",
   forbidden: "You don't have permission to do this. Ask the owner or a manager.",
 } as const;
 

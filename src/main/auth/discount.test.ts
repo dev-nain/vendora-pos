@@ -30,7 +30,12 @@ describe("checkDiscount", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  const session = (role: UserRole): Session => ({ userId: "u1", role, storeId });
+  const session = (role: UserRole): Session => ({
+    userId: "u1",
+    role,
+    storeId,
+    loggedInAt: new Date(0),
+  });
 
   it.each([
     [0, "allowed"],

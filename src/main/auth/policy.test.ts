@@ -33,7 +33,12 @@ const expected: Record<Permission, Record<UserRole, boolean>> = {
   "backup.restore": ownerOnly,
 };
 
-const sessionFor = (role: UserRole): Session => ({ userId: "u1", role, storeId: "s1" });
+const sessionFor = (role: UserRole): Session => ({
+  userId: "u1",
+  role,
+  storeId: "s1",
+  loggedInAt: new Date(0),
+});
 
 const permissionCases = userRoles.flatMap((role) =>
   permissions.map((permission) => [role, permission, expected[permission][role]] as const),
