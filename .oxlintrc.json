@@ -32,6 +32,10 @@
                 "message": "Database access is main-process only."
               },
               {
+                "name": "@node-rs/argon2",
+                "message": "Hashing is main-process only."
+              },
+              {
                 "name": "drizzle-orm",
                 "message": "Database access is main-process only."
               }
