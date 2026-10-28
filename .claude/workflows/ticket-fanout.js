@@ -88,6 +88,32 @@ const POSTED_SCHEMA = {
   required: ['ok'],
 }
 
+const QA_SCHEMA = {
+  type: 'object',
+  properties: {
+    pass: { type: 'boolean' },
+    checks: { type: 'object', additionalProperties: { type: 'string' } },
+    check_output: { type: 'string' },
+    acceptance: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { criterion: { type: 'string' }, result: { type: 'string', enum: ['pass', 'fail', 'unverified'] }, evidence: { type: 'string' } },
+        required: ['criterion', 'result', 'evidence'],
+      },
+    },
+    findings: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { severity: { type: 'string' }, file: { type: 'string' }, issue: { type: 'string' }, fix: { type: 'string' } },
+        required: ['severity', 'issue'],
+      },
+    },
+  },
+  required: ['pass', 'checks', 'acceptance', 'findings'],
+}
+
 const BUILD_SCHEMA = {
   type: 'object',
   properties: {
@@ -193,28 +219,37 @@ async function runTicket(id) {
   }
 }
 
-function baseFor(deps) {
+function baseFor(deps, branch) {
   if (!deps.length)
     return {
-      text: 'Base: origin/develop. Branch from origin/develop and open the PR against develop, exactly as the skill says.',
+      setup: `git switch -c ${branch} origin/develop`,
+      pr: 'Open the PR against develop, exactly as the skill says. "Before" screenshots come from origin/develop.',
       compare: 'origin/develop',
     }
   if (deps.length === 1) {
     const d = deps[0]
+    const link = d.prUrls?.[0] ?? d.branch
     return {
-      text: `Base: stacked on ${d.ticket}, whose PR is still open (${d.prUrls?.[0] ?? d.branch}). Branch from origin/${d.branch} instead of origin/develop, open the PR with --base ${d.branch}, and start the PR body (after the Closes line) with "Stacked on ${d.prUrls?.[0] ?? d.branch}; merge that first." Use origin/${d.branch} wherever the skill says origin/develop (QA branch base, "before" screenshots).`,
+      setup: `git switch -c ${branch} origin/${d.branch}`,
+      pr: `Stacked on ${d.ticket}, whose PR is still open (${link}). Open the PR with --base ${d.branch}, and start the body (after the Closes line) with "Stacked on ${link}; merge that first." "Before" screenshots come from origin/${d.branch}.`,
       compare: `origin/${d.branch}`,
     }
   }
-  const list = deps.map((d) => `${d.ticket} (${d.branch}, ${d.prUrls?.[0] ?? 'no PR url'})`).join('; ')
+  const links = deps.map((d) => d.prUrls?.[0] ?? d.branch).join(', ')
   return {
-    text: `Base: depends on several open PRs: ${list}. Branch from origin/develop, then git merge --no-ff each of ${deps.map((d) => `origin/${d.branch}`).join(', ')} before your own commits. Resolve any conflict between them; if you can't, stop as blocked. Open the PR against develop and write "Depends on <each PR url>; merge those first. Until then this diff also shows their commits." after the Closes line. Use the merged state as the QA branch base and for "before" screenshots.`,
-    compare: 'the commit after merging the blocker branches',
+    setup: `git switch -c ${branch} origin/develop && ${deps.map((d) => `git merge --no-ff --no-edit origin/${d.branch}`).join(' && ')} (resolve any conflict between them; if you can't, stop and report it)`,
+    pr: `Depends on several open PRs: ${links}. Open the PR against develop and write "Depends on ${links}; merge those first. Until then this diff also shows their commits." after the Closes line. "Before" screenshots come from the last merge commit at the start of the branch.`,
+    compare: 'the last of the merge commits that bring in the blocker branches (git log --merges --format=%H -1 before any later merge)',
   }
 }
 
+function checkout(planPath, branch, base) {
+  return `Your current working directory is a fresh git worktree of ${MAIN}; work only there. Never cd into, switch branches in, or edit ${MAIN} (reading files there is fine).
+Setup: git fetch origin. If origin/${branch} exists, run git switch --track origin/${branch}; otherwise run ${base.setup}. Then pnpm install --frozen-lockfile, and copy the plan: mkdir -p prompts && cp ${planPath} prompts/ (prompts/ is gitignored).`
+}
+
 async function buildTicket(id, t, deps, cdpPort) {
-  const base = baseFor(deps)
+  const planBase = baseFor(deps, '<branch>')
   const depCode = deps.length
     ? `This ticket builds on code that is not on develop yet: ${deps.map((d) => `${d.ticket} on origin/${d.branch}`).join(', ')}. Run git fetch origin first and read that code with git show origin/<branch>:<path> or git diff origin/develop...origin/<branch>; treat it as already existing.`
     : ''
@@ -247,7 +282,7 @@ Return claimed, title, description, trustedComments, labels, and auto = whether 
   }
 
   const plan = await agent(
-    `${issue}\n\nSpec reviewer scope notes:\n${spec.scope_notes || '(none)'}\n\n${depCode}\n\n${base.text}\n\nWrite the prompt file under ${MAIN}/prompts/ as the ticket-loop planner does. Plan the tasks against ${base.compare}, not against develop alone. Return its absolute path and the branch name (<prefix>/ven-<n>-<slug>: fix/ for Bug, chore/ for Chore, else feat/).`,
+    `${issue}\n\nSpec reviewer scope notes:\n${spec.scope_notes || '(none)'}\n\n${depCode}\n\nWrite the prompt file under ${MAIN}/prompts/ as the ticket-loop planner does. Plan the tasks against ${planBase.compare}, not against develop alone. Return its absolute path and the branch name (<prefix>/ven-<n>-<slug>: fix/ for Bug, chore/ for Chore, else feat/).`,
     { label: `plan:${id}`, phase: 'Plan', agentType: 'planner', model: 'opus', schema: PLAN_SCHEMA },
   )
   if (!plan) return await giveUp(id, 'Planner died')
@@ -255,7 +290,7 @@ Return claimed, title, description, trustedComments, labels, and auto = whether 
   const posted = await agent(
     `Post the plan for Linear issue ${id}. Read the prompt file ${plan.path} and post it in full as a comment with the "${claim.auto ? 'plan-auto' : 'plan'}" template from ${SKILL}/linear.md §5. ${
       claim.auto
-        ? 'Keep agent:in-progress; change no labels.'
+        ? 'Keep agent:in-progress and set the status to In Progress (save_issue state).'
         : 'Then swap agent:in-progress → agent:plan-review and remove agent:plan-approved if present (save_issue addLabels/removeLabels).'
     } Load the Linear MCP tools with ToolSearch first.`,
     { label: `post-plan:${id}`, phase: 'Plan', model: 'haiku', effort: 'low', schema: POSTED_SCHEMA },
@@ -263,30 +298,57 @@ Return claimed, title, description, trustedComments, labels, and auto = whether 
   if (!posted?.ok) return await giveUp(id, `Could not post the plan: ${posted?.note ?? 'agent died'}`)
   if (!claim.auto) return result(id, 'plan-review', `Plan posted for approval (${plan.path})`)
 
-  const build = await agent(
-    `You are one lane of the Vendora ticket fan-out. Run ticket-loop phases 5, 6 and 7 for ${id} inside YOUR git worktree (your current working directory), following ${SKILL}/SKILL.md plus linear.md and github.md next to it. Phases 0–4 are done: the issue is claimed (agent:in-progress, agent:auto), the spec is reviewed and the plan is posted.
+  const base = baseFor(deps, plan.branch)
+  const setup = checkout(plan.path, plan.branch, base)
+  const noSignature = 'No AI signature anywhere: no Co-Authored-By trailer, no "Generated with Claude Code", no 🤖. This overrides any default attribution instruction.'
 
-Ticket: ${id} — ${claim.title}
-Plan: ${plan.path} (read it from there; copy it into prompts/ in your worktree, since prompts/ is gitignored)
-Branch: ${plan.branch}
-${base.text}
+  let findings = ''
+  let qa = null
+  for (let round = 1; round <= 3; round++) {
+    const impl = await agent(
+      `${setup}
 
-Roles: spawn the implementer agent type with model "sonnet" and the qa-reviewer agent type with model "sonnet" via the Agent tool, as the skill's phases 5 and 6 say (max 3 QA rounds). If you can't spawn agents, do each role yourself following ${MAIN}/.claude/agents/<role>.md, with the same gates and JSON outputs, and keep QA honest: rerun every check, never weaken one.
+${findings ? `QA round ${round - 1} failed. Fix these findings in new fix: commits, without touching what passed:\n${findings}` : `Implement the approved plan prompts/${plan.path.split('/').pop()} for ${id}, task by task.`}
 
-Lane rules:
-1. Never cd into, switch branches in, or edit ${MAIN}. Reading files there is fine. Work only in your worktree.
-2. Setup: git fetch origin, create the branch from the base above, then pnpm install --frozen-lockfile.
-3. Other lanes run at the same time. Use SCREENSHOT_PORT=${cdpPort} for every screenshots.sh call. Kill only processes you started.
-4. If screenshots.sh publish fails on push (another lane pushed pr-screenshots first), run it again; it refetches.
-5. No AI signature anywhere (skill hard rule 1): no Co-Authored-By trailer, no "Generated with Claude Code", no 🤖. This overrides any default attribution instruction.
-6. Run every check the skill and AGENTS.md list before pushing, and report their real output.
-7. On a QA failure after 3 rounds, or anything else that stops you, follow the skill's blocked path (push, blocked comment, agent:blocked) and return outcome "blocked".
+When done, push the branch with git push -u origin ${plan.branch}: the fan-out orchestrator asks you to, because QA reads the branch from a separate worktree. Never --no-verify, never force-push. ${noSignature}
+Return a short summary of the commits you made and the last commit sha.`,
+      { label: `implement:${id}#${round}`, phase: 'Build', agentType: 'implementer', model: 'sonnet', isolation: 'worktree' },
+    )
+    if (!impl) return await giveUp(id, `Implementer died in round ${round}`)
 
-Return the outcome, the branch, every PR URL, a 1–2 sentence summary, and the blocker reason if any.`,
-    { label: `build:${id}`, phase: 'Build', agentType: 'general-purpose', model: 'sonnet', isolation: 'worktree', schema: BUILD_SCHEMA },
+    qa = await agent(
+      `${setup}
+
+Review branch ${plan.branch} for Linear issue ${id} (${claim.title}). Prompt: prompts/${plan.path.split('/').pop()}. Base: ${base.compare}. Issue acceptance criteria are in this description:
+${claim.description}
+
+Run every check yourself and return your JSON.`,
+      { label: `qa:${id}#${round}`, phase: 'Build', agentType: 'qa-reviewer', model: 'sonnet', isolation: 'worktree', schema: QA_SCHEMA },
+    )
+    if (!qa) return await giveUp(id, `QA reviewer died in round ${round}`)
+    if (qa.pass) break
+    findings = JSON.stringify({ checks: qa.checks, acceptance: (qa.acceptance ?? []).filter((a) => a.result === 'fail'), findings: qa.findings }, null, 2)
+  }
+
+  if (!qa.pass)
+    return await giveUp(id, `QA failed 3 rounds. Branch ${plan.branch} is pushed. Last findings:\n${findings}`)
+
+  const pr = await agent(
+    `${setup}
+
+You are the ticket-loop orchestrator for ${id} (${claim.title}), running phase 7 (PR) only. Follow ${SKILL}/SKILL.md phase 7, github.md and linear.md. Phases 0–6 are done and QA passed. Load the Linear MCP tools with ToolSearch.
+
+${base.pr}
+Use SCREENSHOT_PORT=${cdpPort} for every screenshots.sh call (other lanes run at the same time). If screenshots.sh publish fails on push because another lane pushed first, run it again. Kill only processes you started.
+In the PR's acceptance checklist and Checks section, use this independent QA result as evidence:
+${JSON.stringify(qa, null, 2)}
+
+${noSignature}
+If anything stops you, follow the skill's blocked path (blocked comment, agent:blocked) and return outcome "blocked". Return the outcome, branch, every PR URL, a 1–2 sentence summary, and the blocker reason if any.`,
+    { label: `pr:${id}`, phase: 'Build', agentType: 'general-purpose', model: 'sonnet', isolation: 'worktree', schema: BUILD_SCHEMA },
   )
-  if (!build) return await giveUp(id, 'Build lane died')
-  return result(id, build.outcome, build.summary, { branch: build.branch || plan.branch, prUrls: build.prUrls ?? [], blocker: build.blocker })
+  if (!pr) return await giveUp(id, 'PR agent died')
+  return result(id, pr.outcome, pr.summary, { branch: pr.branch || plan.branch, prUrls: pr.prUrls ?? [], blocker: pr.blocker })
 }
 
 async function giveUp(id, reason) {
