@@ -9,6 +9,15 @@ import type {
 } from "./auth";
 import type { GatedAction } from "./gated-actions";
 import type { AutoLockSetting } from "./settings";
+import type {
+  CreateUserInput,
+  CreateUserResult,
+  DeactivateUserResult,
+  ManagedUser,
+  UpdateUserInput,
+  UpdateUserResult,
+  UserActionResult,
+} from "./users";
 
 export const appInfoSchema = z.object({ version: z.string() });
 
@@ -29,6 +38,13 @@ export const ipcChannels = {
   settingsSetAutoLock: "settings:set-auto-lock",
   authNeedsOwnerSetup: "auth:needs-owner-setup",
   authCreateOwner: "auth:create-owner",
+  usersList: "users:list",
+  usersCreate: "users:create",
+  usersUpdate: "users:update",
+  usersResetPassword: "users:reset-password",
+  usersResetPin: "users:reset-pin",
+  usersDeactivate: "users:deactivate",
+  usersReactivate: "users:reactivate",
 } as const;
 
 export const ipcErrorMessages = {
@@ -60,5 +76,14 @@ export interface VendoraApi {
   settings: {
     getAutoLock: () => Promise<AutoLockSetting>;
     setAutoLock: (minutes: number | null) => Promise<AutoLockSetting>;
+  };
+  users: {
+    list: () => Promise<ManagedUser[]>;
+    create: (input: CreateUserInput) => Promise<CreateUserResult>;
+    update: (input: UpdateUserInput) => Promise<UpdateUserResult>;
+    resetPassword: (id: string, password: string) => Promise<UserActionResult>;
+    resetPin: (id: string, pin: string) => Promise<UserActionResult>;
+    deactivate: (id: string) => Promise<DeactivateUserResult>;
+    reactivate: (id: string) => Promise<UserActionResult>;
   };
 }

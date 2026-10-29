@@ -19,6 +19,7 @@ export const auditActions = [
   "user_create",
   "user_update",
   "user_deactivate",
+  "user_reactivate",
 ] as const;
 export type AuditAction = (typeof auditActions)[number];
 

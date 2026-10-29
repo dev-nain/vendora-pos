@@ -11,6 +11,7 @@ import { createAuthService } from "./services/auth";
 import { createAutoLock } from "./services/auto-lock";
 import { createSettingsService } from "./services/settings";
 import { getAutoLockMinutes } from "./settings/store-settings";
+import { createUsersService } from "./services/users";
 import { createApprovalStore } from "./auth/approvals";
 import { createSessionStore } from "./auth/session";
 import { createMainWindow } from "./window";
@@ -54,7 +55,8 @@ void app.whenReady().then(async () => {
       window.webContents.send(ipcChannels.authLocked);
     }
   });
-  registerIpcHandlers({ auth, autoLock, settings });
+  const users = createUsersService({ database, audit, sessions, approvals });
+  registerIpcHandlers({ auth, autoLock, settings, users });
   createMainWindow();
 
   app.on("activate", () => {

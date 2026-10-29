@@ -4,3 +4,8 @@ export const serviceErrorMessage = "Couldn't reach the app service. Try again.";
 
 export const isUnauthenticatedError = (error: unknown): boolean =>
   error instanceof Error && error.message.includes(ipcErrorMessages.unauthenticated);
+
+export const isSessionError = (error: unknown): boolean =>
+  error instanceof Error &&
+  (error.message.includes(ipcErrorMessages.unauthenticated) ||
+    error.message.includes(ipcErrorMessages.forbidden));
