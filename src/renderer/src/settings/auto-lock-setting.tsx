@@ -17,6 +17,8 @@ const statusText = (minutes: number | null): string => {
   return `Locks after ${minutes} ${minutes === 1 ? "minute" : "minutes"} idle`;
 };
 
+const minutesText = (minutes: number | null): string => (minutes === null ? "" : String(minutes));
+
 const refusalMessage = (error: unknown): string => {
   if (error instanceof Error) {
     for (const message of [ipcErrorMessages.forbidden, ipcErrorMessages.locked]) {
@@ -36,7 +38,10 @@ export function AutoLockSetting() {
   const load = useCallback(() => {
     window.vendora.settings
       .getAutoLock()
-      .then(({ minutes }) => setState({ name: "ready", minutes }))
+      .then(({ minutes }) => {
+        setState({ name: "ready", minutes });
+        setText(minutesText(minutes));
+      })
       .catch(() => setState({ name: "error" }));
   }, []);
 
@@ -54,6 +59,7 @@ export function AutoLockSetting() {
     try {
       const result = await window.vendora.settings.setAutoLock(minutes);
       setState({ name: "ready", minutes: result.minutes });
+      setText(minutesText(result.minutes));
       setSaved(true);
     } catch (caught) {
       setError(refusalMessage(caught));
