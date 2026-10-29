@@ -3,17 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vendora Design System</title>
+<title>Vendora Design System · Bazaar</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Noto+Nastaliq+Urdu:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="tokens.css">
 <style>
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--color-bg); color: var(--color-text); font: var(--font-weight-regular) var(--font-size-400)/var(--line-height-normal) var(--font-sans); }
+body { margin: 0; background: var(--color-bg); color: var(--color-text); font: var(--font-weight-regular) var(--font-size-400)/var(--line-height-normal) var(--font-sans); -webkit-font-smoothing: antialiased; font-optical-sizing: auto; }
+button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: none; box-shadow: var(--shadow-focus); }
-h1, h2, h3 { margin: 0; line-height: var(--line-height-tight); letter-spacing: -0.02em; }
+h1, h2, h3 { margin: 0; line-height: var(--line-height-tight); letter-spacing: var(--letter-spacing-heading); }
 code { font-family: var(--font-mono); font-size: 0.85em; }
 .num, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .urdu { font-family: var(--font-urdu); direction: rtl; line-height: var(--line-height-urdu); }
@@ -21,24 +22,24 @@ code { font-family: var(--font-mono); font-size: 0.85em; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------- Doc chrome ---------- */
-.doc-header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: var(--space-400); padding: var(--space-300) var(--space-600); background: var(--color-bg-surface); border-bottom: 1px solid var(--color-border); }
+.doc-header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: var(--space-400); padding: var(--space-300) var(--space-600); background: var(--color-bg-material); backdrop-filter: blur(var(--blur-material)) saturate(170%); -webkit-backdrop-filter: blur(var(--blur-material)) saturate(170%); box-shadow: inset 0 -1px 0 var(--color-border); }
 .doc-header nav { display: flex; gap: var(--space-100); overflow-x: auto; flex: 1; }
-.doc-header nav a { padding: 6px 10px; border-radius: var(--radius-200); color: var(--color-text-secondary); text-decoration: none; font-size: var(--font-size-350); white-space: nowrap; }
+.doc-header nav a { padding: 6px 10px; border-radius: var(--radius-200); color: var(--color-text-secondary); text-decoration: none; font-size: var(--font-size-350); font-weight: var(--font-weight-medium); white-space: nowrap; }
 .doc-header nav a:hover { background: var(--color-bg-surface-hover); color: var(--color-text); }
 main { max-width: 1180px; margin: 0 auto; padding: var(--space-800) var(--space-600) 96px; }
 section { padding-top: var(--space-1600); scroll-margin-top: 64px; }
-section > h2 { font-size: var(--font-size-700); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-200); }
+section > h2 { font-size: var(--font-size-700); font-weight: var(--font-weight-bold); margin-bottom: var(--space-200); }
 section > .lede { color: var(--color-text-secondary); max-width: 72ch; margin: 0 0 var(--space-600); }
-.panel { background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-300); padding: var(--space-600); }
+.panel { background: var(--color-bg-surface); border: 1px solid var(--color-border-card); border-radius: var(--radius-400); padding: var(--space-600); box-shadow: var(--shadow-200); }
 .grid { display: grid; gap: var(--space-400); }
 .g2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .g3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-.label { font-size: var(--font-size-300); font-weight: var(--font-weight-semibold); letter-spacing: var(--letter-spacing-caps); text-transform: uppercase; color: var(--color-text-tertiary); margin-bottom: var(--space-300); }
+.label { font-size: var(--font-size-300); font-weight: var(--font-weight-semibold); letter-spacing: 0.01em; color: var(--color-text-tertiary); margin-bottom: var(--space-300); }
 .row { display: flex; flex-wrap: wrap; gap: var(--space-300); align-items: center; }
 .rules { margin: 0; padding-left: 20px; color: var(--color-text-secondary); }
 .rules li { margin-bottom: 6px; }
 .dodont { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-300); }
-.dodont > div { padding: var(--space-400); border-radius: var(--radius-200); border: 1px solid var(--color-border); background: var(--color-bg-surface); }
+.dodont > div { padding: var(--space-400); border-radius: var(--radius-300); background: var(--color-bg-surface-secondary); }
 .dodont strong { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; font-size: var(--font-size-350); }
 .dodont .do strong { color: var(--color-text-success); }
 .dodont .dont strong { color: var(--color-text-critical); }
@@ -46,123 +47,149 @@ section > .lede { color: var(--color-text-secondary); max-width: 72ch; margin: 0
 
 /* ---------- Brand ---------- */
 .hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-800); align-items: center; }
-.hero h1 { font-size: 48px; font-weight: var(--font-weight-semibold); letter-spacing: var(--letter-spacing-tight); }
+.hero h1 { font-size: 48px; font-weight: var(--font-weight-extrabold); letter-spacing: var(--letter-spacing-display); }
 .hero p { font-size: var(--font-size-450); color: var(--color-text-secondary); }
-.wordmark { font-weight: var(--font-weight-semibold); letter-spacing: var(--letter-spacing-tight); }
+.wordmark { font-weight: var(--font-weight-extrabold); letter-spacing: var(--letter-spacing-tight); }
 .wordmark i { font-style: normal; color: var(--color-bg-fill-brand); }
+.on-inverse .wordmark i { color: var(--color-bg-tint-1); }
+:root[data-theme="dark"] .on-inverse .wordmark i { color: var(--color-text-tint-1); }
 .logo-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-300); }
-.logo-tile { display: grid; place-items: center; aspect-ratio: 1.3; border-radius: var(--radius-300); border: 1px solid var(--color-border); }
+.logo-tile { display: grid; place-items: center; aspect-ratio: 1.3; border-radius: var(--radius-400); }
 
 /* ---------- Swatches ---------- */
-.sw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--space-200); }
-.sw { border: 1px solid var(--color-border); border-radius: var(--radius-200); overflow: hidden; background: var(--color-bg-surface); }
-.sw .chip { height: 56px; display: grid; place-items: center; font-weight: var(--font-weight-semibold); }
-.sw .meta { padding: var(--space-200) var(--space-300); font-size: var(--font-size-300); border-top: 1px solid var(--color-border); }
+.sw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--space-300); }
+.sw { border-radius: var(--radius-300); overflow: hidden; background: var(--color-bg-surface); border: 1px solid var(--color-border-card); box-shadow: var(--shadow-200); }
+.sw .chip { height: 60px; display: grid; place-items: center; font-weight: var(--font-weight-semibold); }
+.sw .meta { padding: var(--space-200) var(--space-300); font-size: var(--font-size-300); }
 .sw .meta b { display: block; font: var(--font-weight-medium) 12px var(--font-mono); word-break: break-all; }
 .sw .meta span { color: var(--color-text-tertiary); font-family: var(--font-mono); }
+.tints { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--space-300); }
+@media (max-width: 760px) { .tints { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.tint { display: grid; justify-items: start; gap: var(--space-200); padding: var(--space-400); border-radius: var(--radius-300); background: var(--color-bg-surface); box-shadow: var(--shadow-200); border: 1px solid var(--color-border-card); font-size: var(--font-size-350); }
+.thumb { width: 36px; height: 36px; border-radius: var(--radius-200); display: grid; place-items: center; font-size: 13px; font-weight: var(--font-weight-bold); flex: none; }
+.t1 { background: var(--color-bg-tint-1); color: var(--color-text-tint-1); }
+.t2 { background: var(--color-bg-tint-2); color: var(--color-text-tint-2); }
+.t3 { background: var(--color-bg-tint-3); color: var(--color-text-tint-3); }
+.t4 { background: var(--color-bg-tint-4); color: var(--color-text-tint-4); }
+.t5 { background: var(--color-bg-tint-5); color: var(--color-text-tint-5); }
+.t6 { background: var(--color-bg-tint-6); color: var(--color-text-tint-6); }
 
 /* ---------- Type specimen ---------- */
-.type-row { display: grid; grid-template-columns: 170px 1fr; gap: var(--space-400); align-items: baseline; padding: var(--space-300) 0; border-bottom: 1px solid var(--color-border); }
+.type-row { display: grid; grid-template-columns: 190px 1fr; gap: var(--space-400); align-items: baseline; padding: var(--space-300) 0; border-bottom: 1px dashed var(--color-border); }
 .type-row:last-child { border-bottom: 0; }
 .type-row .spec { font: 12px var(--font-mono); color: var(--color-text-tertiary); }
 
 /* ---------- Keycap ---------- */
 .kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: var(--radius-100); font: var(--font-weight-medium) 11px/1 var(--font-mono); color: var(--color-text-secondary); background: var(--color-bg-surface-secondary); border: 1px solid var(--color-border-strong); }
 
+/* ---------- Press feedback (shared) ---------- */
+.btn, .keypad button, .user, .stepper button, .segmented button { transition: scale var(--duration-release) var(--ease-out), background-color var(--duration-100) var(--ease-out), border-color var(--duration-100) var(--ease-out), box-shadow var(--duration-100) var(--ease-out); }
+.btn:active, .keypad button:active, .user:active, .stepper button:active, .segmented button:active { scale: var(--scale-press); transition-duration: var(--duration-100); }
+
 /* ---------- Button ---------- */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-200); min-height: var(--height-control-md); padding: 0 var(--space-400); border-radius: var(--radius-200); border: 1px solid transparent; font: var(--font-weight-medium) var(--font-size-350)/1 var(--font-sans); cursor: pointer; user-select: none; transition: background var(--duration-100) var(--ease-out), border-color var(--duration-100) var(--ease-out); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-200); min-height: var(--height-control-md); padding: 0 var(--space-400); border-radius: var(--radius-300); border: 1px solid transparent; font: var(--font-weight-semibold) var(--font-size-350)/1 var(--font-sans); cursor: pointer; user-select: none; }
 .btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+.btn .kbd { background: transparent; }
 .btn-primary { background: var(--color-bg-fill-brand); color: var(--color-text-on-brand); }
 .btn-primary:hover { background: var(--color-bg-fill-brand-hover); }
 .btn-primary:active { background: var(--color-bg-fill-brand-active); }
-.btn-primary .kbd { background: transparent; color: inherit; border-color: currentColor; opacity: .75; }
-.btn-secondary { background: var(--color-bg-fill-secondary); color: var(--color-text); border-color: var(--color-border-strong); box-shadow: var(--shadow-100); }
-.btn-secondary:hover { background: var(--color-bg-fill-secondary-hover); }
+.btn-primary .kbd, .btn-critical .kbd { color: inherit; border-color: color-mix(in srgb, currentColor 35%, transparent); }
+.btn-secondary { background: var(--color-bg-fill-secondary); color: var(--color-text); border-color: var(--color-border-strong); }
+.btn-secondary:hover { border-color: var(--color-border-hover); background: var(--color-bg-fill-secondary-hover); }
 .btn-secondary:active { background: var(--color-bg-fill-secondary-active); }
 .btn-ghost { background: transparent; color: var(--color-text-secondary); }
 .btn-ghost:hover { background: var(--color-bg-surface-hover); color: var(--color-text); }
 .btn-critical { background: var(--color-bg-fill-critical); color: var(--color-text-on-critical); }
 .btn-critical:hover { background: var(--color-bg-fill-critical-hover); }
-.btn-sm { min-height: var(--height-control-sm); padding: 0 var(--space-300); font-size: var(--font-size-350); }
-.btn-lg { min-height: var(--height-control-lg); padding: 0 var(--space-600); font-size: var(--font-size-450); font-weight: var(--font-weight-semibold); }
+.btn-sm { min-height: var(--height-control-sm); padding: 0 var(--space-300); }
+.btn-lg { min-height: var(--height-control-lg); padding: 0 var(--space-600); font-size: var(--font-size-450); }
 .btn-block { width: 100%; }
 .btn-icon { width: var(--height-control-md); padding: 0; }
 .btn-icon.btn-sm { width: var(--height-control-sm); }
-.btn[disabled] { background: var(--color-bg-surface-secondary); color: var(--color-text-disabled); border-color: var(--color-border); box-shadow: none; cursor: not-allowed; }
+.btn-round { border-radius: var(--radius-full); background: var(--color-bg-fill-neutral-secondary); color: var(--color-text-secondary); }
+.btn[disabled] { background: var(--color-bg-surface-secondary); color: var(--color-text-disabled); border-color: var(--color-border); cursor: not-allowed; scale: none; }
 .tender { min-height: var(--height-control-lg); font: var(--font-weight-medium) var(--font-size-450) var(--font-mono); }
+.held-count { background: var(--color-bg-fill-highlight); color: var(--color-text-on-highlight); font-size: 12px; font-weight: var(--font-weight-bold); border-radius: var(--radius-full); padding: 1px 8px; }
 
 /* ---------- Form controls ---------- */
-.field { display: grid; gap: 6px; }
-.field > label, .field > .flabel { font-size: var(--font-size-350); font-weight: var(--font-weight-medium); }
-.help { font-size: var(--font-size-300); color: var(--color-text-tertiary); }
-.err { font-size: var(--font-size-300); color: var(--color-text-critical); display: flex; gap: 4px; align-items: center; font-weight: var(--font-weight-medium); }
+.field { display: grid; gap: var(--space-200); }
+.field > label, .field > .flabel { font-size: var(--font-size-350); font-weight: var(--font-weight-semibold); }
+.help { font-size: var(--font-size-350); color: var(--color-text-tertiary); }
+.err { font-size: var(--font-size-350); color: var(--color-text-critical); display: flex; gap: 4px; align-items: center; font-weight: var(--font-weight-semibold); }
 .err svg { width: 14px; height: 14px; }
-.input, .select { width: 100%; min-height: var(--height-control-md); padding: 0 var(--space-300); font: var(--font-size-400) var(--font-sans); color: var(--color-text); background: var(--color-bg-surface); border: 1px solid var(--color-input-border); border-radius: var(--radius-200); box-shadow: var(--shadow-100); }
+.input, .select { width: 100%; min-height: var(--height-control-md); padding: 0 var(--space-400); font: var(--font-size-400) var(--font-sans); color: var(--color-text); background: var(--color-bg-surface); border: 1px solid var(--color-input-border); border-radius: var(--radius-300); transition: border-color var(--duration-100) var(--ease-out), box-shadow var(--duration-100) var(--ease-out); }
 .input:hover, .select:hover { border-color: var(--color-border-hover); }
-.input:focus-visible, .select:focus-visible { border-color: var(--color-border-focus); box-shadow: 0 0 0 3px var(--color-bg-fill-brand-secondary); }
+.input:focus-visible, .select:focus-visible { border-color: var(--color-border-focus); box-shadow: var(--shadow-focus); }
 .input::placeholder { color: var(--color-text-tertiary); }
 .input[aria-invalid="true"] { border-color: var(--color-border-critical-strong); }
 .input.num { font-family: var(--font-mono); }
 .affix { position: relative; }
-.affix > svg, .affix > .pre { position: absolute; left: 12px; top: 50%; translate: 0 -50%; color: var(--color-icon-secondary); pointer-events: none; }
-.affix > svg { width: 18px; height: 18px; }
+.affix > svg, .affix > .pre { position: absolute; left: 16px; top: 50%; translate: 0 -50%; color: var(--color-icon-secondary); pointer-events: none; }
+.affix > svg { width: 20px; height: 20px; }
 .affix > .pre { font: var(--font-weight-medium) var(--font-size-350) var(--font-mono); }
-.affix .input { padding-left: 40px; }
-.affix > .kbd { position: absolute; right: 12px; top: 50%; translate: 0 -50%; }
-.scan { min-height: var(--height-control-lg); font-size: var(--font-size-450); border-width: 2px; border-color: var(--color-text); }
-.scan:focus-visible { border-color: var(--color-border-focus); }
-.stepper { display: inline-flex; border: 1px solid var(--color-input-border); border-radius: var(--radius-200); overflow: hidden; box-shadow: var(--shadow-100); }
-.stepper button { width: var(--height-control-md); min-height: var(--height-control-md); border: 0; background: var(--color-bg-surface-secondary); color: var(--color-text); font-size: 20px; cursor: pointer; }
-.stepper button:hover { background: var(--color-bg-surface-active); }
-.stepper input { width: 72px; border: 0; text-align: center; font: var(--font-weight-semibold) var(--font-size-400) var(--font-mono); background: var(--color-bg-surface); color: var(--color-text); border-inline: 1px solid var(--color-border); }
-.segmented { display: inline-flex; padding: 3px; gap: 3px; background: var(--color-bg-surface-secondary); border: 1px solid var(--color-border); border-radius: var(--radius-200); }
-.segmented button { min-height: 38px; padding: 0 var(--space-400); display: inline-flex; gap: 8px; align-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); font: var(--font-weight-medium) var(--font-size-350) var(--font-sans); cursor: pointer; }
+.affix .input { padding-left: 46px; }
+.affix > .kbd { position: absolute; right: 14px; top: 50%; translate: 0 -50%; }
+.scan { min-height: var(--height-control-lg); font-size: var(--font-size-450); border-width: 2px; border-radius: var(--radius-400); }
+.affix > svg.brand { color: var(--color-text-brand); }
+.stepper { display: inline-flex; align-items: center; gap: 6px; }
+.stepper button { width: var(--height-control-md); min-height: var(--height-control-md); border: 1px solid var(--color-input-border); border-radius: var(--radius-200); background: var(--color-bg-surface); color: var(--color-text); font-size: 20px; cursor: pointer; }
+.stepper button:hover { background: var(--color-bg-surface-hover); }
+.stepper input { width: 64px; border: 0; text-align: center; font: var(--font-weight-semibold) var(--font-size-400) var(--font-mono); background: transparent; color: var(--color-text); }
+.segmented { display: inline-flex; padding: 4px; gap: 4px; background: var(--color-bg-surface-secondary); border-radius: var(--radius-300); }
+.segmented button { min-height: 40px; padding: 0 var(--space-400); display: inline-flex; gap: 8px; align-items: center; border: 0; border-radius: var(--radius-200); background: transparent; color: var(--color-text-secondary); font: var(--font-weight-semibold) var(--font-size-350) var(--font-sans); cursor: pointer; }
 .segmented button svg { width: 16px; height: 16px; }
-.segmented button[aria-pressed="true"] { background: var(--color-bg-surface); color: var(--color-text); box-shadow: var(--shadow-100), 0 0 0 1px var(--color-border); }
+.segmented button[aria-pressed="true"] { background: var(--color-bg-surface); color: var(--color-text); box-shadow: var(--shadow-200); }
 .check { display: flex; gap: var(--space-300); align-items: center; min-height: var(--height-control-md); cursor: pointer; }
 .check input { width: 18px; height: 18px; accent-color: var(--color-bg-fill-brand); }
 
 /* ---------- Badge ---------- */
-.badge { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: var(--radius-full); font: var(--font-weight-medium) var(--font-size-300)/1 var(--font-sans); white-space: nowrap; }
+.badge { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; border-radius: var(--radius-full); font: var(--font-weight-semibold) var(--font-size-300)/1 var(--font-sans); white-space: nowrap; }
 .badge svg { width: 12px; height: 12px; }
 .badge-neutral { background: var(--color-bg-fill-neutral-secondary); color: var(--color-text-secondary); }
 .badge-brand { background: var(--color-bg-fill-brand-secondary); color: var(--color-text-brand); }
 .badge-success { background: var(--color-bg-fill-success-secondary); color: var(--color-text-success); }
 .badge-warning { background: var(--color-bg-fill-warning-secondary); color: var(--color-text-warning); }
 .badge-critical { background: var(--color-bg-fill-critical-secondary); color: var(--color-text-critical); }
+.badge-highlight { background: var(--color-bg-fill-highlight); color: var(--color-text-on-highlight); }
 
 /* ---------- Money ---------- */
 .money { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .money-neg { color: var(--color-text-critical); }
-.total { display: grid; gap: var(--space-100); padding: var(--space-500); border-radius: var(--radius-300); background: var(--color-bg-surface-inverse); color: var(--color-text-on-inverse); }
-.total .k { font-size: var(--font-size-300); font-weight: var(--font-weight-semibold); letter-spacing: var(--letter-spacing-caps); text-transform: uppercase; opacity: .7; }
-.total .v { font-size: var(--font-size-1400); font-weight: var(--font-weight-semibold); line-height: 1; letter-spacing: var(--letter-spacing-tight); font-variant-numeric: tabular-nums; }
-.total .v small { font-size: .45em; font-weight: var(--font-weight-medium); opacity: .6; margin-right: 6px; letter-spacing: 0; }
+.total { display: grid; gap: var(--space-100); padding: var(--space-500); border-radius: var(--radius-400); background: var(--color-bg-surface-inverse); color: var(--color-text-on-inverse); }
+.total .k { font-size: var(--font-size-300); font-weight: var(--font-weight-semibold); color: var(--color-text-on-inverse-secondary); }
+.total .v { font: var(--font-weight-semibold) var(--font-size-1400)/1.1 var(--font-mono); letter-spacing: var(--letter-spacing-display); font-variant-numeric: tabular-nums; }
+.total .v small { font-size: 24px; font-weight: var(--font-weight-medium); margin-right: 6px; letter-spacing: -0.01em; }
+.total .meta { font-size: 13px; color: var(--color-text-on-inverse-secondary); }
 .total-change { background: var(--color-bg-fill-success); color: var(--color-text-on-success); }
+.total-change .k { color: inherit; }
 
 /* ---------- Table ---------- */
-.table-wrap { overflow-x: auto; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-300); }
+.table-wrap { overflow: auto; max-height: 260px; background: var(--color-bg-surface); border: 1px solid var(--color-border-card); border-radius: var(--radius-400); box-shadow: var(--shadow-200); }
 table { width: 100%; border-collapse: collapse; }
-th { text-align: left; font-size: var(--font-size-300); font-weight: var(--font-weight-medium); color: var(--color-text-tertiary); padding: 10px var(--space-400); background: var(--color-bg-surface-secondary); border-bottom: 1px solid var(--color-border); white-space: nowrap; }
-td { height: var(--height-row); padding: 0 var(--space-400); border-bottom: 1px solid var(--color-border); }
+th { position: sticky; top: 0; z-index: 1; height: 38px; text-align: left; font-size: var(--font-size-300); font-weight: var(--font-weight-semibold); color: var(--color-text-tertiary); padding: 0 var(--space-400); background: var(--color-bg-material); backdrop-filter: blur(var(--blur-material)) saturate(170%); -webkit-backdrop-filter: blur(var(--blur-material)) saturate(170%); box-shadow: inset 0 -1px 0 var(--color-border); white-space: nowrap; }
+td { height: var(--height-row); padding: 0 var(--space-400); border-bottom: 1px dashed var(--color-border); }
+:root[data-theme="dark"] td { border-bottom-style: solid; }
 tr:last-child td { border-bottom: 0; }
 tbody tr:hover td { background: var(--color-bg-surface-hover); }
 tr[aria-selected="true"] td { background: var(--color-bg-surface-selected); }
 tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--color-border-brand); }
 td.r, th.r { text-align: right; }
 td.r { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+td .item { display: flex; gap: var(--space-300); align-items: center; }
 td .sub { display: block; font: var(--font-size-300) var(--font-mono); color: var(--color-text-tertiary); }
-td .urdu { display: block; font-size: 14px; line-height: 1.9; text-align: left; color: var(--color-text-secondary); }
+td .urdu { font-size: 14px; line-height: 1.9; color: var(--color-text-secondary); margin-left: 6px; }
 
 /* ---------- Status bar ---------- */
-.statusbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-200) var(--space-500); padding: 8px var(--space-400); background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-300); font-size: var(--font-size-350); }
+.statusbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-200) var(--space-500); padding: 0 var(--space-500); min-height: 64px; background: var(--color-bg); border-radius: var(--radius-400); font-size: var(--font-size-350); }
 .status { display: inline-flex; gap: 6px; align-items: center; color: var(--color-text-secondary); }
-.status b { color: var(--color-text); font-weight: var(--font-weight-medium); }
+.status b { color: var(--color-text); font-weight: var(--font-weight-semibold); }
 .status svg { width: 16px; height: 16px; color: var(--color-icon-secondary); }
-.status .dot { width: 8px; height: 8px; border-radius: 50%; }
-.dot-ok { background: var(--color-icon-success); }
-.dot-warn { background: var(--color-icon-warning); }
-.dot-bad { background: var(--color-icon-critical); }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: var(--font-weight-medium); padding: 4px 10px; border-radius: var(--radius-full); background: var(--color-bg-surface-secondary); color: var(--color-text-secondary); white-space: nowrap; }
+.pill svg { width: 14px; height: 14px; }
+.pill-ok { background: var(--color-bg-surface-success); color: var(--color-text-success); }
+.pill-ok svg { color: var(--color-icon-success); }
+.pill-warn { background: var(--color-bg-surface-warning); color: var(--color-text-warning); }
+.pill-warn svg { color: var(--color-icon-warning); }
 
 /* ---------- Banner / toast ---------- */
 .banner { display: grid; grid-template-columns: 20px 1fr auto; gap: var(--space-300); align-items: start; padding: var(--space-400); border-radius: var(--radius-300); border: 1px solid; }
@@ -173,34 +200,75 @@ td .urdu { display: block; font-size: 14px; line-height: 1.9; text-align: left; 
 .banner-success { background: var(--color-bg-surface-success); border-color: var(--color-border-success); } .banner-success > svg { color: var(--color-icon-success); }
 .banner-warning { background: var(--color-bg-surface-warning); border-color: var(--color-border-warning); } .banner-warning > svg { color: var(--color-icon-warning); }
 .banner-critical { background: var(--color-bg-surface-critical); border-color: var(--color-border-critical); } .banner-critical > svg { color: var(--color-icon-critical); }
-.toast { display: inline-flex; gap: var(--space-300); align-items: center; padding: var(--space-300) var(--space-400); border-radius: var(--radius-200); background: var(--color-bg-surface-inverse); color: var(--color-text-on-inverse); box-shadow: var(--shadow-200); font-size: var(--font-size-350); }
+.toast { display: inline-flex; gap: var(--space-300); align-items: center; padding: var(--space-300) var(--space-400); border-radius: var(--radius-300); background: var(--color-bg-surface-inverse); color: var(--color-text-on-inverse); box-shadow: var(--shadow-300); font-size: var(--font-size-350); }
 .toast svg { width: 18px; height: 18px; }
 .toast button { margin-left: var(--space-400); background: none; border: 0; color: inherit; font: var(--font-weight-semibold) var(--font-size-350) var(--font-sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; min-height: 32px; }
 
-/* ---------- Dialog ---------- */
-dialog { padding: 0; border: 1px solid var(--color-border); border-radius: var(--radius-300); background: var(--color-bg-surface); color: var(--color-text); box-shadow: var(--shadow-300); width: min(420px, calc(100vw - 32px)); }
+/* ---------- Dialog, PIN, tiles ---------- */
+dialog { padding: 0; border: 1px solid var(--color-border-card); border-radius: var(--radius-400); background: var(--color-bg-surface); color: var(--color-text); box-shadow: var(--shadow-300); width: min(440px, calc(100vw - 32px)); }
 dialog::backdrop { background: var(--color-bg-overlay); }
-.dialog-static { display: block; position: static; max-width: 420px; box-shadow: var(--shadow-200); }
+dialog[open] { animation: dialog-in var(--duration-300) var(--ease-spring); }
+dialog[open]::backdrop { animation: fade-in var(--duration-300) var(--ease-out); }
+@keyframes dialog-in { from { opacity: 0; scale: var(--scale-enter); } }
+@keyframes fade-in { from { opacity: 0; } }
+.dialog-static { display: block; position: static; margin: 0; max-width: 440px; box-shadow: var(--shadow-200); animation: none !important; }
 .d-body { padding: var(--space-600); display: grid; gap: var(--space-400); }
-.d-body h3 { font-size: var(--font-size-550); font-weight: var(--font-weight-semibold); }
+.d-body h3 { font-size: var(--font-size-550); font-weight: var(--font-weight-bold); }
 .d-body p { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-350); }
-.d-actions { display: flex; justify-content: flex-end; gap: var(--space-300); padding: var(--space-400) var(--space-600); border-top: 1px solid var(--color-border); background: var(--color-bg-surface-secondary); border-radius: 0 0 var(--radius-300) var(--radius-300); }
-.pin-dots { display: flex; gap: var(--space-300); justify-content: center; padding: var(--space-200) 0; }
-.pin-dots span { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--color-border-strong); }
+.d-actions { display: flex; justify-content: flex-end; gap: var(--space-300); padding: var(--space-400) var(--space-600); background: var(--color-bg-surface-secondary); border-top: 1px solid var(--color-border); border-radius: 0 0 var(--radius-400) var(--radius-400); }
+.pin-dots { display: flex; gap: 14px; justify-content: center; padding: var(--space-200) 0; }
+.pin-dots span { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--color-input-border); }
 .pin-dots span.on { background: var(--color-text); border-color: var(--color-text); }
-.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-200); }
-.keypad button { min-height: var(--height-control-lg); border-radius: var(--radius-200); border: 1px solid var(--color-border); background: var(--color-bg-surface-secondary); color: var(--color-text); font: var(--font-weight-medium) var(--font-size-550) var(--font-mono); cursor: pointer; }
-.keypad button:hover { background: var(--color-bg-surface-active); }
+.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.keypad button { min-height: var(--height-control-lg); border-radius: var(--radius-300); border: 1px solid var(--color-border-card); background: var(--color-bg-surface); color: var(--color-text); box-shadow: var(--shadow-200); font: var(--font-weight-medium) var(--font-size-550) var(--font-mono); cursor: pointer; }
+.keypad button:hover { background: var(--color-bg-surface-hover); }
+.keypad button:active { background: var(--color-bg-surface-secondary); }
+.keypad button.fn { font: var(--font-weight-semibold) var(--font-size-350) var(--font-sans); color: var(--color-text-secondary); }
+.users { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-300); }
+.user { font: inherit; text-align: left; position: relative; display: flex; flex-direction: column; gap: var(--space-300); padding: 14px; min-height: 108px; border-radius: var(--radius-400); background: var(--color-bg-surface); border: 1px solid var(--color-border-card); color: var(--color-text); box-shadow: var(--shadow-200); cursor: pointer; }
+.user:hover { background: var(--color-bg-surface-hover); }
+.user b { font-size: var(--font-size-400); font-weight: var(--font-weight-semibold); display: block; line-height: 1.2; }
+.user small { font-size: var(--font-size-350); color: var(--color-text-tertiary); }
+.user[aria-pressed="true"] { border: 2px solid var(--color-border-brand); padding: 13px; box-shadow: 0 0 0 4px var(--color-bg-surface-selected); }
+.user .tick { position: absolute; top: 12px; right: 12px; width: 20px; height: 20px; color: var(--color-text-brand); display: none; }
+.user[aria-pressed="true"] .tick { display: block; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: var(--font-size-350); font-weight: var(--font-weight-bold); background: var(--color-bg-fill-brand-secondary); color: var(--color-text-brand); flex: none; }
+
+/* ---------- Login split ---------- */
+.split { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: 420px; background: var(--color-bg); border-radius: var(--radius-400); overflow: hidden; box-shadow: var(--shadow-200); }
+@media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+.side { margin: var(--space-300); border-radius: var(--radius-500); background: var(--color-bg-surface-inverse); color: var(--color-text-on-inverse); padding: var(--space-800); display: flex; flex-direction: column; gap: var(--space-600); }
+.side .clock { font: var(--font-weight-medium) 64px/1 var(--font-mono); letter-spacing: -0.05em; }
+.side .date { color: var(--color-text-on-inverse-secondary); margin-top: 6px; }
+.side .facts { margin-top: auto; padding-top: var(--space-400); border-top: 1px solid color-mix(in srgb, var(--color-text-on-inverse-secondary) 30%, transparent); display: grid; gap: var(--space-200); font-size: var(--font-size-350); color: var(--color-text-on-inverse-secondary); }
+.side .facts div { display: flex; justify-content: space-between; }
+.side .facts b { color: var(--color-text-on-inverse); font-family: var(--font-mono); }
+.pane { display: grid; place-items: center; padding: var(--space-600); }
+
+/* ---------- Materials & motion demos ---------- */
+.material-demo { position: relative; height: 200px; border-radius: var(--radius-400); overflow: hidden; background: var(--color-bg-surface); box-shadow: var(--shadow-200); }
+.material-demo .stripes { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(6, 1fr); }
+.material-demo .stripes span { display: grid; place-items: center; font-weight: var(--font-weight-bold); font-size: 22px; }
+.material-demo .sheet { position: absolute; top: 24px; right: 24px; bottom: 24px; width: 55%; border-radius: var(--radius-400); background: var(--color-bg-material); backdrop-filter: blur(var(--blur-material)) saturate(180%); -webkit-backdrop-filter: blur(var(--blur-material)) saturate(180%); border: 1px solid var(--color-border); box-shadow: var(--shadow-300); padding: var(--space-500); }
+.material-demo .sheet h3 { font-size: var(--font-size-450); }
+.radius-row > div { width: 72px; height: 56px; background: var(--color-bg-surface); border: 1px solid var(--color-border-strong); display: grid; place-items: center; font: 11px var(--font-mono); }
+.elev-row > div { width: 72px; height: 56px; border-radius: var(--radius-300); background: var(--color-bg-surface); display: grid; place-items: center; font: 11px var(--font-mono); }
+.curve { width: 100%; height: 120px; background: var(--color-bg-surface-secondary); border-radius: var(--radius-300); }
+.curve path { fill: none; stroke: var(--color-bg-fill-brand); stroke-width: 3; stroke-linecap: round; }
+.curve .axis { stroke: var(--color-border-strong); stroke-width: 1; }
+.track { position: relative; height: 56px; border-radius: var(--radius-300); background: var(--color-bg-surface-secondary); }
+.track .dot { position: absolute; top: 8px; left: 8px; width: 40px; height: 40px; border-radius: var(--radius-200); background: var(--color-bg-fill-brand); transition: translate var(--duration-300) var(--ease-spring); }
+.track.go .dot { translate: calc(var(--track-w, 300px) - 56px) 0; }
 
 /* ---------- Empty state ---------- */
 .empty { display: grid; justify-items: center; gap: var(--space-300); padding: var(--space-1000) var(--space-600); text-align: center; }
-.empty .icon { width: 52px; height: 52px; display: grid; place-items: center; border-radius: var(--radius-300); border: 1px solid var(--color-border); background: var(--color-bg-surface-secondary); color: var(--color-icon-secondary); }
+.empty .icon { width: 52px; height: 52px; display: grid; place-items: center; border-radius: var(--radius-400); background: var(--color-bg-surface-secondary); color: var(--color-icon-secondary); }
 .empty .icon svg { width: 24px; height: 24px; }
-.empty h3 { font-size: var(--font-size-450); font-weight: var(--font-weight-semibold); }
+.empty h3 { font-size: var(--font-size-450); font-weight: var(--font-weight-bold); }
 .empty p { margin: 0; max-width: 44ch; font-size: var(--font-size-350); color: var(--color-text-secondary); }
 
 /* ---------- Receipt (always black on white) ---------- */
-.receipt { width: 302px; margin: 0 auto; padding: 16px 14px 20px; background: #fff; color: #000; font: 12px/1.45 "Geist Mono", "Courier New", monospace; box-shadow: var(--shadow-200); }
+.receipt { width: 302px; margin: 0 auto; padding: 16px 14px 20px; background: #fff; color: #000; font: 12px/1.45 "JetBrains Mono", "Courier New", monospace; box-shadow: var(--shadow-200); }
 .receipt .c { text-align: center; } .receipt .b { font-weight: 600; } .receipt .lg { font-size: 15px; }
 .receipt .rule { border-top: 1px dashed #000; margin: 8px 0; }
 .receipt .ln { display: flex; justify-content: space-between; gap: 8px; }
@@ -208,11 +276,16 @@ dialog::backdrop { background: var(--color-bg-overlay); }
 .receipt .barcode { height: 40px; width: 80%; margin: 10px auto 4px; background: repeating-linear-gradient(90deg, #000 0 2px, #fff 2px 3px, #000 3px 4px, #fff 4px 7px, #000 7px 10px, #fff 10px 11px); }
 
 /* ---------- Composition ---------- */
-.compose { display: grid; grid-template-columns: 1fr 320px; gap: var(--space-400); }
+.compose { display: grid; grid-template-columns: 1fr 340px; gap: var(--space-400); }
 @media (max-width: 860px) { .compose { grid-template-columns: 1fr; } }
-.sums { display: grid; gap: 6px; padding: var(--space-400); font-size: var(--font-size-350); background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: var(--radius-300); }
-.sums div { display: flex; justify-content: space-between; }
+.sums { display: grid; gap: 6px; padding: var(--space-400); font-size: var(--font-size-400); background: var(--color-bg-surface); border-radius: var(--radius-400); box-shadow: var(--shadow-200); border: 1px solid var(--color-border-card); }
+.sums div { display: flex; justify-content: space-between; color: var(--color-text-secondary); }
+.sums .money { color: var(--color-text); }
+.sums .money-neg { color: var(--color-text-critical); }
 
+@media (prefers-reduced-transparency: reduce) {
+  .doc-header, th, .material-demo .sheet { backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
 @media (max-width: 640px) {
   main { padding: var(--space-600) var(--space-400) 64px; }
   .doc-header { padding: var(--space-300) var(--space-400); }
@@ -226,8 +299,7 @@ dialog::backdrop { background: var(--color-bg-overlay); }
 <body>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
-  <symbol id="i-scan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M11 8v8M14 8v8M17 8v8"/></symbol>
-  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5v14M7 5v14M11 5v14M14 5v14M18 5v14M21 5v14"/></symbol>
   <symbol id="i-cash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></symbol>
   <symbol id="i-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></symbol>
   <symbol id="i-wallet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></symbol>
@@ -241,19 +313,18 @@ dialog::backdrop { background: var(--color-bg-overlay); }
   <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
   <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
-  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
   <symbol id="i-db" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
-  <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></symbol>
   <symbol id="i-scale" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7h14M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0zM8 21h8"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 5H9l-6 7 6 7h12zM12 9l6 6M18 9l-6 6"/></symbol>
   <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
-  <symbol id="logo" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="var(--color-bg-surface-inverse)"/><path d="M12 14l8 14 8-14" fill="none" stroke="var(--color-text-on-inverse)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="29.5" cy="28" r="3" fill="var(--color-bg-fill-brand)"/></symbol>
+  <symbol id="logo" viewBox="0 0 40 40"><rect width="40" height="40" rx="11.2" fill="var(--color-bg-surface-inverse)"/><path d="M12.5 14l7.5 13.5 7.5-13.5" fill="none" stroke="var(--color-text-on-inverse)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="30" cy="28" r="3" fill="var(--color-border-focus)"/></symbol>
 </defs></svg>
 
 <header class="doc-header">
   <svg width="28" height="28" aria-hidden="true"><use href="#logo"/></svg>
   <nav aria-label="Sections">
-    <a href="#brand">Brand</a><a href="#tokens">Tokens</a><a href="#color">Colour</a><a href="#type">Type</a><a href="#layout">Space &amp; shape</a>
+    <a href="#brand">Brand</a><a href="#tokens">Tokens</a><a href="#color">Colour</a><a href="#type">Type</a><a href="#layout">Space &amp; shape</a><a href="#depth">Depth</a><a href="#motion">Motion</a>
     <a href="#buttons">Buttons</a><a href="#forms">Forms</a><a href="#data">Data</a><a href="#feedback">Feedback</a><a href="#overlays">Overlays</a><a href="#receipt">Receipt</a><a href="#compose">In context</a><a href="#principles">Principles</a>
   </nav>
   <button class="btn btn-secondary btn-sm" id="theme-toggle" type="button" aria-pressed="false"><svg aria-hidden="true"><use href="#i-moon"/></svg><span>Dark</span></button>
@@ -269,23 +340,23 @@ dialog::backdrop { background: var(--color-bg-overlay); }
         <span class="wordmark" style="font-size:40px">vendora<i>.</i></span>
       </div>
       <h1>Bill fast, know your stock — even when the light goes.</h1>
-      <p>The Vendora design system: <b>Mono Pro</b>. Black, white and one indigo accent. The interface stays quiet so prices, totals and the next action stand out.</p>
+      <p>The Vendora design system: <b>Bazaar</b>. Cream paper, deep emerald for the next action, saffron for what's set aside. Roomy rows, soft corners, warm shadows, and motion that answers the hand.</p>
     </div>
     <div class="panel">
       <div class="label">Personality</div>
       <ul class="rules">
-        <li><b>Precise</b> — numbers line up, every value is exact.</li>
-        <li><b>Quiet</b> — greys do the structure; colour only when it means something.</li>
-        <li><b>Fast</b> — every pixel serves the next scan.</li>
-        <li><b>Premium, not cold</b> — plain local words: Rs, JazzCash, Urdu names.</li>
+        <li><b>Warm, not cute</b>: cream and emerald, never candy colours.</li>
+        <li><b>Calm, not dull</b>: colour only when it means something.</li>
+        <li><b>Fast, not flashy</b>: instant press feedback, motion that settles without bounce.</li>
+        <li><b>Local, not foreign</b>: plain local words like Rs, JazzCash and Urdu names.</li>
       </ul>
       <div class="label" style="margin-top:var(--space-600)">Logo</div>
       <div class="logo-tiles">
-        <div class="logo-tile" style="background:var(--color-bg-surface)"><svg width="44" height="44" aria-label="Mark on surface"><use href="#logo"/></svg></div>
-        <div class="logo-tile" style="background:var(--color-bg-surface-secondary)"><span class="wordmark" style="font-size:22px">vendora<i>.</i></span></div>
-        <div class="logo-tile" style="background:var(--color-bg-fill-brand-secondary)"><svg width="44" height="44" aria-label="Mark on tint"><use href="#logo"/></svg></div>
+        <div class="logo-tile" style="background:var(--color-bg-surface-secondary)"><svg width="44" height="44" aria-label="Mark on surface"><use href="#logo"/></svg></div>
+        <div class="logo-tile" style="background:var(--color-bg)"><span class="wordmark" style="font-size:22px">vendora<i>.</i></span></div>
+        <div class="logo-tile on-inverse" style="background:var(--color-bg-surface-inverse);color:var(--color-text-on-inverse)"><span class="wordmark" style="font-size:22px">vendora<i>.</i></span></div>
       </div>
-      <p class="muted" style="font-size:var(--font-size-350);margin-bottom:0">Lowercase wordmark in Geist Semibold with an indigo full stop. The mark is a <b>v</b> with the same indigo dot. It inverts in dark mode. Minimum size 16 px.</p>
+      <p class="muted" style="font-size:var(--font-size-350);margin-bottom:0">Lowercase wordmark in Plus Jakarta Sans ExtraBold with an emerald full stop, saffron on the inverse panel. The mark is a <b>v</b> on a square with 28% corner radius, with an emerald dot. Minimum size 16 px.</p>
     </div>
   </div>
   <div class="panel" style="margin-top:var(--space-600)">
@@ -301,24 +372,24 @@ dialog::backdrop { background: var(--color-bg-overlay); }
 
 <section id="tokens">
   <h2>Token system</h2>
-  <p class="lede">All values live in <code>design/tokens.css</code>. Names are built from the same parts, so they can be guessed without looking them up — and every fill has a matching readable text colour.</p>
+  <p class="lede">All values live in <code>design/tokens.css</code>. Names are built from the same parts, so you can guess them without looking them up, and every fill has a matching readable text colour.</p>
   <div class="grid g2">
     <div class="panel">
       <div class="label">Anatomy</div>
       <div class="row mono" style="gap:4px;font-size:15px">
-        <span class="badge badge-neutral" style="height:auto;padding:6px 10px;border-radius:6px">--color</span>
-        <span class="badge badge-brand" style="height:auto;padding:6px 10px;border-radius:6px">bg-fill</span>
-        <span class="badge badge-critical" style="height:auto;padding:6px 10px;border-radius:6px">critical</span>
-        <span class="badge badge-warning" style="height:auto;padding:6px 10px;border-radius:6px">hover</span>
+        <span class="badge badge-neutral" style="height:auto;padding:6px 10px;border-radius:var(--radius-100)">--color</span>
+        <span class="badge badge-brand" style="height:auto;padding:6px 10px;border-radius:var(--radius-100)">bg-fill</span>
+        <span class="badge badge-critical" style="height:auto;padding:6px 10px;border-radius:var(--radius-100)">critical</span>
+        <span class="badge badge-warning" style="height:auto;padding:6px 10px;border-radius:var(--radius-100)">hover</span>
       </div>
-      <p class="muted" style="font-size:var(--font-size-350)">category · <b>property</b> (bg, bg-surface, bg-fill, text, icon, border) · <b>role</b> (brand, secondary, success, warning, critical, inverse) · <b>state</b> (hover, active, selected, disabled)</p>
+      <p class="muted" style="font-size:var(--font-size-350)">category · <b>property</b> (bg, bg-surface, bg-fill, bg-tint, bg-material, text, icon, border) · <b>role</b> (brand, secondary, success, warning, critical, inverse, highlight) · <b>state</b> (hover, active, selected, disabled)</p>
     </div>
     <div class="panel">
       <div class="label">Pairs &amp; scales</div>
       <ul class="rules" style="font-size:var(--font-size-350)">
-        <li><code>bg-fill-brand</code> → <code>text-on-brand</code>; <code>bg-fill-critical</code> → <code>text-on-critical</code>; <code>bg-surface-inverse</code> → <code>text-on-inverse</code>.</li>
+        <li><code>bg-fill-brand</code> → <code>text-on-brand</code>; <code>bg-fill-highlight</code> → <code>text-on-highlight</code>; <code>bg-surface-inverse</code> → <code>text-on-inverse</code> + <code>text-on-inverse-secondary</code>; <code>bg-tint-N</code> → <code>text-tint-N</code>.</li>
         <li>Scales use one rule: <b>number ÷ 100 × 4 px</b>. <code>space-400</code> = 16 px, <code>font-size-1400</code> = 56 px.</li>
-        <li>Components use only semantic tokens — never raw hex values.</li>
+        <li>Components use only semantic tokens, never raw hex values. A test checks every documented pair for WCAG AA in light and dark.</li>
       </ul>
     </div>
   </div>
@@ -326,47 +397,58 @@ dialog::backdrop { background: var(--color-bg-overlay); }
 
 <section id="color">
   <h2>Colour</h2>
-  <p class="lede">Zinc greys build the structure. <b>Indigo means "act or selected"</b> — the main button, focus ring, selected row. Green, amber and red only carry status, always with an icon or word. Light is the default; dark is a full theme.</p>
-  <div class="label">Brand &amp; inverse</div>
+  <p class="lede">Cream and sand build the structure. <b>Emerald means "act or selected"</b>: the main button, the focus ring, the selected tile. <b>Saffron means "set aside"</b>: held bills and notes, never a status. Green, amber and red carry status only, always with an icon or a word. Light is the default; dark ("Bazaar night") is a full theme.</p>
+  <div class="label">Brand, inverse &amp; highlight</div>
   <div class="sw-grid" style="margin-bottom:var(--space-600)">
-    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-brand);color:var(--color-text-on-brand)">Pay</div><div class="meta"><b>bg-fill-brand</b><span>#4F46E5 · 6.3:1</span></div></div>
-    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-brand-hover);color:var(--color-text-on-brand)">Hover</div><div class="meta"><b>bg-fill-brand-hover</b><span>#4338CA</span></div></div>
-    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-brand-secondary);color:var(--color-text-brand)">Selected</div><div class="meta"><b>bg-fill-brand-secondary</b><span>#E0E7FF</span></div></div>
-    <div class="sw"><div class="chip" style="background:var(--color-bg-surface-inverse);color:var(--color-text-on-inverse)">Rs 4,770</div><div class="meta"><b>bg-surface-inverse</b><span>#09090B · totals</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-brand);color:var(--color-text-on-brand)">Pay</div><div class="meta"><b>bg-fill-brand</b><span>#0E6B53 · 6.5:1</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-brand-hover);color:var(--color-text-on-brand)">Hover</div><div class="meta"><b>bg-fill-brand-hover</b><span>#0B5A45</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface-selected);color:var(--color-text-brand)">Selected</div><div class="meta"><b>bg-surface-selected</b><span>#E3F1EC · 7.1:1</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface-inverse);color:var(--color-text-on-inverse)">Rs 4,770</div><div class="meta"><b>bg-surface-inverse</b><span>#0E3B30 · 12.3:1</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface-inverse);color:var(--color-text-on-inverse-secondary)">Total due</div><div class="meta"><b>text-on-inverse-secondary</b><span>#B9D3CA · 7.8:1</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-highlight);color:var(--color-text-on-highlight)">2 held</div><div class="meta"><b>bg-fill-highlight</b><span>#F6D9A3 · 7.4:1 · set aside</span></div></div>
   </div>
   <div class="label">Neutrals</div>
   <div class="sw-grid" style="margin-bottom:var(--space-600)">
-    <div class="sw"><div class="chip" style="background:var(--color-bg)"></div><div class="meta"><b>bg</b><span>#FAFAFA · page</span></div></div>
-    <div class="sw"><div class="chip" style="background:var(--color-bg-surface)"></div><div class="meta"><b>bg-surface</b><span>#FFFFFF · panels</span></div></div>
-    <div class="sw"><div class="chip" style="background:var(--color-bg-surface-secondary)"></div><div class="meta"><b>bg-surface-secondary</b><span>#F4F4F5 · headers</span></div></div>
-    <div class="sw"><div class="chip" style="background:var(--color-border)"></div><div class="meta"><b>border</b><span>#E4E4E7</span></div></div>
-    <div class="sw"><div class="chip" style="background:var(--color-input-border)"></div><div class="meta"><b>input-border</b><span>#8A8A93 · 3.4:1</span></div></div>
-    <div class="sw"><div class="chip" style="background:var(--color-bg-surface);color:var(--color-text)">Aa</div><div class="meta"><b>text</b><span>#09090B · 19.8:1</span></div></div>
-    <div class="sw"><div class="chip" style="background:var(--color-bg-surface);color:var(--color-text-secondary)">Aa</div><div class="meta"><b>text-secondary</b><span>#52525B · 7.7:1</span></div></div>
-    <div class="sw"><div class="chip" style="background:var(--color-bg-surface);color:var(--color-text-tertiary)">Aa</div><div class="meta"><b>text-tertiary</b><span>#66666E · 5.7:1</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg)"></div><div class="meta"><b>bg</b><span>#F2EEE6 · page</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface)"></div><div class="meta"><b>bg-surface</b><span>#FFFDF8 · cards</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface-secondary)"></div><div class="meta"><b>bg-surface-secondary</b><span>#F7F3EB · sunken</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-border)"></div><div class="meta"><b>border</b><span>#E6DFD2</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-input-border)"></div><div class="meta"><b>input-border</b><span>#8C8272 · 3.7:1</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface);color:var(--color-text)">Aa</div><div class="meta"><b>text</b><span>#1D1A16 · 17.1:1</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface);color:var(--color-text-secondary)">Aa</div><div class="meta"><b>text-secondary</b><span>#554E44 · 8.1:1</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface);color:var(--color-text-tertiary)">Aa</div><div class="meta"><b>text-tertiary</b><span>#6E665A · 5.6:1</span></div></div>
   </div>
   <div class="label">Status</div>
-  <div class="sw-grid">
-    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-success);color:var(--color-text-on-success)">Change Rs 230</div><div class="meta"><b>bg-fill-success</b><span>#15803D · 5.0:1 · money in</span></div></div>
-    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-warning-secondary);color:var(--color-text-warning)">Low stock</div><div class="meta"><b>text-warning</b><span>#A16207 · attention</span></div></div>
-    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-critical);color:var(--color-text-on-critical)">Void</div><div class="meta"><b>bg-fill-critical</b><span>#DC2626 · 4.8:1 · destructive</span></div></div>
-    <div class="sw"><div class="chip" style="background:var(--color-bg-surface-info);color:var(--color-text)">Note</div><div class="meta"><b>bg-surface-info</b><span>neutral — info isn't a colour</span></div></div>
+  <div class="sw-grid" style="margin-bottom:var(--space-600)">
+    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-success);color:var(--color-text-on-success)">Change Rs 230</div><div class="meta"><b>bg-fill-success</b><span>#0E6B53 · money in</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-warning-secondary);color:var(--color-text-warning)">Low stock</div><div class="meta"><b>text-warning</b><span>#8A5A00 · 5.2:1</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-fill-critical);color:var(--color-text-on-critical)">Void</div><div class="meta"><b>bg-fill-critical</b><span>#B4381F · 6.0:1 · destructive</span></div></div>
+    <div class="sw"><div class="chip" style="background:var(--color-bg-surface-info);color:var(--color-text)">Note</div><div class="meta"><b>bg-surface-info</b><span>neutral: info isn't a colour</span></div></div>
+  </div>
+  <div class="label">Product tints: initial tiles, always beside the product name</div>
+  <div class="tints">
+    <div class="tint"><span class="thumb t1">TP</span><b>tint-1</b><span class="muted">Saffron</span></div>
+    <div class="tint"><span class="thumb t2">OL</span><b>tint-2</b><span class="muted">Blue</span></div>
+    <div class="tint"><span class="thumb t3">DB</span><b>tint-3</b><span class="muted">Clay</span></div>
+    <div class="tint"><span class="thumb t4">BR</span><b>tint-4</b><span class="muted">Leaf</span></div>
+    <div class="tint"><span class="thumb t5">SH</span><b>tint-5</b><span class="muted">Rose</span></div>
+    <div class="tint"><span class="thumb t6">SE</span><b>tint-6</b><span class="muted">Indigo</span></div>
   </div>
 </section>
 
 <section id="type">
   <h2>Typography</h2>
-  <p class="lede"><b>Geist</b> for the interface. <b>Geist Mono</b> for every number a cashier compares — prices, quantities, barcodes, invoice numbers — so columns line up and 1/l/7 never get confused. <b>Noto Nastaliq Urdu</b> for Urdu names. All three ship with the app.</p>
+  <p class="lede"><b>Plus Jakarta Sans</b> for the interface. <b>JetBrains Mono</b> for every number a cashier compares (prices, quantities, barcodes, invoice numbers, PIN keys), so columns line up and 1/l/7 never get confused. <b>Noto Nastaliq Urdu</b> for Urdu names. All three ship with the app. Tracking tightens as size grows.</p>
   <div class="panel">
-    <div class="type-row"><div class="spec">font-size-1400 · 56 · 600</div><div style="font-size:var(--font-size-1400);font-weight:600;line-height:1;letter-spacing:var(--letter-spacing-tight)"><span style="font-size:.45em;opacity:.55;margin-right:6px">Rs</span>12,480</div></div>
-    <div class="type-row"><div class="spec">font-size-900 · 36 · 600</div><div style="font-size:var(--font-size-900);font-weight:600;letter-spacing:-.02em">Close shift</div></div>
-    <div class="type-row"><div class="spec">font-size-700 · 28 · 600</div><div style="font-size:var(--font-size-700);font-weight:600;letter-spacing:-.02em">Goods received</div></div>
-    <div class="type-row"><div class="spec">font-size-550 · 22 · 600</div><div style="font-size:var(--font-size-550);font-weight:600">Manager approval needed</div></div>
-    <div class="type-row"><div class="spec">font-size-450 · 18 · 500</div><div style="font-size:var(--font-size-450);font-weight:500">Scan or search a product</div></div>
-    <div class="type-row"><div class="spec">font-size-400 · 16 · 400</div><div>Bill lines, inputs and most text. Default size — nothing a cashier must read goes below 14 px.</div></div>
-    <div class="type-row"><div class="spec">font-size-350 · 14 · 400</div><div style="font-size:var(--font-size-350)" class="muted">Helper text, secondary actions, table metadata.</div></div>
-    <div class="type-row"><div class="spec">font-size-300 · 12 · 600 caps</div><div class="label" style="margin:0">Section labels · column headers</div></div>
-    <div class="type-row"><div class="spec">Geist Mono · 16</div><div class="mono">8964000110012 · T1-000231 · 1.250 kg · Rs 3,480</div></div>
+    <div class="type-row"><div class="spec">font-size-1400 · 56 · mono 600 · -0.035em</div><div class="mono" style="font-size:var(--font-size-1400);font-weight:600;line-height:1.1;letter-spacing:var(--letter-spacing-display)"><span style="font-size:24px;font-weight:500;margin-right:6px;letter-spacing:-.01em">Rs</span>12,480</div></div>
+    <div class="type-row"><div class="spec">font-size-900 · 36 · 700 · -0.02em</div><div style="font-size:var(--font-size-900);font-weight:700;letter-spacing:var(--letter-spacing-heading)">Close shift</div></div>
+    <div class="type-row"><div class="spec">font-size-700 · 28 · 700 · -0.02em</div><div style="font-size:var(--font-size-700);font-weight:700;letter-spacing:var(--letter-spacing-heading)">Who's at the counter?</div></div>
+    <div class="type-row"><div class="spec">font-size-550 · 22 · 700 · -0.02em</div><div style="font-size:var(--font-size-550);font-weight:700;letter-spacing:var(--letter-spacing-heading)">Manager approval needed</div></div>
+    <div class="type-row"><div class="spec">font-size-450 · 18 · 500</div><div style="font-size:var(--font-size-450);font-weight:500">Scan a barcode or type a product name</div></div>
+    <div class="type-row"><div class="spec">font-size-400 · 16 · 400</div><div>Bill lines, inputs and most text. Default size; nothing a cashier must read goes below 14 px.</div></div>
+    <div class="type-row"><div class="spec">font-size-350 · 14 · 600</div><div style="font-size:var(--font-size-350);font-weight:600">Buttons and labels</div></div>
+    <div class="type-row"><div class="spec">font-size-300 · 12 · 600</div><div class="label" style="margin:0">Column headers · badges</div></div>
+    <div class="type-row"><div class="spec">JetBrains Mono · 16</div><div class="mono">8964000110012 · T1-000231 · 1.250 kg · Rs 3,480</div></div>
     <div class="type-row"><div class="spec">Nastaliq · 18 / 2.1</div><div class="urdu" style="font-size:18px;text-align:left">چینی ایک کلو · دودھ پیک · آٹا دس کلو</div></div>
   </div>
   <div class="panel" style="margin-top:var(--space-400)">
@@ -374,7 +456,7 @@ dialog::backdrop { background: var(--color-bg-overlay); }
     <ul class="rules">
       <li><b>Rs</b> before the amount with a space, commas for thousands: <span class="money">Rs 1,250,000</span>.</li>
       <li>Whole rupees by default; paisa only when an amount has them: <span class="money">Rs 727.63</span>.</li>
-      <li>Refunds and discounts: minus sign plus critical colour — <span class="money money-neg">−Rs 80</span>.</li>
+      <li>Refunds and discounts: minus sign plus critical colour, e.g. <span class="money money-neg">−Rs 80</span>.</li>
       <li>Weights to 3 decimals with unit (<span class="mono">1.250 kg</span>); pieces whole (<span class="mono">12 pcs</span>). Numbers right-aligned in tables.</li>
       <li>Dates: <span class="mono">27 Oct 2026, 4:05 pm</span>.</li>
     </ul>
@@ -383,19 +465,21 @@ dialog::backdrop { background: var(--color-bg-overlay); }
 
 <section id="layout">
   <h2>Space, shape &amp; size</h2>
-  <p class="lede">4 px grid. Controls are 44 px by default and 56 px for the billing screen's main actions — every target works by touch as well as mouse. Minimum screen 1366×768.</p>
+  <p class="lede">4 px grid. Controls are 44 px by default and 56 px for the billing screen's main actions and PIN keys; rows are 56 px. Every target works by touch as well as mouse. Minimum screen 1366×768.</p>
   <div class="grid g2">
     <div class="panel">
       <div class="label">Space</div>
       <div style="display:grid;gap:8px;font-size:var(--font-size-350)">
-        <div class="row"><span style="width:56px" class="mono">100</span><span style="width:4px;height:14px;background:var(--color-text)"></span>4</div>
-        <div class="row"><span style="width:56px" class="mono">200</span><span style="width:8px;height:14px;background:var(--color-text)"></span>8</div>
-        <div class="row"><span style="width:56px" class="mono">300</span><span style="width:12px;height:14px;background:var(--color-text)"></span>12</div>
-        <div class="row"><span style="width:56px" class="mono">400</span><span style="width:16px;height:14px;background:var(--color-text)"></span>16</div>
-        <div class="row"><span style="width:56px" class="mono">600</span><span style="width:24px;height:14px;background:var(--color-text)"></span>24</div>
-        <div class="row"><span style="width:56px" class="mono">800</span><span style="width:32px;height:14px;background:var(--color-text)"></span>32</div>
-        <div class="row"><span style="width:56px" class="mono">1200</span><span style="width:48px;height:14px;background:var(--color-text)"></span>48</div>
-        <div class="row"><span style="width:56px" class="mono">1600</span><span style="width:64px;height:14px;background:var(--color-text)"></span>64</div>
+        <div class="row"><span style="width:56px" class="mono">100</span><span style="width:4px;height:14px;border-radius:2px;background:var(--color-bg-fill-brand)"></span>4</div>
+        <div class="row"><span style="width:56px" class="mono">200</span><span style="width:8px;height:14px;border-radius:2px;background:var(--color-bg-fill-brand)"></span>8</div>
+        <div class="row"><span style="width:56px" class="mono">300</span><span style="width:12px;height:14px;border-radius:2px;background:var(--color-bg-fill-brand)"></span>12</div>
+        <div class="row"><span style="width:56px" class="mono">400</span><span style="width:16px;height:14px;border-radius:2px;background:var(--color-bg-fill-brand)"></span>16</div>
+        <div class="row"><span style="width:56px" class="mono">500</span><span style="width:20px;height:14px;border-radius:2px;background:var(--color-bg-fill-brand)"></span>20</div>
+        <div class="row"><span style="width:56px" class="mono">600</span><span style="width:24px;height:14px;border-radius:2px;background:var(--color-bg-fill-brand)"></span>24</div>
+        <div class="row"><span style="width:56px" class="mono">800</span><span style="width:32px;height:14px;border-radius:2px;background:var(--color-bg-fill-brand)"></span>32</div>
+        <div class="row"><span style="width:56px" class="mono">1000</span><span style="width:40px;height:14px;border-radius:2px;background:var(--color-bg-fill-brand)"></span>40</div>
+        <div class="row"><span style="width:56px" class="mono">1200</span><span style="width:48px;height:14px;border-radius:2px;background:var(--color-bg-fill-brand)"></span>48</div>
+        <div class="row"><span style="width:56px" class="mono">1600</span><span style="width:64px;height:14px;border-radius:2px;background:var(--color-bg-fill-brand)"></span>64</div>
       </div>
     </div>
     <div class="panel">
@@ -403,31 +487,84 @@ dialog::backdrop { background: var(--color-bg-overlay); }
       <div class="grid" style="gap:var(--space-300)">
         <div class="row"><button class="btn btn-secondary btn-sm" type="button">36 · sm</button><span class="muted" style="font-size:var(--font-size-350)">Toolbars and dense tables (mouse only).</span></div>
         <div class="row"><button class="btn btn-secondary" type="button">44 · md</button><span class="muted" style="font-size:var(--font-size-350)">Default. Minimum touch target.</span></div>
-        <div class="row"><button class="btn btn-secondary btn-lg" type="button">56 · lg</button><span class="muted" style="font-size:var(--font-size-350)">Pay, tender, scan, keypad.</span></div>
+        <div class="row"><button class="btn btn-secondary btn-lg" type="button">56 · lg</button><span class="muted" style="font-size:var(--font-size-350)">Pay, tender, scan, PIN keys, rows.</span></div>
       </div>
-      <div class="label" style="margin-top:var(--space-600)">Radius &amp; elevation</div>
+      <div class="label" style="margin-top:var(--space-600)">Radius</div>
+      <div class="row radius-row">
+        <div style="border-radius:var(--radius-100)">100 · 6</div>
+        <div style="border-radius:var(--radius-200)">200 · 10</div>
+        <div style="border-radius:var(--radius-300)">300 · 14</div>
+        <div style="border-radius:var(--radius-400)">400 · 20</div>
+        <div style="border-radius:var(--radius-500)">500 · 28</div>
+      </div>
+      <p class="muted" style="font-size:var(--font-size-350);margin-bottom:0">6 for keycaps, 10 for thumbs and steppers, 14 for buttons and inputs, 20 for cards, tiles and dialogs, 28 for hero panels.</p>
+    </div>
+  </div>
+</section>
+
+<section id="depth">
+  <h2>Depth &amp; materials</h2>
+  <p class="lede">In light, warm shadows carry a card's edge, so cards have no border. In dark, cards keep a hairline. Floating chrome (sticky table headers, the held-bills sheet) uses a translucent <b>material</b> that blurs what's behind it. With "reduce transparency" or "increase contrast", the material becomes the solid surface.</p>
+  <div class="grid g2">
+    <div class="panel">
+      <div class="label">Elevation</div>
+      <div class="row elev-row" style="gap:var(--space-400)">
+        <div style="box-shadow:var(--shadow-100)">shadow-100</div>
+        <div style="box-shadow:var(--shadow-200)">shadow-200</div>
+        <div style="box-shadow:var(--shadow-300)">shadow-300</div>
+        <div style="box-shadow:var(--shadow-focus)">focus</div>
+      </div>
+      <p class="muted" style="font-size:var(--font-size-350);margin-bottom:0">200 for cards, tiles, keys and tables; 300 for dialogs and menus. The focus ring is a 2 px surface gap plus a 3 px emerald ring.</p>
+    </div>
+    <div class="material-demo" aria-label="Material over content">
+      <div class="stripes" aria-hidden="true"><span class="t1">TP</span><span class="t2">OL</span><span class="t3">DB</span><span class="t4">BR</span><span class="t5">SH</span><span class="t6">SE</span></div>
+      <div class="sheet"><h3>Held bills</h3><p class="muted" style="margin:4px 0 0;font-size:var(--font-size-350)"><code>bg-material</code> + <code>blur-material</code> (24 px), saturate 180%.</p><p style="margin:var(--space-300) 0 0"><span class="badge badge-highlight"><svg aria-hidden="true"><use href="#i-pause"/></svg>2 held</span></p></div>
+    </div>
+  </div>
+</section>
+
+<section id="motion">
+  <h2>Motion</h2>
+  <p class="lede">Motion answers the hand. Press feedback starts on pointer-down and is instant. Things enter and leave on a critically damped spring, so they settle without bounce, and a dialog grows from the control that opened it. With "reduce motion", only fades remain.</p>
+  <div class="grid g2">
+    <div class="panel">
+      <div class="label">Press feedback · scale-press 0.97 · 100 ms down, 220 ms release</div>
       <div class="row">
-        <div style="width:60px;height:44px;border-radius:var(--radius-100);border:1px solid var(--color-border-strong);display:grid;place-items:center;font:11px var(--font-mono)">100</div>
-        <div style="width:60px;height:44px;border-radius:var(--radius-200);border:1px solid var(--color-border-strong);display:grid;place-items:center;font:11px var(--font-mono)">200</div>
-        <div style="width:60px;height:44px;border-radius:var(--radius-300);border:1px solid var(--color-border-strong);display:grid;place-items:center;font:11px var(--font-mono)">300</div>
-        <div style="width:60px;height:44px;border-radius:var(--radius-200);background:var(--color-bg-surface);box-shadow:var(--shadow-100);display:grid;place-items:center;font:11px var(--font-mono)">sh-100</div>
-        <div style="width:60px;height:44px;border-radius:var(--radius-200);background:var(--color-bg-surface);box-shadow:var(--shadow-200);display:grid;place-items:center;font:11px var(--font-mono)">sh-200</div>
-        <div style="width:60px;height:44px;border-radius:var(--radius-200);background:var(--color-bg-surface);box-shadow:var(--shadow-300);display:grid;place-items:center;font:11px var(--font-mono)">sh-300</div>
+        <button class="btn btn-primary" type="button">Press and hold</button>
+        <button class="btn btn-secondary" type="button">Secondary</button>
+        <div class="keypad" style="width:180px"><button type="button">7</button><button type="button">8</button><button type="button">9</button></div>
       </div>
-      <p class="muted" style="font-size:var(--font-size-350);margin-bottom:0">8 px for controls, 12 px for panels. Borders separate surfaces; shadows only lift controls slightly (100) or float menus (200) and dialogs (300).</p>
+      <div class="label" style="margin-top:var(--space-600)">ease-spring · damping 1, response 0.35 s · duration-300 (350 ms)</div>
+      <svg class="curve" viewBox="0 0 300 120" preserveAspectRatio="none" aria-label="Spring easing curve">
+        <line class="axis" x1="10" y1="110" x2="290" y2="110"/><line class="axis" x1="10" y1="10" x2="290" y2="10" stroke-dasharray="4 4"/>
+        <path d="M10 110 L24 106 L38 96.9 L52 85.7 L66 74.2 L80 63.4 L94 53.8 L108 45.5 L122 38.5 L136 32.6 L150 27.9 L164 24.1 L178 21 L192 18.6 L206 16.6 L220 15.1 L234 14 L248 13 L262 12.3 L276 11.8 L290 10"/>
+      </svg>
+    </div>
+    <div class="panel">
+      <div class="label">Try it</div>
+      <div class="track" id="track"><span class="dot" aria-hidden="true"></span></div>
+      <div class="row" style="margin-top:var(--space-400)">
+        <button class="btn btn-secondary" type="button" id="track-btn">Move on the spring</button>
+        <button class="btn btn-secondary" type="button" id="motion-dialog-btn">Open a dialog</button>
+      </div>
+      <ul class="rules" style="margin-top:var(--space-400);font-size:var(--font-size-350)">
+        <li>Dialogs scale from <code>scale-enter</code> (0.96) and fade, with the origin at the trigger.</li>
+        <li>Reduced motion sets both scale tokens to 1 and keeps the fades.</li>
+        <li>Gesture springs (held-bills sheet) hand off the release velocity; parameters are in the brand kit.</li>
+      </ul>
     </div>
   </div>
 </section>
 
 <section id="buttons">
   <h2>Buttons &amp; shortcuts</h2>
-  <p class="lede">Main actions show their shortcut on the button so cashiers learn keys by using the app. One indigo button per area.</p>
+  <p class="lede">Main actions show their shortcut on the button, so cashiers learn the keys by using the app. One emerald button per area.</p>
   <div class="grid g2">
     <div class="panel">
       <div class="label">Variants</div>
       <div class="row">
         <button class="btn btn-primary" type="button">Pay <span class="kbd">F12</span></button>
-        <button class="btn btn-secondary" type="button"><svg aria-hidden="true"><use href="#i-pause"/></svg>Hold bill <span class="kbd">F8</span></button>
+        <button class="btn btn-secondary" type="button"><svg aria-hidden="true"><use href="#i-pause"/></svg>Held bills <span class="held-count">2</span></button>
         <button class="btn btn-ghost" type="button">Cancel</button>
         <button class="btn btn-critical" type="button"><svg aria-hidden="true"><use href="#i-trash"/></svg>Void sale</button>
       </div>
@@ -442,20 +579,21 @@ dialog::backdrop { background: var(--color-bg-overlay); }
       <div class="row">
         <button class="btn btn-secondary btn-icon" type="button" aria-label="Print receipt" title="Print receipt"><svg aria-hidden="true"><use href="#i-printer"/></svg></button>
         <button class="btn btn-ghost btn-icon" type="button" aria-label="Remove line" title="Remove line"><svg aria-hidden="true"><use href="#i-trash"/></svg></button>
+        <button class="btn btn-round btn-icon" type="button" aria-label="Close" title="Close"><svg aria-hidden="true"><use href="#i-x"/></svg></button>
       </div>
     </div>
     <div class="panel">
       <div class="label">Tender (56 px)</div>
-      <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:var(--space-200)">
+      <div class="grid" style="grid-template-columns:repeat(4,1fr);gap:var(--space-200)">
         <button class="btn btn-secondary tender" type="button">Exact</button>
         <button class="btn btn-secondary tender" type="button">500</button>
         <button class="btn btn-secondary tender" type="button">1,000</button>
         <button class="btn btn-secondary tender" type="button">5,000</button>
       </div>
-      <button class="btn btn-primary btn-lg btn-block" type="button" style="margin-top:var(--space-300)"><svg aria-hidden="true"><use href="#i-check"/></svg>Complete sale <span class="kbd">Enter</span></button>
+      <button class="btn btn-primary btn-lg btn-block" type="button" style="margin-top:var(--space-300);justify-content:space-between;min-height:64px;border-radius:var(--radius-400)"><span>Pay</span><span class="mono">Rs 4,770</span><span class="kbd">F12</span></button>
       <div class="label" style="margin-top:var(--space-600)">Keycaps</div>
       <div class="row muted" style="font-size:var(--font-size-350)">
-        <span><span class="kbd">F2</span> Search</span><span><span class="kbd">F4</span> Qty</span><span><span class="kbd">F6</span> Discount</span><span><span class="kbd">Ctrl</span>+<span class="kbd">R</span> Return</span><span><span class="kbd">Esc</span> Back</span>
+        <span><span class="kbd">F2</span> Search</span><span><span class="kbd">F4</span> Qty</span><span><span class="kbd">F6</span> Discount</span><span><span class="kbd">F9</span> Held bills</span><span><span class="kbd">Esc</span> Back</span>
       </div>
       <p class="help" style="margin-bottom:0">Keys shown are examples; the real map is the billing-screen design challenge.</p>
     </div>
@@ -464,12 +602,12 @@ dialog::backdrop { background: var(--color-bg-overlay); }
 
 <section id="forms">
   <h2>Forms &amp; inputs</h2>
-  <p class="lede">The scan field is the most important control: always visible on the billing screen, larger, with a strong border — and focus returns to it after every action.</p>
+  <p class="lede">The scan field is the most important control: always visible on the billing screen, larger, with a 2 px border. Focus returns to it after every action. Input outlines meet 3:1.</p>
   <div class="grid g2">
     <div class="panel grid" style="gap:var(--space-500)">
       <div class="field">
         <label for="scan">Scan or search</label>
-        <div class="affix"><svg aria-hidden="true"><use href="#i-scan"/></svg><input id="scan" class="input scan" placeholder="Scan barcode or type a name" autocomplete="off"><span class="kbd">F2</span></div>
+        <div class="affix"><svg class="brand" aria-hidden="true"><use href="#i-scan"/></svg><input id="scan" class="input scan" placeholder="Scan a barcode or type a product name" autocomplete="off"><span class="kbd">F2</span></div>
       </div>
       <div class="field">
         <label for="name">Product name</label>
@@ -504,7 +642,7 @@ dialog::backdrop { background: var(--color-bg-overlay); }
         <div class="segmented" role="group" aria-labelledby="pm-l">
           <button type="button" aria-pressed="true"><svg aria-hidden="true"><use href="#i-cash"/></svg>Cash</button>
           <button type="button" aria-pressed="false"><svg aria-hidden="true"><use href="#i-card"/></svg>Card</button>
-          <button type="button" aria-pressed="false"><svg aria-hidden="true"><use href="#i-wallet"/></svg>Wallet</button>
+          <button type="button" aria-pressed="false"><svg aria-hidden="true"><use href="#i-wallet"/></svg>JazzCash</button>
         </div>
       </div>
       <label class="check"><input type="checkbox" checked> Print receipt automatically</label>
@@ -514,67 +652,87 @@ dialog::backdrop { background: var(--color-bg-overlay); }
 
 <section id="data">
   <h2>Data display</h2>
-  <p class="lede">Rows are 48 px for touch. Numbers are monospaced and right-aligned. The selected row has an indigo bar as well as a tint, so it's clear without relying on colour.</p>
+  <p class="lede">Rows are 56 px with dashed rules in light (solid in dark). The header is a material that floats over the rows as they scroll. Numbers are monospaced and right-aligned. The selected row has an emerald bar as well as a tint, so it's clear without relying on colour.</p>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Disc.</th><th class="r">Amount</th><th><span class="sr-only">Actions</span></th></tr></thead>
       <tbody>
-        <tr><td>Dalda Cooking Oil 1L<span class="sub">8964000110012</span></td><td class="r">2</td><td class="r">585</td><td class="r">—</td><td class="r"><b>1,170</b></td><td class="r"><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Remove Dalda Cooking Oil"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></td></tr>
-        <tr aria-selected="true"><td>Sugar loose <span class="badge badge-neutral" style="margin-left:6px"><svg aria-hidden="true"><use href="#i-scale"/></svg>Weighed</span><span class="urdu">چینی کھلی</span></td><td class="r">1.250 kg</td><td class="r">160</td><td class="r">—</td><td class="r"><b>200</b></td><td class="r"><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Remove Sugar loose"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></td></tr>
-        <tr><td>Olpers Milk 1L — carton of 12<span class="sub">Pack · moves 12 pcs</span></td><td class="r">1</td><td class="r">3,480</td><td class="r money-neg">−80</td><td class="r"><b>3,400</b></td><td class="r"><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Remove Olpers Milk carton"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></td></tr>
+        <tr><td><div class="item"><span class="thumb t1">TP</span><div>Tapal Danedar Tea 950 g<span class="sub">8964000101236</span></div></div></td><td class="r">1</td><td class="r">1,650</td><td class="r">—</td><td class="r"><b>1,650</b></td><td class="r"><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Remove Tapal Danedar Tea"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></td></tr>
+        <tr><td><div class="item"><span class="thumb t2">OL</span><div>Olpers Full Cream Milk 1 L<span class="sub">8961008200014</span></div></div></td><td class="r">3</td><td class="r">300</td><td class="r">—</td><td class="r"><b>900</b></td><td class="r"><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Remove Olpers Milk"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></td></tr>
+        <tr aria-selected="true"><td><div class="item"><span class="thumb t4">BR</span><div>Basmati Rice (loose) <span class="badge badge-neutral" style="margin-left:6px"><svg aria-hidden="true"><use href="#i-scale"/></svg>Weighed</span><span class="sub">Rs 380 / kg</span></div></div></td><td class="r">2.500 kg</td><td class="r">380</td><td class="r">—</td><td class="r"><b>950</b></td><td class="r"><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Remove Basmati Rice"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></td></tr>
+        <tr><td><div class="item"><span class="thumb t6">SE</span><div>Surf Excel 1 kg<span class="sub">8961014011187</span></div></div></td><td class="r">1</td><td class="r">690</td><td class="r money-neg">−40</td><td class="r"><b>650</b></td><td class="r"><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Remove Surf Excel"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></td></tr>
+        <tr><td><div class="item"><span class="thumb t1">EG</span><div>Farm Eggs (dozen)<span class="urdu">انڈے</span><span class="sub">2000000004201</span></div></div></td><td class="r">1</td><td class="r">420</td><td class="r">—</td><td class="r"><b>420</b></td><td class="r"><button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label="Remove Farm Eggs"><svg aria-hidden="true"><use href="#i-trash"/></svg></button></td></tr>
       </tbody>
     </table>
   </div>
   <div class="grid g2" style="margin-top:var(--space-400)">
     <div class="panel">
-      <div class="label">Badges — icon or word, never colour alone</div>
+      <div class="label">Badges: icon or word, never colour alone</div>
       <div class="row">
         <span class="badge badge-success"><svg aria-hidden="true"><use href="#i-check"/></svg>In stock</span>
         <span class="badge badge-warning"><svg aria-hidden="true"><use href="#i-alert"/></svg>Low stock · 4</span>
         <span class="badge badge-critical"><svg aria-hidden="true"><use href="#i-x-circle"/></svg>Negative · −3</span>
         <span class="badge badge-neutral">Archived</span>
-        <span class="badge badge-brand">Held</span>
-        <span class="badge badge-neutral"><svg aria-hidden="true"><use href="#i-lock"/></svg>Manager override</span>
+        <span class="badge badge-highlight"><svg aria-hidden="true"><use href="#i-pause"/></svg>Held</span>
+        <span class="badge badge-brand"><svg aria-hidden="true"><use href="#i-lock"/></svg>Manager override</span>
       </div>
     </div>
     <div class="panel">
-      <div class="label">Status bar</div>
-      <div class="statusbar">
-        <span class="status"><svg aria-hidden="true"><use href="#i-user"/></svg><b>Ayesha</b> · Cashier</span>
-        <span class="status"><span class="dot dot-ok" aria-hidden="true"></span>Shift open · 3h 12m</span>
-        <span class="status"><span class="dot dot-ok" aria-hidden="true"></span>Printer ready</span>
-        <span class="status"><span class="dot dot-warn" aria-hidden="true"></span>Backup 2 days old</span>
+      <div class="label">Top bar</div>
+      <div class="statusbar" style="background:var(--color-bg)">
+        <span class="wordmark" style="font-size:18px">vendora<i>.</i></span>
+        <span class="pill pill-ok" style="margin-left:auto"><svg aria-hidden="true"><use href="#i-printer"/></svg>Printer ready</span>
+        <span class="pill"><svg aria-hidden="true"><use href="#i-db"/></svg>Saved locally</span>
+        <span class="status"><span class="avatar" style="width:34px;height:34px;font-size:12px">BA</span><b>Bilal</b></span>
       </div>
     </div>
   </div>
   <div class="grid g2" style="margin-top:var(--space-400)">
-    <div class="total" role="status" aria-label="Total due Rs 4,770"><span class="k">Total due</span><span class="v"><small>Rs</small>4,770</span></div>
-    <div class="total total-change" role="status" aria-label="Change due Rs 230"><span class="k">Change due</span><span class="v"><small>Rs</small>230</span></div>
+    <div class="total" role="status" aria-label="Total due Rs 4,570"><span class="k">Total due</span><span class="v"><small>Rs</small>4,570</span><span class="meta">8 items · prices include tax</span></div>
+    <div class="total total-change" role="status" aria-label="Change due Rs 430"><span class="k">Change due</span><span class="v"><small>Rs</small>430</span></div>
   </div>
 </section>
 
 <section id="feedback">
   <h2>Feedback</h2>
-  <p class="lede">Say what happened and what to do next. A failure that doesn't stop the sale is a warning, not an error. Info stays neutral grey — it isn't a status.</p>
+  <p class="lede">Say what happened and what to do next. A failure that doesn't stop the sale is a warning, not an error. Info stays neutral: it isn't a status.</p>
   <div class="grid" style="gap:var(--space-300)">
     <div class="banner banner-warning" role="status"><svg aria-hidden="true"><use href="#i-alert"/></svg><div><b>Printer offline — sale saved</b><p>Check the paper and cable, then reprint from Recent sales.</p></div><button class="btn btn-secondary btn-sm" type="button">Retry print</button></div>
     <div class="banner banner-critical" role="alert"><svg aria-hidden="true"><use href="#i-x-circle"/></svg><div><b>Backup folder not found</b><p>The USB drive "BACKUP" isn't connected. Today's backup is saved on this PC only.</p></div><button class="btn btn-secondary btn-sm" type="button">Choose folder</button></div>
     <div class="banner banner-info" role="status"><svg aria-hidden="true"><use href="#i-info"/></svg><div><b>3 bills on hold</b><p>Held bills are kept even if the app closes.</p></div><button class="btn btn-ghost btn-sm" type="button">View</button></div>
     <div class="banner banner-success" role="status"><svg aria-hidden="true"><use href="#i-check-circle"/></svg><div><b>Goods received</b><p>48 items added to stock. Average cost updated for 6 products.</p></div><span></span></div>
   </div>
-  <div class="label" style="margin-top:var(--space-600)">Toast — brief, with undo where possible</div>
+  <div class="label" style="margin-top:var(--space-600)">Toast: brief, with undo where possible</div>
   <div class="toast" role="status"><svg aria-hidden="true"><use href="#i-check"/></svg>Line removed: Dalda Cooking Oil 1L<button type="button">Undo</button></div>
   <div class="label" style="margin-top:var(--space-600)">Empty state</div>
   <div class="panel"><div class="empty">
     <div class="icon"><svg aria-hidden="true"><use href="#i-scan"/></svg></div>
-    <h3>Scan the first item</h3>
-    <p>Use the scanner, or press <span class="kbd">F2</span> to search by name. Weighed items read their weight from the scale label.</p>
+    <h3>Ready for the next customer</h3>
+    <p>Scan the first item, or press <span class="kbd">F2</span> to search by name. Weighed items read their weight from the scale label.</p>
   </div></div>
 </section>
 
 <section id="overlays">
-  <h2>Overlays</h2>
-  <p class="lede">Dialogs are for decisions that need full attention. The manager PIN prompt opens over the bill, so the cashier never logs out to get approval.</p>
+  <h2>Overlays &amp; PIN</h2>
+  <p class="lede">Dialogs are for decisions that need full attention. The manager PIN prompt opens over the bill, so the cashier never logs out to get approval. Login, lock and quick switch share the split layout: the inverse panel on the left, user tiles, PIN dots and pad on the right.</p>
+  <div class="split" style="margin-bottom:var(--space-400)">
+    <div class="side on-inverse">
+      <span class="wordmark" style="font-size:24px">vendora<i>.</i></span>
+      <div><div class="clock">7:42</div><div class="date">Wednesday 28 October</div></div>
+      <div class="facts"><div><span>Vendora version</span><b>0.1.0</b></div></div>
+    </div>
+    <div class="pane">
+      <div style="display:grid;gap:var(--space-400);justify-items:center;width:100%;max-width:540px">
+        <h3 style="font-size:var(--font-size-700);font-weight:700">Switch user</h3>
+        <div class="users" id="users" style="width:100%">
+          <button class="user" type="button" aria-pressed="true"><span class="avatar">BA</span><svg class="tick" aria-hidden="true"><use href="#i-check-circle"/></svg><span><b>Bilal Ahmed</b><small>Cashier</small></span></button>
+          <button class="user" type="button" aria-pressed="false"><span class="avatar">SM</span><svg class="tick" aria-hidden="true"><use href="#i-check-circle"/></svg><span><b>Sana Malik</b><small>Manager</small></span></button>
+          <button class="user" type="button" aria-pressed="false"><span class="avatar">IQ</span><svg class="tick" aria-hidden="true"><use href="#i-check-circle"/></svg><span><b>Imran Qureshi</b><small>Owner</small></span></button>
+        </div>
+        <div class="pin-dots" role="img" aria-label="2 of 4 digits entered"><span class="on"></span><span class="on"></span><span></span><span></span></div>
+      </div>
+    </div>
+  </div>
   <div class="grid g2">
     <dialog class="dialog-static" open aria-labelledby="pin-title">
       <div class="d-body">
@@ -586,18 +744,18 @@ dialog::backdrop { background: var(--color-bg-overlay); }
           <button type="button">1</button><button type="button">2</button><button type="button">3</button>
           <button type="button">4</button><button type="button">5</button><button type="button">6</button>
           <button type="button">7</button><button type="button">8</button><button type="button">9</button>
-          <button type="button" aria-label="Clear">C</button><button type="button">0</button><button type="button" aria-label="Delete digit">⌫</button>
+          <button type="button" class="fn">Clear</button><button type="button">0</button><button type="button" class="fn" aria-label="Delete digit"><svg aria-hidden="true" style="width:20px;height:20px"><use href="#i-back"/></svg></button>
         </div>
       </div>
-      <div class="d-actions"><button class="btn btn-ghost" type="button">Cancel <span class="kbd">Esc</span></button><button class="btn btn-primary" type="button">Approve</button></div>
+      <div class="d-actions"><button class="btn btn-secondary" type="button">Cancel <span class="kbd">Esc</span></button><button class="btn btn-primary" type="button">Approve <span class="kbd">Enter</span></button></div>
     </dialog>
     <div class="panel" style="align-self:start">
       <div class="label">Rules</div>
       <ul class="rules">
         <li>One dialog at a time. <span class="kbd">Esc</span> cancels; <span class="kbd">Enter</span> confirms the primary action.</li>
-        <li>Focus moves into the dialog on open and back to the scan field on close.</li>
-        <li>Destructive confirms name the thing: "Void sale T1-000231 (Rs 4,770)?" — not "Are you sure?".</li>
-        <li>Nothing opens mid-scan without a reason the cashier can see.</li>
+        <li>Focus moves into the dialog on open and back to the trigger (or the scan field) on close.</li>
+        <li>Destructive confirms name the thing: "Void sale T1-000231 (Rs 4,770)?", not "Are you sure?".</li>
+        <li>A selected tile has a heavier emerald border and a check, not just a tint.</li>
       </ul>
       <button class="btn btn-secondary" type="button" id="open-dialog" style="margin-top:var(--space-400)">Open a live dialog</button>
     </div>
@@ -641,24 +799,26 @@ dialog::backdrop { background: var(--color-bg-overlay); }
 
 <section id="compose">
   <h2>In context</h2>
-  <p class="lede">The components together. This is not the final billing layout — that's still an open design challenge.</p>
+  <p class="lede">The components together. This is not the final billing layout; that's still an open design challenge. See <code>design/reference/bazaar-prototype.html</code> for the working prototype.</p>
   <div class="statusbar" style="margin-bottom:var(--space-300)">
-    <span class="wordmark" style="font-size:18px;margin-right:var(--space-200)">vendora<i>.</i></span>
-    <span class="status"><svg aria-hidden="true"><use href="#i-user"/></svg><b>Ayesha</b></span>
-    <span class="status"><span class="dot dot-ok" aria-hidden="true"></span>Shift open</span>
-    <span class="status"><span class="dot dot-ok" aria-hidden="true"></span>Printer ready</span>
-    <span class="badge badge-brand" style="margin-left:auto">2 held</span>
+    <span class="wordmark" style="font-size:19px">vendora<i>.</i></span>
+    <span class="status" style="padding-left:var(--space-400);border-left:1px solid var(--color-border)"><b>Al-Madina General Store</b></span>
+    <span class="pill pill-ok" style="margin-left:auto"><svg aria-hidden="true"><use href="#i-printer"/></svg>Printer ready</span>
+    <span class="status"><span class="avatar" style="width:34px;height:34px;font-size:12px">BA</span><b>Bilal Ahmed</b></span>
   </div>
   <div class="compose">
     <div class="grid" style="gap:var(--space-300);align-content:start">
-      <div class="affix"><svg aria-hidden="true"><use href="#i-scan"/></svg><input class="input scan" placeholder="Scan barcode or type a name" aria-label="Scan or search"><span class="kbd">F2</span></div>
+      <div class="row" style="flex-wrap:nowrap">
+        <div class="affix" style="flex:1"><svg class="brand" aria-hidden="true"><use href="#i-scan"/></svg><input class="input scan" placeholder="Scan a barcode or type a product name" aria-label="Scan or search"><span class="kbd">F2</span></div>
+        <button class="btn btn-secondary" type="button" style="min-height:56px;border-radius:var(--radius-400)"><svg aria-hidden="true"><use href="#i-pause"/></svg>Held bills <span class="held-count">2</span></button>
+      </div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Amount</th></tr></thead>
           <tbody>
-            <tr><td>Dalda Cooking Oil 1L<span class="sub">8964000110012</span></td><td class="r">2</td><td class="r">585</td><td class="r">1,170</td></tr>
-            <tr aria-selected="true"><td>Sugar loose <span class="badge badge-neutral" style="margin-left:6px">Weighed</span></td><td class="r">1.250 kg</td><td class="r">160</td><td class="r">200</td></tr>
-            <tr><td>Olpers Milk 1L — carton<span class="sub">Moves 12 pcs</span></td><td class="r">1</td><td class="r">3,480</td><td class="r">3,400</td></tr>
+            <tr><td><div class="item"><span class="thumb t1">TP</span><div>Tapal Danedar Tea 950 g<span class="sub">8964000101236</span></div></div></td><td class="r">1</td><td class="r">1,650</td><td class="r">1,650</td></tr>
+            <tr aria-selected="true"><td><div class="item"><span class="thumb t4">BR</span><div>Basmati Rice (loose)<span class="sub">Rs 380 / kg</span></div></div></td><td class="r">2.500 kg</td><td class="r">380</td><td class="r">950</td></tr>
+            <tr><td><div class="item"><span class="thumb t2">OL</span><div>Olpers Full Cream Milk 1 L<span class="sub">8961008200014</span></div></div></td><td class="r">3</td><td class="r">300</td><td class="r">900</td></tr>
           </tbody>
         </table>
       </div>
@@ -670,12 +830,12 @@ dialog::backdrop { background: var(--color-bg-overlay); }
     </div>
     <div class="grid" style="gap:var(--space-300);align-content:start">
       <div class="sums">
-        <div><span class="muted">Subtotal · 3 items</span><span class="money">4,850</span></div>
-        <div><span class="muted">Discount</span><span class="money money-neg">−80</span></div>
-        <div><span class="muted">Sales tax (incl.)</span><span class="money">727.63</span></div>
+        <div><span>Subtotal · 5 items</span><span class="money">3,540</span></div>
+        <div><span>Discount</span><span class="money money-neg">−Rs 40</span></div>
+        <div><span>Sales tax (incl. 18%)</span><span class="money">533.90</span></div>
       </div>
-      <div class="total"><span class="k">Total due</span><span class="v"><small>Rs</small>4,770</span></div>
-      <button class="btn btn-primary btn-lg btn-block" type="button">Pay <span class="kbd">F12</span></button>
+      <div class="total"><span class="k">Total due</span><span class="v"><small>Rs</small>3,500</span></div>
+      <button class="btn btn-primary btn-lg btn-block" type="button" style="justify-content:space-between;min-height:64px;border-radius:var(--radius-400)"><span>Pay</span><span class="mono">Rs 3,500</span><span class="kbd">F12</span></button>
     </div>
   </div>
 </section>
@@ -684,11 +844,12 @@ dialog::backdrop { background: var(--color-bg-overlay); }
   <h2>Principles</h2>
   <div class="grid g2">
     <div class="panel"><b>1. The next scan is sacred.</b><p class="muted" style="margin:6px 0 0">Focus returns to the scan field after every action. Nothing steals focus without a visible reason.</p></div>
-    <div class="panel"><b>2. Indigo means act.</b><p class="muted" style="margin:6px 0 0">The main action, focus and selection are indigo — and nothing else is. Status colours never look like buttons.</p></div>
-    <div class="panel"><b>3. Numbers are the content.</b><p class="muted" style="margin:6px 0 0">Monospaced, right-aligned, and the total is the largest thing on screen — readable at arm's length.</p></div>
+    <div class="panel"><b>2. Emerald means act.</b><p class="muted" style="margin:6px 0 0">The main action, focus and selection are emerald, and nothing else is. Saffron sets things aside; it never signals status.</p></div>
+    <div class="panel"><b>3. Numbers are the content.</b><p class="muted" style="margin:6px 0 0">Monospaced, right-aligned, and the total is the largest thing on screen, readable at arm's length.</p></div>
     <div class="panel"><b>4. Keyboard first, touch friendly.</b><p class="muted" style="margin:6px 0 0">Every main action shows its key. Every target is at least 44 px.</p></div>
     <div class="panel"><b>5. Failure degrades, never blocks.</b><p class="muted" style="margin:6px 0 0">Printer, network or backup problems show as warnings. The sale always completes.</p></div>
-    <div class="panel"><b>6. Never colour alone.</b><p class="muted" style="margin:6px 0 0">Status pairs colour with an icon and a word; selection pairs tint with a bar.</p></div>
+    <div class="panel"><b>6. Never colour alone.</b><p class="muted" style="margin:6px 0 0">Status pairs colour with an icon and a word. Selection pairs tint with a bar, a heavier border or a check.</p></div>
+    <div class="panel"><b>7. Motion answers the hand.</b><p class="muted" style="margin:6px 0 0">Press feedback is instant, motion settles without bounce, and reduced motion leaves only fades.</p></div>
   </div>
 </section>
 
@@ -722,8 +883,26 @@ dialog::backdrop { background: var(--color-bg-overlay); }
     if (b) g.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
   }));
 
+  document.getElementById('users').addEventListener('click', (e) => {
+    const u = e.target.closest('.user');
+    if (u) document.querySelectorAll('#users .user').forEach((x) => x.setAttribute('aria-pressed', String(x === u)));
+  });
+
   const dlg = document.getElementById('demo-dialog');
-  document.getElementById('open-dialog').addEventListener('click', () => dlg.showModal());
+  const openFrom = (trigger) => {
+    dlg.showModal();
+    const from = trigger.getBoundingClientRect();
+    const to = dlg.getBoundingClientRect();
+    dlg.style.transformOrigin = `${from.left + from.width / 2 - to.left}px ${from.top + from.height / 2 - to.top}px`;
+  };
+  document.getElementById('open-dialog').addEventListener('click', (e) => openFrom(e.currentTarget));
+  document.getElementById('motion-dialog-btn').addEventListener('click', (e) => openFrom(e.currentTarget));
+
+  const track = document.getElementById('track');
+  document.getElementById('track-btn').addEventListener('click', () => {
+    track.style.setProperty('--track-w', `${track.clientWidth}px`);
+    track.classList.toggle('go');
+  });
 })();
 </script>
 </body>

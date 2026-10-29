@@ -5,8 +5,10 @@ import type { SafeUser } from "@shared/auth";
 import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { AutoLockSetting } from "../settings/auto-lock-setting";
+import { Avatar } from "./avatar";
 import { serviceErrorMessage } from "./messages";
 import { roleLabel } from "./role-label";
+import { Wordmark } from "./split-layout";
 
 interface AppShellProps {
   user: SafeUser;
@@ -16,7 +18,6 @@ interface AppShellProps {
 
 export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
   const [error, setError] = useState<string | null>(null);
-
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey && event.key.toLowerCase() === "l") {
@@ -39,15 +40,24 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
 
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden bg-page">
-      <header className="flex h-[var(--height-control-lg)] shrink-0 items-center justify-between border-b border-line bg-surface px-400">
-        <span className="text-[length:var(--font-size-450)] font-semibold tracking-[var(--letter-spacing-tight)] text-foreground">
-          vendora<span className="text-fill-brand">.</span>
-        </span>
+      <header className="flex h-[64px] shrink-0 items-center gap-400 bg-page px-500">
+        <Wordmark className="text-[length:var(--font-size-450)] text-foreground" />
+        <div className="flex-1" />
+        <div className="flex items-center gap-300 border-l border-line pl-400">
+          <Avatar
+            name={user.displayName}
+            className="size-[36px] text-[length:var(--font-size-300)]"
+          />
+          <div className="grid leading-[var(--line-height-tight)]">
+            <span className="text-[length:var(--font-size-400)] font-semibold text-foreground">
+              {user.displayName}
+            </span>
+            <span className="text-[length:var(--font-size-350)] text-tertiary">
+              {roleLabel(user.role)}
+            </span>
+          </div>
+        </div>
         <div className="flex items-center gap-200">
-          <span className="font-medium text-foreground">{user.displayName}</span>
-          <span className="text-[length:var(--font-size-350)] text-secondary">
-            {roleLabel(user.role)}
-          </span>
           <Button variant="secondary" autoFocus data-lock-trigger onClick={onLock}>
             <LockIcon aria-hidden="true" size={16} strokeWidth={2} />
             Lock

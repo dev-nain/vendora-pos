@@ -155,7 +155,8 @@ pass the last commit of each group: each must pass typecheck, lint and
 
 1. **Screenshots — every PR has them.** Use `screenshots.sh` (next to this
    file) with the prompt's **Screenshots** section written as a shots file
-   (`name|route|size|theme` per line). `S` is a fresh directory in the
+   (`name|route|size|theme[|as=<user>][|js=<expr>]` per line; the header of
+   `screenshots.sh` explains the fields). `S` is a fresh directory in the
    scratchpad.
    - Before: `git switch --detach origin/develop`, `pnpm install --frozen-lockfile`,
      then `screenshots.sh capture $S/before <shots>`.
@@ -170,8 +171,8 @@ pass the last commit of each group: each must pass typecheck, lint and
      `screenshots.sh publish <branch> <dir>`; it prints the image URL prefix.
      A shot that only exists after the change (a new screen) has no "before".
      When `origin/develop` has no runnable app yet, there is no "before" at all.
-   - A state the capture can't reach (needs a printer, scanner, a logged-in
-     role or seeded data the app can't create itself) is listed under the table
+   - A state the capture can't reach (needs a printer, scanner, or seeded data
+     the app can't create itself) is listed under the table
      as "Not captured — <reason>". At least one image is always required once
      the app runs; before that, the PR says "Not captured — no runnable app".
 2. `git push -u origin <branch>`.

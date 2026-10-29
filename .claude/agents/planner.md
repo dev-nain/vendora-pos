@@ -49,12 +49,20 @@ Money, tax, stock and permission logic gets unit tests (Vitest) in the same
 task that adds it.
 
 Add a **Screenshots** section: the shots that show this change, one per line
-as `name|route|WIDTHxHEIGHT|light|dark` (e.g. `checkout|/|1366x768|light`).
-Every ticket has at least one. For UI work, cover each changed screen at
-1366x768 in light, plus dark when colours or tokens change. For non-visual work,
-pick the screen where the result shows. The capture runs the built app against
-a fresh, empty database with no printer or scanner; note any state it can't
-reach.
+as `name|route|WIDTHxHEIGHT|light|dark[|as=<user>][|js=<expr>]` (e.g.
+`checkout|/|1366x768|light|as=cashier`). Every ticket has at least one. For UI
+work, cover each changed screen at 1366x768 in light, plus dark when colours or
+tokens change. For non-visual work, pick the screen where the result shows.
+
+- `as=<user>` signs in first as a dev fixture user from
+  `src/main/db/dev-users.ts` (`owner`, `manager`, `cashier`). Use it for any
+  screen behind login. Never write a password in the plan.
+- `js=<expr>` runs in the page before the capture, to reach a state such as an
+  open dialog: e.g. click a button by its text. No `|` inside it.
+- Without any `as=` shot the capture runs against a fresh, empty database (the
+  Owner setup screen); with one, the fixture users exist.
+
+There is no printer or scanner; note any state the capture still can't reach.
 
 Then add a **Tasks** section: a numbered list where each task is one commit
 (conventional commit, e.g. `feat: add held-bill service`), names its files, and

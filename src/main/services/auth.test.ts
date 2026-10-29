@@ -3,13 +3,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
+  approvalResultSchema,
+  authMessages,
   authResultSchema,
+  createOwnerInputSchema,
   loginUserSchema,
   sessionStateSchema,
   type AuthResult,
 } from "../../shared/auth";
-import { hashCredential } from "../auth/credentials";
-import { UnauthenticatedError } from "../auth/errors";
+import { hashCredential, verifyCredential } from "../auth/credentials";
+import { createApprovalStore, type ApprovalStore } from "../auth/approvals";
+import { ApprovalError, UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
@@ -29,10 +33,17 @@ beforeAll(async () => {
   pinHash = await hashCredential(PIN);
 });
 
+const approveInput = (approverUserId: string, pin: string) => ({
+  action: "drawer.open-no-sale" as const,
+  approverUserId,
+  pin,
+});
+
 describe("createAuthService", () => {
   let dir: string;
   let database: VendoraDatabase;
   let sessions: SessionStore;
+  let approvals: ApprovalStore;
   let clock: Date;
   let service: ReturnType<typeof createAuthService>;
 
@@ -73,10 +84,12 @@ describe("createAuthService", () => {
     seedStoreAndTerminal(database);
     sessions = createSessionStore();
     clock = t0;
+    approvals = createApprovalStore({ sessions, now: () => clock });
     service = createAuthService({
       database,
       audit: createAuditService(database),
       sessions,
+      approvals,
       now: () => clock,
     });
   });
@@ -224,6 +237,7 @@ describe("createAuthService", () => {
         database,
         audit: createAuditService(database),
         sessions,
+        approvals,
         now: () => clock,
       });
 
@@ -271,6 +285,155 @@ describe("createAuthService", () => {
 
     it("throws with no session", () => {
       expect(() => service.lock()).toThrow(UnauthenticatedError);
+    });
+  });
+
+  describe("approve", () => {
+    it("lets a manager approve for a cashier session", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+      const cashier = addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+
+      const result = await service.approve(approveInput(manager.id, PIN));
+
+      expect(result).toMatchObject({ ok: true });
+      if (!result.ok) throw new Error("expected approval");
+      expect(approvals.consumeApproval(result.token, "drawer.open-no-sale")).toEqual({
+        approverUserId: manager.id,
+        requestedByUserId: cashier.id,
+      });
+    });
+
+    it("lets an owner approve", async () => {
+      const owner = addUser("owner", "Owner", "owner");
+      addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+
+      expect(await service.approve(approveInput(owner.id, PIN))).toMatchObject({ ok: true });
+    });
+
+    it("refuses a cashier approver without touching their PIN state", async () => {
+      const other = addUser("other", "Other", "cashier");
+      addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+
+      const result = await service.approve(approveInput(other.id, "0000"));
+
+      expect(result).toEqual({
+        ok: false,
+        reason: "not-allowed",
+        message: "Only a manager or the owner can approve this.",
+      });
+      expect(userRow(other.id).failedPinAttempts).toBe(0);
+    });
+
+    it("treats inactive and soft-deleted approvers as an invalid PIN", async () => {
+      const inactive = addUser("inactive", "Inactive", "manager", { isActive: false });
+      const deleted = addUser("deleted", "Deleted", "manager", { deletedAt: t0 });
+      addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+
+      for (const approver of [inactive, deleted]) {
+        expect(await service.approve(approveInput(approver.id, PIN))).toEqual({
+          ok: false,
+          reason: "invalid-pin",
+          message: "PIN is incorrect",
+        });
+      }
+    });
+
+    it("counts a wrong PIN against the approver, not the session user", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+      const cashier = addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+
+      const result = await service.approve(approveInput(manager.id, "0000"));
+
+      expect(result).toMatchObject({ ok: false, reason: "invalid-pin" });
+      expect(userRow(manager.id).failedPinAttempts).toBe(1);
+      expect(userRow(cashier.id).failedPinAttempts).toBe(0);
+    });
+
+    it("locks the approver after five wrong PINs until the cooldown passes", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+      addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+
+      for (let i = 0; i < 4; i += 1) {
+        expect(await service.approve(approveInput(manager.id, "0000"))).toMatchObject({
+          reason: "invalid-pin",
+        });
+      }
+      expect(await service.approve(approveInput(manager.id, "0000"))).toEqual({
+        ok: false,
+        reason: "pin-locked",
+        message: "PIN is incorrect",
+        retryAfterMs: 30_000,
+      });
+
+      clock = new Date(t0.getTime() + 10_000);
+      expect(await service.approve(approveInput(manager.id, PIN))).toMatchObject({
+        reason: "pin-locked",
+        retryAfterMs: 20_000,
+      });
+
+      clock = new Date(t0.getTime() + 30_001);
+      expect(await service.approve(approveInput(manager.id, PIN))).toMatchObject({ ok: true });
+    });
+
+    it("throws UnauthenticatedError without a session", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+
+      await expect(service.approve(approveInput(manager.id, PIN))).rejects.toBeInstanceOf(
+        UnauthenticatedError,
+      );
+    });
+
+    it("clears outstanding tokens on logout", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+      addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+      const result = await service.approve(approveInput(manager.id, PIN));
+      if (!result.ok) throw new Error("expected approval");
+
+      service.logout();
+      await asUser("cashier");
+
+      expect(() => approvals.consumeApproval(result.token, "drawer.open-no-sale")).toThrow(
+        ApprovalError,
+      );
+    });
+
+    it("clears outstanding tokens on a PIN switch", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+      const cashier = addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+      const result = await service.approve(approveInput(manager.id, PIN));
+      if (!result.ok) throw new Error("expected approval");
+
+      await service.switchByPin({ userId: manager.id, pin: PIN });
+      await service.switchByPin({ userId: cashier.id, pin: PIN });
+
+      expect(() => approvals.consumeApproval(result.token, "drawer.open-no-sale")).toThrow(
+        ApprovalError,
+      );
+    });
+
+    it("never returns PINs or hashes", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+      addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+
+      const returned = [
+        await service.approve(approveInput(manager.id, "0000")),
+        await service.approve(approveInput(manager.id, PIN)),
+      ];
+
+      const text = JSON.stringify(returned);
+      for (const secret of [PIN, pinHash, passwordHash]) expect(text).not.toContain(secret);
+      for (const value of returned) {
+        expect(approvalResultSchema.safeParse(value).success).toBe(true);
+      }
     });
   });
 
@@ -370,6 +533,93 @@ describe("createAuthService", () => {
           expect(sessionStateSchema.safeParse(value).success).toBe(true);
         }
       }
+    });
+  });
+
+  describe("owner setup", () => {
+    const ownerInput = createOwnerInputSchema.parse({
+      username: " owner1 ",
+      displayName: " Imran ",
+      password: "ab12",
+      pin: "1234",
+    });
+
+    it("creates the Owner, starts a session and audits it", async () => {
+      expect(service.needsOwnerSetup()).toBe(true);
+
+      const result = await service.createOwner(ownerInput);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.user).toMatchObject({
+        username: "owner1",
+        displayName: "Imran",
+        role: "owner",
+      });
+      expect(service.needsOwnerSetup()).toBe(false);
+      expect(service.current()).toEqual({ user: result.user, locked: false });
+
+      const row = userRow(result.user.id);
+      expect(row.passwordHash).not.toBe("ab12");
+      expect(row.pinHash).not.toBe("1234");
+      expect(await verifyCredential(row.passwordHash, "ab12")).toBe(true);
+      expect(await verifyCredential(row.pinHash, "1234")).toBe(true);
+      expect((await service.login({ username: "owner1", password: "ab12" })).ok).toBe(true);
+
+      const created = auditRows().filter((r) => r.action === "user_create");
+      expect(created).toHaveLength(1);
+      expect(created[0]).toMatchObject({
+        actorUserId: result.user.id,
+        entityType: "user",
+        entityId: result.user.id,
+      });
+      expect(JSON.parse(created[0]!.details!)).toEqual({ username: "owner1", role: "owner" });
+    });
+
+    it("writes one user_create and one login row on creation", async () => {
+      await service.createOwner(ownerInput);
+      expect(
+        auditRows()
+          .map((r) => r.action)
+          .toSorted(),
+      ).toEqual(["login", "user_create"]);
+    });
+
+    it("refuses a second Owner without writing or switching the session", async () => {
+      const first = await service.createOwner(ownerInput);
+      const auditCount = auditRows().length;
+
+      const second = await service.createOwner({ ...ownerInput, username: "other" });
+
+      expect(second).toEqual({
+        ok: false,
+        reason: "owner-exists",
+        message: authMessages.ownerExists,
+      });
+      expect(database.db.select().from(users).all()).toHaveLength(1);
+      expect(auditRows()).toHaveLength(auditCount);
+      expect(sessions.current()?.userId).toBe(first.ok ? first.user.id : "");
+    });
+
+    it("counts inactive and soft-deleted users as existing", async () => {
+      addUser("gone", "Gone", "cashier", { isActive: false, deletedAt: t0 });
+
+      expect(service.needsOwnerSetup()).toBe(false);
+      const result = await service.createOwner(ownerInput);
+      expect(result.ok).toBe(false);
+      expect(sessions.current()).toBeNull();
+      expect(auditRows()).toHaveLength(0);
+    });
+
+    it("lets exactly one of two concurrent calls win", async () => {
+      const results = await Promise.all([
+        service.createOwner(ownerInput),
+        service.createOwner({ ...ownerInput, username: "other" }),
+      ]);
+
+      expect(results.filter((r) => r.ok)).toHaveLength(1);
+      expect(results.filter((r) => !r.ok && r.reason === "owner-exists")).toHaveLength(1);
+      expect(database.db.select().from(users).all()).toHaveLength(1);
     });
   });
 });

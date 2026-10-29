@@ -11,6 +11,7 @@ import { createAuthService } from "./services/auth";
 import { createAutoLock } from "./services/auto-lock";
 import { createSettingsService } from "./services/settings";
 import { getAutoLockMinutes } from "./settings/store-settings";
+import { createApprovalStore } from "./auth/approvals";
 import { createSessionStore } from "./auth/session";
 import { createMainWindow } from "./window";
 
@@ -34,12 +35,13 @@ void app.whenReady().then(async () => {
   if (!app.isPackaged && process.env.VENDORA_DEV_USERS === "1") await seedDevUsers(database);
   const audit = createAuditService(database);
   const sessions = createSessionStore();
+  const approvals = createApprovalStore({ sessions });
   const db = database;
   const autoLock = createAutoLock({
     sessions,
     readMinutes: (storeId) => getAutoLockMinutes(db, storeId),
   });
-  const auth = createAuthService({ database, audit, sessions });
+  const auth = createAuthService({ database, audit, sessions, approvals });
   const settings = createSettingsService({
     database,
     audit,

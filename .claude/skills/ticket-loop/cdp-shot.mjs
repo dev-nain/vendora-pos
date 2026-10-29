@@ -29,13 +29,61 @@ const send = (method, params = {}) =>
     pending.set(id, { resolve, reject });
     ws.send(JSON.stringify({ id, method, params }));
   });
-const settle = () => new Promise((resolve) => setTimeout(resolve, 800));
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const settle = () => wait(800);
+
+const evaluate = async (expression) => {
+  const { result, exceptionDetails } = await send("Runtime.evaluate", {
+    expression,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  if (exceptionDetails) {
+    throw new Error(`${expression}: ${exceptionDetails.exception?.description ?? exceptionDetails.text}`);
+  }
+  return result.value;
+};
+
+const reload = async () => {
+  await send("Page.reload");
+  for (let i = 0; i < 50; i++) {
+    await wait(200);
+    const ready = await evaluate("document.readyState").catch(() => null);
+    if (ready === "complete") return;
+  }
+  throw new Error("app did not reload");
+};
+
+// Passwords stay in the dev fixture file, never in shot lines or plans.
+const fixturePasswords = () => {
+  const source = readFileSync("src/main/db/dev-users.ts", "utf8");
+  const pairs = source.matchAll(/username:\s*"([^"]+)",\s*password:\s*"([^"]+)"/g);
+  return new Map([...pairs].map(([, username, password]) => [username, password]));
+};
+
+const signInAs = async (username) => {
+  const current = await evaluate("window.vendora.auth.current().then((u) => u?.username ?? null)");
+  if (current === (username ?? null)) return;
+  if (current) await evaluate("window.vendora.auth.logout()");
+  if (username) {
+    const password = fixturePasswords().get(username);
+    if (!password) throw new Error(`as=${username}: no such user in src/main/db/dev-users.ts`);
+    const result = await evaluate(
+      `window.vendora.auth.login(${JSON.stringify(username)}, ${JSON.stringify(password)})`,
+    );
+    if (!result?.ok) throw new Error(`as=${username}: login failed (${result?.message})`);
+  }
+  await reload();
+};
 
 const lines = readFileSync(shotsFile, "utf8").split("\n");
 for (const line of lines) {
   if (!line.trim() || line.startsWith("#")) continue;
-  const [name, route = "/", size = "1366x768", theme = "light"] = line.split("|");
+  const [name, route = "/", size = "1366x768", theme = "light", ...extra] = line.split("|");
   const [width, height] = size.split("x").map(Number);
+  const options = Object.fromEntries(
+    extra.map((field) => [field.slice(0, field.indexOf("=")), field.slice(field.indexOf("=") + 1)]),
+  );
 
   await send("Emulation.setDeviceMetricsOverride", {
     width,
@@ -49,10 +97,13 @@ for (const line of lines) {
       { name: "prefers-reduced-motion", value: "reduce" },
     ],
   });
-  await send("Runtime.evaluate", {
-    expression: `location.hash = ${JSON.stringify(route === "/" ? "" : route)}`,
-  });
+  await signInAs(options.as);
+  await evaluate(`location.hash = ${JSON.stringify(route === "/" ? "" : route)}`);
   await settle();
+  if (options.js) {
+    await evaluate(options.js);
+    await settle();
+  }
 
   const { data } = await send("Page.captureScreenshot", { format: "png" });
   const file = join(outDir, `${name}.png`);

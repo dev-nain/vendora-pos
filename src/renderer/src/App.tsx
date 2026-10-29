@@ -1,7 +1,9 @@
 import { Activity, useCallback, useEffect, useRef, useState } from "react";
 
 import type { SafeUser } from "@shared/auth";
+import { ApprovalProvider } from "./auth/approval-provider";
 import { AppShell } from "./auth/app-shell";
+import { CreateOwnerScreen } from "./auth/create-owner-screen";
 import { LockScreen } from "./auth/lock-screen";
 import { LoginScreen } from "./auth/login-screen";
 import { PinSwitchScreen } from "./auth/pin-switch-screen";
@@ -11,6 +13,7 @@ type Overlay = null | "locked" | "switch";
 
 type AuthView =
   | { name: "starting" }
+  | { name: "setup" }
   | { name: "login" }
   | { name: "signed-in"; user: SafeUser; overlay: Overlay };
 
@@ -24,10 +27,16 @@ export function App() {
   useEffect(() => {
     void window.vendora.auth
       .current()
-      .then((state) => {
-        if (!state) setView({ name: "login" });
-        else
-          setView({ name: "signed-in", user: state.user, overlay: state.locked ? "locked" : null });
+      .then(async (state) => {
+        if (state) {
+          return setView({
+            name: "signed-in",
+            user: state.user,
+            overlay: state.locked ? "locked" : null,
+          });
+        }
+        const needsSetup = await window.vendora.auth.needsOwnerSetup();
+        setView(needsSetup ? { name: "setup" } : { name: "login" });
       })
       .catch(() => setView({ name: "login" }));
   }, []);
@@ -74,15 +83,17 @@ export function App() {
   switch (view.name) {
     case "starting":
       return <div className="min-h-screen bg-page" />;
+    case "setup":
+      return <CreateOwnerScreen onCreated={signedIn} onOwnerExists={toLogin} />;
     case "login":
-      return (
-        <LoginScreen onLoggedIn={(user) => setView({ name: "signed-in", user, overlay: null })} />
-      );
+      return <LoginScreen onLoggedIn={signedIn} />;
     case "signed-in":
       return (
         <>
           <Activity mode={view.overlay ? "hidden" : "visible"}>
-            <AppShell key={view.user.id} user={view.user} onLock={lock} onLoggedOut={toLogin} />
+            <ApprovalProvider key={view.user.id} user={view.user} onUnauthenticated={toLogin}>
+              <AppShell user={view.user} onLock={lock} onLoggedOut={toLogin} />
+            </ApprovalProvider>
           </Activity>
           {view.overlay === "locked" ? (
             <LockScreen

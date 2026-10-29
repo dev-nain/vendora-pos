@@ -48,7 +48,7 @@ Electron, electron-vite, React 19, TypeScript (strict), Tailwind v4, shadcn on B
 - The renderer has no Node access. It talks to main only through the typed functions on `window.vendora`; main validates every payload with Zod.
 - SQLite runs in WAL mode with `synchronous = FULL`. Pending migrations first back the database up to `backups/pre-migrate-<timestamp>.db` in the user data folder.
 - Tests run under Electron's Node (`ELECTRON_RUN_AS_NODE`), so `better-sqlite3` is built once for Electron.
-- Fonts (Geist, Geist Mono, Noto Nastaliq Urdu) are bundled; nothing loads from the network.
+- Fonts (Plus Jakarta Sans, JetBrains Mono, Noto Nastaliq Urdu) are bundled; nothing loads from the network.
 
 ## Not included yet
 

@@ -76,7 +76,7 @@ export function AutoLockSetting() {
   return (
     <section
       aria-labelledby="auto-lock-heading"
-      className="grid w-[420px] gap-400 rounded-300 border border-line bg-surface p-600 shadow-200"
+      className="grid w-[420px] gap-400 rounded-400 border border-line-card bg-surface p-600 shadow-200"
     >
       <h2
         id="auto-lock-heading"

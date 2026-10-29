@@ -1,6 +1,10 @@
 import { app, ipcMain, type IpcMainInvokeEvent } from "electron";
 import {
+  approvalResultSchema,
+  approveInputSchema,
   authResultSchema,
+  createOwnerInputSchema,
+  createOwnerResultSchema,
   loginInputSchema,
   loginUserSchema,
   pinSwitchInputSchema,
@@ -41,6 +45,9 @@ export function registerIpcHandlers({ auth, autoLock, settings }: IpcServices): 
   handle(ipcChannels.authSwitchByPin, async (_event, input) =>
     authResultSchema.parse(await auth.switchByPin(pinSwitchInputSchema.parse(input))),
   );
+  handle(ipcChannels.authApprove, async (_event, input) =>
+    approvalResultSchema.parse(await auth.approve(approveInputSchema.parse(input))),
+  );
   handle(ipcChannels.authLogout, () => auth.logout());
   handle(ipcChannels.authLock, () => auth.lock());
   handle(ipcChannels.authCurrent, () => sessionStateSchema.nullable().parse(auth.current()));
@@ -53,5 +60,9 @@ export function registerIpcHandlers({ auth, autoLock, settings }: IpcServices): 
   );
   handle(ipcChannels.settingsSetAutoLock, (_event, input) =>
     autoLockSettingSchema.parse(settings.setAutoLock(autoLockInputSchema.parse(input))),
+  );
+  handle(ipcChannels.authNeedsOwnerSetup, () => z.boolean().parse(auth.needsOwnerSetup()));
+  handle(ipcChannels.authCreateOwner, async (_event, input) =>
+    createOwnerResultSchema.parse(await auth.createOwner(createOwnerInputSchema.parse(input))),
   );
 }

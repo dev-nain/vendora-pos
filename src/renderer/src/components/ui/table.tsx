@@ -6,7 +6,7 @@ function Table({ className, ...props }: ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="overflow-x-auto rounded-300 border border-line bg-surface"
+      className="overflow-x-auto rounded-400 border border-line-card bg-surface shadow-200"
     >
       <table
         data-slot="table"
@@ -46,7 +46,7 @@ function TableRow({ className, ...props }: ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "hover:bg-surface-hover aria-selected:bg-surface-selected aria-selected:[&>td:first-child]:shadow-[inset_3px_0_0_var(--color-border-brand)]",
+        "transition-colors duration-[var(--duration-100)] hover:bg-surface-hover aria-selected:bg-surface-selected aria-selected:[&>td:first-child]:shadow-[inset_3px_0_0_var(--color-border-brand)]",
         className,
       )}
       {...props}
@@ -59,7 +59,7 @@ function TableHead({ className, ...props }: ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "border-b border-line bg-surface-secondary px-400 py-300 text-left text-[length:var(--font-size-300)] font-medium whitespace-nowrap text-tertiary",
+        "sticky top-0 z-10 h-[38px] bg-material px-400 text-left text-[length:var(--font-size-300)] font-semibold whitespace-nowrap text-tertiary shadow-[inset_0_-1px_0_var(--color-border)] backdrop-blur-material backdrop-saturate-[1.7]",
         className,
       )}
       {...props}
@@ -71,7 +71,10 @@ function TableCell({ className, ...props }: ComponentProps<"td">) {
   return (
     <td
       data-slot="table-cell"
-      className={cn("h-[var(--height-row)] border-b border-line px-400", className)}
+      className={cn(
+        "h-[var(--height-row)] border-b border-dashed border-line px-400 dark:border-solid",
+        className,
+      )}
       {...props}
     />
   );

@@ -1,10 +1,10 @@
-/* Vendora design tokens — Mono Pro.
+/* Vendora design tokens — Bazaar.
    Naming: --color-<property>-<role>-<state>. Every bg-fill has a matching text-on-* token.
    Scales: value = number / 100 × 4 px (space-400 = 16px, font-size-400 = 16px). */
 
 :root {
-  --font-sans: "Geist", "Segoe UI", system-ui, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --font-sans: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --font-urdu: "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", serif;
 
   --font-size-300: 12px;
@@ -20,11 +20,14 @@
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
 
   --line-height-tight: 1.15;
   --line-height-normal: 1.5;
   --line-height-urdu: 2.1;
-  --letter-spacing-tight: -0.03em;
+  --letter-spacing-display: -0.035em;
+  --letter-spacing-heading: -0.02em;
+  --letter-spacing-tight: -0.025em;
   --letter-spacing-caps: 0.06em;
 
   --space-0: 0;
@@ -40,224 +43,313 @@
   --space-1200: 48px;
   --space-1600: 64px;
 
-  --radius-100: 4px;
-  --radius-200: 8px;
-  --radius-300: 12px;
+  --radius-100: 6px;
+  --radius-200: 10px;
+  --radius-300: 14px;
+  --radius-400: 20px;
+  --radius-500: 28px;
   --radius-full: 999px;
 
   --height-control-sm: 36px;
   --height-control-md: 44px;
   --height-control-lg: 56px;
-  --height-row: 48px;
+  --height-row: 56px;
 
   --border-width-100: 1px;
   --border-width-200: 2px;
 
+  --blur-material: 24px;
+
   --duration-100: 100ms;
   --duration-200: 200ms;
+  --duration-300: 350ms;
+  --duration-release: 220ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Critically damped spring (damping 1, response 0.35 s) sampled over --duration-300. */
+  --ease-spring: linear(0, 0.04, 0.131, 0.243, 0.358, 0.466, 0.562, 0.645, 0.715, 0.774, 0.821, 0.859, 0.89, 0.914, 0.934, 0.949, 0.96, 0.97, 0.977, 0.982, 1);
+  --scale-press: 0.97;
+  --scale-enter: 0.96;
 
   /* Surfaces */
-  --color-bg: #FAFAFA;
-  --color-bg-surface: #FFFFFF;
-  --color-bg-surface-secondary: #F4F4F5;
-  --color-bg-surface-hover: #F4F4F5;
-  --color-bg-surface-active: #E4E4E7;
-  --color-bg-surface-selected: #EEF2FF;
-  --color-bg-surface-inverse: #09090B;
-  --color-bg-surface-success: #F0FDF4;
-  --color-bg-surface-warning: #FEFCE8;
-  --color-bg-surface-critical: #FEF2F2;
-  --color-bg-surface-info: #F4F4F5;
+  --color-bg: #F2EEE6;
+  --color-bg-surface: #FFFDF8;
+  --color-bg-surface-secondary: #F7F3EB;
+  --color-bg-surface-hover: #F2ECE1;
+  --color-bg-surface-active: #E9E1D2;
+  --color-bg-surface-selected: #E3F1EC;
+  --color-bg-surface-inverse: #0E3B30;
+  --color-bg-surface-success: #E3F1EC;
+  --color-bg-surface-warning: #FBF0D9;
+  --color-bg-surface-critical: #FBE9E4;
+  --color-bg-surface-info: #F7F3EB;
+  --color-bg-material: rgb(255 253 248 / 0.74);
 
   /* Fills (buttons, badges, chips) */
-  --color-bg-fill-brand: #4F46E5;
-  --color-bg-fill-brand-hover: #4338CA;
-  --color-bg-fill-brand-active: #3730A3;
-  --color-bg-fill-brand-disabled: #C7D2FE;
-  --color-bg-fill-secondary: #FFFFFF;
-  --color-bg-fill-secondary-hover: #F4F4F5;
-  --color-bg-fill-secondary-active: #E4E4E7;
-  --color-bg-fill-critical: #DC2626;
-  --color-bg-fill-critical-hover: #B91C1C;
-  --color-bg-fill-success: #15803D;
-  --color-bg-fill-success-hover: #166534;
-  --color-bg-fill-success-secondary: #DCFCE7;
-  --color-bg-fill-warning-secondary: #FEF9C3;
-  --color-bg-fill-critical-secondary: #FEE2E2;
-  --color-bg-fill-brand-secondary: #E0E7FF;
-  --color-bg-fill-neutral-secondary: #F4F4F5;
-  --color-bg-overlay: rgb(9 9 11 / 0.6);
+  --color-bg-fill-brand: #0E6B53;
+  --color-bg-fill-brand-hover: #0B5A45;
+  --color-bg-fill-brand-active: #094A39;
+  --color-bg-fill-brand-disabled: #A9CFC2;
+  --color-bg-fill-secondary: #FFFDF8;
+  --color-bg-fill-secondary-hover: #F2ECE1;
+  --color-bg-fill-secondary-active: #E9E1D2;
+  --color-bg-fill-critical: #B4381F;
+  --color-bg-fill-critical-hover: #9A2F1A;
+  --color-bg-fill-success: #0E6B53;
+  --color-bg-fill-success-hover: #0B5A45;
+  --color-bg-fill-success-secondary: #E3F1EC;
+  --color-bg-fill-warning-secondary: #FBF0D9;
+  --color-bg-fill-critical-secondary: #FBE9E4;
+  --color-bg-fill-brand-secondary: #E3F1EC;
+  --color-bg-fill-neutral-secondary: #F2ECE1;
+  --color-bg-fill-highlight: #F6D9A3;
+  --color-bg-overlay: rgb(29 26 22 / 0.32);
+
+  /* Product tints (category initial tiles) */
+  --color-bg-tint-1: #F6D9A3;
+  --color-bg-tint-2: #DCEBF7;
+  --color-bg-tint-3: #F3E2D3;
+  --color-bg-tint-4: #E8EFD9;
+  --color-bg-tint-5: #F7DADA;
+  --color-bg-tint-6: #DDE3F8;
+  --color-text-tint-1: #5C3B00;
+  --color-text-tint-2: #1F4A6E;
+  --color-text-tint-3: #6B3A12;
+  --color-text-tint-4: #3F5317;
+  --color-text-tint-5: #7A1F1F;
+  --color-text-tint-6: #25307A;
 
   /* Text */
-  --color-text: #09090B;
-  --color-text-secondary: #52525B;
-  --color-text-tertiary: #66666E;
-  --color-text-disabled: #A1A1AA;
-  --color-text-inverse: #FAFAFA;
-  --color-text-link: #4338CA;
-  --color-text-brand: #4338CA;
-  --color-text-success: #15803D;
-  --color-text-warning: #A16207;
-  --color-text-critical: #B91C1C;
+  --color-text: #1D1A16;
+  --color-text-secondary: #554E44;
+  --color-text-tertiary: #6E665A;
+  --color-text-disabled: #A39A8C;
+  --color-text-inverse: #FFFDF8;
+  --color-text-link: #0B5A45;
+  --color-text-brand: #0B5A45;
+  --color-text-success: #0B5A45;
+  --color-text-warning: #8A5A00;
+  --color-text-critical: #A8321F;
   --color-text-on-brand: #FFFFFF;
   --color-text-on-critical: #FFFFFF;
   --color-text-on-success: #FFFFFF;
-  --color-text-on-inverse: #FAFAFA;
+  --color-text-on-inverse: #FFFDF8;
+  --color-text-on-inverse-secondary: #B9D3CA;
+  --color-text-on-highlight: #5C3B00;
 
   /* Icons */
-  --color-icon: #3F3F46;
-  --color-icon-secondary: #71717A;
-  --color-icon-success: #16A34A;
-  --color-icon-warning: #A16207;
-  --color-icon-critical: #DC2626;
+  --color-icon: #554E44;
+  --color-icon-secondary: #6E665A;
+  --color-icon-success: #0E6B53;
+  --color-icon-warning: #8A5A00;
+  --color-icon-critical: #B4381F;
 
   /* Borders */
-  --color-border: #E4E4E7;
-  --color-border-strong: #D4D4D8;
-  --color-input-border: #8A8A93;
-  --color-border-hover: #52525B;
-  --color-border-focus: #4F46E5;
-  --color-border-brand: #4F46E5;
-  --color-border-success: #BBF7D0;
-  --color-border-warning: #FDE68A;
-  --color-border-critical: #FECACA;
-  --color-border-critical-strong: #DC2626;
+  --color-border: #E6DFD2;
+  --color-border-strong: #D5CCBB;
+  --color-input-border: #8C8272;
+  --color-border-hover: #554E44;
+  --color-border-focus: #0E6B53;
+  --color-border-brand: #0E6B53;
+  --color-border-success: #BFE3D6;
+  --color-border-warning: #EBCF95;
+  --color-border-critical: #F0C4B8;
+  --color-border-critical-strong: #B4381F;
+  --color-border-card: transparent;
 
-  --shadow-100: 0 1px 2px rgb(9 9 11 / 0.05);
-  --shadow-200: 0 4px 12px rgb(9 9 11 / 0.08), 0 1px 3px rgb(9 9 11 / 0.06);
-  --shadow-300: 0 16px 40px rgb(9 9 11 / 0.16);
-  --shadow-focus: 0 0 0 2px var(--color-bg-surface), 0 0 0 4px var(--color-border-focus);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root { --duration-100: 0ms; --duration-200: 0ms; }
+  --shadow-100: 0 1px 2px rgb(60 40 10 / 0.06);
+  --shadow-200: 0 1px 2px rgb(60 40 10 / 0.06), 0 6px 20px rgb(60 40 10 / 0.06);
+  --shadow-300: 0 24px 60px rgb(40 25 5 / 0.18), 0 2px 8px rgb(40 25 5 / 0.06);
+  --shadow-focus: 0 0 0 2px var(--color-bg-surface), 0 0 0 5px var(--color-border-focus);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --color-bg: #09090B;
-    --color-bg-surface: #18181B;
-    --color-bg-surface-secondary: #1F1F23;
-    --color-bg-surface-hover: #27272A;
-    --color-bg-surface-active: #3F3F46;
-    --color-bg-surface-selected: #1E1B4B;
-    --color-bg-surface-inverse: #FAFAFA;
-    --color-bg-surface-success: #0B2415;
-    --color-bg-surface-warning: #251F05;
-    --color-bg-surface-critical: #2A0E0E;
-    --color-bg-surface-info: #1F1F23;
-    --color-bg-fill-brand: #818CF8;
-    --color-bg-fill-brand-hover: #A5B4FC;
-    --color-bg-fill-brand-active: #C7D2FE;
-    --color-bg-fill-brand-disabled: #312E81;
-    --color-bg-fill-secondary: #18181B;
-    --color-bg-fill-secondary-hover: #27272A;
-    --color-bg-fill-secondary-active: #3F3F46;
-    --color-bg-fill-critical: #DC2626;
-    --color-bg-fill-critical-hover: #B91C1C;
-    --color-bg-fill-success: #22C55E;
-    --color-bg-fill-success-hover: #4ADE80;
-    --color-bg-fill-success-secondary: #0F2E1A;
-    --color-bg-fill-warning-secondary: #2E2606;
-    --color-bg-fill-critical-secondary: #3A1212;
-    --color-bg-fill-brand-secondary: #1E1B4B;
-    --color-bg-fill-neutral-secondary: #27272A;
-    --color-bg-overlay: rgb(9 9 11 / 0.6);
-    --color-text: #FAFAFA;
-    --color-text-secondary: #A1A1AA;
-    --color-text-tertiary: #8E8E97;
-    --color-text-disabled: #52525B;
-    --color-text-inverse: #09090B;
-    --color-text-link: #A5B4FC;
-    --color-text-brand: #A5B4FC;
-    --color-text-success: #4ADE80;
-    --color-text-warning: #FACC15;
-    --color-text-critical: #F87171;
-    --color-text-on-brand: #09090B;
+    --color-bg: #101814;
+    --color-bg-surface: #16201C;
+    --color-bg-surface-secondary: #1C2823;
+    --color-bg-surface-hover: #1F2C26;
+    --color-bg-surface-active: #27352F;
+    --color-bg-surface-selected: #173A30;
+    --color-bg-surface-inverse: #0B2E25;
+    --color-bg-surface-success: #12302A;
+    --color-bg-surface-warning: #2E2410;
+    --color-bg-surface-critical: #3A1A14;
+    --color-bg-surface-info: #1C2823;
+    --color-bg-material: rgb(22 32 28 / 0.72);
+    --color-bg-fill-brand: #3FB58F;
+    --color-bg-fill-brand-hover: #5AC5A1;
+    --color-bg-fill-brand-active: #78D3B3;
+    --color-bg-fill-brand-disabled: #1D4A3D;
+    --color-bg-fill-secondary: #16201C;
+    --color-bg-fill-secondary-hover: #1F2C26;
+    --color-bg-fill-secondary-active: #27352F;
+    --color-bg-fill-critical: #C2452B;
+    --color-bg-fill-critical-hover: #A93A23;
+    --color-bg-fill-success: #3FB58F;
+    --color-bg-fill-success-hover: #5AC5A1;
+    --color-bg-fill-success-secondary: #173A30;
+    --color-bg-fill-warning-secondary: #3A2E12;
+    --color-bg-fill-critical-secondary: #42201A;
+    --color-bg-fill-brand-secondary: #173A30;
+    --color-bg-fill-neutral-secondary: #1F2C26;
+    --color-bg-fill-highlight: #5A4318;
+    --color-bg-overlay: rgb(0 0 0 / 0.55);
+    --color-bg-tint-1: #3A2C12;
+    --color-bg-tint-2: #17293A;
+    --color-bg-tint-3: #33241A;
+    --color-bg-tint-4: #232E16;
+    --color-bg-tint-5: #3A1C1C;
+    --color-bg-tint-6: #1D2340;
+    --color-text-tint-1: #F6D9A3;
+    --color-text-tint-2: #BCD8F0;
+    --color-text-tint-3: #EBCDB3;
+    --color-text-tint-4: #CFE0AE;
+    --color-text-tint-5: #F2BDBD;
+    --color-text-tint-6: #C4CEF5;
+    --color-text: #F3EFE6;
+    --color-text-secondary: #B9C2BC;
+    --color-text-tertiary: #97A39C;
+    --color-text-disabled: #5E6A64;
+    --color-text-inverse: #F3EFE6;
+    --color-text-link: #6FD0AE;
+    --color-text-brand: #6FD0AE;
+    --color-text-success: #6FD0AE;
+    --color-text-warning: #E8B85C;
+    --color-text-critical: #F08A73;
+    --color-text-on-brand: #04261C;
     --color-text-on-critical: #FFFFFF;
-    --color-text-on-success: #052E16;
-    --color-text-on-inverse: #09090B;
-    --color-icon: #D4D4D8;
-    --color-icon-secondary: #A1A1AA;
-    --color-icon-success: #4ADE80;
-    --color-icon-warning: #FACC15;
-    --color-icon-critical: #F87171;
-    --color-border: #27272A;
-    --color-border-strong: #3F3F46;
-    --color-input-border: #71717A;
-    --color-border-hover: #A1A1AA;
-    --color-border-focus: #818CF8;
-    --color-border-brand: #818CF8;
-    --color-border-success: #14532D;
-    --color-border-warning: #713F12;
-    --color-border-critical: #7F1D1D;
-    --color-border-critical-strong: #F87171;
+    --color-text-on-success: #04261C;
+    --color-text-on-inverse: #F3EFE6;
+    --color-text-on-inverse-secondary: #B9D3CA;
+    --color-text-on-highlight: #F6D9A3;
+    --color-icon: #CDD5D0;
+    --color-icon-secondary: #97A39C;
+    --color-icon-success: #6FD0AE;
+    --color-icon-warning: #E8B85C;
+    --color-icon-critical: #F08A73;
+    --color-border: #27332E;
+    --color-border-strong: #33413A;
+    --color-input-border: #6F7D76;
+    --color-border-hover: #B9C2BC;
+    --color-border-focus: #3FB58F;
+    --color-border-brand: #3FB58F;
+    --color-border-success: #1F5444;
+    --color-border-warning: #5C4618;
+    --color-border-critical: #6A2C20;
+    --color-border-critical-strong: #F08A73;
+    --color-border-card: var(--color-border);
     --shadow-100: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-200: 0 4px 12px rgb(0 0 0 / 0.5);
-    --shadow-300: 0 16px 40px rgb(0 0 0 / 0.6);
+    --shadow-200: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.35);
+    --shadow-300: 0 24px 60px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.3);
   }
 }
 
 :root[data-theme="dark"] {
-  --color-bg: #09090B;
-  --color-bg-surface: #18181B;
-  --color-bg-surface-secondary: #1F1F23;
-  --color-bg-surface-hover: #27272A;
-  --color-bg-surface-active: #3F3F46;
-  --color-bg-surface-selected: #1E1B4B;
-  --color-bg-surface-inverse: #FAFAFA;
-  --color-bg-surface-success: #0B2415;
-  --color-bg-surface-warning: #251F05;
-  --color-bg-surface-critical: #2A0E0E;
-  --color-bg-surface-info: #1F1F23;
-  --color-bg-fill-brand: #818CF8;
-  --color-bg-fill-brand-hover: #A5B4FC;
-  --color-bg-fill-brand-active: #C7D2FE;
-  --color-bg-fill-brand-disabled: #312E81;
-  --color-bg-fill-secondary: #18181B;
-  --color-bg-fill-secondary-hover: #27272A;
-  --color-bg-fill-secondary-active: #3F3F46;
-  --color-bg-fill-critical: #DC2626;
-  --color-bg-fill-critical-hover: #B91C1C;
-  --color-bg-fill-success: #22C55E;
-  --color-bg-fill-success-hover: #4ADE80;
-  --color-bg-fill-success-secondary: #0F2E1A;
-  --color-bg-fill-warning-secondary: #2E2606;
-  --color-bg-fill-critical-secondary: #3A1212;
-  --color-bg-fill-brand-secondary: #1E1B4B;
-  --color-bg-fill-neutral-secondary: #27272A;
-  --color-bg-overlay: rgb(9 9 11 / 0.6);
-  --color-text: #FAFAFA;
-  --color-text-secondary: #A1A1AA;
-  --color-text-tertiary: #8E8E97;
-  --color-text-disabled: #52525B;
-  --color-text-inverse: #09090B;
-  --color-text-link: #A5B4FC;
-  --color-text-brand: #A5B4FC;
-  --color-text-success: #4ADE80;
-  --color-text-warning: #FACC15;
-  --color-text-critical: #F87171;
-  --color-text-on-brand: #09090B;
+  --color-bg: #101814;
+  --color-bg-surface: #16201C;
+  --color-bg-surface-secondary: #1C2823;
+  --color-bg-surface-hover: #1F2C26;
+  --color-bg-surface-active: #27352F;
+  --color-bg-surface-selected: #173A30;
+  --color-bg-surface-inverse: #0B2E25;
+  --color-bg-surface-success: #12302A;
+  --color-bg-surface-warning: #2E2410;
+  --color-bg-surface-critical: #3A1A14;
+  --color-bg-surface-info: #1C2823;
+  --color-bg-material: rgb(22 32 28 / 0.72);
+  --color-bg-fill-brand: #3FB58F;
+  --color-bg-fill-brand-hover: #5AC5A1;
+  --color-bg-fill-brand-active: #78D3B3;
+  --color-bg-fill-brand-disabled: #1D4A3D;
+  --color-bg-fill-secondary: #16201C;
+  --color-bg-fill-secondary-hover: #1F2C26;
+  --color-bg-fill-secondary-active: #27352F;
+  --color-bg-fill-critical: #C2452B;
+  --color-bg-fill-critical-hover: #A93A23;
+  --color-bg-fill-success: #3FB58F;
+  --color-bg-fill-success-hover: #5AC5A1;
+  --color-bg-fill-success-secondary: #173A30;
+  --color-bg-fill-warning-secondary: #3A2E12;
+  --color-bg-fill-critical-secondary: #42201A;
+  --color-bg-fill-brand-secondary: #173A30;
+  --color-bg-fill-neutral-secondary: #1F2C26;
+  --color-bg-fill-highlight: #5A4318;
+  --color-bg-overlay: rgb(0 0 0 / 0.55);
+  --color-bg-tint-1: #3A2C12;
+  --color-bg-tint-2: #17293A;
+  --color-bg-tint-3: #33241A;
+  --color-bg-tint-4: #232E16;
+  --color-bg-tint-5: #3A1C1C;
+  --color-bg-tint-6: #1D2340;
+  --color-text-tint-1: #F6D9A3;
+  --color-text-tint-2: #BCD8F0;
+  --color-text-tint-3: #EBCDB3;
+  --color-text-tint-4: #CFE0AE;
+  --color-text-tint-5: #F2BDBD;
+  --color-text-tint-6: #C4CEF5;
+  --color-text: #F3EFE6;
+  --color-text-secondary: #B9C2BC;
+  --color-text-tertiary: #97A39C;
+  --color-text-disabled: #5E6A64;
+  --color-text-inverse: #F3EFE6;
+  --color-text-link: #6FD0AE;
+  --color-text-brand: #6FD0AE;
+  --color-text-success: #6FD0AE;
+  --color-text-warning: #E8B85C;
+  --color-text-critical: #F08A73;
+  --color-text-on-brand: #04261C;
   --color-text-on-critical: #FFFFFF;
-  --color-text-on-success: #052E16;
-  --color-text-on-inverse: #09090B;
-  --color-icon: #D4D4D8;
-  --color-icon-secondary: #A1A1AA;
-  --color-icon-success: #4ADE80;
-  --color-icon-warning: #FACC15;
-  --color-icon-critical: #F87171;
-  --color-border: #27272A;
-  --color-border-strong: #3F3F46;
-    --color-input-border: #71717A;
-  --color-border-hover: #A1A1AA;
-  --color-border-focus: #818CF8;
-  --color-border-brand: #818CF8;
-  --color-border-success: #14532D;
-  --color-border-warning: #713F12;
-  --color-border-critical: #7F1D1D;
-  --color-border-critical-strong: #F87171;
+  --color-text-on-success: #04261C;
+  --color-text-on-inverse: #F3EFE6;
+  --color-text-on-inverse-secondary: #B9D3CA;
+  --color-text-on-highlight: #F6D9A3;
+  --color-icon: #CDD5D0;
+  --color-icon-secondary: #97A39C;
+  --color-icon-success: #6FD0AE;
+  --color-icon-warning: #E8B85C;
+  --color-icon-critical: #F08A73;
+  --color-border: #27332E;
+  --color-border-strong: #33413A;
+  --color-input-border: #6F7D76;
+  --color-border-hover: #B9C2BC;
+  --color-border-focus: #3FB58F;
+  --color-border-brand: #3FB58F;
+  --color-border-success: #1F5444;
+  --color-border-warning: #5C4618;
+  --color-border-critical: #6A2C20;
+  --color-border-critical-strong: #F08A73;
+  --color-border-card: var(--color-border);
   --shadow-100: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-200: 0 4px 12px rgb(0 0 0 / 0.5);
-  --shadow-300: 0 16px 40px rgb(0 0 0 / 0.6);
+  --shadow-200: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.35);
+  --shadow-300: 0 24px 60px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-100: 0ms;
+    --duration-release: 0ms;
+    --ease-spring: var(--ease-out);
+    --scale-press: 1;
+    --scale-enter: 1;
+  }
+}
+
+/* Repeats the dark selectors so solid surfaces win over either theme block. */
+@media (prefers-reduced-transparency: reduce) {
+  :root,
+  :root:not([data-theme="light"]),
+  :root[data-theme="dark"] {
+    --color-bg-material: var(--color-bg-surface);
+    --blur-material: 0px;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root,
+  :root:not([data-theme="light"]),
+  :root[data-theme="dark"] {
+    --color-bg-material: var(--color-bg-surface);
+    --blur-material: 0px;
+    --color-border-card: var(--color-border-strong);
+  }
 }
