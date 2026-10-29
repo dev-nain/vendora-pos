@@ -3,8 +3,8 @@
    Scales: value = number / 100 × 4 px (space-400 = 16px, font-size-400 = 16px). */
 
 :root {
-  --font-sans: "Geist", "Segoe UI", system-ui, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --font-sans: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --font-urdu: "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", serif;
 
   --font-size-300: 12px;
