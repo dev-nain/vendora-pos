@@ -7,6 +7,7 @@ import { Field, FieldLabel } from "@renderer/components/ui/field";
 import { Input } from "@renderer/components/ui/input";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { serviceErrorMessage } from "./messages";
+import { PaneHeading, SplitLayout } from "./split-layout";
 
 interface LoginScreenProps {
   onLoggedIn: (user: SafeUser) => void;
@@ -53,11 +54,9 @@ export function LoginScreen({ onLoggedIn }: LoginScreenProps) {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center overflow-x-hidden bg-page p-800">
-      <section className="flex w-[420px] flex-col gap-600 rounded-300 border border-line bg-surface p-600 shadow-200">
-        <h1 className="m-0 text-center text-[length:var(--font-size-900)] leading-[var(--line-height-tight)] font-semibold tracking-[var(--letter-spacing-tight)] text-foreground">
-          vendora<span className="text-fill-brand">.</span>
-        </h1>
+    <SplitLayout>
+      <PaneHeading title="Log in" />
+      <section className="w-[400px] max-w-full rounded-400 border border-line-card bg-surface p-600 shadow-200">
         <form onSubmit={submit} noValidate className="grid gap-400">
           <Field>
             <FieldLabel>Username</FieldLabel>
@@ -94,6 +93,6 @@ export function LoginScreen({ onLoggedIn }: LoginScreenProps) {
           </Button>
         </form>
       </section>
-    </main>
+    </SplitLayout>
   );
 }
