@@ -2,8 +2,8 @@ import {
   ArrowLeftIcon,
   CircleSlashIcon,
   CircleCheckIcon,
-  CircleXIcon,
   ClockIcon,
+  UserPlusIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -21,24 +21,20 @@ import {
 import { Avatar } from "../auth/avatar";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { roleLabel } from "../auth/role-label";
+import { CreateUserDialog } from "./create-user-dialog";
+import { EditUserDialog } from "./edit-user-dialog";
+import { ErrorLine } from "./form-parts";
 import { userStatusLabels } from "./user-status";
+
+type DialogState =
+  | { kind: "create"; open: boolean }
+  | { kind: "edit"; user: ManagedUser; open: boolean }
+  | null;
 
 interface UsersScreenProps {
   currentUserId: string;
   onBack: () => void;
   onSessionEnded: () => void;
-}
-
-function ErrorLine({ children }: { children: string }) {
-  return (
-    <p
-      role="alert"
-      className="m-0 flex items-center gap-100 text-[length:var(--font-size-350)] font-medium text-critical"
-    >
-      <CircleXIcon aria-hidden="true" size={14} strokeWidth={2} className="shrink-0" />
-      {children}
-    </p>
-  );
 }
 
 function StatusBadges({ user }: { user: ManagedUser }) {
@@ -64,6 +60,10 @@ function StatusBadges({ user }: { user: ManagedUser }) {
 export function UsersScreen({ currentUserId, onBack, onSessionEnded }: UsersScreenProps) {
   const [rows, setRows] = useState<ManagedUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<DialogState>(null);
+
+  const setOpen = (open: boolean) =>
+    setDialog((current) => (current ? { ...current, open } : null));
 
   const fail = useCallback(
     (cause: unknown) => {
@@ -112,6 +112,10 @@ export function UsersScreen({ currentUserId, onBack, onSessionEnded }: UsersScre
             Add staff and control who can log in.
           </p>
         </div>
+        <Button autoFocus onClick={() => setDialog({ kind: "create", open: true })}>
+          <UserPlusIcon aria-hidden="true" size={16} strokeWidth={2} />
+          Add user
+        </Button>
       </div>
       {error ? <ErrorLine>{error}</ErrorLine> : null}
       {rows === null ? (
@@ -153,6 +157,12 @@ export function UsersScreen({ currentUserId, onBack, onSessionEnded }: UsersScre
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap justify-end gap-200">
+                    <Button
+                      variant="secondary"
+                      onClick={() => setDialog({ kind: "edit", user, open: true })}
+                    >
+                      Edit
+                    </Button>
                     {user.isActive ? null : (
                       <Button variant="secondary" onClick={() => void reactivate(user)}>
                         Reactivate
@@ -165,6 +175,24 @@ export function UsersScreen({ currentUserId, onBack, onSessionEnded }: UsersScre
           </TableBody>
         </Table>
       )}
+      {dialog?.kind === "create" ? (
+        <CreateUserDialog
+          open={dialog.open}
+          onOpenChange={setOpen}
+          onCreated={refresh}
+          onSessionEnded={onSessionEnded}
+        />
+      ) : null}
+      {dialog?.kind === "edit" ? (
+        <EditUserDialog
+          user={dialog.user}
+          open={dialog.open}
+          isCurrentUser={dialog.user.id === currentUserId}
+          onOpenChange={setOpen}
+          onSaved={refresh}
+          onSessionEnded={onSessionEnded}
+        />
+      ) : null}
     </main>
   );
 }
