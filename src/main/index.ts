@@ -7,6 +7,7 @@ import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
 import { createAuthService } from "./services/auth";
+import { createUsersService } from "./services/users";
 import { createApprovalStore } from "./auth/approvals";
 import { createSessionStore } from "./auth/session";
 import { createMainWindow } from "./window";
@@ -31,13 +32,10 @@ void app.whenReady().then(async () => {
   if (!app.isPackaged && process.env.VENDORA_DEV_USERS === "1") await seedDevUsers(database);
   const sessions = createSessionStore();
   const approvals = createApprovalStore({ sessions });
-  const auth = createAuthService({
-    database,
-    audit: createAuditService(database),
-    sessions,
-    approvals,
-  });
-  registerIpcHandlers({ auth });
+  const audit = createAuditService(database);
+  const auth = createAuthService({ database, audit, sessions, approvals });
+  const users = createUsersService({ database, audit, sessions, approvals });
+  registerIpcHandlers({ auth, users });
   createMainWindow();
 
   app.on("activate", () => {

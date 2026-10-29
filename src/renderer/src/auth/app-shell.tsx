@@ -1,4 +1,4 @@
-import { LockIcon, LogOutIcon } from "lucide-react";
+import { LockIcon, LogOutIcon, UsersIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { SafeUser } from "@shared/auth";
@@ -8,6 +8,7 @@ import { Avatar } from "./avatar";
 import { serviceErrorMessage } from "./messages";
 import { roleLabel } from "./role-label";
 import { Wordmark } from "./split-layout";
+import { UsersScreen } from "../users/users-screen";
 
 interface AppShellProps {
   user: SafeUser;
@@ -17,6 +18,7 @@ interface AppShellProps {
 
 export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState<"home" | "users">("home");
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey && event.key.toLowerCase() === "l") {
@@ -57,6 +59,12 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
           </div>
         </div>
         <div className="flex items-center gap-200">
+          {user.role === "owner" ? (
+            <Button variant="secondary" onClick={() => setPage("users")}>
+              <UsersIcon aria-hidden="true" size={16} strokeWidth={2} />
+              Users
+            </Button>
+          ) : null}
           <Button variant="secondary" autoFocus onClick={onLock}>
             <LockIcon aria-hidden="true" size={16} strokeWidth={2} />
             Lock
@@ -68,16 +76,24 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
           </Button>
         </div>
       </header>
-      <main className="flex flex-1 flex-col items-center justify-center gap-200 text-secondary">
-        <p className="m-0">
-          Signed in as {user.displayName} ({roleLabel(user.role)}).
-        </p>
-        {error ? (
-          <p role="alert" className="m-0 text-[length:var(--font-size-350)] text-critical">
-            {error}
+      {page === "users" ? (
+        <UsersScreen
+          currentUserId={user.id}
+          onBack={() => setPage("home")}
+          onSessionEnded={onLoggedOut}
+        />
+      ) : (
+        <main className="flex flex-1 flex-col items-center justify-center gap-200 text-secondary">
+          <p className="m-0">
+            Signed in as {user.displayName} ({roleLabel(user.role)}).
           </p>
-        ) : null}
-      </main>
+          {error ? (
+            <p role="alert" className="m-0 text-[length:var(--font-size-350)] text-critical">
+              {error}
+            </p>
+          ) : null}
+        </main>
+      )}
     </div>
   );
 }
