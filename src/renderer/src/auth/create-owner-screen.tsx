@@ -14,6 +14,7 @@ import {
   type OwnerFormValues,
 } from "./owner-form";
 import { sanitizePin } from "./pin-entry";
+import { PaneHeading, SplitLayout } from "./split-layout";
 
 interface CreateOwnerScreenProps {
   onCreated: (user: SafeUser) => void;
@@ -130,20 +131,17 @@ export function CreateOwnerScreen({ onCreated, onOwnerExists }: CreateOwnerScree
   );
 
   return (
-    <main className="flex min-h-screen items-center justify-center overflow-x-hidden bg-page p-800">
-      <section className="flex w-[720px] flex-col gap-600 rounded-300 border border-line bg-surface p-600 shadow-200">
-        <header className="grid gap-200">
-          <p className="m-0 text-[length:var(--font-size-900)] leading-[var(--line-height-tight)] font-semibold tracking-[var(--letter-spacing-tight)] text-foreground">
-            vendora<span className="text-fill-brand">.</span>
-          </p>
-          <h1 className="m-0 text-[length:var(--font-size-700)] leading-[var(--line-height-tight)] font-semibold tracking-[var(--letter-spacing-tight)] text-foreground">
-            Create the Owner account
-          </h1>
-          <p className="m-0 text-[length:var(--font-size-400)] text-secondary">
-            The Owner can do everything in Vendora. You&apos;ll use these details to log in.
-          </p>
-        </header>
-        <form onSubmit={submit} noValidate className="grid grid-cols-2 gap-x-400 gap-y-400">
+    <SplitLayout>
+      <PaneHeading
+        title="Create the Owner account"
+        description="The Owner can do everything in Vendora. You'll use these details to log in."
+      />
+      <section className="w-[640px] max-w-full rounded-400 border border-line-card bg-surface p-600 shadow-200">
+        <form
+          onSubmit={submit}
+          noValidate
+          className="grid grid-cols-2 items-start gap-x-400 gap-y-400"
+        >
           {field("username", "Username", "Used to log in", {
             autoFocus: true,
             autoComplete: "username",
@@ -196,6 +194,6 @@ export function CreateOwnerScreen({ onCreated, onOwnerExists }: CreateOwnerScree
           </div>
         </form>
       </section>
-    </main>
+    </SplitLayout>
   );
 }

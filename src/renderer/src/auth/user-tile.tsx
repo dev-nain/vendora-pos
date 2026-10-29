@@ -1,7 +1,9 @@
+import { CircleCheckIcon } from "lucide-react";
 import type { KeyboardEvent, Ref } from "react";
 
 import type { LoginUser } from "@shared/auth";
 import { cn } from "@renderer/lib/utils";
+import { Avatar } from "./avatar";
 import { roleLabel } from "./role-label";
 
 interface UserTileProps {
@@ -32,19 +34,28 @@ export function UserTile({
       onClick={onClick}
       onKeyDown={onKeyDown}
       className={cn(
-        "relative grid min-h-[calc(var(--space-1000)+var(--space-1200))] content-center justify-items-start gap-100 overflow-hidden rounded-300 border border-line bg-surface p-400 text-left outline-none transition-colors hover:bg-surface-hover focus-visible:shadow-focus",
-        selected && "bg-surface-selected hover:bg-surface-selected",
+        "relative flex min-h-[108px] touch-manipulation flex-col items-start gap-300 rounded-400 border border-line-card bg-surface p-[14px] text-left shadow-200 outline-none transition-[scale,background-color,border-color,box-shadow] duration-[var(--duration-release)] ease-[var(--ease-out)] hover:bg-surface-hover focus-visible:shadow-focus active:scale-[var(--scale-press)] active:duration-[var(--duration-100)]",
+        selected &&
+          "border-2 border-line-brand p-[13px] shadow-[0_0_0_4px_var(--color-bg-surface-selected)] hover:bg-surface",
       )}
     >
+      <Avatar name={user.displayName} />
       {selected ? (
-        <span aria-hidden="true" className="absolute inset-y-0 left-0 w-100 bg-fill-brand" />
+        <CircleCheckIcon
+          aria-hidden="true"
+          size={20}
+          strokeWidth={2}
+          className="absolute top-300 right-300 text-brand"
+        />
       ) : null}
-      <span className="text-[length:var(--font-size-450)] font-semibold text-foreground">
-        {user.displayName}
-      </span>
-      <span className="text-[length:var(--font-size-350)] text-secondary">
-        {roleLabel(user.role)}
-        {detail ? ` · ${detail}` : ""}
+      <span className="grid gap-100">
+        <span className="text-[length:var(--font-size-400)] leading-[var(--line-height-tight)] font-semibold text-foreground">
+          {user.displayName}
+        </span>
+        <span className="text-[length:var(--font-size-350)] text-tertiary">
+          {roleLabel(user.role)}
+          {detail ? ` · ${detail}` : ""}
+        </span>
       </span>
     </button>
   );

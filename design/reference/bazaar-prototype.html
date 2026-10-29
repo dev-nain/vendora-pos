@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vendora UI Directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Inter+Tight:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Nastaliq+Urdu:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* ---------- Direction tokens ---------- */
+[data-dir="a"] {
+  --font: "Geist", "Segoe UI", system-ui, sans-serif;
+  --mono: "Geist Mono", Consolas, monospace;
+  --bg: #F6F6F7; --surface: #FFFFFF; --sunken: #F1F1F3; --line: #E4E4E7; --line-strong: #D4D4D8;
+  --ink: #0A0A0B; --ink-2: #52525B; --ink-3: #6B6B74;
+  --accent: #4F46E5; --accent-ink: #FFFFFF; --accent-soft: #EEF2FF; --accent-line: #4F46E5; --flash: #C7D2FE;
+  --total-bg: #0A0A0B; --total-ink: #FAFAFA; --total-ink-2: #A1A1AA;
+  --ok: #15803D; --ok-soft: #F0FDF4; --warn: #A16207; --warn-soft: #FEFCE8; --bad: #B91C1C; --bad-soft: #FEF2F2;
+  --hold: #E0E7FF; --hold-ink: #3730A3;
+  --material: rgba(255,255,255,.72); --material-edge: rgba(255,255,255,.6);
+  --r: 8px; --r-lg: 12px; --row: 46px; --shadow: 0 1px 2px rgba(0,0,0,.05);
+  --label-case: none; --label-track: .01em;
+}
+[data-dir="b"] {
+  --font: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", Consolas, monospace;
+  --bg: #F2EEE6; --surface: #FFFDF8; --sunken: #F7F3EB; --line: #E6DFD2; --line-strong: #D5CCBB;
+  --ink: #1D1A16; --ink-2: #554E44; --ink-3: #6E665A;
+  --accent: #0E6B53; --accent-ink: #FFFFFF; --accent-soft: #E3F1EC; --accent-line: #0E6B53; --flash: #BFE3D6;
+  --total-bg: #0E3B30; --total-ink: #FFFDF8; --total-ink-2: #B9D3CA;
+  --ok: #0E6B53; --ok-soft: #E3F1EC; --warn: #8A5A00; --warn-soft: #FBF0D9; --bad: #A8321F; --bad-soft: #FBE9E4;
+  --hold: #F6D9A3; --hold-ink: #5C3B00;
+  --material: rgba(255,253,248,.74); --material-edge: rgba(255,255,255,.7);
+  --r: 14px; --r-lg: 20px; --row: 56px; --shadow: 0 1px 2px rgba(60,40,10,.06), 0 6px 20px rgba(60,40,10,.06);
+  --label-case: none; --label-track: .01em;
+}
+[data-dir="c"] {
+  --font: "Inter Tight", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", Consolas, monospace;
+  --bg: #0A0C0F; --surface: #11151A; --sunken: #0D1014; --line: #1F252D; --line-strong: #2B333D;
+  --ink: #E8ECF1; --ink-2: #A3ADB9; --ink-3: #8A95A3;
+  --accent: #F5B53A; --accent-ink: #1A1200; --accent-soft: #2A2110; --accent-line: #F5B53A; --flash: #4A3A14;
+  --total-bg: #161B21; --total-ink: #F5B53A; --total-ink-2: #A3ADB9;
+  --ok: #4ADE80; --ok-soft: #0F2418; --warn: #FBBF24; --warn-soft: #2A2110; --bad: #F87171; --bad-soft: #2A1414;
+  --hold: #2A2110; --hold-ink: #F5B53A;
+  --material: rgba(17,21,26,.72); --material-edge: rgba(255,255,255,.08);
+  --r: 4px; --r-lg: 6px; --row: 42px; --shadow: none;
+  --label-case: uppercase; --label-track: .08em;
+}
+
+/* ---------- Page chrome (outside the 1366x768 frame) ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: #2A2A2E; font-family: "Geist", system-ui, sans-serif; color: #EDEDF0; display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
+button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center; padding: 12px 20px; background: #1B1B1E; border-bottom: 1px solid #333; }
+.controls h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.group > span { font-size: 12px; color: #9C9CA6; margin-right: 4px; }
+.tab { font: inherit; font-size: 13px; padding: 8px 12px; border-radius: 8px; border: 1px solid #3A3A40; background: #232327; color: #EDEDF0; cursor: pointer; min-height: 36px; transition: transform 200ms ease-out; }
+.tab:active { transform: scale(.96); transition-duration: 80ms; }
+.tab[aria-pressed="true"] { background: #EDEDF0; color: #111; border-color: #EDEDF0; }
+.hint { font-size: 12px; color: #9C9CA6; margin-left: auto; max-width: 520px; line-height: 1.4; }
+.stage { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 20px; }
+.frame-wrap { width: 1366px; height: 768px; transform-origin: center center; flex: none; }
+.frame { width: 1366px; height: 768px; overflow: hidden; position: relative; border-radius: 6px; box-shadow: 0 30px 80px rgba(0,0,0,.45);
+  background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 16px; line-height: 1.45; font-optical-sizing: auto; }
+.screen { display: none; width: 100%; height: 100%; }
+.screen.on { display: flex; flex-direction: column; }
+
+/* ---------- Press feedback: on pointer-down, instant ---------- */
+.btn, .step, .pad button, .user, .method, .tender button, .scan, .icon-btn {
+  transition: transform 220ms cubic-bezier(.2,.9,.3,1), background-color 120ms, border-color 120ms, box-shadow 160ms;
+}
+.btn:active, .step:active, .pad button:active, .user:active, .method:active, .icon-btn:active { transform: scale(.97); transition-duration: 90ms; }
+.pad button:active { background: var(--sunken); }
+
+/* ---------- Shared pieces ---------- */
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.label { font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: var(--label-case); letter-spacing: var(--label-track); }
+.kbd { font-family: var(--mono); font-size: 11px; font-weight: 500; padding: 2px 6px; border-radius: 5px; border: 1px solid var(--line-strong); background: var(--sunken); color: var(--ink-2); line-height: 1.3; white-space: nowrap; letter-spacing: 0; }
+.btn { font: inherit; font-size: 15px; font-weight: 600; letter-spacing: -.005em; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: var(--r); border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); cursor: pointer; }
+.btn svg { width: 18px; height: 18px; flex: none; }
+.btn:hover { border-color: var(--ink-3); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
+.btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+.btn .kbd { background: transparent; }
+.btn.primary .kbd { border-color: color-mix(in srgb, var(--accent-ink) 35%, transparent); color: var(--accent-ink); }
+.btn:focus-visible, .step:focus-visible, .user:focus-visible, .method:focus-visible, .pad button:focus-visible, .icon-btn:focus-visible { outline: 3px solid var(--accent-line); outline-offset: 2px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; padding: 4px 10px; border-radius: 999px; background: var(--sunken); color: var(--ink-2); border: 1px solid var(--line); white-space: nowrap; }
+.chip svg { width: 14px; height: 14px; }
+.chip.ok { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
+.ur { font-family: "Noto Nastaliq Urdu", serif; font-size: 13px; line-height: 1.9; color: var(--ink-3); direction: rtl; font-weight: 400; }
+
+/* Top bar */
+.topbar { height: 60px; flex: none; display: flex; align-items: center; gap: 16px; padding: 0 20px; background: var(--surface); border-bottom: 1px solid var(--line); position: relative; z-index: 2; }
+.brand { font-weight: 700; font-size: 19px; letter-spacing: -.025em; }
+.brand i { font-style: normal; color: var(--accent); }
+.store { display: flex; flex-direction: column; line-height: 1.2; padding-left: 16px; border-left: 1px solid var(--line); }
+.store b { font-size: 14px; font-weight: 600; }
+.store small { font-size: 12px; color: var(--ink-3); letter-spacing: .01em; }
+.topbar .spacer { flex: 1; }
+.who { display: flex; align-items: center; gap: 10px; padding-left: 16px; border-left: 1px solid var(--line); }
+.avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; background: var(--accent-soft); color: var(--accent); flex: none; }
+.who div { line-height: 1.2; }
+.who b { display: block; font-size: 14px; }
+.who small { font-size: 12px; color: var(--ink-3); }
+.clock { font-family: var(--mono); font-size: 14px; color: var(--ink-2); }
+
+/* Checkout */
+.stack { flex: 1; display: flex; flex-direction: column; min-height: 0; transform-origin: 50% 40%; will-change: transform; }
+.checkout { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 400px; min-height: 0; }
+.bill { display: flex; flex-direction: column; min-width: 0; padding: 16px 16px 0 20px; gap: 12px; min-height: 0; }
+.scanrow { display: flex; gap: 10px; }
+.scanwrap { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.scan { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px; border-radius: var(--r-lg); background: var(--surface); border: 2px solid var(--line-strong); }
+.scan:focus-within { border-color: var(--accent-line); box-shadow: 0 0 0 4px var(--accent-soft); }
+.scan svg { width: 22px; height: 22px; color: var(--accent); flex: none; }
+.scan input { flex: 1; border: 0; outline: 0; background: transparent; font: inherit; font-size: 18px; color: var(--ink); min-width: 0; }
+.scan input::placeholder { color: var(--ink-3); }
+.scanmsg { font-size: 13px; color: var(--warn); display: flex; align-items: center; gap: 6px; min-height: 0; }
+.scanmsg:empty { display: none; }
+.held { height: 56px; border-radius: var(--r-lg); }
+.held .count { background: var(--hold); color: var(--hold-ink); font-size: 12px; font-weight: 700; border-radius: 999px; padding: 1px 8px; }
+.lines { flex: 1; min-height: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
+.scroller { flex: 1; min-height: 0; overflow-y: auto; position: relative; scrollbar-width: thin; }
+.lhead, .line { display: grid; grid-template-columns: 36px minmax(0, 1fr) 132px 104px 88px 116px; align-items: center; column-gap: 12px; padding: 0 16px; }
+/* Floating header: a material over the rows, with a soft scroll edge instead of a hard rule */
+.lhead { height: 38px; position: sticky; top: 0; z-index: 1; background: var(--material); backdrop-filter: blur(16px) saturate(170%); -webkit-backdrop-filter: blur(16px) saturate(170%); }
+.lhead::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 14px; pointer-events: none; opacity: 0; transition: opacity 200ms;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--surface) 85%, transparent), transparent); }
+.scroller.scrolled .lhead::after { opacity: 1; }
+.scroller:not(.scrolled) .lhead { box-shadow: inset 0 -1px 0 var(--line); }
+.lhead .label:nth-child(n+3) { text-align: right; }
+.line { min-height: var(--row); border-bottom: 1px solid var(--line); position: relative; cursor: default; isolation: isolate; }
+.line .n { font-family: var(--mono); font-size: 13px; color: var(--ink-3); }
+.line .name { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.thumb { display: none; width: 36px; height: 36px; border-radius: 10px; flex: none; font-size: 13px; font-weight: 700; place-items: center; }
+.line .name b { font-weight: 500; font-size: 15px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.line .name small { font-size: 12px; color: var(--ink-3); font-family: var(--mono); }
+.line .qty { display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
+.step { width: 32px; height: 32px; border-radius: calc(var(--r) - 2px); border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-2); display: grid; place-items: center; font: inherit; font-size: 16px; cursor: pointer; }
+.qty .v { font-family: var(--mono); font-size: 15px; min-width: 40px; text-align: center; display: inline-block; }
+.line .r { text-align: right; font-family: var(--mono); font-size: 15px; font-variant-numeric: tabular-nums; }
+.line .disc { color: var(--bad); }
+.line .muted { color: var(--ink-3); }
+.line .amt { font-weight: 600; }
+.line.sel { background: var(--accent-soft); }
+.line.sel::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+.line .flash { position: absolute; inset: 0; z-index: -1; background: var(--flash); pointer-events: none; opacity: 0; }
+.empty { flex: 1; display: grid; place-items: center; text-align: center; color: var(--ink-3); padding: 40px; }
+.empty svg { width: 44px; height: 44px; color: var(--line-strong); margin-bottom: 12px; }
+.empty b { display: block; color: var(--ink); font-size: 18px; letter-spacing: -.01em; margin-bottom: 4px; }
+.lfoot { display: flex; align-items: center; gap: 8px; padding: 10px 12px 10px 16px; border-top: 1px solid var(--line); background: var(--surface); }
+.lfoot .count { font-size: 14px; color: var(--ink-2); margin-right: auto; }
+.lfoot .btn { min-height: 40px; font-size: 14px; font-weight: 500; padding: 0 12px; }
+
+.summary { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px 16px 4px; min-height: 0; }
+.cust { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); font-size: 14px; }
+.cust svg { width: 18px; height: 18px; color: var(--ink-3); }
+.cust b { font-weight: 600; }
+.cust .kbd { margin-left: auto; }
+.totals { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow); overflow: hidden; }
+.trow { display: flex; justify-content: space-between; align-items: baseline; padding: 9px 16px; font-size: 15px; color: var(--ink-2); }
+.trow .mono { color: var(--ink); }
+.trow.neg .mono { color: var(--bad); }
+.due { background: var(--total-bg); color: var(--total-ink); padding: 16px; margin-top: 6px; }
+.due .label { color: var(--total-ink-2); }
+.due .amount { font-family: var(--mono); font-size: 52px; font-weight: 600; letter-spacing: -.035em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.due .amount small { font-size: 24px; font-weight: 500; margin-right: 6px; letter-spacing: -.01em; }
+.due .meta { font-size: 13px; color: var(--total-ink-2); margin-top: 2px; }
+.tender { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.tender .btn { font-family: var(--mono); font-size: 15px; padding: 0 6px; letter-spacing: 0; }
+.pay { min-height: 64px; font-size: 20px; border-radius: var(--r-lg); justify-content: space-between; padding: 0 20px; letter-spacing: -.01em; }
+.pay .amt { font-family: var(--mono); letter-spacing: -.02em; }
+.subactions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.keys { height: 40px; flex: none; display: flex; align-items: center; gap: 18px; padding: 0 20px; border-top: 1px solid var(--line); background: var(--surface); font-size: 13px; color: var(--ink-2); }
+.keys span { display: inline-flex; align-items: center; gap: 6px; }
+.keys .right { margin-left: auto; color: var(--ink-3); }
+
+/* Held bills: a parallel, non-blocking sheet — translucent, no scrim, draggable */
+.sheet { position: absolute; top: 72px; right: 12px; bottom: 52px; width: 380px; z-index: 5; border-radius: calc(var(--r-lg) + 4px); display: flex; flex-direction: column; overflow: hidden;
+  background: var(--material); backdrop-filter: blur(28px) saturate(180%); -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid var(--line); box-shadow: inset 0 1px 0 var(--material-edge), 0 24px 60px rgba(0,0,0,.22), 0 2px 8px rgba(0,0,0,.08);
+  touch-action: pan-y; will-change: transform; visibility: hidden; }
+.sheet .grip { position: absolute; left: 7px; top: 50%; width: 5px; height: 44px; margin-top: -22px; border-radius: 3px; background: var(--line-strong); }
+.shead { padding: 18px 18px 10px 24px; display: flex; align-items: center; justify-content: space-between; cursor: grab; }
+.shead h3 { margin: 0; font-size: 20px; letter-spacing: -.015em; }
+.shead p { margin: 2px 0 0; font-size: 13px; color: var(--ink-2); }
+.icon-btn { width: 40px; height: 40px; border-radius: 50%; border: 0; background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink-2); display: grid; place-items: center; cursor: pointer; }
+.icon-btn svg { width: 18px; height: 18px; }
+.sbody { padding: 6px 14px 14px 22px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.hbill { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px; display: grid; gap: 10px; }
+.hbill .top { display: flex; justify-content: space-between; align-items: baseline; }
+.hbill .top b { font-family: var(--mono); font-size: 14px; }
+.hbill .top .mono { font-size: 18px; font-weight: 600; letter-spacing: -.02em; }
+.hbill p { margin: 0; font-size: 13px; color: var(--ink-2); }
+.hbill .row { display: flex; gap: 8px; }
+.hbill .btn { min-height: 40px; font-size: 14px; flex: 1; }
+.sfoot { margin-top: auto; padding: 12px 22px 16px; font-size: 12px; color: var(--ink-3); }
+
+/* Payment dialog: a modal task — dim the bill and push it back */
+.scrim { position: absolute; inset: 0; z-index: 10; background: color-mix(in srgb, #000 28%, transparent); display: grid; place-items: center; visibility: hidden; opacity: 0; }
+[data-dir="c"] .scrim { background: rgba(0,0,0,.55); }
+.dialog { width: 820px; height: 440px; background: var(--surface); border-radius: calc(var(--r-lg) + 4px); box-shadow: 0 30px 80px rgba(0,0,0,.28); border: 1px solid var(--line); position: relative; overflow: hidden; will-change: transform, opacity; }
+.dpage { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; }
+.dmain { padding: 24px 28px; display: flex; flex-direction: column; gap: 18px; }
+.dhead { display: flex; align-items: center; justify-content: space-between; }
+.dhead h3 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.018em; }
+.methods { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.method { font: inherit; font-size: 14px; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; height: 72px; border-radius: var(--r); border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); cursor: pointer; }
+.method svg { width: 22px; height: 22px; color: var(--ink-2); }
+.method[aria-pressed="true"] { border: 2px solid var(--accent-line); background: var(--accent-soft); }
+.method[aria-pressed="true"] svg { color: var(--accent); }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 14px; font-weight: 600; }
+.amountinput { display: flex; align-items: center; height: 64px; border-radius: var(--r-lg); border: 2px solid var(--accent-line); box-shadow: 0 0 0 4px var(--accent-soft); padding: 0 16px; gap: 10px; background: var(--surface); }
+.amountinput span { font-family: var(--mono); font-size: 22px; color: var(--ink-3); }
+.amountinput input { flex: 1; border: 0; outline: 0; background: transparent; font-family: var(--mono); font-size: 32px; font-weight: 600; letter-spacing: -.02em; color: var(--ink); min-width: 0; }
+.dfoot { display: flex; gap: 10px; margin-top: auto; }
+.dfoot .btn.primary { flex: 1; min-height: 56px; font-size: 17px; }
+.dside { background: var(--sunken); border-left: 1px solid var(--line); padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+.dside .big { font-family: var(--mono); font-size: 34px; font-weight: 600; letter-spacing: -.03em; line-height: 1.1; }
+.change { border-radius: var(--r-lg); background: var(--ok-soft); color: var(--ok); padding: 16px; display: flex; flex-direction: column; gap: 2px; transition: background-color 200ms, color 200ms; }
+.change .big { font-size: 44px; }
+.change .label { color: inherit; }
+.change .note { display: flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 600; }
+.change .note svg { width: 16px; height: 16px; }
+.change.short { background: var(--warn-soft); color: var(--warn); }
+.paid { display: grid; gap: 8px; font-size: 14px; color: var(--ink-2); }
+.paid div { display: flex; justify-content: space-between; }
+.paid .mono { color: var(--ink); }
+.printpref { margin-top: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.printpref svg { width: 16px; height: 16px; }
+.done { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 32px; opacity: 0; visibility: hidden; grid-template-columns: none; }
+.done .tick { width: 76px; height: 76px; border-radius: 50%; background: var(--ok-soft); color: var(--ok); display: grid; place-items: center; margin-bottom: 6px; }
+.done .tick svg { width: 40px; height: 40px; stroke-dasharray: 30; stroke-dashoffset: 30; }
+.done h3 { margin: 0; font-size: 28px; letter-spacing: -.022em; }
+.done .big { font-family: var(--mono); font-size: 56px; font-weight: 600; letter-spacing: -.035em; color: var(--ok); line-height: 1.1; }
+.done p { margin: 0; color: var(--ink-2); font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.done p svg { width: 16px; height: 16px; }
+.done .btn { margin-top: 14px; min-width: 260px; min-height: 52px; }
+
+/* Login */
+.login { flex: 1; display: grid; grid-template-columns: 520px minmax(0, 1fr); }
+.side { background: var(--total-bg); color: var(--total-ink); padding: 40px 44px; display: flex; flex-direction: column; gap: 28px; }
+.side .brand { font-size: 26px; color: var(--total-ink); }
+.side .storename { font-size: 15px; color: var(--total-ink-2); margin-top: -18px; }
+.side .bigclock { font-family: var(--mono); font-size: 84px; font-weight: 500; letter-spacing: -.05em; line-height: 1; }
+.side .date { color: var(--total-ink-2); font-size: 17px; margin-top: 8px; }
+.side .facts { margin-top: auto; display: grid; gap: 14px; border-top: 1px solid color-mix(in srgb, var(--total-ink-2) 30%, transparent); padding-top: 24px; }
+.fact { display: flex; align-items: center; gap: 12px; font-size: 15px; color: var(--total-ink-2); }
+.fact b { color: var(--total-ink); font-weight: 600; margin-left: auto; font-family: var(--mono); font-size: 14px; }
+.fact svg { width: 18px; height: 18px; }
+.pane { display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 32px; gap: 22px; }
+.pane h2 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.024em; line-height: 1.15; }
+.pane .sub { margin: -14px 0 0; color: var(--ink-2); font-size: 15px; }
+.users { display: grid; grid-template-columns: repeat(3, 168px); gap: 12px; }
+.user { font: inherit; text-align: left; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line); color: var(--ink); cursor: pointer; box-shadow: var(--shadow); min-height: 108px; }
+.user .avatar { width: 40px; height: 40px; font-size: 15px; }
+.user b { font-size: 15px; font-weight: 600; display: block; line-height: 1.2; }
+.user small { font-size: 13px; color: var(--ink-3); }
+.user[aria-pressed="true"] { border: 2px solid var(--accent-line); padding: 13px; box-shadow: 0 0 0 4px var(--accent-soft); }
+.pinbox { display: flex; flex-direction: column; align-items: center; gap: 16px; width: 336px; }
+.pindots { display: flex; gap: 14px; height: 20px; align-items: center; }
+.pindots i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line-strong); transition: background-color 120ms, border-color 120ms; }
+.pindots i.f { background: var(--ink); border-color: var(--ink); }
+.pinmsg { font-size: 14px; font-weight: 600; color: var(--bad); min-height: 20px; margin-top: -6px; display: flex; align-items: center; gap: 6px; }
+.pad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; width: 100%; }
+.pad button { font: inherit; font-family: var(--mono); font-size: 22px; font-weight: 500; height: 58px; border-radius: var(--r); border: 1px solid var(--line); background: var(--surface); color: var(--ink); box-shadow: var(--shadow); cursor: pointer; }
+.pad button.fn { font-family: var(--font); font-size: 14px; color: var(--ink-2); }
+.pinbox .btn.primary { width: 100%; min-height: 54px; font-size: 17px; }
+.pane .alt { font-size: 14px; color: var(--ink-2); display: flex; gap: 10px; align-items: center; }
+.pane .alt a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.proto-note { font-size: 12px; color: var(--ink-3); }
+
+/* ---------- Direction-specific structure ---------- */
+[data-dir="b"] .thumb { display: grid; }
+[data-dir="b"] .topbar { background: var(--bg); border-bottom-color: transparent; height: 64px; }
+[data-dir="b"] .lines { border-color: transparent; }
+[data-dir="b"] .line { border-bottom-style: dashed; }
+[data-dir="b"] .line.sel::before { display: none; }
+[data-dir="b"] .line.sel { border-radius: 12px; margin: 0 6px; padding: 0 10px; border-bottom-color: transparent; }
+[data-dir="b"] .totals, [data-dir="b"] .cust, [data-dir="b"] .hbill { border-color: transparent; }
+[data-dir="b"] .due { margin: 6px; border-radius: 16px; }
+[data-dir="b"] .keys { background: var(--bg); border-top-color: transparent; }
+[data-dir="b"] .user, [data-dir="b"] .pad button { border-color: transparent; }
+[data-dir="b"] .user[aria-pressed="true"] { border-color: var(--accent-line); }
+[data-dir="b"] .side { margin: 16px; border-radius: 28px; }
+[data-dir="b"] .side .brand i { color: var(--hold); }
+[data-dir="b"] .brand { font-weight: 800; }
+[data-dir="b"] .sheet { top: 76px; }
+[data-dir="c"] .topbar { height: 52px; background: var(--sunken); }
+[data-dir="c"] .scan, [data-dir="c"] .held { height: 52px; }
+[data-dir="c"] .lines, [data-dir="c"] .totals, [data-dir="c"] .cust { box-shadow: none; }
+[data-dir="c"] .line.sel::before { top: 0; bottom: 0; border-radius: 0; }
+[data-dir="c"] .due { border-top: 1px solid var(--line-strong); }
+[data-dir="c"] .due .amount { font-size: 58px; font-weight: 500; }
+[data-dir="c"] .pay > span:first-child { text-transform: uppercase; letter-spacing: .06em; }
+[data-dir="c"] .side { border-right: 1px solid var(--line); }
+[data-dir="c"] .side .bigclock { color: var(--accent); }
+[data-dir="c"] .pindots i.f { background: var(--accent); border-color: var(--accent); }
+[data-dir="c"] .avatar { background: var(--line); color: var(--ink); }
+[data-dir="c"] .user[aria-pressed="true"] .avatar { background: var(--accent); color: var(--accent-ink); }
+[data-dir="c"] .chip { border-radius: 4px; }
+[data-dir="c"] .sheet { top: 64px; }
+
+/* ---------- Accessibility preferences ---------- */
+@media (prefers-reduced-transparency: reduce) {
+  .sheet, .lhead { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@media (prefers-contrast: more) {
+  .sheet, .lhead { background: var(--surface); backdrop-filter: none; border-color: var(--ink-3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scrim, .dialog, .sheet { transition: opacity 200ms ease; }
+  .btn:active, .step:active, .pad button:active, .user:active, .method:active, .icon-btn:active { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="controls">
+  <h1>Vendora · UI directions</h1>
+  <div class="group" role="group" aria-label="Direction">
+    <span>Direction</span>
+    <button class="tab" data-set-dir="a" aria-pressed="true">A · Ledger</button>
+    <button class="tab" data-set-dir="b" aria-pressed="false">B · Bazaar</button>
+    <button class="tab" data-set-dir="c" aria-pressed="false">C · Night Counter</button>
+  </div>
+  <div class="group" role="group" aria-label="Screen">
+    <span>Screen</span>
+    <button class="tab" data-set-screen="login" aria-pressed="false">PIN login</button>
+    <button class="tab" data-set-screen="checkout" aria-pressed="true">Checkout</button>
+    <button class="tab" data-open="payment">Payment</button>
+    <button class="tab" data-open="held">Held bills</button>
+    <button class="tab" id="simscan">Simulate a scan</button>
+  </div>
+  <div class="hint">Working prototype. Checkout: type a product name and Enter, ↑/↓ select, +/− qty, Del remove, F9 held bills (drag the sheet right to dismiss), F12 pay, Esc back. Login: any 4 digits unlock, 0000 shows the error.</div>
+</div>
+
+<div class="stage">
+<div class="frame-wrap" id="wrap">
+<div class="frame" id="frame" data-dir="a">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-barcode" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5v14M7 5v14M11 5v14M14 5v14M18 5v14M21 5v14"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></symbol>
+    <symbol id="i-printer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="7"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-percent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 5L5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></symbol>
+    <symbol id="i-hash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="i-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20 12l-8 8-9-9V3h8z"/><circle cx="7.5" cy="7.5" r="1.5"/></symbol>
+    <symbol id="i-cash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></symbol>
+    <symbol id="i-bank" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 10l9-6 9 6M5 10v8M19 10v8M9 10v8M15 10v8M3 21h18"/></symbol>
+    <symbol id="i-split" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M8 3H3v5M21 3l-7 7M3 3l7 7M12 14v7"/></symbol>
+    <symbol id="i-db" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 5H9l-6 7 6 7h12zM12 9l6 6M18 9l-6 6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2zM12 10v5M12 18h.01"/></symbol>
+  </defs>
+</svg>
+
+<!-- ============ CHECKOUT ============ -->
+<section class="screen on" data-screen="checkout" aria-label="Checkout">
+  <header class="topbar">
+    <div class="brand">vendora<i>.</i></div>
+    <div class="store"><b>Al-Madina General Store</b><small>Counter T1 · Bill <span class="mono" id="billno">T1-000482</span></small></div>
+    <div class="spacer"></div>
+    <span class="chip ok"><svg><use href="#i-printer"/></svg>Printer ready</span>
+    <span class="chip"><svg><use href="#i-db"/></svg>Saved locally</span>
+    <div class="who"><div class="avatar" id="who-av">BA</div><div><b id="who-name">Bilal Ahmed</b><small id="who-role">Cashier</small></div></div>
+    <div class="clock">7:42 PM</div>
+  </header>
+
+  <div class="stack" id="stack">
+    <div class="checkout">
+      <div class="bill">
+        <div class="scanrow">
+          <div class="scanwrap">
+            <label class="scan"><svg><use href="#i-barcode"/></svg><input id="scan" placeholder="Scan a barcode or type a product name, code…" aria-label="Scan or search" autocomplete="off"><span class="kbd">F2</span></label>
+            <div class="scanmsg" id="scanmsg" role="status"></div>
+          </div>
+          <button class="btn held" id="heldbtn"><svg><use href="#i-pause"/></svg>Held bills <span class="count">2</span></button>
+        </div>
+
+        <div class="lines">
+          <div class="scroller" id="scroller">
+            <div class="lhead"><span class="label">#</span><span class="label">Item</span><span class="label">Qty</span><span class="label">Price</span><span class="label">Disc.</span><span class="label">Amount</span></div>
+            <div id="rows"></div>
+          </div>
+          <div class="lfoot">
+            <span class="count" id="count"></span>
+            <button class="btn"><svg><use href="#i-hash"/></svg>Qty <span class="kbd">F4</span></button>
+            <button class="btn"><svg><use href="#i-percent"/></svg>Discount <span class="kbd">F6</span></button>
+            <button class="btn"><svg><use href="#i-tag"/></svg>Price <svg style="width:14px;height:14px"><use href="#i-lock"/></svg></button>
+            <button class="btn ghost" id="removebtn"><svg><use href="#i-trash"/></svg>Remove <span class="kbd">Del</span></button>
+          </div>
+        </div>
+      </div>
+
+      <aside class="summary">
+        <div class="cust"><svg><use href="#i-user"/></svg><span>Customer: <b>Walk-in</b></span><span class="kbd">F3</span></div>
+        <div class="totals">
+          <div class="trow" style="padding-top:14px"><span>Subtotal</span><span class="mono" id="t-sub"></span></div>
+          <div class="trow neg"><span>Discount</span><span class="mono" id="t-disc"></span></div>
+          <div class="trow"><span>Sales tax (incl. 18%)</span><span class="mono" id="t-tax"></span></div>
+          <div class="trow"><span>Rounding</span><span class="mono">Rs 0</span></div>
+          <div class="due">
+            <div class="label">Total due</div>
+            <div class="amount"><small>Rs</small><span id="t-due">0</span></div>
+            <div class="meta" id="t-meta"></div>
+          </div>
+        </div>
+        <div class="tender">
+          <button class="btn" data-tender="exact">Exact</button><button class="btn" data-tender="500">500</button><button class="btn" data-tender="1000">1,000</button><button class="btn" data-tender="5000">5,000</button>
+        </div>
+        <button class="btn primary pay" id="paybtn"><span>Pay</span><span class="amt" id="pay-amt"></span><span class="kbd">F12</span></button>
+        <div class="subactions">
+          <button class="btn"><svg><use href="#i-pause"/></svg>Hold <span class="kbd">F8</span></button>
+          <button class="btn ghost" style="color:var(--bad)"><svg><use href="#i-trash"/></svg>Void bill</button>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="keys">
+      <span><span class="kbd">F1</span>Help</span><span><span class="kbd">F2</span>Search</span><span><span class="kbd">F4</span>Qty</span><span><span class="kbd">F6</span>Discount</span><span><span class="kbd">F8</span>Hold</span><span><span class="kbd">F9</span>Held bills</span><span><span class="kbd">F10</span>Return</span><span><span class="kbd">F12</span>Pay</span>
+      <span class="right"><span class="kbd">Ctrl L</span>Lock counter</span>
+    </footer>
+  </div>
+
+  <aside class="sheet" id="sheet" aria-label="Held bills">
+    <span class="grip" aria-hidden="true"></span>
+    <div class="shead" id="sheethead">
+      <div><h3>Held bills</h3><p>Resume one to bring it back to the counter.</p></div>
+      <button class="icon-btn" id="sheetclose" aria-label="Close held bills"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div class="sbody">
+      <div class="hbill">
+        <div class="top"><b>T1-000481</b><span class="mono">Rs 3,915</span></div>
+        <p>9 items · held 4 min ago by Bilal</p>
+        <div class="row"><button class="btn primary">Resume</button><button class="btn">View</button></div>
+      </div>
+      <div class="hbill">
+        <div class="top"><b>T1-000479</b><span class="mono">Rs 1,240</span></div>
+        <p>4 items · held 12 min ago · “Coming back for eggs”</p>
+        <div class="row"><button class="btn primary">Resume</button><button class="btn">View</button></div>
+      </div>
+    </div>
+    <div class="sfoot">Drag right or press Esc to close. The bill on the counter stays as it is.</div>
+  </aside>
+
+  <div class="scrim" id="scrim">
+    <div class="dialog" id="dialog" role="dialog" aria-modal="true" aria-label="Take payment">
+      <div class="dpage" id="paypage">
+        <div class="dmain">
+          <div class="dhead"><h3>Take payment</h3><span class="kbd">Esc to go back</span></div>
+          <div class="methods">
+            <button class="method" aria-pressed="true"><svg><use href="#i-cash"/></svg>Cash</button>
+            <button class="method" aria-pressed="false"><svg><use href="#i-card"/></svg>Card</button>
+            <button class="method" aria-pressed="false"><svg><use href="#i-phone"/></svg>JazzCash</button>
+            <button class="method" aria-pressed="false"><svg><use href="#i-phone"/></svg>Easypaisa</button>
+            <button class="method" aria-pressed="false"><svg><use href="#i-bank"/></svg>Bank</button>
+          </div>
+          <div class="field">
+            <label for="tendered">Cash received</label>
+            <div class="amountinput"><span>Rs</span><input id="tendered" inputmode="numeric" autocomplete="off"></div>
+          </div>
+          <div class="tender">
+            <button class="btn" data-ptender="exact">Exact</button><button class="btn" data-ptender="500">+500</button><button class="btn" data-ptender="1000">+1,000</button><button class="btn" data-ptender="5000">+5,000</button>
+          </div>
+          <div class="dfoot">
+            <button class="btn"><svg><use href="#i-split"/></svg>Split payment</button>
+            <button class="btn primary" id="complete">Complete sale <span class="kbd">Enter</span></button>
+          </div>
+        </div>
+        <div class="dside">
+          <div><div class="label">Total due</div><div class="big" id="d-due"></div></div>
+          <div class="paid">
+            <div><span>Cash received</span><span class="mono" id="d-recv"></span></div>
+            <div><span>Remaining</span><span class="mono" id="d-rem"></span></div>
+          </div>
+          <div class="change" id="changecard" role="status">
+            <div class="label" id="change-label">Change due</div>
+            <div class="big" id="d-change"></div>
+            <div class="note" id="change-note"></div>
+          </div>
+          <div class="printpref"><svg><use href="#i-printer"/></svg>Receipt prints automatically</div>
+        </div>
+      </div>
+      <div class="dpage done" id="donepage" role="status">
+        <div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" id="tickpath"><path d="M5 12l5 5 9-10"/></svg></div>
+        <h3>Sale complete</h3>
+        <div class="big" id="done-change"></div>
+        <p id="done-sub">Change to give back</p>
+        <p><svg><use href="#i-printer"/></svg>Receipt printing · drawer open</p>
+        <button class="btn primary" id="newbill">Next customer <span class="kbd">Enter</span></button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ LOGIN ============ -->
+<section class="screen" data-screen="login" aria-label="PIN login">
+  <div class="login">
+    <div class="side">
+      <div class="brand">vendora<i>.</i></div>
+      <div class="storename">Al-Madina General Store · Counter T1</div>
+      <div>
+        <div class="bigclock">7:42</div>
+        <div class="date">Wednesday, 28 October</div>
+      </div>
+      <div class="facts">
+        <div class="fact"><svg><use href="#i-clock"/></svg>Shift open since<b>9:00 AM</b></div>
+        <div class="fact"><svg><use href="#i-db"/></svg>Last backup<b>6:00 PM</b></div>
+        <div class="fact"><svg><use href="#i-printer"/></svg>Receipt printer<b>Ready</b></div>
+      </div>
+    </div>
+    <div class="pane">
+      <h2>Who's at the counter?</h2>
+      <p class="sub">Pick your name, then enter your PIN.</p>
+      <div class="users" id="users">
+        <button class="user" aria-pressed="true" data-user="Bilal Ahmed|Cashier|BA"><span class="avatar">BA</span><span><b>Bilal Ahmed</b><small>Cashier</small></span></button>
+        <button class="user" aria-pressed="false" data-user="Sana Malik|Manager|SM"><span class="avatar">SM</span><span><b>Sana Malik</b><small>Manager</small></span></button>
+        <button class="user" aria-pressed="false" data-user="Imran Qureshi|Owner|IQ"><span class="avatar">IQ</span><span><b>Imran Qureshi</b><small>Owner</small></span></button>
+      </div>
+      <div class="pinbox">
+        <div class="pindots" id="pindots" aria-live="polite" aria-label="0 of 4 digits entered"><i></i><i></i><i></i><i></i></div>
+        <div class="pinmsg" id="pinmsg" role="alert"></div>
+        <div class="pad" id="pad">
+          <button>1</button><button>2</button><button>3</button>
+          <button>4</button><button>5</button><button>6</button>
+          <button>7</button><button>8</button><button>9</button>
+          <button class="fn" data-k="clear">Clear</button><button>0</button><button class="fn" data-k="del" aria-label="Delete"><svg style="width:20px;height:20px"><use href="#i-back"/></svg></button>
+        </div>
+        <button class="btn primary" id="unlock">Unlock <span class="kbd">Enter</span></button>
+      </div>
+      <div class="alt">Not on the list? <a href="#">Log in with password</a></div>
+    </div>
+  </div>
+</section>
+
+</div>
+</div>
+</div>
+
+<script>
+/* ---------- Springs: Apple's damping + response, animate from the live value, interruptible ---------- */
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+class Spring {
+  constructor(value, onUpdate, precision = 0.001) {
+    Object.assign(this, { value, target: value, velocity: 0, onUpdate, precision, raf: 0 });
+    onUpdate(value);
+  }
+  set(v) {
+    cancelAnimationFrame(this.raf); this.raf = 0;
+    this.value = this.target = v; this.velocity = 0; this.onUpdate(v);
+    this.done?.(); this.done = null;
+  }
+  to(target, { response = 0.35, damping = 1, velocity } = {}) {
+    if (reduceMotion.matches) { this.set(target); return Promise.resolve(); }
+    cancelAnimationFrame(this.raf);
+    this.done?.();
+    this.target = target;
+    if (velocity !== undefined) this.velocity = velocity;
+    const k = (2 * Math.PI / response) ** 2, c = 4 * Math.PI * damping / response;
+    let last = performance.now();
+    return new Promise((resolve) => {
+      this.done = resolve;
+      const step = (now) => {
+        const dt = Math.min((now - last) / 1000, 1 / 30); last = now;
+        for (let i = 0, h = dt / 8; i < 8; i++) {
+          const a = -k * (this.value - this.target) - c * this.velocity;
+          this.velocity += a * h; this.value += this.velocity * h;
+        }
+        if (Math.abs(this.velocity) < this.precision * 10 && Math.abs(this.value - this.target) < this.precision) { this.set(this.target); return; }
+        this.onUpdate(this.value);
+        this.raf = requestAnimationFrame(step);
+      };
+      this.raf = requestAnimationFrame(step);
+    });
+  }
+}
+const project = (v, d = 0.998) => (v / 1000) * d / (1 - d);
+const rubberband = (over, dim, c = 0.55) => (over * dim * c) / (dim + c * Math.abs(over));
+const fmt = (n) => Math.round(n).toLocaleString('en-US');
+const $ = (id) => document.getElementById(id);
+
+/* ---------- Frame scaling & controls ---------- */
+const frame = $('frame'), wrap = $('wrap');
+let scale = 1;
+const fit = () => {
+  const stage = wrap.parentElement;
+  scale = Math.min((stage.clientWidth - 40) / 1366, (stage.clientHeight - 40) / 768, 1);
+  wrap.style.transform = `scale(${scale})`;
+  wrap.style.margin = `${(768 * scale - 768) / 2}px ${(1366 * scale - 1366) / 2}px`;
+};
+addEventListener('resize', fit); fit();
+const press = (attr, value) => document.querySelectorAll(`[${attr}]`).forEach((b) => b.setAttribute('aria-pressed', String(b.getAttribute(attr) === value)));
+const setDir = (d) => { frame.dataset.dir = d; press('data-set-dir', d); };
+let screen = 'checkout';
+const setScreen = (s) => {
+  screen = s;
+  document.querySelectorAll('.screen').forEach((el) => el.classList.toggle('on', el.dataset.screen === s));
+  press('data-set-screen', s);
+  if (s === 'checkout') $('scan').focus(); else { closePay(true); closeSheet(true); }
+};
+document.querySelectorAll('[data-set-dir]').forEach((b) => b.addEventListener('click', () => setDir(b.dataset.setDir)));
+document.querySelectorAll('[data-set-screen]').forEach((b) => b.addEventListener('click', () => setScreen(b.dataset.setScreen)));
+document.querySelector('[data-open="payment"]').addEventListener('click', () => { if (screen !== 'checkout') setScreen('checkout'); openPay(); });
+document.querySelector('[data-open="held"]').addEventListener('click', () => { if (screen !== 'checkout') setScreen('checkout'); openSheet(); });
+
+/* ---------- Bill state ---------- */
+const catalog = [
+  { code: 'TP', name: 'Tapal Danedar Tea 950 g', barcode: '8964000101236', price: 1650, tint: ['#F6D9A3', '#5C3B00'] },
+  { code: 'OL', name: 'Olpers Full Cream Milk 1 L', barcode: '8961008200014', price: 300, tint: ['#DCEBF7', '#1F4A6E'] },
+  { code: 'DB', name: 'Dawn Bread Large', barcode: '8964001500327', price: 220, tint: ['#F3E2D3', '#6B3A12'] },
+  { code: 'BR', name: 'Basmati Rice Super Kernel (loose)', barcode: 'Weighed · Rs 380 / kg', price: 380, kg: true, tint: ['#E8EFD9', '#3F5317'] },
+  { code: 'SH', name: 'Shan Biryani Masala 50 g', barcode: '8964000150067', price: 140, tint: ['#F7DADA', '#7A1F1F'] },
+  { code: 'SE', name: 'Surf Excel 1 kg', barcode: '8961014011187', price: 690, tint: ['#DDE3F8', '#25307A'] },
+  { code: 'EG', name: 'Farm Eggs (dozen)', ur: 'انڈے', barcode: '2000000004201', price: 420, tint: ['#FBEFD0', '#6A4A00'] },
+  { code: 'MP', name: 'Nestlé Milkpak 1 L', barcode: '7613036212345', price: 290, tint: ['#DCEBF7', '#1F4A6E'] },
+  { code: 'LX', name: 'Lux Soap Rose 98 g', barcode: '8961014020011', price: 120, tint: ['#F7DAE8', '#7A1F4E'] },
+  { code: 'RC', name: 'Rafhan Corn Oil 1 L', barcode: '8964000502019', price: 760, tint: ['#FBEFD0', '#6A4A00'] },
+  { code: 'KS', name: 'Kolson Spaghetti 500 g', barcode: '8964000330018', price: 230, tint: ['#F3E2D3', '#6B3A12'] },
+];
+const byCode = Object.fromEntries(catalog.map((p) => [p.code, p]));
+let lines = [], sel = -1, billNo = 482, nextId = 1;
+const startBill = () => {
+  lines = [['TP', 1], ['OL', 3], ['DB', 1], ['BR', 2.5], ['SH', 2], ['SE', 1, 40], ['EG', 1]]
+    .map(([code, qty, disc = 0]) => ({ id: nextId++, p: byCode[code], qty, disc }));
+  sel = lines.length - 1;
+};
+startBill();
+const amount = (l) => Math.round(l.p.price * l.qty) - l.disc;
+const qtyText = (l) => (l.p.kg ? `${l.qty.toFixed(3)} kg` : String(l.qty));
+
+const dueSpring = new Spring(0, (v) => { $('t-due').textContent = fmt(v); $('pay-amt').textContent = `Rs ${fmt(v)}`; }, 0.5);
+let flashId = null, bump = null;
+const render = () => {
+  const rows = $('rows');
+  if (!lines.length) {
+    rows.innerHTML = `<div class="empty"><div><svg><use href="#i-barcode"/></svg><b>Ready for the next customer</b>Scan the first item, or type its name.</div></div>`;
+  } else {
+    rows.innerHTML = lines.map((l, i) => `
+      <div class="line${i === sel ? ' sel' : ''}" data-i="${i}">
+        <span class="flash"${l.id === flashId ? ' data-flash' : ''}></span>
+        <span class="n">${i + 1}</span>
+        <div class="name"><span class="thumb" style="background:${l.p.tint[0]};color:${l.p.tint[1]}">${l.p.code}</span>
+          <div><b>${l.p.name}${l.p.ur ? ` <span class="ur">${l.p.ur}</span>` : ''}</b><small>${i === sel && l.id === flashId ? 'Just scanned' : l.p.barcode}</small></div></div>
+        <div class="qty">${l.p.kg ? '' : `<button class="step" data-dq="-1" data-i="${i}" aria-label="Decrease">−</button>`}<span class="v"${l.id === bump?.id ? ' data-bump' : ''}>${qtyText(l)}</span>${l.p.kg ? '' : `<button class="step" data-dq="1" data-i="${i}" aria-label="Increase">+</button>`}</div>
+        <span class="r">${fmt(l.p.price)}</span>
+        <span class="r ${l.disc ? 'disc' : 'muted'}">${l.disc ? '−' + fmt(l.disc) : '—'}</span>
+        <span class="r amt">${fmt(amount(l))}</span>
+      </div>`).join('');
+  }
+  const sub = lines.reduce((s, l) => s + Math.round(l.p.price * l.qty), 0);
+  const disc = lines.reduce((s, l) => s + l.disc, 0);
+  const due = sub - disc;
+  const units = lines.reduce((s, l) => s + (l.p.kg ? 1 : l.qty), 0);
+  $('t-sub').textContent = `Rs ${fmt(sub)}`;
+  $('t-disc').textContent = disc ? `−Rs ${fmt(disc)}` : 'Rs 0';
+  $('t-tax').textContent = `Rs ${(due * 18 / 118).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  $('t-meta').textContent = `${units} items · prices include tax`;
+  $('count').textContent = `${lines.length} lines · ${units} items`;
+  $('billno').textContent = `T1-000${billNo}`;
+  dueSpring.to(due, { response: 0.45, damping: 1 });
+  bill.due = due;
+  // Change is shown where it happened: a soft flash on the line, a nudge in the direction the qty moved.
+  const flash = rows.querySelector('[data-flash]');
+  if (flash && !reduceMotion.matches) flash.animate([{ opacity: 0.9 }, { opacity: 0 }], { duration: 900, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  else if (flash) flash.animate([{ opacity: 0.6 }, { opacity: 0 }], { duration: 600 });
+  const b = rows.querySelector('[data-bump]');
+  if (b && !reduceMotion.matches) b.animate([{ transform: `translateY(${bump.dir * -7}px)`, opacity: 0.4 }, { transform: 'none', opacity: 1 }], { duration: 260, easing: 'cubic-bezier(.2,.9,.3,1.2)' });
+  flashId = null; bump = null;
+  rows.querySelector('.line.sel')?.scrollIntoView({ block: 'nearest' });
+};
+const bill = { due: 0 };
+
+const addProduct = (p) => {
+  const found = lines.findIndex((l) => l.p === p && !p.kg);
+  if (found >= 0) { lines[found].qty += 1; sel = found; flashId = lines[found].id; bump = { id: lines[found].id, dir: 1 }; }
+  else { const l = { id: nextId++, p, qty: p.kg ? 1 : 1, disc: 0 }; lines.push(l); sel = lines.length - 1; flashId = l.id; }
+  render();
+};
+const changeQty = (i, d) => {
+  const l = lines[i]; if (!l || l.p.kg) return;
+  sel = i;
+  if (l.qty + d <= 0) { lines.splice(i, 1); sel = Math.min(i, lines.length - 1); render(); return; }
+  l.qty += d; flashId = l.id; bump = { id: l.id, dir: d }; render();
+};
+$('rows').addEventListener('pointerdown', (e) => {
+  const step = e.target.closest('[data-dq]');
+  if (step) { changeQty(Number(step.dataset.i), Number(step.dataset.dq)); e.preventDefault(); return; }
+  const row = e.target.closest('.line');
+  if (row) { sel = Number(row.dataset.i); render(); }
+});
+$('removebtn').addEventListener('click', () => { if (sel >= 0) { lines.splice(sel, 1); sel = Math.min(sel, lines.length - 1); render(); } });
+const scroller = $('scroller');
+scroller.addEventListener('scroll', () => scroller.classList.toggle('scrolled', scroller.scrollTop > 2));
+
+const scan = $('scan');
+scan.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const q = scan.value.trim().toLowerCase();
+  if (!q) return;
+  const p = catalog.find((c) => c.barcode === q || c.code.toLowerCase() === q || c.name.toLowerCase().includes(q));
+  if (p) { addProduct(p); scan.value = ''; $('scanmsg').textContent = ''; }
+  else $('scanmsg').innerHTML = `<svg style="width:15px;height:15px"><use href="#i-alert"/></svg>No product matches “${scan.value.replace(/[<&]/g, '')}”. Check the spelling or scan the barcode.`;
+});
+let simIdx = 7;
+$('simscan').addEventListener('click', () => { if (screen !== 'checkout') setScreen('checkout'); addProduct(catalog[simIdx++ % catalog.length]); scan.focus(); });
+
+/* ---------- Payment dialog: grows from the Pay button, returns along the same path ---------- */
+const scrim = $('scrim'), dialog = $('dialog'), stack = $('stack');
+let payOpen = false;
+const paySpring = new Spring(0, (p) => {
+  const still = reduceMotion.matches;
+  scrim.style.visibility = p > 0.001 ? 'visible' : 'hidden';
+  scrim.style.opacity = Math.max(0, Math.min(1, p));
+  dialog.style.opacity = Math.max(0, Math.min(1, p * 1.4));
+  dialog.style.transform = still ? '' : `scale(${0.9 + 0.1 * p})`;
+  dialog.style.filter = still || p > 0.98 ? '' : `blur(${Math.max(0, (1 - p) * 8)}px)`;
+  stack.style.transform = still ? '' : `scale(${1 - 0.02 * p})`;
+}, 0.002);
+const anchorTo = (el, target) => {
+  const f = frame.getBoundingClientRect(), r = target.getBoundingClientRect();
+  const cx = (r.left + r.width / 2 - f.left) / scale, cy = (r.top + r.height / 2 - f.top) / scale;
+  el.style.transformOrigin = `${cx - el.offsetLeft}px ${cy - el.offsetTop}px`;
+};
+let tendered = 0;
+const renderPay = () => {
+  const due = bill.due, short = tendered < due;
+  $('tendered').value = tendered ? fmt(tendered) : '';
+  $('d-due').textContent = `Rs ${fmt(due)}`;
+  $('d-recv').textContent = `Rs ${fmt(tendered)}`;
+  $('d-rem').textContent = `Rs ${fmt(Math.max(0, due - tendered))}`;
+  $('changecard').classList.toggle('short', short);
+  $('change-label').textContent = short ? 'Still to collect' : 'Change due';
+  $('d-change').textContent = `Rs ${fmt(short ? due - tendered : tendered - due)}`;
+  $('change-note').innerHTML = short
+    ? `<svg><use href="#i-alert"/></svg>Short by Rs ${fmt(due - tendered)}`
+    : `<svg><use href="#i-check"/></svg>Drawer opens on complete`;
+  $('complete').disabled = short;
+};
+const showPage = (done) => {
+  $('paypage').style.cssText = done ? 'opacity:0;visibility:hidden' : '';
+  $('donepage').style.cssText = done ? 'opacity:1;visibility:visible' : '';
+};
+const openPay = () => {
+  if (!lines.length) return;
+  closeSheet();
+  payOpen = true; showPage(false);
+  tendered = Math.ceil(bill.due / 500) * 500;
+  renderPay();
+  anchorTo(dialog, $('paybtn'));
+  paySpring.to(1, { response: 0.38, damping: 1 });
+  setTimeout(() => $('tendered').focus({ preventScroll: true }), 30);
+};
+function closePay(instant) {
+  if (!payOpen && paySpring.value === 0) return;
+  payOpen = false;
+  instant ? paySpring.set(0) : paySpring.to(0, { response: 0.32, damping: 1 });
+  if (screen === 'checkout') scan.focus({ preventScroll: true });
+}
+$('paybtn').addEventListener('click', openPay);
+scrim.addEventListener('pointerdown', (e) => { if (e.target === scrim) closePay(); });
+$('tendered').addEventListener('input', (e) => { tendered = Number(e.target.value.replace(/\D/g, '')) || 0; renderPay(); });
+document.querySelectorAll('[data-ptender]').forEach((b) => b.addEventListener('click', () => {
+  const v = b.dataset.ptender; tendered = v === 'exact' ? bill.due : tendered + Number(v); renderPay();
+}));
+document.querySelectorAll('[data-tender]').forEach((b) => b.addEventListener('click', () => {
+  openPay(); const v = b.dataset.tender; tendered = v === 'exact' ? bill.due : Number(v); renderPay();
+}));
+document.querySelectorAll('.method').forEach((m) => m.addEventListener('click', () => {
+  document.querySelectorAll('.method').forEach((x) => x.setAttribute('aria-pressed', String(x === m)));
+}));
+const changeSpring = new Spring(0, (v) => { $('done-change').textContent = `Rs ${fmt(v)}`; }, 0.5);
+const complete = () => {
+  if (tendered < bill.due) return;
+  showPage(true);
+  const change = tendered - bill.due;
+  $('done-sub').textContent = change ? 'Change to give back' : 'Paid exactly, no change';
+  changeSpring.set(0); changeSpring.to(change, { response: 0.6, damping: 1 });
+  const tick = $('tickpath');
+  if (!reduceMotion.matches) tick.animate([{ strokeDashoffset: 30 }, { strokeDashoffset: 0 }], { duration: 420, delay: 80, easing: 'cubic-bezier(.3,.7,.2,1)', fill: 'forwards' });
+  else tick.style.strokeDashoffset = 0;
+  $('newbill').focus();
+};
+const nextCustomer = () => {
+  closePay();
+  billNo += 1; lines = []; sel = -1;
+  setTimeout(render, reduceMotion.matches ? 0 : 160);
+};
+$('complete').addEventListener('click', complete);
+$('newbill').addEventListener('click', nextCustomer);
+
+/* ---------- Held bills sheet: 1:1 drag, rubber-band, momentum projection, velocity handoff ---------- */
+const sheet = $('sheet');
+const SHEET_W = 380 + 24;
+let sheetOpen = false;
+const sheetX = new Spring(SHEET_W, (x) => {
+  sheet.style.visibility = x < SHEET_W - 0.5 ? 'visible' : 'hidden';
+  sheet.style.transform = reduceMotion.matches ? '' : `translateX(${x}px)`;
+  sheet.style.opacity = reduceMotion.matches ? String(x < SHEET_W - 0.5 ? 1 : 0) : '';
+}, 0.1);
+const openSheet = () => { sheetOpen = true; sheetX.to(0, { response: 0.36, damping: 1 }); };
+function closeSheet(instant) {
+  if (!sheetOpen && sheetX.value >= SHEET_W) return;
+  sheetOpen = false;
+  instant ? sheetX.set(SHEET_W) : sheetX.to(SHEET_W, { response: 0.32, damping: 1 });
+}
+$('heldbtn').addEventListener('click', () => (sheetOpen ? closeSheet() : openSheet()));
+$('sheetclose').addEventListener('click', () => closeSheet());
+let drag = null;
+sheet.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('button')) return;
+  drag = { id: e.pointerId, startX: e.clientX / scale, origin: sheetX.value, history: [], active: false };
+  cancelAnimationFrame(sheetX.raf);           // grab it mid-flight: continue from where it is on screen
+});
+sheet.addEventListener('pointermove', (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = e.clientX / scale - drag.startX;
+  if (!drag.active) {
+    if (Math.abs(dx) < 8) return;              // hysteresis before committing to a horizontal drag
+    drag.active = true; sheet.setPointerCapture(e.pointerId); drag.startX += Math.sign(dx) * 8;
+  }
+  let x = drag.origin + (e.clientX / scale - drag.startX);
+  if (x < 0) x = rubberband(x, SHEET_W);        // soft edge: resist past fully open
+  sheetX.value = x; sheetX.velocity = 0; sheetX.onUpdate(x);
+  drag.history.push({ x, t: e.timeStamp }); if (drag.history.length > 6) drag.history.shift();
+});
+const endDrag = (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag; drag = null;
+  if (!d.active) { sheetX.to(sheetOpen ? 0 : SHEET_W, { response: 0.3, damping: 1 }); return; }
+  const h = d.history, a = h[0], b = h[h.length - 1];
+  const v = a && b && b.t > a.t ? ((b.x - a.x) / (b.t - a.t)) * 1000 : 0;   // px/s at release
+  const projected = sheetX.value + project(v);                                // where the flick is heading
+  const close = projected > SHEET_W / 2;
+  sheetOpen = !close;
+  sheetX.to(close ? SHEET_W : 0, { response: 0.32, damping: 0.85, velocity: v }); // momentum: hand off velocity, slight give
+};
+sheet.addEventListener('pointerup', endDrag);
+sheet.addEventListener('pointercancel', endDrag);
+
+/* ---------- Login ---------- */
+let pin = '', pinTimer = 0;
+const dots = [...$('pindots').children];
+const pinRow = new Spring(0, (x) => { $('pindots').style.transform = x ? `translateX(${x}px)` : ''; }, 0.05);
+const renderPin = () => {
+  dots.forEach((d, i) => d.classList.toggle('f', i < pin.length));
+  $('pindots').setAttribute('aria-label', `${pin.length} of 4 digits entered`);
+};
+const typePin = (k) => {
+  if (k === 'clear') pin = '';
+  else if (k === 'del') pin = pin.slice(0, -1);
+  else if (pin.length < 4) {
+    pin += k; $('pinmsg').textContent = '';
+    const dot = dots[pin.length - 1];
+    if (!reduceMotion.matches) dot.animate([{ transform: 'scale(.5)' }, { transform: 'scale(1.15)' }, { transform: 'scale(1)' }], { duration: 220, easing: 'ease-out' });
+  }
+  renderPin();
+  clearTimeout(pinTimer);
+  if (pin.length === 4) pinTimer = setTimeout(submitPin, 120);
+};
+const submitPin = () => {
+  clearTimeout(pinTimer);
+  if (pin.length < 4) { $('pinmsg').textContent = 'Enter all 4 digits.'; return; }
+  if (pin === '0000') {
+    $('pinmsg').innerHTML = `<svg style="width:16px;height:16px"><use href="#i-alert"/></svg>PIN is incorrect. 4 tries left.`;
+    pinRow.set(0); pinRow.to(0, { response: 0.45, damping: 0.25, velocity: -900 });  // the passcode shake: a spring kicked sideways
+    pin = ''; renderPin(); return;
+  }
+  const u = document.querySelector('.user[aria-pressed="true"]').dataset.user.split('|');
+  $('who-name').textContent = u[0]; $('who-role').textContent = u[1]; $('who-av').textContent = u[2];
+  pin = ''; renderPin(); setScreen('checkout');
+};
+$('pad').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) typePin(b.dataset.k || b.textContent.trim()); });
+$('unlock').addEventListener('click', submitPin);
+$('users').addEventListener('click', (e) => {
+  const u = e.target.closest('.user'); if (!u) return;
+  document.querySelectorAll('.user').forEach((x) => x.setAttribute('aria-pressed', String(x === u)));
+  pin = ''; renderPin(); $('pinmsg').textContent = '';
+});
+
+/* ---------- Keyboard ---------- */
+addEventListener('keydown', (e) => {
+  if (screen === 'login') {
+    if (/^[0-9]$/.test(e.key)) typePin(e.key);
+    else if (e.key === 'Backspace') typePin('del');
+    else if (e.key === 'Enter') submitPin();
+    return;
+  }
+  const donePage = $('donepage').style.visibility === 'visible';
+  if (e.key === 'Escape') { if (payOpen) closePay(); else if (sheetOpen) closeSheet(); e.preventDefault(); return; }
+  if (payOpen) {
+    if (e.key === 'Enter') { donePage ? nextCustomer() : complete(); e.preventDefault(); }
+    return;
+  }
+  if (e.key === 'F12') { openPay(); e.preventDefault(); return; }
+  if (e.key === 'F9') { sheetOpen ? closeSheet() : openSheet(); e.preventDefault(); return; }
+  if (e.key === 'F2') { scan.focus(); e.preventDefault(); return; }
+  if (e.target === scan && scan.value) return;
+  if (e.key === 'ArrowDown' && lines.length) { sel = Math.min(lines.length - 1, sel + 1); render(); e.preventDefault(); }
+  else if (e.key === 'ArrowUp' && lines.length) { sel = Math.max(0, sel - 1); render(); e.preventDefault(); }
+  else if (e.key === '+' || e.key === '=') { changeQty(sel, 1); e.preventDefault(); }
+  else if (e.key === '-') { changeQty(sel, -1); e.preventDefault(); }
+  else if (e.key === 'Delete' && sel >= 0) { lines.splice(sel, 1); sel = Math.min(sel, lines.length - 1); render(); }
+});
+
+render();
+scan.focus();
+</script>
+</body>
+</html>

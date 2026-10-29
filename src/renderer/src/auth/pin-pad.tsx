@@ -9,7 +9,6 @@ import {
 } from "react";
 
 import { Button } from "@renderer/components/ui/button";
-import { Input } from "@renderer/components/ui/input";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { cn } from "@renderer/lib/utils";
 import { formatCooldown } from "./cooldown";
@@ -99,27 +98,40 @@ export function PinPad({
   };
 
   return (
-    <form onSubmit={submit} noValidate className="grid gap-400">
-      <Input
-        ref={inputRef}
-        autoFocus
-        type="password"
-        inputMode="numeric"
-        autoComplete="off"
-        maxLength={6}
-        aria-label="PIN"
-        readOnly={locked}
-        aria-disabled={locked || undefined}
-        value={value}
-        onChange={(event) => setValue(sanitizePin(event.target.value))}
-        onKeyDown={onKeyDown}
-        className="min-h-[var(--height-control-lg)] text-center font-mono text-[length:var(--font-size-450)] tracking-[var(--letter-spacing-caps)]"
-      />
+    <form onSubmit={submit} noValidate className="grid w-[336px] max-w-full gap-400">
+      <div className="relative mx-auto flex h-[44px] items-center justify-center rounded-full px-400 transition-shadow duration-[var(--duration-100)] has-[input:focus-visible]:shadow-focus">
+        <span aria-hidden="true" className="flex items-center gap-[14px]">
+          {Array.from({ length: Math.max(PIN_MIN_LENGTH, value.length) }, (_, index) => (
+            <span
+              key={index}
+              className={cn(
+                "size-400 rounded-full border-2 border-input transition-colors duration-[var(--duration-100)]",
+                index < value.length && "border-foreground bg-foreground",
+              )}
+            />
+          ))}
+        </span>
+        <input
+          ref={inputRef}
+          autoFocus
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          maxLength={6}
+          aria-label="PIN"
+          readOnly={locked}
+          aria-disabled={locked || undefined}
+          value={value}
+          onChange={(event) => setValue(sanitizePin(event.target.value))}
+          onKeyDown={onKeyDown}
+          className="absolute inset-0 size-full cursor-default rounded-full opacity-0 outline-none"
+        />
+      </div>
 
       {error ? (
         <p
           role="alert"
-          className="m-0 flex items-center gap-100 text-[length:var(--font-size-350)] font-medium text-critical"
+          className="m-0 flex items-center justify-center gap-100 text-[length:var(--font-size-350)] font-semibold text-critical"
         >
           <CircleXIcon aria-hidden="true" size={14} strokeWidth={2} className="shrink-0" />
           {error}
@@ -128,7 +140,7 @@ export function PinPad({
 
       <div role="status">
         {locked || cooldown.ended ? (
-          <div className="flex items-start gap-200 rounded-200 border border-line-warning bg-surface-warning p-300 text-foreground">
+          <div className="flex items-start gap-200 rounded-300 border border-line-warning bg-surface-warning p-300 text-foreground">
             <TimerIcon
               aria-hidden="true"
               size={20}
@@ -150,7 +162,7 @@ export function PinPad({
         ) : null}
       </div>
 
-      <div className="grid grid-cols-3 gap-200">
+      <div className="grid grid-cols-3 gap-[10px]">
         {digitKeys.map((digit) => (
           <PadKey
             key={digit}
@@ -165,7 +177,7 @@ export function PinPad({
           disabled={locked}
           onMouseDown={keepFocus}
           onClick={() => setValue("")}
-          className="text-[length:var(--font-size-350)] font-medium"
+          className="font-sans text-[length:var(--font-size-350)] font-semibold text-secondary"
         >
           Clear
         </PadKey>
@@ -181,6 +193,7 @@ export function PinPad({
           disabled={locked}
           onMouseDown={keepFocus}
           onClick={() => setValue((current) => current.slice(0, -1))}
+          className="text-secondary"
         >
           <DeleteIcon aria-hidden="true" size={20} strokeWidth={2} />
         </PadKey>
@@ -200,7 +213,7 @@ function PadKey({ className, ...props }: ComponentProps<typeof Button>) {
       type="button"
       variant="secondary"
       className={cn(
-        "min-h-[var(--height-control-lg)] font-mono text-[length:var(--font-size-450)]",
+        "min-h-[var(--height-control-lg)] border-line-card bg-surface font-mono text-[length:var(--font-size-550)] font-medium shadow-200 hover:border-line-card hover:bg-surface-hover active:bg-surface-secondary",
         className,
       )}
       {...props}
