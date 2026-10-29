@@ -13,7 +13,7 @@ import {
 } from "../../shared/auth";
 import { hashCredential, verifyCredential } from "../auth/credentials";
 import { createApprovalStore, type ApprovalStore } from "../auth/approvals";
-import { ApprovalError, UnauthenticatedError } from "../auth/errors";
+import { ApprovalError, SessionLockedError, UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
@@ -289,6 +289,17 @@ describe("createAuthService", () => {
   });
 
   describe("approve", () => {
+    it("refuses while the session is locked", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+      addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+      service.lock();
+
+      await expect(service.approve(approveInput(manager.id, PIN))).rejects.toThrow(
+        SessionLockedError,
+      );
+    });
+
     it("lets a manager approve for a cashier session", async () => {
       const manager = addUser("manager", "Manager", "manager");
       const cashier = addUser("cashier", "Cashier", "cashier");

@@ -17,6 +17,7 @@ import { gatedActionDecision } from "../../shared/gated-actions";
 import type { ApprovalStore } from "../auth/approvals";
 import { attemptPin, type PinLockState } from "../auth/pin-lockout";
 import { hashCredential, verifyCredential } from "../auth/credentials";
+import { SessionLockedError } from "../auth/errors";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
@@ -250,6 +251,7 @@ export function createAuthService({
   function approve(input: ApproveInput): Promise<ApprovalResult> {
     return serialisePin(async () => {
       const session = requireSession(sessions);
+      if (sessions.isLocked()) throw new SessionLockedError();
       const approver = db
         .select()
         .from(users)
