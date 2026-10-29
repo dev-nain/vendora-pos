@@ -22,13 +22,16 @@ import { Avatar } from "../auth/avatar";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { roleLabel } from "../auth/role-label";
 import { CreateUserDialog } from "./create-user-dialog";
+import { DeactivateUserDialog } from "./deactivate-user-dialog";
 import { EditUserDialog } from "./edit-user-dialog";
 import { ErrorLine } from "./form-parts";
+import { ResetCredentialDialog } from "./reset-credential-dialog";
 import { userStatusLabels } from "./user-status";
 
 type DialogState =
   | { kind: "create"; open: boolean }
   | { kind: "edit"; user: ManagedUser; open: boolean }
+  | { kind: "reset-password" | "reset-pin" | "deactivate"; user: ManagedUser; open: boolean }
   | null;
 
 interface UsersScreenProps {
@@ -163,7 +166,27 @@ export function UsersScreen({ currentUserId, onBack, onSessionEnded }: UsersScre
                     >
                       Edit
                     </Button>
-                    {user.isActive ? null : (
+                    <Button
+                      variant="secondary"
+                      onClick={() => setDialog({ kind: "reset-password", user, open: true })}
+                    >
+                      Reset password
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setDialog({ kind: "reset-pin", user, open: true })}
+                    >
+                      Reset PIN
+                    </Button>
+                    {user.isActive ? (
+                      <Button
+                        variant="ghost"
+                        className="text-critical"
+                        onClick={() => setDialog({ kind: "deactivate", user, open: true })}
+                      >
+                        Deactivate
+                      </Button>
+                    ) : (
                       <Button variant="secondary" onClick={() => void reactivate(user)}>
                         Reactivate
                       </Button>
@@ -190,6 +213,26 @@ export function UsersScreen({ currentUserId, onBack, onSessionEnded }: UsersScre
           isCurrentUser={dialog.user.id === currentUserId}
           onOpenChange={setOpen}
           onSaved={refresh}
+          onSessionEnded={onSessionEnded}
+        />
+      ) : null}
+      {dialog?.kind === "reset-password" || dialog?.kind === "reset-pin" ? (
+        <ResetCredentialDialog
+          kind={dialog.kind === "reset-pin" ? "pin" : "password"}
+          user={dialog.user}
+          open={dialog.open}
+          onOpenChange={setOpen}
+          onSaved={refresh}
+          onSessionEnded={onSessionEnded}
+        />
+      ) : null}
+      {dialog?.kind === "deactivate" ? (
+        <DeactivateUserDialog
+          user={dialog.user}
+          open={dialog.open}
+          isCurrentUser={dialog.user.id === currentUserId}
+          onOpenChange={setOpen}
+          onDeactivated={refresh}
           onSessionEnded={onSessionEnded}
         />
       ) : null}

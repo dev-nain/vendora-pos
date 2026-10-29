@@ -41,3 +41,26 @@ export function validateCreateUserForm(values: CreateUserFormValues): CreateUser
   for (const [field, message] of checks) if (message) errors[field] = message;
   return errors;
 }
+
+export type CredentialKind = "password" | "pin";
+
+export interface CredentialFormValues {
+  value: string;
+  confirm: string;
+}
+
+export type CredentialFormErrors = Partial<Record<keyof CredentialFormValues, string>>;
+
+export function validateCredentialForm(
+  kind: CredentialKind,
+  values: CredentialFormValues,
+): CredentialFormErrors {
+  const schema = kind === "password" ? shape.password : shape.pin;
+  const errors: CredentialFormErrors = {};
+  const valueError = firstMessage(schema.safeParse(values.value));
+  if (valueError) errors.value = valueError;
+  if (values.confirm !== values.value) {
+    errors.confirm = kind === "password" ? "Passwords don't match" : "PINs don't match";
+  }
+  return errors;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateCreateUserForm, validateDisplayName } from "./user-form";
+import { validateCreateUserForm, validateCredentialForm, validateDisplayName } from "./user-form";
 
 const valid = {
   username: "sara",
@@ -45,5 +45,30 @@ describe("validateDisplayName", () => {
     expect(validateDisplayName("Sara")).toBeUndefined();
     expect(validateDisplayName("")).toBe("Enter a display name");
     expect(validateDisplayName("a".repeat(65))).toBe("Display name must be 64 characters or fewer");
+  });
+});
+
+describe("validateCredentialForm", () => {
+  it("accepts a matching password and PIN", () => {
+    expect(validateCredentialForm("password", { value: "ab123", confirm: "ab123" })).toEqual({});
+    expect(validateCredentialForm("pin", { value: "7777", confirm: "7777" })).toEqual({});
+  });
+
+  it("enforces length rules", () => {
+    expect(validateCredentialForm("password", { value: "abc", confirm: "abc" }).value).toBe(
+      "Password must be 4–5 characters",
+    );
+    expect(validateCredentialForm("pin", { value: "12", confirm: "12" }).value).toBe(
+      "PIN must be 4–6 digits",
+    );
+  });
+
+  it("flags a mismatched confirmation", () => {
+    expect(validateCredentialForm("password", { value: "ab123", confirm: "ab12" }).confirm).toBe(
+      "Passwords don't match",
+    );
+    expect(validateCredentialForm("pin", { value: "7777", confirm: "7778" }).confirm).toBe(
+      "PINs don't match",
+    );
   });
 });
