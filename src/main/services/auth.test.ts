@@ -8,12 +8,12 @@ import {
   authResultSchema,
   createOwnerInputSchema,
   loginUserSchema,
-  safeUserSchema,
+  sessionStateSchema,
   type AuthResult,
 } from "../../shared/auth";
 import { hashCredential, verifyCredential } from "../auth/credentials";
 import { createApprovalStore, type ApprovalStore } from "../auth/approvals";
-import { ApprovalError, UnauthenticatedError } from "../auth/errors";
+import { ApprovalError, SessionLockedError, UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
@@ -269,7 +269,37 @@ describe("createAuthService", () => {
     });
   });
 
+  describe("lock", () => {
+    it("locks the session, and switchByPin from the locked state unlocks it", async () => {
+      const owner = addUser("owner", "Owner", "owner");
+      await asUser("owner");
+
+      service.lock();
+      expect(sessions.isLocked()).toBe(true);
+
+      const result = await service.switchByPin({ userId: owner.id, pin: PIN });
+
+      expect(result.ok).toBe(true);
+      expect(sessions.isLocked()).toBe(false);
+    });
+
+    it("throws with no session", () => {
+      expect(() => service.lock()).toThrow(UnauthenticatedError);
+    });
+  });
+
   describe("approve", () => {
+    it("refuses while the session is locked", async () => {
+      const manager = addUser("manager", "Manager", "manager");
+      addUser("cashier", "Cashier", "cashier");
+      await asUser("cashier");
+      service.lock();
+
+      await expect(service.approve(approveInput(manager.id, PIN))).rejects.toThrow(
+        SessionLockedError,
+      );
+    });
+
     it("lets a manager approve for a cashier session", async () => {
       const manager = addUser("manager", "Manager", "manager");
       const cashier = addUser("cashier", "Cashier", "cashier");
@@ -441,7 +471,12 @@ describe("createAuthService", () => {
     it("current clears the session once the user is deactivated", async () => {
       const owner = addUser("owner", "Owner", "owner");
       await asUser("owner");
-      expect(service.current()?.id).toBe(owner.id);
+      expect(service.current()).toEqual({
+        user: expect.objectContaining({ id: owner.id }),
+        locked: false,
+      });
+      service.lock();
+      expect(service.current()?.locked).toBe(true);
 
       database.sqlite.prepare("UPDATE users SET is_active = 0 WHERE id = ?").run(owner.id);
 
@@ -506,7 +541,7 @@ describe("createAuthService", () => {
         } else if ("ok" in (value as object)) {
           expect(authResultSchema.safeParse(value as AuthResult).success).toBe(true);
         } else {
-          expect(safeUserSchema.safeParse(value).success).toBe(true);
+          expect(sessionStateSchema.safeParse(value).success).toBe(true);
         }
       }
     });
@@ -533,7 +568,7 @@ describe("createAuthService", () => {
         role: "owner",
       });
       expect(service.needsOwnerSetup()).toBe(false);
-      expect(service.current()).toEqual(result.user);
+      expect(service.current()).toEqual({ user: result.user, locked: false });
 
       const row = userRow(result.user.id);
       expect(row.passwordHash).not.toBe("ab12");

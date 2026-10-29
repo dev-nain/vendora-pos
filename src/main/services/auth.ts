@@ -11,11 +11,13 @@ import {
   type loginInputSchema,
   type pinSwitchInputSchema,
   type SafeUser,
+  type SessionState,
 } from "../../shared/auth";
 import { gatedActionDecision } from "../../shared/gated-actions";
 import type { ApprovalStore } from "../auth/approvals";
 import { attemptPin, type PinLockState } from "../auth/pin-lockout";
 import { hashCredential, verifyCredential } from "../auth/credentials";
+import { SessionLockedError } from "../auth/errors";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
@@ -241,9 +243,15 @@ export function createAuthService({
     sessions.end();
   }
 
+  function lock(): void {
+    requireSession(sessions);
+    sessions.lock();
+  }
+
   function approve(input: ApproveInput): Promise<ApprovalResult> {
     return serialisePin(async () => {
       const session = requireSession(sessions);
+      if (sessions.isLocked()) throw new SessionLockedError();
       const approver = db
         .select()
         .from(users)
@@ -290,7 +298,7 @@ export function createAuthService({
     });
   }
 
-  function current(): SafeUser | null {
+  function current(): SessionState | null {
     const session = sessions.current();
     if (!session) return null;
     const user = db
@@ -302,7 +310,7 @@ export function createAuthService({
       sessions.end();
       return null;
     }
-    return toSafeUser(user);
+    return { user: toSafeUser(user), locked: sessions.isLocked() };
   }
 
   function listLoginUsers(): LoginUser[] {
@@ -320,6 +328,7 @@ export function createAuthService({
     switchByPin,
     approve,
     logout,
+    lock,
     current,
     listLoginUsers,
     needsOwnerSetup,

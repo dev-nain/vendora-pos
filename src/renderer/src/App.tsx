@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Activity, useCallback, useEffect, useRef, useState } from "react";
 
 import type { SafeUser } from "@shared/auth";
 import { ApprovalProvider } from "./auth/approval-provider";
@@ -7,66 +7,111 @@ import { CreateOwnerScreen } from "./auth/create-owner-screen";
 import { LockScreen } from "./auth/lock-screen";
 import { LoginScreen } from "./auth/login-screen";
 import { PinSwitchScreen } from "./auth/pin-switch-screen";
+import { useActivityReport } from "./auth/use-activity-report";
+
+type Overlay = null | "locked" | "switch";
 
 type AuthView =
   | { name: "starting" }
   | { name: "setup" }
   | { name: "login" }
-  | { name: "shell"; user: SafeUser }
-  | { name: "locked"; user: SafeUser }
-  | { name: "switch"; user: SafeUser };
+  | { name: "signed-in"; user: SafeUser; overlay: Overlay };
+
+const lockedOverlay = (view: AuthView): AuthView =>
+  view.name === "signed-in" && view.overlay === null ? { ...view, overlay: "locked" } : view;
 
 export function App() {
   const [view, setView] = useState<AuthView>({ name: "starting" });
+  const savedFocus = useRef<Element | null>(null);
 
   useEffect(() => {
     void window.vendora.auth
       .current()
-      .then(async (user) => {
-        if (user) return setView({ name: "shell", user });
+      .then(async (state) => {
+        if (state) {
+          return setView({
+            name: "signed-in",
+            user: state.user,
+            overlay: state.locked ? "locked" : null,
+          });
+        }
         const needsSetup = await window.vendora.auth.needsOwnerSetup();
         setView(needsSetup ? { name: "setup" } : { name: "login" });
       })
       .catch(() => setView({ name: "login" }));
   }, []);
 
-  const toShell = (user: SafeUser) => setView({ name: "shell", user });
-  const toLogin = useCallback(() => setView({ name: "login" }), []);
+  useEffect(
+    () =>
+      window.vendora.auth.onLocked(() => {
+        savedFocus.current ??= document.activeElement;
+        setView(lockedOverlay);
+      }),
+    [],
+  );
+
+  useActivityReport(view.name === "signed-in" && view.overlay === null);
+
+  const toLogin = useCallback(() => {
+    savedFocus.current = null;
+    setView({ name: "login" });
+  }, []);
+
+  const lock = () => {
+    savedFocus.current ??= document.activeElement;
+    setView(lockedOverlay);
+    void window.vendora.auth.lock().catch(() => undefined);
+  };
+
+  const signedIn = (user: SafeUser) => {
+    const sameUser = view.name === "signed-in" && view.user.id === user.id;
+    setView({ name: "signed-in", user, overlay: null });
+    if (sameUser) requestAnimationFrame(restoreFocus);
+    else savedFocus.current = null;
+  };
+
+  const restoreFocus = () => {
+    const target = savedFocus.current;
+    savedFocus.current = null;
+    if (target instanceof HTMLElement && target.isConnected && target !== document.body) {
+      target.focus();
+    } else {
+      document.querySelector<HTMLElement>("[data-lock-trigger]")?.focus();
+    }
+  };
 
   switch (view.name) {
     case "starting":
       return <div className="min-h-screen bg-page" />;
     case "setup":
-      return <CreateOwnerScreen onCreated={toShell} onOwnerExists={toLogin} />;
+      return <CreateOwnerScreen onCreated={signedIn} onOwnerExists={toLogin} />;
     case "login":
-      return <LoginScreen onLoggedIn={toShell} />;
-    case "shell":
+      return <LoginScreen onLoggedIn={signedIn} />;
+    case "signed-in":
       return (
-        <ApprovalProvider user={view.user} onUnauthenticated={toLogin}>
-          <AppShell
-            user={view.user}
-            onLock={() => setView({ name: "locked", user: view.user })}
-            onLoggedOut={toLogin}
-          />
-        </ApprovalProvider>
-      );
-    case "locked":
-      return (
-        <LockScreen
-          user={view.user}
-          onUnlocked={toShell}
-          onSwitchUser={() => setView({ name: "switch", user: view.user })}
-          onLogInWithPassword={toLogin}
-        />
-      );
-    case "switch":
-      return (
-        <PinSwitchScreen
-          currentUserId={view.user.id}
-          onBack={() => setView({ name: "locked", user: view.user })}
-          onSwitched={toShell}
-          onUnauthenticated={toLogin}
-        />
+        <>
+          <Activity mode={view.overlay ? "hidden" : "visible"}>
+            <ApprovalProvider key={view.user.id} user={view.user} onUnauthenticated={toLogin}>
+              <AppShell user={view.user} onLock={lock} onLoggedOut={toLogin} />
+            </ApprovalProvider>
+          </Activity>
+          {view.overlay === "locked" ? (
+            <LockScreen
+              user={view.user}
+              onUnlocked={signedIn}
+              onSwitchUser={() => setView({ ...view, overlay: "switch" })}
+              onLogInWithPassword={toLogin}
+            />
+          ) : null}
+          {view.overlay === "switch" ? (
+            <PinSwitchScreen
+              currentUserId={view.user.id}
+              onBack={() => setView({ ...view, overlay: "locked" })}
+              onSwitched={signedIn}
+              onUnauthenticated={toLogin}
+            />
+          ) : null}
+        </>
       );
   }
 }

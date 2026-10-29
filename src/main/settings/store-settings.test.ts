@@ -14,7 +14,7 @@ import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
 import { stores } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
-import { getCashierDiscountLimitBps } from "./store-settings";
+import { getAutoLockMinutes, getCashierDiscountLimitBps } from "./store-settings";
 
 const migrationsFolder = join(process.cwd(), "drizzle");
 
@@ -65,12 +65,56 @@ describe("store settings", () => {
     expect(() => database.db.update(stores).set({ cashierDiscountLimitBps: bps }).run()).toThrow();
   });
 
+  it("defaults auto-lock to 5 minutes and allows Off", () => {
+    runMigrations(database, { migrationsFolder, backupDir });
+    seedStoreAndTerminal(database);
+
+    expect(getAutoLockMinutes(database, storeId())).toBe(5);
+    database.db.update(stores).set({ autoLockMinutes: null }).run();
+    expect(getAutoLockMinutes(database, storeId())).toBeNull();
+    database.db.update(stores).set({ autoLockMinutes: 60 }).run();
+    expect(getAutoLockMinutes(database, storeId())).toBe(60);
+  });
+
+  it("throws for an unknown store when reading auto-lock", () => {
+    runMigrations(database, { migrationsFolder, backupDir });
+
+    expect(() => getAutoLockMinutes(database, "missing")).toThrow("Store not found");
+  });
+
+  it.each([0, 61])("rejects auto-lock of %i at the database level", (minutes) => {
+    runMigrations(database, { migrationsFolder, backupDir });
+    seedStoreAndTerminal(database);
+
+    expect(() => database.db.update(stores).set({ autoLockMinutes: minutes }).run()).toThrow();
+  });
+
   it("keeps an existing store and gives it 500 when migrating from 0000", () => {
-    const firstOnly = join(dir, "drizzle-0000");
+    seedAndMigrate(1);
+    expect(database.db.select().from(stores).all()).toEqual([
+      expect.objectContaining({ id: "s1", name: "Old", cashierDiscountLimitBps: 500 }),
+    ]);
+    for (const table of ["terminals", "users", "audit_log"]) {
+      expect(database.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get()).toEqual({ n: 1 });
+    }
+    expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
+  });
+
+  it("keeps existing rows and gives the store 5 when migrating from 0001", () => {
+    seedAndMigrate(2);
+    expect(getAutoLockMinutes(database, "s1")).toBe(5);
+    for (const table of ["terminals", "users", "audit_log"]) {
+      expect(database.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get()).toEqual({ n: 1 });
+    }
+    expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
+  });
+
+  function seedAndMigrate(applied: number) {
+    const firstOnly = join(dir, `drizzle-${applied}`);
     cpSync(migrationsFolder, firstOnly, { recursive: true });
     const journalPath = join(firstOnly, "meta", "_journal.json");
     const journal = JSON.parse(readFileSync(journalPath, "utf8")) as { entries: unknown[] };
-    journal.entries = journal.entries.slice(0, 1);
+    journal.entries = journal.entries.slice(0, applied);
     writeFileSync(journalPath, JSON.stringify(journal));
 
     runMigrations(database, { migrationsFolder: firstOnly, backupDir });
@@ -94,13 +138,5 @@ describe("store settings", () => {
       .run();
 
     runMigrations(database, { migrationsFolder, backupDir });
-
-    expect(database.db.select().from(stores).all()).toEqual([
-      expect.objectContaining({ id: "s1", name: "Old", cashierDiscountLimitBps: 500 }),
-    ]);
-    for (const table of ["terminals", "users", "audit_log"]) {
-      expect(database.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get()).toEqual({ n: 1 });
-    }
-    expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
-  });
+  }
 });
