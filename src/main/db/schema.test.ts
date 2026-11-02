@@ -351,6 +351,38 @@ describe("product schema", () => {
     expect(() => insertProduct({ taxCategoryId: "missing" })).toThrow();
     expect(() => insertBarcode("missing")).toThrow();
   });
+
+  const planDetail = (query: string, ...params: string[]) =>
+    database.sqlite
+      .prepare(`EXPLAIN QUERY PLAN ${query}`)
+      .all(...params)
+      .map((row) => (row as { detail: string }).detail)
+      .join("\n");
+
+  it("looks up barcodes, internal codes and search prefixes through their indexes", () => {
+    expect(
+      planDetail(
+        "SELECT id FROM product_barcodes WHERE store_id = ? AND barcode = ? AND deleted_at IS NULL",
+        storeId,
+        "8961000000017",
+      ),
+    ).toContain("product_barcodes_store_id_barcode_unique");
+    expect(
+      planDetail(
+        "SELECT id FROM products WHERE store_id = ? AND internal_code = ? AND deleted_at IS NULL",
+        storeId,
+        "A1",
+      ),
+    ).toContain("products_store_id_internal_code_unique");
+    expect(
+      planDetail(
+        "SELECT id FROM products WHERE store_id = ? AND search_text >= ? AND search_text < ?",
+        storeId,
+        "te",
+        "tf",
+      ),
+    ).toContain("products_store_id_search_text_idx");
+  });
 });
 
 describe("catalog migration on an existing database", () => {
@@ -389,6 +421,61 @@ describe("catalog migration on an existing database", () => {
         .all()
         .map((row) => (row as { name: string }).name);
       expect(tables).toEqual(expect.arrayContaining(["categories", "tax_categories"]));
+    } finally {
+      database.sqlite.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("product migration on an existing database", () => {
+  it("backs up, keeps existing rows and adds the product tables", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vendora-upgrade-"));
+    const database = openDatabase(join(dir, "vendora.db"));
+    try {
+      const oldFolder = join(dir, "old-migrations");
+      mkdirSync(join(oldFolder, "meta"), { recursive: true });
+      const journal = JSON.parse(
+        readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+      ) as { entries: { tag: string }[] };
+      journal.entries = journal.entries.slice(0, 4);
+      writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
+      for (const entry of journal.entries) {
+        copyFileSync(
+          join(migrationsFolder, `${entry.tag}.sql`),
+          join(oldFolder, `${entry.tag}.sql`),
+        );
+      }
+
+      const backupDir = join(dir, "backups");
+      runMigrations(database, { migrationsFolder: oldFolder, backupDir });
+      database.sqlite.exec(
+        "INSERT INTO stores (id, name, created_at, updated_at) VALUES ('s1', 'Existing', 0, 0)",
+      );
+      database.sqlite.exec(
+        "INSERT INTO categories (id, store_id, name, created_at, updated_at) VALUES ('c1', 's1', 'General', 0, 0)",
+      );
+      database.sqlite.exec(
+        "INSERT INTO tax_categories (id, store_id, name, rate_bps, created_at, updated_at) VALUES ('t1', 's1', 'Standard', NULL, 0, 0)",
+      );
+
+      expect(runMigrations(database, { migrationsFolder, backupDir })).toBe("migrated");
+
+      expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
+      expect(database.sqlite.prepare("SELECT id, name FROM stores").all()).toEqual([
+        { id: "s1", name: "Existing" },
+      ]);
+      expect(database.sqlite.prepare("SELECT id, name FROM categories").all()).toEqual([
+        { id: "c1", name: "General" },
+      ]);
+      expect(database.sqlite.prepare("SELECT id, name FROM tax_categories").all()).toEqual([
+        { id: "t1", name: "Standard" },
+      ]);
+      const tables = database.sqlite
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .all()
+        .map((row) => (row as { name: string }).name);
+      expect(tables).toEqual(expect.arrayContaining(["products", "product_barcodes"]));
     } finally {
       database.sqlite.close();
       rmSync(dir, { recursive: true, force: true });
