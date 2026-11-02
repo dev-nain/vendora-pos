@@ -6,11 +6,11 @@ function Table({ className, ...props }: ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="overflow-x-auto rounded-400 border border-line-card bg-surface shadow-200"
+      className="overflow-x-auto rounded-300 border border-line-card bg-surface-secondary"
     >
       <table
         data-slot="table"
-        className={cn("w-full border-collapse text-[length:var(--font-size-400)]", className)}
+        className={cn("w-full border-collapse text-[length:var(--font-size-350)]", className)}
         {...props}
       />
     </div>
@@ -22,13 +22,7 @@ function TableHeader({ className, ...props }: ComponentProps<"thead">) {
 }
 
 function TableBody({ className, ...props }: ComponentProps<"tbody">) {
-  return (
-    <tbody
-      data-slot="table-body"
-      className={cn("[&>tr:last-child>td]:border-b-0", className)}
-      {...props}
-    />
-  );
+  return <tbody data-slot="table-body" className={className} {...props} />;
 }
 
 function TableFooter({ className, ...props }: ComponentProps<"tfoot">) {
@@ -46,7 +40,7 @@ function TableRow({ className, ...props }: ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "transition-colors duration-[var(--duration-100)] hover:bg-surface-hover aria-selected:bg-surface-selected aria-selected:[&>td:first-child]:shadow-[inset_3px_0_0_var(--color-border-brand)]",
+        "transition-colors duration-[var(--duration-100)] hover:bg-surface-hover aria-selected:bg-surface-selected aria-selected:[&>td:first-child]:selection-pill",
         className,
       )}
       {...props}
@@ -59,7 +53,7 @@ function TableHead({ className, ...props }: ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "sticky top-0 z-10 h-[38px] bg-material px-400 text-left text-[length:var(--font-size-300)] font-semibold whitespace-nowrap text-tertiary shadow-[inset_0_-1px_0_var(--color-border)] backdrop-blur-material backdrop-saturate-[1.7]",
+        "h-[32px] px-400 text-left text-[length:var(--font-size-300)] font-normal whitespace-nowrap text-secondary",
         className,
       )}
       {...props}
@@ -71,10 +65,7 @@ function TableCell({ className, ...props }: ComponentProps<"td">) {
   return (
     <td
       data-slot="table-cell"
-      className={cn(
-        "h-[var(--height-row)] border-b border-dashed border-line px-400 dark:border-solid",
-        className,
-      )}
+      className={cn("h-[var(--height-row)] border-t border-line px-400", className)}
       {...props}
     />
   );

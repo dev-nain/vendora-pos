@@ -82,7 +82,7 @@ export function AutoLockSetting() {
   return (
     <section
       aria-labelledby="auto-lock-heading"
-      className="grid w-[420px] gap-400 rounded-400 border border-line-card bg-surface p-600 shadow-200"
+      className="grid w-[420px] max-w-full gap-400 rounded-300 border border-line-card bg-surface-secondary p-600"
     >
       <h2
         id="auto-lock-heading"
@@ -117,7 +117,7 @@ export function AutoLockSetting() {
                   autoComplete="off"
                   value={text}
                   onChange={(event) => setText(event.target.value)}
-                  className="font-mono"
+                  className="tabular-nums"
                 />
               </Field>
               <Button type="submit" disabled={pending}>

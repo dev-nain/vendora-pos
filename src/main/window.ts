@@ -1,5 +1,13 @@
 import { join } from "node:path";
-import { BrowserWindow, session } from "electron";
+import { BrowserWindow, nativeTheme, session } from "electron";
+
+const TITLE_BAR_HEIGHT = 44;
+
+function chromeColors() {
+  return nativeTheme.shouldUseDarkColors
+    ? { color: "#202020", symbolColor: "#FFFFFF" }
+    : { color: "#F3F3F3", symbolColor: "#1A1A1A" };
+}
 
 export function createMainWindow(): BrowserWindow {
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
@@ -12,6 +20,9 @@ export function createMainWindow(): BrowserWindow {
     minWidth: 1366,
     minHeight: 768,
     show: false,
+    backgroundColor: chromeColors().color,
+    titleBarStyle: "hidden",
+    titleBarOverlay: { height: TITLE_BAR_HEIGHT, ...chromeColors() },
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
@@ -25,6 +36,13 @@ export function createMainWindow(): BrowserWindow {
   if (!process.env["ELECTRON_RENDERER_URL"]) {
     window.removeMenu();
   }
+
+  const syncChrome = () => {
+    window.setBackgroundColor(chromeColors().color);
+    window.setTitleBarOverlay({ height: TITLE_BAR_HEIGHT, ...chromeColors() });
+  };
+  nativeTheme.on("updated", syncChrome);
+  window.once("closed", () => nativeTheme.off("updated", syncChrome));
 
   window.once("ready-to-show", () => window.show());
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));

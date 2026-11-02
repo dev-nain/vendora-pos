@@ -2,7 +2,7 @@ import { Activity, useCallback, useEffect, useRef, useState } from "react";
 
 import type { SafeUser } from "@shared/auth";
 import { ApprovalProvider } from "./auth/approval-provider";
-import { AppShell } from "./auth/app-shell";
+import { AppShell } from "./shell/app-shell";
 import { CreateOwnerScreen } from "./auth/create-owner-screen";
 import { LockScreen } from "./auth/lock-screen";
 import { LoginScreen } from "./auth/login-screen";

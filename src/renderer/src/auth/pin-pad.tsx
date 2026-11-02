@@ -152,7 +152,7 @@ export function PinPad({
                 <span className="sr-only">Too many wrong PINs. Try again later.</span>
                 <span aria-hidden="true">
                   Too many wrong PINs. Try again in{" "}
-                  <span className="font-mono">{formatCooldown(cooldown.remainingMs)}</span>.
+                  <span className="tabular-nums">{formatCooldown(cooldown.remainingMs)}</span>.
                 </span>
               </>
             ) : (
@@ -162,7 +162,7 @@ export function PinPad({
         ) : null}
       </div>
 
-      <div className="grid grid-cols-3 gap-[10px]">
+      <div className="grid grid-cols-3 gap-200">
         {digitKeys.map((digit) => (
           <PadKey
             key={digit}
@@ -213,7 +213,7 @@ function PadKey({ className, ...props }: ComponentProps<typeof Button>) {
       type="button"
       variant="secondary"
       className={cn(
-        "min-h-[var(--height-control-lg)] border-line-card bg-surface font-mono text-[length:var(--font-size-550)] font-medium shadow-200 hover:border-line-card hover:bg-surface-hover active:bg-surface-secondary",
+        "min-h-[56px] min-w-[64px] tabular-nums text-[length:var(--font-size-550)] font-medium",
         className,
       )}
       {...props}

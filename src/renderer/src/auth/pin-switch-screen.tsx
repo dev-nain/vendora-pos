@@ -6,7 +6,7 @@ import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { isUnauthenticatedError } from "./messages";
 import { PinPad } from "./pin-pad";
-import { PaneHeading, SplitLayout } from "./split-layout";
+import { PaneHeading, AuthLayout } from "./split-layout";
 import { UserTile } from "./user-tile";
 import { usePinCooldown } from "./use-pin-cooldown";
 
@@ -61,7 +61,7 @@ export function PinSwitchScreen({
   };
 
   return (
-    <SplitLayout
+    <AuthLayout
       back={
         <Button variant="ghost" onClick={onBack}>
           <ArrowLeftIcon aria-hidden="true" size={16} strokeWidth={2} />
@@ -124,6 +124,6 @@ export function PinSwitchScreen({
           onEscape={clearSelection}
         />
       ) : null}
-    </SplitLayout>
+    </AuthLayout>
   );
 }

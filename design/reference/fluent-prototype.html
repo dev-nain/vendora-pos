@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Vendora — Fluent prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+  color-scheme: light;
+  --font: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", "Inter", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", "Inter", system-ui, sans-serif;
+
+  --mica: #F3F3F3;
+  --layer: #FBFBFB;
+  --layer-alt: #FFFFFF;
+  --stroke-card: #E5E5E5;
+  --stroke-divider: #EBEBEB;
+  --stroke-control: #E0E0E0;
+  --stroke-control-strong: #868686;
+
+  --text: #1A1A1A;
+  --text-secondary: #5C5C5C;
+  --text-tertiary: #6B6B6B;
+  --text-disabled: #A0A0A0;
+
+  --fill-control: #FFFFFF;
+  --fill-control-hover: #F9F9F9;
+  --fill-subtle-hover: rgba(0,0,0,.04);
+  --fill-subtle-pressed: rgba(0,0,0,.025);
+  --fill-selected: rgba(0,0,0,.055);
+
+  --accent: #005FB8;
+  --accent-hover: #1A6FC0;
+  --accent-pressed: #3183CA;
+  --accent-text: #005A9E;
+  --on-accent: #FFFFFF;
+
+  --success-text: #0F7B0F;
+  --caution-text: #8A5300;
+  --critical-text: #C42B1C;
+  --critical-fill: #C42B1C;
+
+  --smoke: rgba(0,0,0,.3);
+  --shadow-dialog: 0 32px 64px rgba(0,0,0,.19), 0 2px 21px rgba(0,0,0,.15);
+  --shadow-flyout: 0 8px 16px rgba(0,0,0,.14);
+  --focus-outer: #000000;
+  --focus-inner: #FFFFFF;
+
+  --r-control: 4px;
+  --r-overlay: 8px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --mica: #202020;
+  --layer: #272727;
+  --layer-alt: #2C2C2C;
+  --stroke-card: #1C1C1C;
+  --stroke-divider: #333333;
+  --stroke-control: #3A3A3A;
+  --stroke-control-strong: #9A9A9A;
+
+  --text: #FFFFFF;
+  --text-secondary: #CFCFCF;
+  --text-tertiary: #ABABAB;
+  --text-disabled: #6E6E6E;
+
+  --fill-control: #2D2D2D;
+  --fill-control-hover: #323232;
+  --fill-subtle-hover: rgba(255,255,255,.06);
+  --fill-subtle-pressed: rgba(255,255,255,.04);
+  --fill-selected: rgba(255,255,255,.08);
+
+  --accent: #60CDFF;
+  --accent-hover: #5BBAE8;
+  --accent-pressed: #56A7D0;
+  --accent-text: #99EBFF;
+  --on-accent: #000000;
+
+  --success-text: #6CCB5F;
+  --caution-text: #FCE100;
+  --critical-text: #FF99A4;
+  --critical-fill: #E5484D;
+
+  --smoke: rgba(0,0,0,.5);
+  --shadow-dialog: 0 32px 64px rgba(0,0,0,.4), 0 2px 21px rgba(0,0,0,.3);
+  --shadow-flyout: 0 8px 16px rgba(0,0,0,.3);
+  --focus-outer: #FFFFFF;
+  --focus-inner: #000000;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font: 400 14px/20px var(--font);
+  color: var(--text);
+  background: var(--mica);
+  font-feature-settings: "tnum";
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+button { font: inherit; color: inherit; }
+.num { font-variant-numeric: tabular-nums; }
+svg { flex: none; }
+
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--focus-outer);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 1px var(--focus-inner);
+}
+
+.app { display: grid; grid-template-rows: 40px 1fr 36px; height: 100vh; min-width: 1366px; min-height: 768px; }
+
+.titlebar { display: flex; align-items: center; -webkit-app-region: drag; }
+.titlebar .brand { display: flex; align-items: center; gap: 10px; padding: 0 12px 0 14px; font-size: 12px; }
+.app-icon { width: 16px; height: 16px; border-radius: 3px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font: 700 10px/1 var(--font); }
+.tabs { display: flex; gap: 2px; margin-left: 8px; -webkit-app-region: no-drag; }
+.tab {
+  position: relative; height: 32px; padding: 0 12px; border: 0; border-radius: var(--r-control);
+  background: transparent; color: var(--text-secondary); cursor: default;
+}
+.tab:hover { background: var(--fill-subtle-hover); color: var(--text); }
+.tab[aria-selected="true"] { color: var(--text); font-weight: 600; }
+.tab[aria-selected="true"]::after {
+  content: ""; position: absolute; left: 50%; bottom: 2px; width: 16px; height: 3px; margin-left: -8px;
+  border-radius: 2px; background: var(--accent);
+}
+.titlebar .spacer { flex: 1; }
+.title-meta { display: flex; align-items: center; gap: 16px; padding-right: 8px; color: var(--text-secondary); font-size: 12px; -webkit-app-region: no-drag; }
+.user-btn { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border: 0; border-radius: var(--r-control); background: transparent; font-size: 12px; color: var(--text); }
+.user-btn:hover { background: var(--fill-subtle-hover); }
+.avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--fill-selected); display: grid; place-items: center; font-size: 10px; font-weight: 600; }
+.caption { display: flex; height: 40px; -webkit-app-region: no-drag; }
+.caption button { width: 46px; height: 40px; border: 0; background: transparent; display: grid; place-items: center; color: var(--text); }
+.caption button:hover { background: var(--fill-subtle-hover); }
+.caption button.close:hover { background: #C42B1C; color: #fff; }
+
+.workspace {
+  display: grid; grid-template-columns: 1fr 420px; min-height: 0;
+  background: var(--layer); border-top: 1px solid var(--stroke-card); border-left: 1px solid var(--stroke-card);
+  border-top-left-radius: var(--r-overlay);
+}
+.pane { display: flex; flex-direction: column; min-height: 0; }
+
+.search-wrap { padding: 20px 24px 12px; }
+.search {
+  display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 12px;
+  background: var(--fill-control); border: 1px solid var(--stroke-control); border-bottom-color: var(--stroke-control-strong);
+  border-radius: var(--r-control); position: relative;
+}
+.search:hover { background: var(--fill-control-hover); }
+.search:focus-within { background: var(--layer-alt); border-bottom-color: transparent; }
+.search:focus-within::after {
+  content: ""; position: absolute; left: -1px; right: -1px; bottom: -1px; height: 2px;
+  background: var(--accent); border-radius: 0 0 var(--r-control) var(--r-control);
+}
+.search svg { color: var(--text-secondary); }
+.search input {
+  flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; outline: none;
+  font: 400 16px/22px var(--font); color: var(--text);
+}
+.search input::placeholder { color: var(--text-tertiary); }
+.search input:focus-visible { box-shadow: none; outline: none; }
+
+.list-head {
+  display: grid; grid-template-columns: 1fr 120px 120px; gap: 16px; align-items: end;
+  padding: 8px 36px 6px; font-size: 12px; color: var(--text-secondary);
+}
+.list-head .r, .row .r { text-align: right; }
+.results { flex: 1; overflow: auto; padding: 0 24px 16px; }
+.row {
+  position: relative; display: grid; grid-template-columns: 1fr 120px 120px; gap: 16px; align-items: center;
+  height: 48px; padding: 0 12px; border-radius: var(--r-control); cursor: default;
+}
+.row:hover { background: var(--fill-subtle-hover); }
+.row[aria-selected="true"] { background: var(--fill-selected); }
+.row[aria-selected="true"]::before {
+  content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 18px; margin-top: -9px;
+  border-radius: 2px; background: var(--accent);
+}
+.row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .name small { color: var(--text-secondary); font-size: 12px; margin-left: 8px; }
+.row .stock { color: var(--text-secondary); }
+.row .stock.low { color: var(--caution-text); }
+.row .price { font-weight: 600; }
+mark { background: transparent; color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--accent); }
+.empty { padding: 48px 12px; color: var(--text-secondary); text-align: center; }
+
+.bill { border-left: 1px solid var(--stroke-divider); background: var(--layer-alt); }
+.bill-head { display: flex; align-items: baseline; justify-content: space-between; padding: 22px 24px 14px; }
+.bill-head h2 { margin: 0; font: 600 20px/28px var(--font-display); }
+.bill-head .meta { color: var(--text-secondary); font-size: 12px; display: flex; gap: 4px; align-items: center; }
+.link-btn { border: 0; background: transparent; color: var(--accent-text); font-size: 12px; padding: 4px 6px; border-radius: var(--r-control); }
+.link-btn:hover { background: var(--fill-subtle-hover); }
+.lines { flex: 1; overflow: auto; padding: 0 12px; outline: none; }
+.line {
+  position: relative; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px;
+  padding: 10px 12px; border-radius: var(--r-control); min-height: 56px; cursor: default;
+}
+.line:hover { background: var(--fill-subtle-hover); }
+.line .lname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.line .ltotal { font-weight: 600; text-align: right; }
+.line .lsub { color: var(--text-secondary); font-size: 12px; grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
+.lines.active .line[aria-selected="true"] { background: var(--fill-selected); }
+.lines.active .line[aria-selected="true"]::before {
+  content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 18px; margin-top: -9px; border-radius: 2px; background: var(--accent);
+}
+.lines.active .line[aria-selected="true"] .lsub { color: var(--text); }
+.qty-input { width: 64px; height: 28px; padding: 0 6px; font: inherit; color: var(--text); background: var(--fill-control); border: 1px solid var(--stroke-control); border-bottom: 2px solid var(--accent); border-radius: var(--r-control); }
+.line.flash { animation: flash .6s ease-out; }
+@keyframes flash { from { background: color-mix(in srgb, var(--accent) 16%, transparent); } to { background: transparent; } }
+.bill-empty { margin: auto; text-align: center; color: var(--text-secondary); padding: 0 32px; }
+.bill-empty strong { display: block; color: var(--text); font-weight: 600; margin-bottom: 4px; }
+
+.totals { border-top: 1px solid var(--stroke-divider); padding: 14px 24px 20px; }
+.trow { display: flex; justify-content: space-between; color: var(--text-secondary); }
+.trow + .trow { margin-top: 2px; }
+.grand { display: flex; justify-content: space-between; align-items: baseline; margin: 10px 0 16px; }
+.grand span:first-child { font-weight: 600; }
+.grand .amount { font: 600 32px/40px var(--font-display); font-variant-numeric: tabular-nums; }
+
+.btn {
+  height: 32px; padding: 0 12px; border-radius: var(--r-control); border: 1px solid var(--stroke-control);
+  border-bottom-color: color-mix(in srgb, var(--stroke-control-strong) 45%, var(--stroke-control));
+  background: var(--fill-control); color: var(--text); display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn:hover { background: var(--fill-control-hover); }
+.btn:active { color: var(--text-secondary); }
+.btn.accent { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.btn.accent:hover { background: var(--accent-hover); }
+.btn.accent:active { background: var(--accent-pressed); }
+.btn[disabled] { background: var(--fill-subtle-hover); color: var(--text-disabled); border-color: transparent; }
+.btn.lg { height: 52px; font-size: 16px; font-weight: 600; width: 100%; }
+.btn .key { font-size: 12px; font-weight: 400; opacity: .8; }
+
+.statusbar { display: flex; align-items: center; gap: 20px; padding: 0 16px; color: var(--text-secondary); font-size: 12px; background: var(--layer); border-left: 1px solid var(--stroke-card); }
+.statusbar .hints { display: flex; gap: 18px; flex: 1; }
+.hint { display: inline-flex; align-items: center; gap: 6px; }
+kbd {
+  font: 600 11px/1 var(--font); color: var(--text); min-width: 20px; height: 20px; padding: 0 5px;
+  display: inline-grid; place-items: center; border-radius: 3px; background: var(--fill-control); border: 1px solid var(--stroke-control); border-bottom-width: 2px;
+}
+.status-ok { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success-text); }
+
+.smoke { position: fixed; inset: 0; background: var(--smoke); display: none; place-items: center; z-index: 10; }
+.smoke.open { display: grid; }
+.dialog {
+  width: 520px; background: var(--layer-alt); border-radius: var(--r-overlay); box-shadow: var(--shadow-dialog);
+  border: 1px solid var(--stroke-card); overflow: hidden; animation: pop .16s cubic-bezier(.1,.9,.2,1);
+}
+@keyframes pop { from { transform: scale(1.05); opacity: 0; } to { transform: none; opacity: 1; } }
+.dialog-body { padding: 24px; }
+.dialog h3 { margin: 0 0 4px; font: 600 20px/28px var(--font-display); }
+.due { display: flex; justify-content: space-between; align-items: baseline; margin: 12px 0 20px; }
+.due span:first-child { color: var(--text-secondary); }
+.due .amount { font: 600 40px/52px var(--font-display); font-variant-numeric: tabular-nums; }
+.seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 3px; border-radius: 6px; background: var(--fill-subtle-hover); margin-bottom: 20px; }
+.seg button { height: 40px; border: 0; border-radius: var(--r-control); background: transparent; color: var(--text-secondary); display: flex; align-items: center; justify-content: center; gap: 8px; }
+.seg button:hover { color: var(--text); }
+.seg button[aria-checked="true"] { background: var(--layer-alt); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--stroke-control), 0 1px 2px rgba(0,0,0,.06); }
+.seg .key { font-size: 11px; color: var(--text-tertiary); font-weight: 400; }
+.field label { display: block; margin-bottom: 6px; }
+.field .search { height: 48px; }
+.field .search input { font-size: 22px; font-weight: 600; }
+.field .prefix { color: var(--text-secondary); font-size: 16px; }
+.quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.quick .btn { height: 44px; }
+.change { display: flex; justify-content: space-between; align-items: baseline; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--stroke-divider); }
+.change .amount { font: 600 28px/36px var(--font-display); font-variant-numeric: tabular-nums; color: var(--success-text); }
+.change.short .amount { color: var(--critical-text); }
+.dialog-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 24px; background: var(--layer); border-top: 1px solid var(--stroke-divider); }
+.dialog-foot .btn { height: 44px; }
+
+.toast {
+  position: fixed; right: 440px; bottom: 52px; display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+  background: var(--layer-alt); border: 1px solid var(--stroke-card); border-radius: var(--r-overlay); box-shadow: var(--shadow-flyout);
+  opacity: 0; transform: translateY(8px); transition: opacity .15s, transform .15s; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: none; }
+.toast svg { color: var(--success-text); }
+
+.backoffice { display: none; grid-template-columns: 240px 1fr; min-height: 0; background: var(--mica); }
+.app.bo .workspace { display: none; }
+.app.bo .backoffice { display: grid; }
+.nav { padding: 8px 4px; display: flex; flex-direction: column; gap: 2px; }
+.nav button { position: relative; height: 40px; border: 0; background: transparent; border-radius: var(--r-control); text-align: left; padding: 0 12px 0 16px; display: flex; align-items: center; gap: 14px; color: var(--text); }
+.nav button:hover { background: var(--fill-subtle-hover); }
+.nav button[aria-current="page"] { background: var(--fill-selected); }
+.nav button[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 16px; margin-top: -8px; border-radius: 2px; background: var(--accent); }
+.nav svg { color: var(--text-secondary); }
+.bo-content { background: var(--layer); border-top: 1px solid var(--stroke-card); border-left: 1px solid var(--stroke-card); border-top-left-radius: var(--r-overlay); padding: 28px 36px; overflow: auto; }
+.bo-content h1 { margin: 0 0 20px; font: 600 28px/36px var(--font-display); }
+.toolbar { display: flex; gap: 8px; margin-bottom: 16px; }
+.toolbar .search { height: 32px; width: 280px; }
+.toolbar .search input { font-size: 14px; }
+.card { background: var(--layer-alt); border: 1px solid var(--stroke-card); border-radius: var(--r-overlay); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-weight: 400; font-size: 12px; color: var(--text-secondary); padding: 12px 16px 8px; }
+td { padding: 0 16px; height: 48px; border-top: 1px solid var(--stroke-divider); }
+tr:hover td { background: var(--fill-subtle-hover); }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.pill .dot.off { background: var(--text-tertiary); }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <header class="titlebar">
+    <div class="brand"><span class="app-icon" aria-hidden="true">V</span><span>Vendora</span></div>
+    <nav class="tabs" role="tablist" aria-label="Area">
+      <button class="tab" role="tab" aria-selected="true" id="tab-sell" title="Ctrl+1">Sell</button>
+      <button class="tab" role="tab" aria-selected="false" id="tab-bo" title="Ctrl+2">Back office</button>
+    </nav>
+    <div class="spacer"></div>
+    <div class="title-meta">
+      <span>Shift open since 9:02</span>
+      <button class="user-btn" aria-label="Signed in as Ali Raza. Open account menu"><span class="avatar">AR</span>Ali Raza</button>
+    </div>
+    <div class="caption" aria-hidden="true">
+      <button tabindex="-1"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 5h10" stroke="currentColor"/></svg></button>
+      <button tabindex="-1"><svg width="10" height="10" viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9" rx="1" fill="none" stroke="currentColor"/></svg></button>
+      <button tabindex="-1" class="close"><svg width="10" height="10" viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor"/></svg></button>
+    </div>
+  </header>
+
+  <main class="workspace" id="sell">
+    <section class="pane" aria-label="Products">
+      <div class="search-wrap">
+        <div class="search">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5.25" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          <input id="q" type="text" autocomplete="off" spellcheck="false" placeholder="Scan a barcode or type a product name"
+                 role="combobox" aria-expanded="true" aria-controls="results" aria-autocomplete="list" aria-label="Search products">
+          <kbd>F2</kbd>
+        </div>
+      </div>
+      <div class="list-head" aria-hidden="true"><span id="list-title">Frequently sold</span><span class="r">In stock</span><span class="r">Price</span></div>
+      <div class="results" id="results" role="listbox" aria-label="Products"></div>
+    </section>
+
+    <section class="pane bill" aria-label="Current bill">
+      <div class="bill-head">
+        <h2>Bill <span class="num" id="bill-no">0142</span></h2>
+        <div class="meta"><span id="item-count">No items</span><span id="held-wrap"></span></div>
+      </div>
+      <div class="lines" id="lines" role="listbox" tabindex="0" aria-label="Bill lines"></div>
+      <div class="totals">
+        <div class="trow"><span>Subtotal</span><span class="num" id="subtotal">Rs 0</span></div>
+        <div class="trow"><span>Sales tax (incl.)</span><span class="num" id="tax">Rs 0</span></div>
+        <div class="grand"><span>Total</span><span class="amount" id="total" aria-live="polite">Rs 0</span></div>
+        <button class="btn accent lg" id="pay" disabled>Pay <span class="key">F12</span></button>
+      </div>
+    </section>
+  </main>
+
+  <main class="backoffice" id="bo">
+    <nav class="nav" aria-label="Back office">
+      <button><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 5l6-3 6 3v6l-6 3-6-3z M2 5l6 3 6-3 M8 8v6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>Products</button>
+      <button><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 13h12M4 13V8M8 13V4M12 13V6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Stock</button>
+      <button><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 3h2l1.5 7h7L14 5H5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="6" cy="13" r="1" fill="currentColor"/><circle cx="12" cy="13" r="1" fill="currentColor"/></svg>Purchases</button>
+      <button><svg width="16" height="16" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M5 10l2-2 2 1.5L11.5 6" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>Reports</button>
+      <button aria-current="page"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="2.75" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.5 14c.8-2.8 3-4 5.5-4s4.7 1.2 5.5 4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Users</button>
+      <button><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Settings</button>
+    </nav>
+    <section class="bo-content">
+      <h1>Users</h1>
+      <div class="toolbar">
+        <button class="btn accent">Add user</button>
+        <div class="spacer" style="flex:1"></div>
+        <div class="search"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5.25" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg><input placeholder="Search users" aria-label="Search users"></div>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Name</th><th>Role</th><th>Last sign-in</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Hamid Khan</td><td>Owner</td><td class="num">Today, 8:55</td><td><span class="pill"><span class="dot"></span>Active</span></td></tr>
+            <tr><td>Ali Raza</td><td>Cashier</td><td class="num">Today, 9:02</td><td><span class="pill"><span class="dot"></span>Active</span></td></tr>
+            <tr><td>Sana Iqbal</td><td>Manager</td><td class="num">Yesterday, 18:40</td><td><span class="pill"><span class="dot"></span>Active</span></td></tr>
+            <tr><td>Bilal Ahmed</td><td>Cashier</td><td class="num">12 Oct, 14:10</td><td><span class="pill"><span class="dot off"></span>Deactivated</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="statusbar">
+    <div class="hints" id="hints"></div>
+    <span class="status-ok"><span class="dot"></span>Printer ready</span>
+  </footer>
+</div>
+
+<div class="smoke" id="pay-dialog" role="dialog" aria-modal="true" aria-labelledby="pay-title">
+  <div class="dialog">
+    <div class="dialog-body">
+      <h3 id="pay-title">Take payment</h3>
+      <div class="due"><span>Amount due</span><span class="amount" id="due">Rs 0</span></div>
+      <div class="seg" role="radiogroup" aria-label="Payment method" id="methods">
+        <button role="radio" aria-checked="true" data-m="cash">Cash <span class="key">1</span></button>
+        <button role="radio" aria-checked="false" data-m="card">Card <span class="key">2</span></button>
+        <button role="radio" aria-checked="false" data-m="wallet">Wallet <span class="key">3</span></button>
+        <button role="radio" aria-checked="false" data-m="split">Split <span class="key">4</span></button>
+      </div>
+      <div class="field" id="cash-field">
+        <label for="received">Cash received</label>
+        <div class="search"><span class="prefix">Rs</span><input id="received" class="num" inputmode="numeric" autocomplete="off"></div>
+        <div class="quick">
+          <button class="btn" data-q="exact">Exact</button>
+          <button class="btn num" data-q="50000">500</button>
+          <button class="btn num" data-q="100000">1,000</button>
+          <button class="btn num" data-q="500000">5,000</button>
+        </div>
+        <div class="change" id="change-row"><span id="change-label">Change due</span><span class="amount" id="change">Rs 0</span></div>
+      </div>
+      <div class="field" id="ref-field" hidden>
+        <label for="ref">Reference number</label>
+        <div class="search"><input id="ref" autocomplete="off" style="font-size:16px;font-weight:400"></div>
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn" id="cancel-pay">Cancel <span class="key">Esc</span></button>
+      <button class="btn accent" id="complete">Complete sale <span class="key">Enter</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M5 8.2l2 2 4-4.2" fill="none" stroke="var(--layer-alt)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="toast-text"></span></div>
+
+<script>
+const products = [
+  { id: 1, name: "Tapal Danedar", size: "190 g", stock: 48, price: 45000, barcode: "8964000105010" },
+  { id: 2, name: "Tapal Family Mixture", size: "450 g", stock: 22, price: 98000, barcode: "8964000105027" },
+  { id: 3, name: "Tapal Green Tea Jasmine", size: "30 bags", stock: 4, price: 32000, barcode: "8964000105034" },
+  { id: 4, name: "Olpers Milk", size: "1 L", stock: 60, price: 37000, barcode: "8961014000011" },
+  { id: 5, name: "Olpers Cream", size: "200 ml", stock: 15, price: 21000, barcode: "8961014000028" },
+  { id: 6, name: "Surf Excel", size: "500 g", stock: 31, price: 41000, barcode: "8961100100015" },
+  { id: 7, name: "Lipton Yellow Label", size: "190 g", stock: 12, price: 52000, barcode: "8961100200012" },
+  { id: 8, name: "Dalda Cooking Oil", size: "1 L", stock: 3, price: 56500, barcode: "8964001200014" },
+  { id: 9, name: "Shan Biryani Masala", size: "50 g", stock: 40, price: 14000, barcode: "8964000700017" },
+  { id: 10, name: "National Ketchup", size: "800 g", stock: 18, price: 47000, barcode: "8964000800014" },
+  { id: 11, name: "Lifebuoy Soap", size: "98 g", stock: 72, price: 13500, barcode: "8961100300019" },
+  { id: 12, name: "Peek Freans Sooper", size: "Family", stock: 26, price: 16000, barcode: "8964000900011" },
+  { id: 13, name: "Nestle Pure Life", size: "1.5 L", stock: 90, price: 12000, barcode: "8961014100018" },
+  { id: 14, name: "Sunsilk Shampoo", size: "185 ml", stock: 9, price: 54000, barcode: "8961100400016" },
+  { id: 15, name: "Rafhan Corn Flour", size: "300 g", stock: 14, price: 19000, barcode: "8964001300011" },
+  { id: 16, name: "Colgate Max Fresh", size: "150 g", stock: 33, price: 39500, barcode: "8961100500013" },
+];
+const LOW = 5;
+const frequent = [1, 4, 6, 13, 11, 9, 12, 7];
+
+const $ = (id) => document.getElementById(id);
+const q = $("q"), resultsEl = $("results"), linesEl = $("lines");
+let results = [], resIdx = 0, lines = [], lineIdx = -1, zone = "search", held = [], billNo = 142, editingQty = false;
+let method = "cash";
+
+const rs = (p) => {
+  const neg = p < 0; p = Math.abs(p);
+  const whole = Math.floor(p / 100).toLocaleString("en-PK"), frac = p % 100;
+  return (neg ? "−" : "") + "Rs " + whole + (frac ? "." + String(frac).padStart(2, "0") : "");
+};
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const highlight = (text, term) => {
+  if (!term) return esc(text);
+  const i = text.toLowerCase().indexOf(term.toLowerCase());
+  if (i < 0) return esc(text);
+  return esc(text.slice(0, i)) + "<mark>" + esc(text.slice(i, i + term.length)) + "</mark>" + esc(text.slice(i + term.length));
+};
+
+function search() {
+  const term = q.value.trim();
+  if (!term) {
+    results = frequent.map((id) => products.find((p) => p.id === id));
+    $("list-title").textContent = "Frequently sold";
+  } else {
+    const words = term.toLowerCase().split(/\s+/);
+    results = products.filter((p) => p.barcode === term || words.every((w) => (p.name + " " + p.size).toLowerCase().includes(w)));
+    $("list-title").textContent = results.length ? `${results.length} result${results.length > 1 ? "s" : ""}` : "No results";
+  }
+  resIdx = 0;
+  renderResults();
+}
+
+function renderResults() {
+  const term = q.value.trim().split(/\s+/)[0];
+  if (!results.length) {
+    resultsEl.innerHTML = `<div class="empty">No product matches “${esc(q.value.trim())}”.<br>Check the spelling or scan the barcode.</div>`;
+    return;
+  }
+  resultsEl.innerHTML = results.map((p, i) => `
+    <div class="row" role="option" id="opt-${p.id}" data-i="${i}" aria-selected="${i === resIdx}">
+      <span class="name">${highlight(p.name, term)}<small>${esc(p.size)}</small></span>
+      <span class="r stock num ${p.stock <= LOW ? "low" : ""}">${p.stock <= LOW ? "Low · " : ""}${p.stock}</span>
+      <span class="r price num">${rs(p.price)}</span>
+    </div>`).join("");
+  q.setAttribute("aria-activedescendant", results[resIdx] ? "opt-" + results[resIdx].id : "");
+  resultsEl.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+}
+
+function addProduct(p) {
+  const existing = lines.find((l) => l.p.id === p.id);
+  if (existing) existing.qty += 1; else lines.push({ p, qty: 1 });
+  lineIdx = lines.findIndex((l) => l.p.id === p.id);
+  q.value = "";
+  search();
+  renderBill(p.id);
+}
+
+function totals() {
+  const total = lines.reduce((s, l) => s + l.p.price * l.qty, 0);
+  const tax = Math.round(total - total / 1.18);
+  return { total, tax, sub: total - tax, count: lines.reduce((s, l) => s + l.qty, 0) };
+}
+
+function renderBill(flashId) {
+  const t = totals();
+  $("bill-no").textContent = String(billNo).padStart(4, "0");
+  if (!lines.length) {
+    linesEl.innerHTML = `<div class="bill-empty"><strong>Bill is empty</strong>Scan a barcode or pick a product to start.</div>`;
+    linesEl.style.display = "flex";
+  } else {
+    linesEl.style.display = "block";
+    linesEl.innerHTML = lines.map((l, i) => {
+      const sel = i === lineIdx;
+      const qty = sel && editingQty
+        ? `<input class="qty-input num" id="qty-edit" value="${l.qty}" aria-label="Quantity">`
+        : `<span class="num">${l.qty}</span>`;
+      return `<div class="line ${flashId === l.p.id ? "flash" : ""}" role="option" data-i="${i}" aria-selected="${sel}">
+        <span class="lname">${esc(l.p.name)} <span style="color:var(--text-secondary)">${esc(l.p.size)}</span></span>
+        <span class="ltotal num">${rs(l.p.price * l.qty)}</span>
+        <span class="lsub">${qty} <span>×</span> <span class="num">${rs(l.p.price)}</span></span>
+      </div>`;
+    }).join("");
+    linesEl.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+  }
+  linesEl.classList.toggle("active", zone === "bill");
+  $("item-count").textContent = t.count ? `${t.count} item${t.count > 1 ? "s" : ""}` : "No items";
+  $("held-wrap").innerHTML = held.length ? ` · <button class="link-btn" id="resume">${held.length} held — resume <kbd>F9</kbd></button>` : "";
+  $("resume")?.addEventListener("click", resume);
+  $("subtotal").textContent = rs(t.sub);
+  $("tax").textContent = rs(t.tax);
+  $("total").textContent = rs(t.total);
+  $("pay").disabled = !lines.length;
+  if (editingQty) { const e = $("qty-edit"); e.focus(); e.select(); }
+  renderHints();
+}
+
+const HINTS = {
+  search: [["↑↓", "Choose"], ["Enter", "Add"], ["Tab", "Edit bill"], ["F8", "Hold"], ["F12", "Pay"]],
+  bill: [["↑↓", "Line"], ["+ −", "Quantity"], ["F4", "Set quantity"], ["Del", "Remove"], ["Esc", "Back to search"], ["F12", "Pay"]],
+  pay: [["Alt+1–4", "Method"], ["Enter", "Complete"], ["Esc", "Cancel"]],
+  bo: [["Ctrl+1", "Back to Sell"]],
+};
+function renderHints() {
+  $("hints").innerHTML = HINTS[zone].map(([k, l]) => `<span class="hint"><kbd>${k}</kbd>${l}</span>`).join("");
+}
+
+function setZone(z) {
+  zone = z;
+  if (z === "search") { editingQty = false; q.focus(); }
+  if (z === "bill") { if (lineIdx < 0) lineIdx = lines.length - 1; linesEl.focus(); }
+  renderBill();
+}
+
+function hold() {
+  if (!lines.length) return;
+  held.push({ lines, billNo });
+  lines = []; lineIdx = -1; billNo += 1;
+  toast("Bill held");
+  setZone("search");
+}
+function resume() {
+  if (!held.length) return;
+  if (lines.length) held.unshift({ lines, billNo });
+  const h = held.pop();
+  lines = h.lines; billNo = h.billNo; lineIdx = lines.length - 1;
+  setZone("search");
+}
+
+let toastTimer;
+function toast(text) {
+  $("toast-text").textContent = text;
+  $("toast").classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $("toast").classList.remove("show"), 2200);
+}
+
+const dlg = $("pay-dialog"), received = $("received");
+function openPay() {
+  if (!lines.length) return;
+  zone = "pay"; renderHints();
+  $("due").textContent = rs(totals().total);
+  setMethod("cash");
+  received.value = "";
+  updateChange();
+  dlg.classList.add("open");
+  received.focus();
+}
+function closePay() { dlg.classList.remove("open"); setZone("search"); }
+function setMethod(m) {
+  method = m;
+  $("methods").querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", b.dataset.m === m));
+  $("cash-field").hidden = m !== "cash";
+  $("ref-field").hidden = m === "cash";
+  $("ref").value = "";
+  (m === "cash" ? received : $("ref")).focus();
+}
+const receivedPaisa = () => Math.round((parseFloat(received.value.replace(/,/g, "")) || 0) * 100);
+function updateChange() {
+  const diff = receivedPaisa() - totals().total;
+  const short = received.value && diff < 0;
+  $("change-row").classList.toggle("short", !!short);
+  $("change-label").textContent = short ? "Still to pay" : "Change due";
+  $("change").textContent = rs(Math.abs(received.value ? diff : 0));
+}
+function complete() {
+  const t = totals().total;
+  if (method === "cash" && received.value && receivedPaisa() < t) { received.focus(); return; }
+  const change = method === "cash" && received.value ? receivedPaisa() - t : 0;
+  dlg.classList.remove("open");
+  lines = []; lineIdx = -1; billNo += 1;
+  toast(change > 0 ? `Sale complete · Give change ${rs(change)}` : "Sale complete");
+  setZone("search");
+}
+
+q.addEventListener("input", search);
+q.addEventListener("focus", () => { if (zone !== "search") { zone = "search"; renderBill(); } });
+resultsEl.addEventListener("click", (e) => {
+  const r = e.target.closest(".row"); if (!r) return;
+  addProduct(results[+r.dataset.i]); q.focus();
+});
+linesEl.addEventListener("click", (e) => {
+  const r = e.target.closest(".line"); if (!r) return;
+  lineIdx = +r.dataset.i; zone = "bill"; linesEl.focus(); renderBill();
+});
+$("pay").addEventListener("click", openPay);
+$("cancel-pay").addEventListener("click", closePay);
+$("complete").addEventListener("click", complete);
+received.addEventListener("input", updateChange);
+$("methods").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setMethod(b.dataset.m); });
+document.querySelectorAll("[data-q]").forEach((b) => b.addEventListener("click", () => {
+  const v = b.dataset.q === "exact" ? totals().total : +b.dataset.q;
+  received.value = (v / 100).toString(); updateChange(); received.focus();
+}));
+$("tab-sell").addEventListener("click", () => showArea("sell"));
+$("tab-bo").addEventListener("click", () => showArea("bo"));
+
+function showArea(a) {
+  $("app").classList.toggle("bo", a === "bo");
+  $("tab-sell").setAttribute("aria-selected", a === "sell");
+  $("tab-bo").setAttribute("aria-selected", a === "bo");
+  if (a === "bo") { zone = "bo"; renderHints(); } else setZone("search");
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "d") {
+    e.preventDefault();
+    const r = document.documentElement;
+    r.dataset.theme = r.dataset.theme === "dark" ? "light" : "dark";
+    return;
+  }
+  if (e.ctrlKey && (e.key === "1" || e.key === "2")) { e.preventDefault(); showArea(e.key === "1" ? "sell" : "bo"); return; }
+  if (zone === "bo") return;
+
+  if (zone === "pay") {
+    if (e.key === "Escape") { e.preventDefault(); closePay(); }
+    else if (e.key === "Enter") { e.preventDefault(); complete(); }
+    else if (/^[1-4]$/.test(e.key) && document.activeElement !== received && document.activeElement !== $("ref")) {
+      setMethod(["cash", "card", "wallet", "split"][+e.key - 1]);
+    } else if (e.altKey && /^[1-4]$/.test(e.key)) { e.preventDefault(); setMethod(["cash", "card", "wallet", "split"][+e.key - 1]); }
+    else if (e.key === "Tab") {
+      const f = [...dlg.querySelectorAll("button, input")].filter((el) => el.offsetParent !== null);
+      const i = f.indexOf(document.activeElement);
+      if (e.shiftKey && i === 0) { e.preventDefault(); f[f.length - 1].focus(); }
+      else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+    }
+    return;
+  }
+
+  if (e.key === "F2") { e.preventDefault(); setZone("search"); q.select(); return; }
+  if (e.key === "F8") { e.preventDefault(); hold(); return; }
+  if (e.key === "F9") { e.preventDefault(); resume(); return; }
+  if (e.key === "F12") { e.preventDefault(); openPay(); return; }
+
+  if (zone === "search") {
+    if (e.key === "ArrowDown") { e.preventDefault(); resIdx = Math.min(resIdx + 1, results.length - 1); renderResults(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); resIdx = Math.max(resIdx - 1, 0); renderResults(); }
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      const exact = products.find((p) => p.barcode === q.value.trim());
+      const pick = exact || results[resIdx];
+      if (pick) addProduct(pick);
+    } else if (e.key === "Escape") { e.preventDefault(); q.value = ""; search(); }
+    else if (e.key === "Tab" && !e.shiftKey && lines.length) { e.preventDefault(); setZone("bill"); }
+    else if (document.activeElement !== q && e.key.length === 1 && !e.ctrlKey && !e.altKey) { q.focus(); }
+    return;
+  }
+
+  if (zone === "bill") {
+    const line = lines[lineIdx];
+    if (editingQty) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const v = parseInt($("qty-edit").value, 10);
+        if (v > 0) line.qty = v;
+        editingQty = false; renderBill(line.p.id); linesEl.focus();
+      } else if (e.key === "Escape") { e.preventDefault(); editingQty = false; renderBill(); linesEl.focus(); }
+      return;
+    }
+    if (e.key === "ArrowDown") { e.preventDefault(); lineIdx = Math.min(lineIdx + 1, lines.length - 1); renderBill(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); lineIdx = Math.max(lineIdx - 1, 0); renderBill(); }
+    else if ((e.key === "+" || e.key === "=") && line) { e.preventDefault(); line.qty += 1; renderBill(); }
+    else if ((e.key === "-" || e.key === "_") && line) { e.preventDefault(); if (line.qty > 1) { line.qty -= 1; renderBill(); } }
+    else if (e.key === "F4" && line) { e.preventDefault(); editingQty = true; renderBill(); }
+    else if ((e.key === "Delete" || e.key === "Backspace") && line) {
+      e.preventDefault();
+      lines.splice(lineIdx, 1);
+      lineIdx = Math.min(lineIdx, lines.length - 1);
+      if (!lines.length) setZone("search"); else renderBill();
+    }
+    else if (e.key === "Escape" || (e.key === "Tab" && e.shiftKey) || e.key === "Tab") { e.preventDefault(); setZone("search"); }
+    else if (/^[0-9]$/.test(e.key) && line) { e.preventDefault(); editingQty = true; renderBill(); $("qty-edit").value = e.key; }
+    else if (e.key.length === 1 && !e.ctrlKey && !e.altKey) { setZone("search"); }
+  }
+});
+
+const params = new URLSearchParams(location.search);
+if (params.get("theme")) document.documentElement.dataset.theme = params.get("theme");
+else if (matchMedia("(prefers-color-scheme: dark)").matches) document.documentElement.dataset.theme = "dark";
+
+search();
+if (params.get("demo")) {
+  [products[0], products[0], products[3], products[5], products[8]].forEach(addProduct);
+  q.value = "tap"; search();
+}
+if (params.get("area") === "bo") showArea("bo");
+renderBill();
+q.focus();
+if (params.get("pay")) { openPay(); received.value = "2000"; updateChange(); }
+</script>
+</body>
+</html>

@@ -26,7 +26,7 @@ function SelectTrigger({ className, children, ...props }: SelectPrimitive.Trigge
       data-slot="select-trigger"
       className={cn(
         controlClasses,
-        "flex touch-manipulation items-center justify-between gap-200 text-left select-none transition-[scale,border-color,box-shadow] duration-[var(--duration-release)] active:scale-[var(--scale-press)] active:duration-[var(--duration-100)]",
+        "flex touch-manipulation items-center justify-between gap-200 text-left select-none",
         className,
       )}
       {...props}
@@ -65,7 +65,7 @@ function SelectContent({
         <SelectPrimitive.Popup
           data-slot="select-content"
           className={cn(
-            "max-h-(--available-height) min-w-(--anchor-width) origin-(--transform-origin) overflow-y-auto rounded-300 border border-line bg-surface p-200 text-foreground shadow-300 outline-none transition-[opacity,scale] duration-[var(--duration-300)] ease-spring data-ending-style:scale-[var(--scale-enter)] data-ending-style:opacity-0 data-ending-style:duration-[var(--duration-200)] data-ending-style:ease-[var(--ease-out)] data-starting-style:scale-[var(--scale-enter)] data-starting-style:opacity-0",
+            "max-h-(--available-height) min-w-(--anchor-width) origin-(--transform-origin) overflow-y-auto rounded-300 border border-line-card bg-surface-secondary p-100 text-foreground shadow-200 outline-none transition-[opacity,scale] duration-[var(--duration-200)] ease-[var(--ease-out)] data-ending-style:opacity-0 data-starting-style:scale-[var(--scale-enter)] data-starting-style:opacity-0",
             className,
           )}
           {...props}
@@ -83,10 +83,7 @@ function SelectLabel({ className, ...props }: SelectPrimitive.GroupLabel.Props) 
   return (
     <SelectPrimitive.GroupLabel
       data-slot="select-label"
-      className={cn(
-        "px-300 py-200 text-[length:var(--font-size-300)] font-medium text-tertiary",
-        className,
-      )}
+      className={cn("px-300 py-200 text-[length:var(--font-size-300)] text-secondary", className)}
       {...props}
     />
   );
@@ -97,7 +94,7 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "relative flex min-h-[var(--height-control-md)] cursor-default items-center gap-200 rounded-200 px-300 text-[length:var(--font-size-400)] outline-none select-none data-disabled:pointer-events-none data-disabled:text-disabled data-highlighted:bg-surface-hover data-highlighted:shadow-[inset_0_0_0_2px_var(--color-border-focus)]",
+        "relative flex min-h-[var(--height-control-md)] cursor-default items-center gap-200 rounded-100 px-300 text-[length:var(--font-size-400)] outline-none select-none data-disabled:pointer-events-none data-disabled:text-disabled data-highlighted:selection-pill",
         className,
       )}
       {...props}

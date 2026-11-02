@@ -1,21 +1,21 @@
 # Brand Kit: Vendora
 
-`design/tokens.css` holds every value below and is the source of truth. If this file and `tokens.css` disagree, `tokens.css` wins — fix this file. See every token and component rendered in `design/design-system.html`. The approved direction is kept as a working reference in `design/reference/bazaar-prototype.html` (direction B). It loads Google Fonts, so it stays a reference file and is never bundled into the app.
+`design/tokens.css` holds every value below and is the source of truth. If this file and `tokens.css` disagree, `tokens.css` wins — fix this file. See every token and component rendered in `design/design-system.html`. The approved direction is kept as a working reference in `design/reference/fluent-prototype.html`. It loads nothing remote, and it is never bundled into the app.
 
 ## Mood & Tone
 
-**Bazaar: warm, calm, sure-footed.** Cream paper, deep emerald for the next action, saffron for what's set aside. Roomy rows, soft corners and warm shadows, so a long shift feels easy on the eyes and the numbers still stand out.
+**Fluent: native, quiet, keyboard-first.** Vendora should look like it ships with Windows 11: a Mica background, layered surfaces, small 4 px controls, 8 px cards and dialogs, and one blue accent. Chrome stays out of the way, so the numbers and the next key press are what you notice.
 
-- Warm, not cute: cream and emerald, never candy colours
-- Calm, not dull: colour only when it means something
-- Fast, not flashy: motion answers the hand instantly and settles without bounce
+- Native, not branded: Windows controls, Segoe UI, a custom title bar with the real caption buttons
+- Quiet, not dull: colour only when it means something
+- Keyboard first: every main action shows its key in the hint bar
 - Local, not foreign: plain local words like Rs, JazzCash and Urdu product names
 
-This is a tool a cashier uses 10 hours a day under time pressure in a bright shop. It should feel like a well-kept shop counter, not a website.
+This is a tool a cashier uses 10 hours a day under time pressure in a bright shop. It should feel like part of the PC, not a website.
 
 ## Design Inspiration
 
-- Apple Human Interface Guidelines: instant press feedback, critically damped motion, translucent materials over content, motion that can be interrupted.
+- [Windows 11 / Fluent 2](https://fluent2.microsoft.design): layers, Mica, the accent underline on inputs, ContentDialog, list views, the selection pill, native caption buttons.
 - [Shopify Polaris](https://polaris.shopify.com): semantic token naming, fill/text pairs, colour reserved for meaning. Study only, because Polaris's licence requires stand-alone apps to look visually distinct from Shopify. Never copy its look.
 - [Square POS](https://squareup.com/us/en/point-of-sale) and [Loyverse](https://loyverse.com): checkout flow, shift reports, low-stock alerts.
 
@@ -25,110 +25,95 @@ This is a tool a cashier uses 10 hours a day under time pressure in a bright sho
 
 | Part | Values |
 |------|--------|
-| Property | `bg`, `bg-surface` (panels), `bg-fill` (buttons, badges), `bg-tint` (product tiles), `bg-material`, `text`, `icon`, `border`, `input` |
-| Role | `brand`, `secondary`, `success`, `warning`, `critical`, `info`, `inverse`, `neutral`, `highlight` |
+| Property | `bg`, `bg-surface` (panels), `bg-fill` (buttons, badges), `text`, `icon`, `border`, `input` |
+| Role | `brand`, `secondary`, `success`, `warning`, `critical`, `info`, `neutral`, `highlight` |
 | State | (default), `hover`, `active`, `selected`, `disabled` |
 
 Rules:
 
 - Components use only semantic tokens, never raw hex values.
-- Every fill has a matching text token: `bg-fill-brand` → `text-on-brand`, `bg-fill-critical` → `text-on-critical`, `bg-fill-success` → `text-on-success`, `bg-fill-highlight` → `text-on-highlight`, `bg-surface-inverse` → `text-on-inverse` and `text-on-inverse-secondary`, `bg-tint-N` → `text-tint-N`.
-- Scales use one rule: **number ÷ 100 × 4 px**. `space-400` = 16px, `font-size-1400` = 56px.
+- Every fill has a matching text token: `bg-fill-brand` → `text-on-brand`, `bg-fill-critical` → `text-on-critical`, `bg-fill-success` → `text-on-success`, `bg-fill-highlight` → `text-on-highlight`.
+- Scales use one rule: **number ÷ 100 × 4 px** for space and radius names. `space-400` = 16px. Font sizes are literal pixels, named by step.
 
 ## Color Palette
 
-**Emerald means "act or selected"**: the main button, focus ring, selected tile or row, and nothing else. **Saffron means "set aside, take a second look"**: held bills and notes. It is never a status. Green, amber and red carry status only, always with an icon or a word. Info is neutral: it isn't a status.
+**Accent blue means "act or selected"**: the main button, the input underline, the selection pill, the active tab and links. **Green, amber and red carry status only**, always with an icon or a word. Info is neutral: it isn't a status. There is no brand colour beyond the accent.
 
-### Light Mode (default)
+Layers, back to front: **Mica** (`bg`, the window) → **layer** (`bg-surface`, content areas) → **card** (`bg-surface-secondary`, cards, dialogs, flyouts).
+
+### Light Mode
 
 | Token | Hex | Usage |
 |-------|-----|-------|
-| `--color-bg` | `#F2EEE6` | Page background (cream paper), top bar |
-| `--color-bg-surface` | `#FFFDF8` | Cards, tables, dialogs, keys, tiles |
-| `--color-bg-surface-secondary` | `#F7F3EB` | Sunken areas, keycaps, dialog side panels |
-| `--color-bg-surface-hover` | `#F2ECE1` | Row and item hover |
-| `--color-bg-surface-active` | `#E9E1D2` | Pressed surfaces |
-| `--color-bg-surface-selected` | `#E3F1EC` | Selected row or tile (always with a bar, border or check) |
-| `--color-bg-surface-inverse` | `#0E3B30` | Total due, login side panel |
-| `--color-bg-fill-brand` | `#0E6B53` | Primary button (Pay, Unlock, Approve) |
-| `--color-bg-fill-brand-hover` | `#0B5A45` | Primary hover |
-| `--color-bg-fill-brand-active` | `#094A39` | Primary pressed |
-| `--color-bg-fill-brand-disabled` | `#A9CFC2` | Primary disabled |
-| `--color-bg-fill-brand-secondary` | `#E3F1EC` | Brand badge, avatar |
-| `--color-bg-fill-secondary` | `#FFFDF8` | Secondary button |
-| `--color-bg-fill-highlight` | `#F6D9A3` | Saffron: held-bill count, notes |
-| `--color-bg-fill-critical` | `#B4381F` | Destructive button (Void) |
-| `--color-bg-fill-success` | `#0E6B53` | Change due, money-in confirmations |
-| `--color-text` | `#1D1A16` | Primary text |
-| `--color-text-secondary` | `#554E44` | Body copy, descriptions |
-| `--color-text-tertiary` | `#6E665A` | Metadata, barcodes, helper text, column headers |
-| `--color-text-disabled` | `#A39A8C` | Disabled labels |
-| `--color-text-brand` / `-link` | `#0B5A45` | Brand text, links |
-| `--color-text-success` | `#0B5A45` | Success text, badges |
-| `--color-text-warning` | `#8A5A00` | Low stock, pending |
-| `--color-text-critical` | `#A8321F` | Errors, negative amounts, refunds |
-| `--color-text-on-inverse` | `#FFFDF8` | Text on the inverse panel |
-| `--color-text-on-inverse-secondary` | `#B9D3CA` | Labels and facts on the inverse panel |
-| `--color-text-on-highlight` | `#5C3B00` | Text on saffron |
-| `--color-border` | `#E6DFD2` | Dividers, dashed row rules |
-| `--color-border-strong` | `#D5CCBB` | Secondary buttons, keycaps |
-| `--color-input-border` | `#8C8272` | Input, select, PIN dot outlines (3:1 required) |
-| `--color-border-focus` | `#0E6B53` | Focus ring |
+| `--color-bg` | `#F3F3F3` | Mica: window background, title bar, nav |
+| `--color-bg-surface` | `#FBFBFB` | Layer: content area, hint bar, dialog footer band |
+| `--color-bg-surface-secondary` | `#FFFFFF` | Cards, dialogs, flyouts, focused inputs |
+| `--color-bg-surface-hover` | `#F0F0F0` | Row and item hover |
+| `--color-bg-surface-active` | `#EBEBEB` | Pressed surfaces |
+| `--color-bg-surface-selected` | `#EAEAEA` | Selected row, tab or nav item (always with the selection pill) |
+| `--color-bg-fill-brand` | `#005FB8` | Accent: primary button, selection pill, tab pill, app mark |
+| `--color-bg-fill-brand-hover` | `#1A6FC0` | Accent hover |
+| `--color-bg-fill-brand-active` | `#004C93` | Accent pressed |
+| `--color-bg-fill-brand-disabled` | `#C5C5C5` | Accent disabled |
+| `--color-bg-fill-secondary` | `#FFFFFF` | Secondary button, input, keycap |
+| `--color-bg-fill-highlight` | `#FFF4CE` | Attention: held-bill count, notes |
+| `--color-bg-fill-critical` | `#C42B1C` | Destructive button (Void) |
+| `--color-bg-fill-success` | `#0F7B0F` | Money-in confirmations |
+| `--color-text` | `#1A1A1A` | Primary text |
+| `--color-text-secondary` | `#5C5C5C` | Body copy, descriptions, column headers |
+| `--color-text-tertiary` | `#666666` | Metadata, barcodes, helper text, version |
+| `--color-text-disabled` | `#A0A0A0` | Disabled labels |
+| `--color-text-brand` / `-link` | `#005A9E` | Links, brand text |
+| `--color-text-success` | `#0E700E` | Success text, badges |
+| `--color-text-warning` | `#8A5300` | Low stock, pending |
+| `--color-text-critical` | `#C42B1C` | Errors, negative amounts, refunds |
+| `--color-text-on-highlight` | `#5C3B00` | Text on the attention fill |
+| `--color-border` | `#EBEBEB` | Dividers, list-row rules |
+| `--color-border-strong` | `#E0E0E0` | Control stroke, keycaps |
+| `--color-input-border` | `#868686` | Input bottom stroke, PIN dot outlines (3:1 required) |
+| `--color-border-focus` | `#000000` | Outer focus ring |
+| `--color-border-card` | `#E5E5E5` | Card, dialog and layer edge |
 
-Status surfaces for banners: `--color-bg-surface-success` `#E3F1EC`, `-warning` `#FBF0D9`, `-critical` `#FBE9E4`, `-info` `#F7F3EB`.
+Status surfaces for banners: `--color-bg-surface-success` `#DFF6DD`, `-warning` `#FFF4CE`, `-critical` `#FDE7E9`, `-info` `#F6F6F6`.
 
-### Dark Mode ("Bazaar night")
+### Dark Mode
 
-A full theme, not an inversion. The inverse panel stays deep emerald.
+A full theme that follows the OS, not an inversion.
 
 | Token | Hex |
 |-------|-----|
-| `--color-bg` | `#101814` |
-| `--color-bg-surface` | `#16201C` |
-| `--color-bg-surface-secondary` | `#1C2823` |
-| `--color-bg-surface-hover` | `#1F2C26` |
-| `--color-bg-surface-selected` | `#173A30` |
-| `--color-bg-surface-inverse` | `#0B2E25` |
-| `--color-bg-fill-brand` | `#3FB58F` (text on it: `#04261C`) |
-| `--color-bg-fill-highlight` | `#5A4318` (text on it: `#F6D9A3`) |
-| `--color-bg-fill-critical` | `#C2452B` (text on it: `#FFFFFF`) |
-| `--color-bg-fill-success` | `#3FB58F` (text on it: `#04261C`) |
-| `--color-text` | `#F3EFE6` |
-| `--color-text-secondary` | `#B9C2BC` |
-| `--color-text-tertiary` | `#97A39C` |
-| `--color-text-brand` | `#6FD0AE` |
-| `--color-text-warning` | `#E8B85C` |
-| `--color-text-critical` | `#F08A73` |
-| `--color-border` | `#27332E` |
-| `--color-border-strong` | `#33413A` |
-| `--color-input-border` | `#6F7D76` |
-| `--color-border-focus` | `#3FB58F` |
+| `--color-bg` | `#202020` |
+| `--color-bg-surface` | `#272727` |
+| `--color-bg-surface-secondary` | `#2C2C2C` |
+| `--color-bg-surface-hover` | `#2F2F2F` |
+| `--color-bg-surface-selected` | `#353535` |
+| `--color-bg-fill-brand` | `#60CDFF` (text on it: `#000000`) |
+| `--color-bg-fill-highlight` | `#433519` (text on it: `#FCE100`) |
+| `--color-bg-fill-critical` | `#E5484D` (text on it: `#000000`) |
+| `--color-bg-fill-success` | `#6CCB5F` (text on it: `#000000`) |
+| `--color-text` | `#FFFFFF` |
+| `--color-text-secondary` | `#CFCFCF` |
+| `--color-text-tertiary` | `#ABABAB` |
+| `--color-text-brand` | `#99EBFF` |
+| `--color-text-warning` | `#FCE100` |
+| `--color-text-critical` | `#FF99A4` |
+| `--color-border` | `#333333` |
+| `--color-border-strong` | `#3A3A3A` |
+| `--color-input-border` | `#9A9A9A` |
+| `--color-border-focus` | `#FFFFFF` |
+| `--color-border-card` | `#1C1C1C` |
 
-Light is the default (bright shops). Dark is a full theme chosen by the user. It follows the OS setting until they choose. The full dark set is in `tokens.css`.
-
-### Product Tints
-
-Six category tint pairs colour the product initial tiles (`TP`, `OL`) on bill lines and product lists. They help the eye find a line, and the product name always sits next to them. Every pair passes 4.5:1.
-
-| Pair | Light bg / text | Dark bg / text |
-|------|-----------------|----------------|
-| `tint-1` saffron | `#F6D9A3` / `#5C3B00` | `#3A2C12` / `#F6D9A3` |
-| `tint-2` blue | `#DCEBF7` / `#1F4A6E` | `#17293A` / `#BCD8F0` |
-| `tint-3` clay | `#F3E2D3` / `#6B3A12` | `#33241A` / `#EBCDB3` |
-| `tint-4` leaf | `#E8EFD9` / `#3F5317` | `#232E16` / `#CFE0AE` |
-| `tint-5` rose | `#F7DADA` / `#7A1F1F` | `#3A1C1C` / `#F2BDBD` |
-| `tint-6` indigo | `#DDE3F8` / `#25307A` | `#1D2340` / `#C4CEF5` |
+Theme follows the OS (`prefers-color-scheme`); there is no in-app switch. The `data-theme` attribute on `<html>` forces a theme for testing. The full dark set is in `tokens.css`.
 
 ### Contrast
 
 Every text/background pair in both themes meets WCAG 2.1 AA (4.5:1 text; 3:1 icons, focus ring and input outlines). This is tested, not eyeballed: `src/main/tokens-contrast.test.ts` reads `tokens.css` and fails the build if a documented pair drops below AA in light or dark. It checks:
 
 - `text`, `text-secondary`, `text-tertiary`, `text-brand`, `text-link` and `text-critical` on `bg`, `bg-surface` and `bg-surface-secondary`
-- text on hover, active and selected surfaces and on secondary fills
-- every `text-on-*` on its fill, including inverse, inverse-secondary and highlight
+- text on hover, active and selected surfaces (including `text-secondary` and `text-tertiary` on selected) and on secondary fills
+- every `text-on-*` on its fill, including highlight
 - every status text on its status surface and secondary fill
-- every `text-tint-N` on `bg-tint-N`
-- `input-border`, `border-focus`, `border-critical-strong` and the icon colours at 3:1
+- `input-border`, `border-focus` (also on `bg-surface-secondary`), `border-critical-strong` and the icon colours at 3:1
 
 Add the pair to the test when you add a token.
 
@@ -138,45 +123,32 @@ Add the pair to the test when you add a token.
 
 | Role | Font | Fallback |
 |------|------|----------|
-| Interface | **Plus Jakarta Sans** (variable, 200–800) | Segoe UI, system-ui |
-| Numbers | **JetBrains Mono** (variable, 100–800) | Cascadia Mono, Consolas |
-| Urdu | **Noto Nastaliq Urdu** | Jameel Noori Nastaleeq |
+| Interface | **Segoe UI Variable Text** | Segoe UI Variable, Segoe UI, system-ui |
+| Display (headings, amounts) | **Segoe UI Variable Display** | Segoe UI Variable, Segoe UI, system-ui |
+| Codes | **Cascadia Mono** | Consolas, ui-monospace |
+| Urdu | **Noto Nastaliq Urdu** (bundled) | Jameel Noori Nastaleeq |
 
-All fonts are bundled with the app from `@fontsource-variable/*` and `@fontsource/*`, so it looks right offline. Use JetBrains Mono for every number a cashier compares: prices, quantities, totals, barcodes, invoice numbers, PIN keys and the clock.
+Segoe UI ships with Windows 10 and 11, so it is always available offline and nothing Latin is bundled. Numbers a cashier compares (prices, quantities, totals, invoice numbers, PIN keys) use **tabular figures** (`tabular-nums`) in the interface font. Cascadia Mono is for barcodes and codes only.
 
 ### Type Scale
 
 | Token | Size | Usage |
 |-------|------|-------|
-| `--font-size-1400` | 56px | Total due, change due |
-| `--font-size-900` | 36px | Big numbers on side panels |
-| `--font-size-700` | 28px | Page headings, side-panel wordmark |
-| `--font-size-550` | 22px | Dialog titles, PIN keys |
-| `--font-size-450` | 18px | Scan field, large buttons, top-bar wordmark |
-| `--font-size-400` | 16px | Body, bill lines, inputs (default) |
-| `--font-size-350` | 14px | Buttons, labels, helper text |
-| `--font-size-300` | 12px | Column headers, badges, keycaps only |
+| `--font-size-1400` | 56px | Reserved for the largest totals |
+| `--font-size-900` | 40px | Display: amount due, change due |
+| `--font-size-700` | 28px | Title: page and auth headings |
+| `--font-size-550` | 20px | Subtitle: dialog titles, PIN keys |
+| `--font-size-450` | 16px | Scan field, large buttons |
+| `--font-size-400` / `-350` | 14px | Body (Fluent base), buttons, labels, inputs |
+| `--font-size-300` | 12px | Caption: hints, title-bar text, column headers, badges |
 
-Nothing a cashier must read goes below 14px.
+Line heights: `--line-height-normal` 1.43 (14/20), `--line-height-tight` 1.25. Tracking is 0 everywhere except `--letter-spacing-caps` (0.06em, 12px caps labels).
 
-### Tracking, Line Heights & Weights
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--letter-spacing-display` | -0.035em | 56px totals |
-| `--letter-spacing-heading` | -0.02em | 22–36px headings |
-| `--letter-spacing-tight` | -0.025em | Wordmark |
-| `--letter-spacing-caps` | 0.06em | 12px caps labels |
-| `--line-height-tight` | 1.15 | Headings, totals |
-| `--line-height-normal` | 1.5 | Body |
-| `--line-height-urdu` | 2.1 | Nastaliq text (needs the extra height) |
-| `--font-weight-regular` | 400 | Body |
-| `--font-weight-medium` | 500 | Numbers on keys, clock |
-| `--font-weight-semibold` | 600 | Buttons, labels, names |
-| `--font-weight-bold` | 700 | Headings, totals |
-| `--font-weight-extrabold` | 800 | Wordmark only |
-
-Body text has no tracking.
+| Weight token | Value | Usage |
+|--------------|-------|-------|
+| `--font-weight-regular` | 400 | Body, labels, table headers |
+| `--font-weight-medium` | 500 | Numbers on keys |
+| `--font-weight-semibold` | 600 | Buttons, titles, selected tab, names |
 
 ## Money & Numbers
 
@@ -196,11 +168,11 @@ Body text has no tracking.
 | `--space-100` | 4px | Icon gaps |
 | `--space-200` | 8px | Inline gaps, button groups |
 | `--space-300` | 12px | Compact spacing, tile gaps |
-| `--space-400` | 16px | Standard spacing, cell padding, side-panel margin |
-| `--space-500` | 20px | Top-bar padding, total panel padding |
-| `--space-600` | 24px | Card and dialog padding, pane gaps |
+| `--space-400` | 16px | Standard spacing, cell padding |
+| `--space-500` | 20px | Section gaps |
+| `--space-600` | 24px | Card and dialog padding |
 | `--space-800` | 32px | Section spacing, pane padding |
-| `--space-1000` | 40px | Side-panel padding |
+| `--space-1000` | 40px | Large padding |
 | `--space-1200` | 48px | Large section breaks |
 | `--space-1600` | 64px | Page-level spacing |
 
@@ -210,43 +182,37 @@ Body text has no tracking.
 |-------|-------|-------|
 | `--height-control-sm` | 36px | Toolbars, dense tables (mouse only) |
 | `--height-control-md` | 44px | Default control; minimum touch target |
-| `--height-control-lg` | 56px | Pay, tender buttons, scan field, PIN keys |
-| `--height-row` | 56px | Table and bill rows |
+| `--height-control-lg` | 52px | Pay, scan field |
+| `--height-row` | 48px | List and bill rows |
+| `--height-title-bar` | 44px | Custom title bar |
+| `--height-hint-bar` | 36px | Hint bar |
 
-Minimum supported screen: **1366×768**, no horizontal scroll. The top bar is 64px. The login side panel is 520px wide.
+Minimum supported screen: **1366×768**, no horizontal scroll. The Back office nav is 240px wide.
 
 ## Border Radius
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--radius-100` | 6px | Keycaps, small chips |
-| `--radius-200` | 10px | Product thumbs, steppers, menu items |
-| `--radius-300` | 14px | Buttons, inputs, selects, PIN keys, menus |
-| `--radius-400` | 20px | Cards, tables, user tiles, dialogs |
-| `--radius-500` | 28px | Large hero panels (login side panel) |
-| `--radius-full` | 999px | Badges, avatars, PIN dots |
+| `--radius-100` / `-200` | 4px | Controls: buttons, inputs, selects, tabs, menu items |
+| `--radius-300` / `-400` / `-500` | 8px | Cards, user tiles, dialogs, flyouts, the layer's top-left corner |
+| `--radius-full` | 999px | Avatars, PIN dots, the selection pill |
 
-## Shadows & Materials
+Keycaps use 3px.
 
-In light mode, shadows carry the edge of a card, so cards have no border (`--color-border-card` is transparent). In dark mode, cards keep a hairline because shadows barely show on a dark ground.
+## Shadows & Strokes
+
+Cards are separated by a 1px `border-card` stroke; shadows are reserved for floating surfaces.
 
 | Token | Light | Usage |
 |-------|-------|-------|
-| `--shadow-100` | `0 1px 2px rgb(60 40 10 / .06)` | Small lifts |
-| `--shadow-200` | `--shadow-100` + `0 6px 20px rgb(60 40 10 / .06)` | Cards, tiles, keys, tables |
-| `--shadow-300` | `0 24px 60px rgb(40 25 5 / .18)` + a 2px contact shadow | Dialogs, menus |
-| `--shadow-focus` | 2px surface gap + 3px `border-focus` ring | Keyboard focus on every control |
+| `--shadow-100` | `0 1px 2px rgb(0 0 0 / .04)` | Small lifts |
+| `--shadow-200` | `0 8px 16px rgb(0 0 0 / .14)` | Flyouts: menus, select lists |
+| `--shadow-300` | `0 32px 64px rgb(0 0 0 / .19)` + `0 2px 21px rgb(0 0 0 / .15)` | Dialogs |
+| `--shadow-focus` | 1px surface gap + 2px `border-focus` ring | Keyboard focus on every control except inputs |
 
-Dark mode uses black shadows at higher alpha (in `tokens.css`).
+Dark mode uses black shadows at higher alpha (in `tokens.css`). Under `prefers-contrast: more`, cards get the strong border.
 
-**Materials** are translucent surfaces for floating chrome over content: sticky table headers and sheets (held bills).
-
-| Token | Light | Dark |
-|-------|-------|------|
-| `--color-bg-material` | `rgb(255 253 248 / .74)` | `rgb(22 32 28 / .72)` |
-| `--blur-material` | 24px | 24px |
-
-Pair the material with `backdrop-filter: blur(var(--blur-material)) saturate(170%)`. With `prefers-reduced-transparency: reduce` or `prefers-contrast: more`, `tokens.css` swaps the material for the solid surface and turns the blur off. Under `prefers-contrast: more`, cards also get a strong border.
+Inputs and selects do not use the ring. They show the Fluent accent underline: a 2px `border-brand` bottom edge on focus (`critical-strong` when invalid).
 
 ## Motion
 
@@ -254,51 +220,42 @@ Motion follows the hand and never delays a sale.
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--duration-100` | 100ms | Pointer-down press, hover |
-| `--duration-200` | 200ms | Fades, exits of menus |
-| `--duration-300` | 350ms | Dialog and menu enter/exit |
-| `--duration-release` | 220ms | Release after a press |
-| `--ease-out` | `cubic-bezier(.2,.8,.2,1)` | Colour changes, fades, release |
-| `--ease-spring` | `linear(…)` | Enter/exit: a critically damped spring (damping 1, response 0.35 s) sampled over `--duration-300` |
-| `--scale-press` | 0.97 | Press feedback |
-| `--scale-enter` | 0.96 | Dialog and menu enter/exit |
+| `--duration-100` | 83ms | Colour changes, hover, press |
+| `--duration-200` | 167ms | Dialog and flyout enter/exit |
+| `--duration-300` | 250ms | Longer transitions |
+| `--ease-out` | `cubic-bezier(0, 0, 0, 1)` | Fluent decelerate; `--ease-spring` is an alias |
+| `--scale-press` | 1 | Fluent doesn't scale on press |
+| `--scale-enter` | 1.05 | Dialog and flyout enter from 105% to 100% |
 
-- **Press feedback is instant.** On pointer-down, buttons, PIN keys, user tiles and select triggers scale to `--scale-press` over `--duration-100`, then release over `--duration-release`. `touch-action: manipulation` removes the tap delay.
-- **Dialogs grow from their trigger.** They scale from `--scale-enter` and fade in, with the transform origin at the trigger's centre, and leave the same way.
-- **Reduced motion keeps fades only.** With `prefers-reduced-motion: reduce`, both scale tokens become 1, the spring falls back to `--ease-out` and press timing drops to 0. Opacity fades stay, so state changes are still visible.
+With `prefers-reduced-motion: reduce`, durations drop to 0 and `--scale-enter` becomes 1.
 
-### Springs for gestures (later)
+## Shell
 
-Gesture work (held-bills sheet, checkout) uses a small spring driven by **damping** and **response**, the same parameters as Apple's SwiftUI springs. There's no animation library: the spring is about 30 lines and lives with the feature that needs it. The prototype has a working reference.
-
-| Motion | Response | Damping | Notes |
-|--------|----------|---------|-------|
-| Dialog open | 0.38 s | 1 | Grows from the trigger |
-| Dialog close | 0.32 s | 1 | Returns to the trigger |
-| Sheet open/close | 0.36 s / 0.32 s | 1 | Translate on x |
-| Sheet release after a drag | 0.32 s | 0.85 | Hands off the release velocity, so it carries the flick |
-| Total due counting | 0.45 s | 1 | Animate the number, never the layout |
-| Wrong-PIN shake | 0.45 s | 0.25 | Kicked with a sideways velocity |
-
-Rules: animate from the live value, so a spring can be interrupted mid-flight. Project a flick's end point (`v / 1000 × 0.998 / 0.002`) to decide open or closed. Rubber-band past the edges. Use about 8px of drag before committing to a direction. With reduced motion, jump to the target.
+- **Title bar:** 44px, on Mica, draggable. App mark and "Vendora" at 12px, the area tabs, then the user button. Windows draws the native caption buttons over the right edge, so the bar keeps clear padding there.
+- **Tabs:** Sell and Back office (owner only), 44px high. The selected tab is semibold with a 16×3px accent pill under its label. `Ctrl+1` and `Ctrl+2` switch.
+- **User button:** a 24px avatar and name. It opens a menu with Lock (`Ctrl+L`) and Log out.
+- **Content layer:** `bg-surface` with an 8px top-left radius and a top and left `border-card` stroke, sitting on Mica.
+- **Hint bar:** 36px, `bg-surface`, 12px `text-secondary`. Keycaps plus a label for each shortcut in the current area. It is plain text.
+- **Selection pill:** selected rows, tiles and nav items get `bg-surface-selected` plus a 3×16px `bg-fill-brand` pill on the left edge. This is how selection avoids relying on colour alone.
+- **Keycaps:** 11px semibold, 20px high, `bg-fill-secondary`, a 1px stroke with a 2px bottom.
 
 ## Icons & Visual Assets
 
 ### Icons
 
-**Lucide**, 2px stroke. 16px inline and in badges, 18px in buttons, 20px in banners and PIN keys, 24px in empty states.
+**Lucide**, 2px stroke. 16px inline, in nav items and in buttons, 20px in banners and PIN keys, 24px in empty states.
 
 An icon never stands alone on an action. It has a visible label, or an accessible name plus a tooltip for icon-only buttons.
 
 ### Logo
 
-- **Wordmark:** lowercase `vendora.` in Plus Jakarta Sans ExtraBold with tight tracking (`--letter-spacing-tight`). The full stop is emerald (`bg-fill-brand`), or saffron on the inverse panel.
-- **Mark:** a lowercase `v` on a square with 28% corner radius, in the inverse colour, with an emerald dot.
-- Clear space: half the mark's width. Minimum size 16px. Ship the mark as the app and installer icon.
+- **Mark:** a 16px rounded square in `bg-fill-brand` with a white `V` (`text-on-brand`). It is the same in the title bar and on the auth screens.
+- **Wordmark:** the word "Vendora" at regular weight next to the mark.
+- Minimum mark size 16px. Ship the mark as the app and installer icon.
 
 ### Receipts
 
-Printed in the printer's monospace font, black only. 48 characters per line on 80mm, 32 on 58mm. Urdu lines print as an image. Footer: `vendora.`
+Printed in the printer's monospace font, black only. 48 characters per line on 80mm, 32 on 58mm. Urdu lines print as an image. Footer: `Vendora`
 
 ## Voice
 
@@ -312,17 +269,17 @@ Printed in the printer's monospace font, black only. 48 characters per line on 8
 ## Principles
 
 1. **The next scan is sacred.** Focus returns to the scan field after every action.
-2. **Emerald means act.** Main action, focus and selection are emerald, and nothing else is. Saffron sets things aside; it never signals status.
-3. **Numbers are the content.** Monospaced, right-aligned; the total is the largest thing on screen.
+2. **Accent means act.** The main action, the input underline and selection are the accent blue, and nothing else is. Status colours never decorate.
+3. **Numbers are the content.** Tabular figures, right-aligned; the total is the largest thing on screen.
 4. **Keyboard first, touch friendly.** Every main action shows its key; every target is at least 44px.
 5. **Failure degrades, never blocks.** Printer, network and backup problems are warnings; the sale completes.
-6. **Never colour alone.** Status pairs colour with an icon and a word. Selection pairs tint with a bar, a heavier border or a check.
+6. **Never colour alone.** Status pairs colour with an icon and a word. Selection pairs the selected fill with the accent pill or a check.
 7. **Motion answers the hand.** Press feedback is instant, motion settles without bounce, and reduced motion leaves only fades.
 
 ## Key Screens for Design Quality
 
 1. **Billing screen**: where cashiers spend 90% of their time. Scan-to-line speed, readable totals, visible shortcuts.
-2. **PIN login and lock**: the split layout, with the inverse panel on the left (wordmark, clock, facts) and user tiles, PIN dots and pad on the right.
+2. **PIN login and lock**: a single centred column on Mica with the app mark top-left and the version bottom-left: user tiles, PIN dots and pad.
 3. **Shift close / Z-report**: where trust is won or lost. Clear expected vs counted, no ambiguity.
 4. **Owner dashboard**: two minutes at the end of the day; the important number must be obvious.
 

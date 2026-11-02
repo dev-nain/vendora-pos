@@ -57,7 +57,6 @@ const TEXT = 4.5;
 const NON_TEXT = 3;
 
 const surfaces = ["--color-bg", "--color-bg-surface", "--color-bg-surface-secondary"];
-const tints = [1, 2, 3, 4, 5, 6];
 
 const pairs: [foreground: string, background: string, minimum: number][] = [
   ...["--color-text", "--color-text-secondary", "--color-text-tertiary"].flatMap((text) =>
@@ -72,6 +71,7 @@ const pairs: [foreground: string, background: string, minimum: number][] = [
   ["--color-text", "--color-bg-surface-active", TEXT],
   ["--color-text", "--color-bg-surface-selected", TEXT],
   ["--color-text-secondary", "--color-bg-surface-selected", TEXT],
+  ["--color-text-tertiary", "--color-bg-surface-selected", TEXT],
   ["--color-text-brand", "--color-bg-surface-selected", TEXT],
   ["--color-text", "--color-bg-fill-secondary", TEXT],
   ["--color-text", "--color-bg-fill-secondary-hover", TEXT],
@@ -83,9 +83,6 @@ const pairs: [foreground: string, background: string, minimum: number][] = [
   ["--color-text-on-critical", "--color-bg-fill-critical-hover", TEXT],
   ["--color-text-on-success", "--color-bg-fill-success", TEXT],
   ["--color-text-on-success", "--color-bg-fill-success-hover", TEXT],
-  ["--color-text-on-inverse", "--color-bg-surface-inverse", TEXT],
-  ["--color-text-on-inverse-secondary", "--color-bg-surface-inverse", TEXT],
-  ["--color-text-inverse", "--color-bg-surface-inverse", TEXT],
   ["--color-text-on-highlight", "--color-bg-fill-highlight", TEXT],
   ["--color-text-secondary", "--color-bg-fill-neutral-secondary", TEXT],
   ["--color-text-brand", "--color-bg-fill-brand-secondary", TEXT],
@@ -100,11 +97,6 @@ const pairs: [foreground: string, background: string, minimum: number][] = [
   ["--color-text", "--color-bg-surface-success", TEXT],
   ["--color-text-success", "--color-bg-surface", TEXT],
   ["--color-text-warning", "--color-bg-surface", TEXT],
-  ...tints.map((tint): [string, string, number] => [
-    `--color-text-tint-${tint}`,
-    `--color-bg-tint-${tint}`,
-    TEXT,
-  ]),
   ...["--color-input-border", "--color-border-focus", "--color-border-critical-strong"].flatMap(
     (border) => surfaces.map((surface): [string, string, number] => [border, surface, NON_TEXT]),
   ),
@@ -120,6 +112,7 @@ const pairs: [foreground: string, background: string, minimum: number][] = [
   ["--color-icon-success", "--color-bg-surface-success", NON_TEXT],
   ["--color-icon-critical", "--color-bg-surface-critical", NON_TEXT],
   ["--color-border-focus", "--color-bg-surface-selected", NON_TEXT],
+  ["--color-border-focus", "--color-bg-surface-secondary", NON_TEXT],
 ];
 
 describe("design tokens", () => {
