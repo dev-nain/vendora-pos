@@ -23,6 +23,7 @@ export const stores = sqliteTable(
     name: text("name"),
     cashierDiscountLimitBps: integer("cashier_discount_limit_bps").notNull().default(500),
     autoLockMinutes: integer("auto_lock_minutes").default(5),
+    standardTaxRateBps: integer("standard_tax_rate_bps").notNull().default(1800),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -35,6 +36,7 @@ export const stores = sqliteTable(
       "stores_auto_lock_minutes_check",
       sql`${t.autoLockMinutes} IS NULL OR ${t.autoLockMinutes} BETWEEN 1 AND 60`,
     ),
+    check("stores_standard_tax_rate_bps_check", sql`${t.standardTaxRateBps} BETWEEN 0 AND 10000`),
   ],
 );
 
@@ -101,4 +103,47 @@ export const auditLog = sqliteTable(
   ],
 );
 
-export const schema = { stores, terminals, users, auditLog };
+export const categories = sqliteTable(
+  "categories",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    name: text("name").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    uniqueIndex("categories_store_id_name_lower_unique")
+      .on(t.storeId, sql`lower(${t.name})`)
+      .where(sql`${t.deletedAt} IS NULL`),
+  ],
+);
+
+export const taxCategories = sqliteTable(
+  "tax_categories",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    name: text("name").notNull(),
+    rateBps: integer("rate_bps"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    uniqueIndex("tax_categories_store_id_name_lower_unique")
+      .on(t.storeId, sql`lower(${t.name})`)
+      .where(sql`${t.deletedAt} IS NULL`),
+    check(
+      "tax_categories_rate_bps_check",
+      sql`${t.rateBps} IS NULL OR ${t.rateBps} BETWEEN 0 AND 10000`,
+    ),
+  ],
+);
+
+export const schema = { stores, terminals, users, auditLog, categories, taxCategories };
