@@ -14,7 +14,16 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase, type VendoraDatabase } from "./client";
 import { runMigrations } from "./migrate";
-import { categories, stores, taxCategories, users, type UserRole } from "./schema";
+import {
+  categories,
+  productBarcodes,
+  products,
+  stores,
+  taxCategories,
+  users,
+  type ProductUnit,
+  type UserRole,
+} from "./schema";
 
 const migrationsFolder = join(process.cwd(), "drizzle");
 
@@ -191,6 +200,156 @@ describe("catalog schema", () => {
     for (const rate of [-1, 10001]) {
       expect(() => database.db.insert(stores).values({ standardTaxRateBps: rate }).run()).toThrow();
     }
+  });
+});
+
+describe("product schema", () => {
+  let dir: string;
+  let database: VendoraDatabase;
+  let storeId: string;
+  let categoryId: string;
+  let taxCategoryId: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vendora-products-"));
+    database = openDatabase(join(dir, "vendora.db"));
+    runMigrations(database, { migrationsFolder, backupDir: join(dir, "backups") });
+    storeId = database.db.insert(stores).values({}).returning().get().id;
+    categoryId = database.db
+      .insert(categories)
+      .values({ storeId, name: "General" })
+      .returning()
+      .get().id;
+    taxCategoryId = database.db
+      .insert(taxCategories)
+      .values({ storeId, name: "Standard" })
+      .returning()
+      .get().id;
+  });
+
+  afterEach(() => {
+    database.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const newProduct = (overrides: Partial<typeof products.$inferInsert> = {}) => ({
+    storeId,
+    nameEn: "Tea",
+    searchText: "tea",
+    categoryId,
+    taxCategoryId,
+    unit: "piece" as ProductUnit,
+    costPaisa: 10000,
+    salePricePaisa: 12000,
+    ...overrides,
+  });
+  const insertProduct = (overrides: Partial<typeof products.$inferInsert> = {}) =>
+    database.db.insert(products).values(newProduct(overrides)).returning().get();
+  const newBarcode = (
+    productId: string,
+    overrides: Partial<typeof productBarcodes.$inferInsert> = {},
+  ) => ({ storeId, productId, barcode: "8961000000017", ...overrides });
+  const insertBarcode = (
+    productId: string,
+    overrides: Partial<typeof productBarcodes.$inferInsert> = {},
+  ) =>
+    database.db.insert(productBarcodes).values(newBarcode(productId, overrides)).returning().get();
+  const otherStoreId = () => database.db.insert(stores).values({}).returning().get().id;
+
+  it("applies defaults and leaves optional fields null", () => {
+    const product = insertProduct();
+    expect(product.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(product).toMatchObject({
+      isActive: true,
+      isSystem: false,
+      nameUr: null,
+      brand: null,
+      internalCode: null,
+      mrpPaisa: null,
+      pctCode: null,
+      lowStockThresholdMilli: null,
+      deletedAt: null,
+    });
+    const barcode = insertBarcode(product.id);
+    expect(barcode).toMatchObject({ packQtyMilli: 1000, salePricePaisa: null, deletedAt: null });
+  });
+
+  it("accepts piece, kg and litre and rejects other units", () => {
+    for (const unit of ["piece", "kg", "litre"] as const) {
+      insertProduct({ unit });
+    }
+    for (const unit of ["g", "ml", "pcs"]) {
+      expect(() => insertProduct({ unit: unit as ProductUnit })).toThrow();
+    }
+  });
+
+  it("rejects negative money and accepts zero", () => {
+    expect(() => insertProduct({ costPaisa: -1 })).toThrow();
+    expect(() => insertProduct({ salePricePaisa: -1 })).toThrow();
+    expect(() => insertProduct({ mrpPaisa: -1 })).toThrow();
+    const product = insertProduct({ costPaisa: 0, salePricePaisa: 0, mrpPaisa: 0 });
+    expect(() => insertBarcode(product.id, { salePricePaisa: -1 })).toThrow();
+    expect(insertBarcode(product.id, { salePricePaisa: 0 }).salePricePaisa).toBe(0);
+  });
+
+  it("requires a positive pack quantity and stores a pack price", () => {
+    const product = insertProduct();
+    expect(() => insertBarcode(product.id, { packQtyMilli: 0 })).toThrow();
+    expect(() => insertBarcode(product.id, { packQtyMilli: -1000 })).toThrow();
+    const pack = insertBarcode(product.id, { packQtyMilli: 24000, salePricePaisa: 270000 });
+    expect(pack).toMatchObject({ packQtyMilli: 24000, salePricePaisa: 270000 });
+  });
+
+  it("rejects a duplicate active barcode in a store until soft-deleted", () => {
+    const first = insertProduct();
+    const second = insertProduct({ nameEn: "Sugar", searchText: "sugar" });
+    const original = insertBarcode(first.id);
+    expect(() => insertBarcode(first.id)).toThrow();
+    expect(() => insertBarcode(second.id)).toThrow();
+
+    const other = otherStoreId();
+    const otherCategory = database.db
+      .insert(categories)
+      .values({ storeId: other, name: "General" })
+      .returning()
+      .get().id;
+    const otherTax = database.db
+      .insert(taxCategories)
+      .values({ storeId: other, name: "Standard" })
+      .returning()
+      .get().id;
+    const otherProduct = insertProduct({
+      storeId: other,
+      categoryId: otherCategory,
+      taxCategoryId: otherTax,
+    });
+    insertBarcode(otherProduct.id, { storeId: other });
+
+    database.db
+      .update(productBarcodes)
+      .set({ deletedAt: new Date() })
+      .where(eq(productBarcodes.id, original.id))
+      .run();
+    insertBarcode(second.id);
+  });
+
+  it("rejects a duplicate active internal code until soft-deleted and allows several nulls", () => {
+    const first = insertProduct({ internalCode: "A1" });
+    expect(() => insertProduct({ internalCode: "A1" })).toThrow();
+    database.db
+      .update(products)
+      .set({ deletedAt: new Date() })
+      .where(eq(products.id, first.id))
+      .run();
+    insertProduct({ internalCode: "A1" });
+    insertProduct({ internalCode: null });
+    insertProduct({ internalCode: null });
+  });
+
+  it("rejects unknown category, tax category and product references", () => {
+    expect(() => insertProduct({ categoryId: "missing" })).toThrow();
+    expect(() => insertProduct({ taxCategoryId: "missing" })).toThrow();
+    expect(() => insertBarcode("missing")).toThrow();
   });
 });
 
