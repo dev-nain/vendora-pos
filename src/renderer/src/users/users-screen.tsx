@@ -1,10 +1,4 @@
-import {
-  ArrowLeftIcon,
-  CircleSlashIcon,
-  CircleCheckIcon,
-  ClockIcon,
-  UserPlusIcon,
-} from "lucide-react";
+import { CircleSlashIcon, CircleCheckIcon, ClockIcon, UserPlusIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import type { ManagedUser } from "@shared/users";
@@ -36,7 +30,6 @@ type DialogState =
 
 interface UsersScreenProps {
   currentUserId: string;
-  onBack: () => void;
   onSessionEnded: () => void;
 }
 
@@ -60,7 +53,7 @@ function StatusBadges({ user }: { user: ManagedUser }) {
   );
 }
 
-export function UsersScreen({ currentUserId, onBack, onSessionEnded }: UsersScreenProps) {
+export function UsersScreen({ currentUserId, onSessionEnded }: UsersScreenProps) {
   const [rows, setRows] = useState<ManagedUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogState>(null);
@@ -101,14 +94,10 @@ export function UsersScreen({ currentUserId, onBack, onSessionEnded }: UsersScre
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col gap-600 p-800">
+    <div className="flex flex-col gap-500">
       <div className="flex items-start gap-400">
-        <Button variant="ghost" onClick={onBack}>
-          <ArrowLeftIcon aria-hidden="true" size={16} strokeWidth={2} />
-          Back
-        </Button>
         <div className="grid flex-1 gap-100">
-          <h1 className="m-0 text-[length:var(--font-size-700)] leading-[var(--line-height-tight)] font-bold tracking-[var(--letter-spacing-heading)] text-foreground">
+          <h1 className="m-0 font-display text-[length:var(--font-size-700)] leading-[36px] font-semibold text-foreground">
             Users
           </h1>
           <p className="m-0 text-[length:var(--font-size-350)] text-secondary">
@@ -236,6 +225,6 @@ export function UsersScreen({ currentUserId, onBack, onSessionEnded }: UsersScre
           onSessionEnded={onSessionEnded}
         />
       ) : null}
-    </main>
+    </div>
   );
 }

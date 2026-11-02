@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 
 import type { SafeUser } from "@shared/auth";
-import { AutoLockSetting } from "../settings/auto-lock-setting";
 import { serviceErrorMessage } from "../auth/messages";
-import { UsersScreen } from "../users/users-screen";
+import { BackOffice } from "./back-office";
 import { HintBar, type Hint } from "./hint-bar";
 import { TitleBar, type Area } from "./title-bar";
 
@@ -73,21 +72,7 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
           <p className="m-0">Checkout isn't set up yet.</p>
         </main>
       ) : (
-        <div
-          id="panel-back-office"
-          role="tabpanel"
-          aria-labelledby="tab-back-office"
-          className="flex min-h-0 flex-col overflow-y-auto rounded-tl-300 border-t border-l border-line-card bg-surface"
-        >
-          <UsersScreen
-            currentUserId={user.id}
-            onBack={() => setArea("sell")}
-            onSessionEnded={onLoggedOut}
-          />
-          <div className="flex justify-center p-800">
-            <AutoLockSetting />
-          </div>
-        </div>
+        <BackOffice currentUserId={user.id} onSessionEnded={onLoggedOut} />
       )}
       <HintBar hints={hintsFor(area)} error={error} />
     </div>
