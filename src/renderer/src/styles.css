@@ -149,6 +149,23 @@ textarea {
   user-select: text;
 }
 
+@utility selection-pill {
+  position: relative;
+  background-color: var(--color-bg-surface-selected);
+
+  &::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 3px;
+    height: 16px;
+    margin-top: -8px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-bg-fill-brand);
+  }
+}
+
 button {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
