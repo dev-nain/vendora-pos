@@ -45,8 +45,8 @@ export function BackOffice({ currentUserId, onSessionEnded }: BackOfficeProps) {
             aria-current={page === id ? "page" : undefined}
             tabIndex={page === id ? 0 : -1}
             className={cn(
-              "flex min-h-[var(--height-control-md)] items-center gap-[14px] rounded-100 px-400 text-left text-[length:var(--font-size-350)] text-foreground outline-none select-none hover:bg-surface-hover focus-visible:shadow-focus",
-              page === id && "selection-pill",
+              "flex min-h-[var(--height-control-md)] items-center gap-[14px] rounded-100 px-400 text-left text-[length:var(--font-size-350)] text-foreground outline-none select-none focus-visible:shadow-focus",
+              page === id ? "selection-pill hover:bg-surface-selected" : "hover:bg-surface-hover",
             )}
             onClick={() => setPage(id)}
           >

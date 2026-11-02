@@ -7,7 +7,7 @@ import { Avatar } from "./avatar";
 import { serviceErrorMessage } from "./messages";
 import { PinPad } from "./pin-pad";
 import { roleLabel } from "./role-label";
-import { SplitLayout } from "./split-layout";
+import { AuthLayout } from "./split-layout";
 import { usePinCooldown } from "./use-pin-cooldown";
 
 interface LockScreenProps {
@@ -36,7 +36,7 @@ export function LockScreen({
   };
 
   return (
-    <SplitLayout>
+    <AuthLayout>
       <div className="grid justify-items-center gap-300 text-center">
         <Avatar
           name={user.displayName}
@@ -44,7 +44,7 @@ export function LockScreen({
         />
         <div className="flex items-center gap-200 text-foreground">
           <LockIcon aria-hidden="true" size={22} strokeWidth={2} className="text-icon-muted" />
-          <h1 className="m-0 text-[length:var(--font-size-700)] leading-[var(--line-height-tight)] font-bold tracking-[var(--letter-spacing-heading)]">
+          <h1 className="m-0 font-display text-[length:var(--font-size-700)] leading-[36px] font-semibold">
             Locked
           </h1>
         </div>
@@ -79,6 +79,6 @@ export function LockScreen({
           </p>
         ) : null}
       </div>
-    </SplitLayout>
+    </AuthLayout>
   );
 }

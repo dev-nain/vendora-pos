@@ -110,10 +110,10 @@ export function ApprovalDialog({
             ) : null}
           </div>
 
-          <div className="grid w-[368px] shrink-0 content-start justify-items-center gap-400 rounded-400 bg-surface-secondary p-400">
+          <div className="grid w-[368px] shrink-0 content-start justify-items-center gap-400 rounded-300 border border-line-card bg-surface p-400">
             {selected ? (
               <>
-                <h2 className="m-0 text-[length:var(--font-size-450)] font-bold tracking-[var(--letter-spacing-heading)] text-foreground">
+                <h2 className="m-0 text-[length:var(--font-size-450)] font-semibold text-foreground">
                   PIN for {selected.displayName}
                 </h2>
                 <PinPad

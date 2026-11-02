@@ -14,7 +14,7 @@ import {
   type OwnerFormValues,
 } from "./owner-form";
 import { sanitizePin } from "./pin-entry";
-import { PaneHeading, SplitLayout } from "./split-layout";
+import { PaneHeading, AuthLayout } from "./split-layout";
 
 interface CreateOwnerScreenProps {
   onCreated: (user: SafeUser) => void;
@@ -131,12 +131,12 @@ export function CreateOwnerScreen({ onCreated, onOwnerExists }: CreateOwnerScree
   );
 
   return (
-    <SplitLayout>
+    <AuthLayout>
       <PaneHeading
         title="Create the Owner account"
         description="The Owner can do everything in Vendora. You'll use these details to log in."
       />
-      <section className="w-[640px] max-w-full rounded-400 border border-line-card bg-surface p-600 shadow-200">
+      <section className="w-[640px] max-w-full rounded-300 border border-line-card bg-surface-secondary p-600">
         <form
           onSubmit={submit}
           noValidate
@@ -194,6 +194,6 @@ export function CreateOwnerScreen({ onCreated, onOwnerExists }: CreateOwnerScree
           </div>
         </form>
       </section>
-    </SplitLayout>
+    </AuthLayout>
   );
 }

@@ -34,9 +34,10 @@ export function UserTile({
       onClick={onClick}
       onKeyDown={onKeyDown}
       className={cn(
-        "relative flex min-h-[108px] touch-manipulation flex-col items-start gap-300 rounded-400 border border-line-card bg-surface p-[14px] text-left shadow-200 outline-none transition-[scale,background-color,border-color,box-shadow] duration-[var(--duration-100)] ease-[var(--ease-out)] hover:bg-surface-hover focus-visible:shadow-focus active:scale-[var(--scale-press)] active:duration-[var(--duration-100)]",
-        selected &&
-          "border-2 border-line-brand p-[13px] shadow-[0_0_0_4px_var(--color-bg-surface-selected)] hover:bg-surface",
+        "relative flex min-h-[108px] touch-manipulation flex-col items-start gap-300 rounded-300 border border-line-card p-[14px] text-left outline-none transition-[background-color,box-shadow] duration-[var(--duration-100)] ease-[var(--ease-out)] focus-visible:shadow-focus",
+        selected
+          ? "selection-pill hover:bg-surface-selected"
+          : "bg-fill-secondary hover:bg-fill-secondary-hover",
       )}
     >
       <Avatar name={user.displayName} />
