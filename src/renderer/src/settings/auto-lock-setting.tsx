@@ -117,7 +117,7 @@ export function AutoLockSetting() {
                   autoComplete="off"
                   value={text}
                   onChange={(event) => setText(event.target.value)}
-                  className="font-mono"
+                  className="tabular-nums"
                 />
               </Field>
               <Button type="submit" disabled={pending}>

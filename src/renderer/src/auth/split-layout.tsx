@@ -70,25 +70,23 @@ function CounterPanel() {
   const period = time.find((part) => part.type === "dayPeriod")?.value.toUpperCase();
 
   return (
-    <aside className="m-400 flex min-h-0 flex-col gap-800 overflow-hidden rounded-500 bg-surface-inverse px-[44px] py-1000 text-on-inverse">
+    <aside className="m-400 flex min-h-0 flex-col gap-800 overflow-hidden rounded-500 bg-surface-secondary px-[44px] py-1000 text-foreground">
       <Wordmark onInverse className="text-[length:var(--font-size-700)]" />
       <div>
-        <p className="m-0 flex items-baseline gap-300 font-mono leading-none">
+        <p className="m-0 flex items-baseline gap-300 leading-none tabular-nums">
           <span className="text-[84px] font-medium tracking-[-0.05em]">{clock}</span>
-          <span className="text-[length:var(--font-size-550)] text-on-inverse-secondary">
-            {period}
-          </span>
+          <span className="text-[length:var(--font-size-550)] text-secondary">{period}</span>
         </p>
-        <p className="m-0 mt-300 text-[length:var(--font-size-450)] text-on-inverse-secondary">
+        <p className="m-0 mt-300 text-[length:var(--font-size-450)] text-secondary">
           {dateFormat.format(now)}
         </p>
       </div>
       {version ? (
-        <dl className="m-0 mt-auto grid gap-300 border-t border-on-inverse-secondary/30 pt-600">
-          <div className="flex items-center gap-300 text-on-inverse-secondary">
+        <dl className="m-0 mt-auto grid gap-300 border-t border-line pt-600">
+          <div className="flex items-center gap-300 text-secondary">
             <InfoIcon aria-hidden="true" size={18} strokeWidth={2} />
             <dt>Vendora version</dt>
-            <dd className="m-0 ml-auto font-mono text-[length:var(--font-size-350)] font-semibold text-on-inverse">
+            <dd className="m-0 ml-auto tabular-nums text-[length:var(--font-size-350)] font-semibold text-foreground">
               {version}
             </dd>
           </div>
