@@ -17,6 +17,7 @@ import type { GatedAction } from "./gated-actions";
 import type { AutoLockSetting, ScalePrefixesInput, ScalePrefixesSetting } from "./settings";
 import type {
   BarcodeLookup,
+  CatalogExportResult,
   CreateProductInput,
   CreateProductResult,
   DeleteProductResult,
@@ -80,6 +81,7 @@ export const ipcChannels = {
   productsRestore: "products:restore",
   productsDelete: "products:delete",
   productsLookupBarcode: "products:lookup-barcode",
+  productsExportCsv: "products:export-csv",
   categoriesList: "categories:list",
   categoriesCreate: "categories:create",
   categoriesRename: "categories:rename",
@@ -139,6 +141,7 @@ export interface VendoraApi {
     restore: (id: string) => Promise<ProductStatusResult>;
     delete: (id: string) => Promise<DeleteProductResult>;
     lookupBarcode: (barcode: string) => Promise<BarcodeLookup | null>;
+    exportCsv: () => Promise<CatalogExportResult>;
   };
   categories: {
     list: () => Promise<Category[]>;

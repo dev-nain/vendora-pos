@@ -23,6 +23,7 @@ import { appInfoSchema, ipcChannels } from "@shared/ipc";
 import {
   barcodeLookupInputSchema,
   barcodeLookupSchema,
+  catalogExportResultSchema,
   createProductInputSchema,
   createProductResultSchema,
   deleteProductResultSchema,
@@ -64,6 +65,7 @@ import {
 import { z } from "zod";
 import { toIpcError } from "./ipc-errors";
 import type { AuthService } from "./services/auth";
+import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { AutoLock } from "./services/auto-lock";
 import type { ProductsService } from "./services/products";
@@ -87,6 +89,7 @@ function handle(
 interface IpcServices {
   auth: AuthService;
   autoLock: AutoLock;
+  catalogExport: CatalogExportService;
   categories: CategoriesService;
   settings: SettingsService;
   taxCategories: TaxCategoriesService;
@@ -97,6 +100,7 @@ interface IpcServices {
 export function registerIpcHandlers({
   auth,
   autoLock,
+  catalogExport,
   categories,
   products,
   settings,
@@ -179,6 +183,9 @@ export function registerIpcHandlers({
     barcodeLookupSchema
       .nullable()
       .parse(products.lookupBarcode(barcodeLookupInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsExportCsv, async () =>
+    catalogExportResultSchema.parse(await catalogExport.exportCsv()),
   );
   handle(ipcChannels.categoriesList, () => z.array(categorySchema).parse(categories.list()));
   handle(ipcChannels.categoriesCreate, (_event, input) =>
