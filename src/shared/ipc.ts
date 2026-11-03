@@ -8,7 +8,7 @@ import type {
   SessionState,
 } from "./auth";
 import type { GatedAction } from "./gated-actions";
-import type { AutoLockSetting } from "./settings";
+import type { AutoLockSetting, ScalePrefixesInput, ScalePrefixesSetting } from "./settings";
 import type {
   CreateUserInput,
   CreateUserResult,
@@ -36,6 +36,7 @@ export const ipcChannels = {
   activityReport: "activity:report",
   settingsGetAutoLock: "settings:get-auto-lock",
   settingsSetAutoLock: "settings:set-auto-lock",
+  settingsSetScalePrefixes: "settings:set-scale-prefixes",
   authNeedsOwnerSetup: "auth:needs-owner-setup",
   authCreateOwner: "auth:create-owner",
   usersList: "users:list",
@@ -76,6 +77,7 @@ export interface VendoraApi {
   settings: {
     getAutoLock: () => Promise<AutoLockSetting>;
     setAutoLock: (minutes: number | null) => Promise<AutoLockSetting>;
+    setScalePrefixes: (input: ScalePrefixesInput) => Promise<ScalePrefixesSetting>;
   };
   users: {
     list: () => Promise<ManagedUser[]>;
