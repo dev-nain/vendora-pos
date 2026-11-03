@@ -8,5 +8,4 @@ export const gatedActionLabels: Record<GatedAction, string> = {
   "drawer.open-no-sale": "Approve opening the drawer without a sale",
   "stock.adjust": "Approve a stock adjustment",
   "product.cost-change": "Approve a cost price change",
-  "product.delete": "Approve deleting a product",
 };

@@ -13,6 +13,7 @@ export const productMessages = {
     `Internal code ${code} already belongs to "${productName}".`,
   mrpBelowSalePrice: "MRP can't be less than the sale price",
   duplicateBarcode: "This barcode is already in the list",
+  systemProduct: "This is a built-in item and can't be archived or deleted.",
 } as const;
 
 const paisaSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -75,6 +76,8 @@ export const updateProductInputSchema = productFieldsSchema
   .extend({ id: z.uuid() })
   .superRefine(checkCrossFields);
 
+export const productIdInputSchema = z.strictObject({ id: z.uuid() });
+
 export const productSchema = z.strictObject({
   id: z.string(),
   nameEn: z.string(),
@@ -118,6 +121,21 @@ export const updateProductResultSchema = z.union([
   ...createRefusals,
 ]);
 
+export const productStatusResultSchema = z.union([
+  okResult,
+  refusal("not-found"),
+  refusal("system-product"),
+]);
+
+export const deleteProductResultSchema = z.union([
+  z.strictObject({ ok: z.literal(true) }),
+  refusal("not-found"),
+  refusal("system-product"),
+]);
+
+export type ProductIdInput = z.infer<typeof productIdInputSchema>;
+export type ProductStatusResult = z.infer<typeof productStatusResultSchema>;
+export type DeleteProductResult = z.infer<typeof deleteProductResultSchema>;
 export type CreateProductInput = z.input<typeof createProductInputSchema>;
 export type UpdateProductInput = z.input<typeof updateProductInputSchema>;
 export type Product = z.infer<typeof productSchema>;

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createProductInputSchema, updateProductInputSchema } from "./products";
+import {
+  createProductInputSchema,
+  productIdInputSchema,
+  updateProductInputSchema,
+} from "./products";
 
 const categoryId = "0192f3a0-0000-7000-8000-000000000001";
 const taxCategoryId = "0192f3a0-0000-7000-8000-000000000002";
@@ -77,5 +81,13 @@ describe("updateProductInputSchema", () => {
     expect(
       updateProductInputSchema.safeParse({ ...valid, id: categoryId, mrpPaisa: 1 }).success,
     ).toBe(false);
+  });
+});
+
+describe("productIdInputSchema", () => {
+  it("accepts a uuid and rejects a bad id or an extra key", () => {
+    expect(productIdInputSchema.safeParse({ id: categoryId }).success).toBe(true);
+    expect(productIdInputSchema.safeParse({ id: "x" }).success).toBe(false);
+    expect(productIdInputSchema.safeParse({ id: categoryId, extra: 1 }).success).toBe(false);
   });
 });
