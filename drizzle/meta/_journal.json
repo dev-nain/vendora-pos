@@ -50,6 +50,13 @@
       "when": 1793700683529,
       "tag": "0006_catalog_system_rows",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793708806876,
+      "tag": "0007_misc_item_setting",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE `stores` ADD `misc_item_enabled` integer DEFAULT false NOT NULL;

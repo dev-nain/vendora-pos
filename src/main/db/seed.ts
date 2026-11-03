@@ -1,6 +1,7 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { VendoraDatabase } from "./client";
-import { categories, stores, taxCategories, terminals } from "./schema";
+import { normalizeSearchText } from "../services/search-text";
+import { categories, products, stores, taxCategories, terminals } from "./schema";
 
 type Tx = Parameters<Parameters<VendoraDatabase["db"]["transaction"]>[0]>[0];
 
@@ -56,6 +57,47 @@ function seedCatalogDefaults(tx: Tx, storeId: string): void {
   }
 }
 
+function seedMiscItem(tx: Tx, storeId: string): void {
+  const exists = tx
+    .select({ id: products.id })
+    .from(products)
+    .where(and(eq(products.storeId, storeId), eq(products.isSystem, true)))
+    .get();
+  if (exists) return;
+
+  const category = tx
+    .select({ id: categories.id })
+    .from(categories)
+    .where(and(eq(categories.storeId, storeId), eq(categories.isSystem, true)))
+    .get();
+  const taxCategory = tx
+    .select({ id: taxCategories.id })
+    .from(taxCategories)
+    .where(
+      and(
+        eq(taxCategories.storeId, storeId),
+        eq(taxCategories.isSystem, true),
+        isNull(taxCategories.rateBps),
+      ),
+    )
+    .get();
+  if (!category || !taxCategory) return;
+
+  tx.insert(products)
+    .values({
+      storeId,
+      nameEn: "Misc item",
+      searchText: normalizeSearchText("Misc item"),
+      categoryId: category.id,
+      taxCategoryId: taxCategory.id,
+      unit: "piece",
+      costPaisa: 0,
+      salePricePaisa: 0,
+      isSystem: true,
+    })
+    .run();
+}
+
 export function seedStoreAndTerminal(database: VendoraDatabase): void {
   database.db.transaction((tx) => {
     const store = tx.select().from(stores).orderBy(asc(stores.id)).limit(1).get();
@@ -66,5 +108,6 @@ export function seedStoreAndTerminal(database: VendoraDatabase): void {
     }
 
     seedCatalogDefaults(tx, storeId);
+    seedMiscItem(tx, storeId);
   });
 }

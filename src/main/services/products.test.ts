@@ -104,7 +104,7 @@ describe("createProductsService", () => {
       .map((row) => ({ ...row, details: JSON.parse(row.details ?? "null") }));
 
   const tables = () => ({
-    products: database.db.select().from(products).all(),
+    products: database.db.select().from(products).where(eq(products.isSystem, false)).all(),
     barcodes: database.db.select().from(productBarcodes).all(),
     audit: database.db.select().from(auditLog).all(),
   });
@@ -291,7 +291,7 @@ describe("createProductsService", () => {
 
       expect(product.barcodes).toEqual([]);
       expect(product.isActive).toBe(true);
-      const row = database.db.select().from(products).get()!;
+      const row = database.db.select().from(products).where(eq(products.isSystem, false)).get()!;
       expect(row.searchText).toBe(normalizeSearchText("Lux Soap", "لکس", "LUX1"));
       expect(row.storeId).toBe(database.db.select().from(stores).get()!.id);
       expect(tables().audit).toHaveLength(0);

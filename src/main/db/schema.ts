@@ -29,6 +29,7 @@ export const stores = sqliteTable(
     standardTaxRateBps: integer("standard_tax_rate_bps").notNull().default(1800),
     scaleWeightPrefix: text("scale_weight_prefix").notNull().default("21"),
     scalePricePrefix: text("scale_price_prefix").notNull().default("22"),
+    miscItemEnabled: integer("misc_item_enabled", { mode: "boolean" }).notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
