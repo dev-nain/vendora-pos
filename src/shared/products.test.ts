@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  adjustPricePaisa,
   barcodeLookupInputSchema,
+  bulkUpdateProductsInputSchema,
   barcodeLookupSchema,
   createProductInputSchema,
   productSearchInputSchema,
@@ -153,5 +155,62 @@ describe("barcodeLookupSchema", () => {
         scale: { itemCode: "00001", kind: "weight", qtyMilli: 500 },
       }).success,
     ).toBe(true);
+  });
+});
+
+describe("adjustPricePaisa", () => {
+  it.each([
+    [125000, -1000, 112500],
+    [16050, 1000, 17700],
+    [100, 5000, 200],
+    [40, -5000, 0],
+    [99, -100, 100],
+    [0, 5000, 0],
+  ])("%i paisa at %i bps is %i", (price, bps, expected) => {
+    expect(adjustPricePaisa(price, bps)).toBe(expected);
+  });
+
+  it("throws when the result is not a safe integer", () => {
+    expect(() => adjustPricePaisa(Number.MAX_SAFE_INTEGER, 100000)).toThrow(RangeError);
+  });
+});
+
+describe("bulkUpdateProductsInputSchema", () => {
+  const id = "0192f3a0-0000-7000-8000-000000000001";
+  const adjust = (bps: number) => ({
+    productIds: [id],
+    change: { kind: "adjust-price", bps },
+  });
+
+  it.each([-10000, -10001, 0, 100001])("rejects bps %i", (bps) => {
+    expect(bulkUpdateProductsInputSchema.safeParse(adjust(bps)).success).toBe(false);
+  });
+
+  it("accepts the bps bounds", () => {
+    expect(bulkUpdateProductsInputSchema.safeParse(adjust(-9999)).success).toBe(true);
+    expect(bulkUpdateProductsInputSchema.safeParse(adjust(100000)).success).toBe(true);
+  });
+
+  it("rejects empty, oversized and non-uuid id lists", () => {
+    const change = { kind: "set-price", salePricePaisa: 100 };
+    expect(bulkUpdateProductsInputSchema.safeParse({ productIds: [], change }).success).toBe(false);
+    const many = Array.from(
+      { length: 5001 },
+      (_, i) => `0192f3a0-0000-7000-8000-${String(i).padStart(12, "0")}`,
+    );
+    expect(bulkUpdateProductsInputSchema.safeParse({ productIds: many, change }).success).toBe(
+      false,
+    );
+    expect(bulkUpdateProductsInputSchema.safeParse({ productIds: ["nope"], change }).success).toBe(
+      false,
+    );
+  });
+
+  it("collapses duplicate ids", () => {
+    const parsed = bulkUpdateProductsInputSchema.parse({
+      productIds: [id, id],
+      change: { kind: "set-price", salePricePaisa: 100 },
+    });
+    expect(parsed.productIds).toEqual([id]);
   });
 });
