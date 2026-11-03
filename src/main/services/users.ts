@@ -20,6 +20,7 @@ import { pinLockStatus, recordPinSuccess } from "../auth/pin-lockout";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { users } from "../db/schema";
+import { isUniqueViolation } from "../db/sqlite-errors";
 import type { createAuditService } from "./audit";
 
 type CreateInput = z.output<typeof createUserInputSchema>;
@@ -57,14 +58,6 @@ const notFound = {
   reason: "not-found",
   message: userMessages.notFound,
 } as const;
-
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error as { code?: unknown }).code === "SQLITE_CONSTRAINT_UNIQUE"
-  );
-}
 
 export function createUsersService({
   database,
