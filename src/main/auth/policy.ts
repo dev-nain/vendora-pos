@@ -1,70 +1,16 @@
 import type { UserRole } from "../db/schema";
 import type { GatedDecision } from "../../shared/gated-actions";
+import { hasPermission, type Permission } from "../../shared/permissions";
 import { ForbiddenError } from "./errors";
 import type { Session } from "./session";
 
-export const permissions = [
-  "sale.sell",
-  "sale.hold-resume",
-  "receipt.reprint",
-  "discount.within-limit",
-  "return.with-receipt",
-  "reports.view",
-  "products.manage",
-  "purchasing.manage",
-  "stock.manage",
-  "users.manage",
-  "settings.manage",
-  "license.manage",
-  "backup.restore",
-] as const;
-export type Permission = (typeof permissions)[number];
+export { permissions, hasPermission } from "../../shared/permissions";
+export type { Permission } from "../../shared/permissions";
 
 export { gatedActions, gatedActionDecision } from "../../shared/gated-actions";
 export type { GatedAction, GatedDecision } from "../../shared/gated-actions";
 
 export type ReportScope = "own-shift" | "all";
-
-const rolePermissions: Record<UserRole, ReadonlySet<Permission>> = {
-  cashier: new Set<Permission>([
-    "sale.sell",
-    "sale.hold-resume",
-    "receipt.reprint",
-    "discount.within-limit",
-    "return.with-receipt",
-    "reports.view",
-  ]),
-  manager: new Set<Permission>([
-    "sale.sell",
-    "sale.hold-resume",
-    "receipt.reprint",
-    "discount.within-limit",
-    "return.with-receipt",
-    "reports.view",
-    "products.manage",
-    "purchasing.manage",
-    "stock.manage",
-  ]),
-  owner: new Set<Permission>([
-    "sale.sell",
-    "sale.hold-resume",
-    "receipt.reprint",
-    "discount.within-limit",
-    "return.with-receipt",
-    "reports.view",
-    "products.manage",
-    "purchasing.manage",
-    "stock.manage",
-    "users.manage",
-    "settings.manage",
-    "license.manage",
-    "backup.restore",
-  ]),
-};
-
-export function hasPermission(role: UserRole, permission: Permission): boolean {
-  return rolePermissions[role].has(permission);
-}
 
 export function requirePermission(session: Session, permission: Permission): void {
   if (!hasPermission(session.role, permission)) throw new ForbiddenError(permission);
