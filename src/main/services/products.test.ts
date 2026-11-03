@@ -10,7 +10,7 @@ import {
   type CreateProductInput,
   type CreateProductResult,
 } from "../../shared/products";
-import { ForbiddenError, SessionLockedError } from "../auth/errors";
+import { ForbiddenError, SessionLockedError, UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
@@ -26,7 +26,7 @@ import {
 import { seedStoreAndTerminal } from "../db/seed";
 import { createAuditService } from "./audit";
 import { searchProducts } from "./product-search";
-import { createProductsService } from "./products";
+import { createProductsService, getMiscItem } from "./products";
 import { normalizeSearchText } from "./search-text";
 
 const barcode = (code: string, packQtyMilli = 1000, salePricePaisa: number | null = null) => ({
@@ -465,6 +465,47 @@ describe("createProductsService", () => {
           .where(and(eq(productBarcodes.barcode, "R3")))
           .all(),
       ).toHaveLength(0);
+    });
+  });
+
+  describe("misc item lookup", () => {
+    it("returns null while the setting is off and the product once it is on", () => {
+      expect(getMiscItem(database, storeIdOf())).toBeNull();
+
+      database.db.update(stores).set({ miscItemEnabled: true }).run();
+
+      expect(getMiscItem(database, storeIdOf())).toMatchObject({
+        nameEn: "Misc item",
+        unit: "piece",
+        salePricePaisa: 0,
+        costPaisa: 0,
+        barcodes: [],
+      });
+    });
+
+    it("returns null when the setting is on but the product is gone", () => {
+      database.db.update(stores).set({ miscItemEnabled: true }).run();
+      database.db.update(products).set({ deletedAt: t0 }).run();
+
+      expect(getMiscItem(database, storeIdOf())).toBeNull();
+    });
+
+    it("lets a cashier read it", () => {
+      database.db.update(stores).set({ miscItemEnabled: true }).run();
+      signIn("cashier");
+
+      expect(service.miscItem()?.nameEn).toBe("Misc item");
+    });
+
+    it("requires a session", () => {
+      expect(() => service.miscItem()).toThrow(UnauthenticatedError);
+    });
+
+    it("refuses a locked session", () => {
+      signIn("cashier");
+      sessions.lock();
+
+      expect(() => service.miscItem()).toThrow(SessionLockedError);
     });
   });
 });

@@ -13,6 +13,7 @@ import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { categories, productBarcodes, products, taxCategories } from "../db/schema";
 import type { createAuditService } from "./audit";
+import { getMiscItemEnabled } from "../settings/store-settings";
 import { normalizeSearchText } from "./search-text";
 
 type CreateInput = z.output<typeof createProductInputSchema>;
@@ -147,6 +148,18 @@ function checkClashes(
   return null;
 }
 
+export function getMiscItem(database: VendoraDatabase, storeId: string): Product | null {
+  if (!getMiscItemEnabled(database, storeId)) return null;
+  const row = database.db
+    .select()
+    .from(products)
+    .where(
+      and(eq(products.storeId, storeId), eq(products.isSystem, true), isNull(products.deletedAt)),
+    )
+    .get();
+  return row ? toProduct(row, []) : null;
+}
+
 export function createProductsService({
   database,
   audit,
@@ -156,6 +169,11 @@ export function createProductsService({
   const { db } = database;
 
   return {
+    miscItem(): Product | null {
+      const session = requireSessionPermission(sessions, "sale.sell");
+      return getMiscItem(database, session.storeId);
+    },
+
     create(input: CreateInput): CreateProductResult {
       const session = requireSessionPermission(sessions, "products.manage");
 
