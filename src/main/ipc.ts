@@ -11,7 +11,13 @@ import {
   sessionStateSchema,
 } from "@shared/auth";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
-import { autoLockInputSchema, autoLockSettingSchema } from "@shared/settings";
+import { productSchema } from "@shared/products";
+import {
+  autoLockInputSchema,
+  autoLockSettingSchema,
+  miscItemInputSchema,
+  miscItemSettingSchema,
+} from "@shared/settings";
 import {
   createUserInputSchema,
   createUserResultSchema,
@@ -28,6 +34,7 @@ import { z } from "zod";
 import { toIpcError } from "./ipc-errors";
 import type { AuthService } from "./services/auth";
 import type { AutoLock } from "./services/auto-lock";
+import type { ProductsService } from "./services/products";
 import type { SettingsService } from "./services/settings";
 import type { UsersService } from "./services/users";
 
@@ -47,11 +54,18 @@ function handle(
 interface IpcServices {
   auth: AuthService;
   autoLock: AutoLock;
+  products: ProductsService;
   settings: SettingsService;
   users: UsersService;
 }
 
-export function registerIpcHandlers({ auth, autoLock, settings, users }: IpcServices): void {
+export function registerIpcHandlers({
+  auth,
+  autoLock,
+  products,
+  settings,
+  users,
+}: IpcServices): void {
   handle(ipcChannels.appGetInfo, () => appInfoSchema.parse({ version: app.getVersion() }));
   handle(ipcChannels.authLogin, async (_event, input) =>
     authResultSchema.parse(await auth.login(loginInputSchema.parse(input))),
@@ -74,6 +88,15 @@ export function registerIpcHandlers({ auth, autoLock, settings, users }: IpcServ
   );
   handle(ipcChannels.settingsSetAutoLock, (_event, input) =>
     autoLockSettingSchema.parse(settings.setAutoLock(autoLockInputSchema.parse(input))),
+  );
+  handle(ipcChannels.settingsGetMiscItemEnabled, () =>
+    miscItemSettingSchema.parse(settings.getMiscItemEnabled()),
+  );
+  handle(ipcChannels.settingsSetMiscItemEnabled, (_event, input) =>
+    miscItemSettingSchema.parse(settings.setMiscItemEnabled(miscItemInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsGetMiscItem, () =>
+    productSchema.nullable().parse(products.miscItem()),
   );
   handle(ipcChannels.authNeedsOwnerSetup, () => z.boolean().parse(auth.needsOwnerSetup()));
   handle(ipcChannels.authCreateOwner, async (_event, input) =>

@@ -7,7 +7,8 @@ import {
   loginUserSchema,
   sessionStateSchema,
 } from "@shared/auth";
-import { autoLockSettingSchema } from "@shared/settings";
+import { productSchema } from "@shared/products";
+import { autoLockSettingSchema, miscItemSettingSchema } from "@shared/settings";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 import {
   createUserResultSchema,
@@ -66,6 +67,16 @@ const api: VendoraApi = {
       autoLockSettingSchema.parse(
         await ipcRenderer.invoke(ipcChannels.settingsSetAutoLock, { minutes }),
       ),
+    getMiscItemEnabled: async () =>
+      miscItemSettingSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsGetMiscItemEnabled)),
+    setMiscItemEnabled: async (enabled) =>
+      miscItemSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsSetMiscItemEnabled, { enabled }),
+      ),
+  },
+  products: {
+    getMiscItem: async () =>
+      productSchema.nullable().parse(await ipcRenderer.invoke(ipcChannels.productsGetMiscItem)),
   },
   users: {
     list: async () =>

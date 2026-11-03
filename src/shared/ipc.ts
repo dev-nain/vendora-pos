@@ -8,7 +8,8 @@ import type {
   SessionState,
 } from "./auth";
 import type { GatedAction } from "./gated-actions";
-import type { AutoLockSetting } from "./settings";
+import type { Product } from "./products";
+import type { AutoLockSetting, MiscItemSetting } from "./settings";
 import type {
   CreateUserInput,
   CreateUserResult,
@@ -36,6 +37,9 @@ export const ipcChannels = {
   activityReport: "activity:report",
   settingsGetAutoLock: "settings:get-auto-lock",
   settingsSetAutoLock: "settings:set-auto-lock",
+  settingsGetMiscItemEnabled: "settings:get-misc-item-enabled",
+  settingsSetMiscItemEnabled: "settings:set-misc-item-enabled",
+  productsGetMiscItem: "products:get-misc-item",
   authNeedsOwnerSetup: "auth:needs-owner-setup",
   authCreateOwner: "auth:create-owner",
   usersList: "users:list",
@@ -76,6 +80,11 @@ export interface VendoraApi {
   settings: {
     getAutoLock: () => Promise<AutoLockSetting>;
     setAutoLock: (minutes: number | null) => Promise<AutoLockSetting>;
+    getMiscItemEnabled: () => Promise<MiscItemSetting>;
+    setMiscItemEnabled: (enabled: boolean) => Promise<MiscItemSetting>;
+  };
+  products: {
+    getMiscItem: () => Promise<Product | null>;
   };
   users: {
     list: () => Promise<ManagedUser[]>;
