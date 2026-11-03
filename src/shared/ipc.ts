@@ -7,8 +7,37 @@ import type {
   LoginUser,
   SessionState,
 } from "./auth";
+import type {
+  Category,
+  CreateCategoryResult,
+  DeleteCategoryResult,
+  RenameCategoryResult,
+} from "./categories";
 import type { GatedAction } from "./gated-actions";
-import type { AutoLockSetting } from "./settings";
+import type { AutoLockSetting, ScalePrefixesInput, ScalePrefixesSetting } from "./settings";
+import type {
+  BarcodeLookup,
+  BulkUpdateProductsInput,
+  BulkUpdateProductsResult,
+  CatalogExportResult,
+  CreateProductInput,
+  CreateProductResult,
+  DeleteProductResult,
+  GetProductResult,
+  ProductSearchQuery,
+  ProductSearchResult,
+  ProductStatusResult,
+  UpdateProductInput,
+  UpdateProductResult,
+} from "./products";
+import type {
+  CreateTaxCategoryInput,
+  CreateTaxCategoryResult,
+  DeleteTaxCategoryResult,
+  TaxCategory,
+  UpdateTaxCategoryInput,
+  UpdateTaxCategoryResult,
+} from "./tax-categories";
 import type {
   CreateUserInput,
   CreateUserResult,
@@ -36,6 +65,7 @@ export const ipcChannels = {
   activityReport: "activity:report",
   settingsGetAutoLock: "settings:get-auto-lock",
   settingsSetAutoLock: "settings:set-auto-lock",
+  settingsSetScalePrefixes: "settings:set-scale-prefixes",
   authNeedsOwnerSetup: "auth:needs-owner-setup",
   authCreateOwner: "auth:create-owner",
   usersList: "users:list",
@@ -45,6 +75,24 @@ export const ipcChannels = {
   usersResetPin: "users:reset-pin",
   usersDeactivate: "users:deactivate",
   usersReactivate: "users:reactivate",
+  productsSearch: "products:search",
+  productsGet: "products:get",
+  productsCreate: "products:create",
+  productsUpdate: "products:update",
+  productsArchive: "products:archive",
+  productsRestore: "products:restore",
+  productsDelete: "products:delete",
+  productsBulkUpdate: "products:bulk-update",
+  productsLookupBarcode: "products:lookup-barcode",
+  productsExportCsv: "products:export-csv",
+  categoriesList: "categories:list",
+  categoriesCreate: "categories:create",
+  categoriesRename: "categories:rename",
+  categoriesDelete: "categories:delete",
+  taxCategoriesList: "tax-categories:list",
+  taxCategoriesCreate: "tax-categories:create",
+  taxCategoriesUpdate: "tax-categories:update",
+  taxCategoriesDelete: "tax-categories:delete",
 } as const;
 
 export const ipcErrorMessages = {
@@ -76,6 +124,7 @@ export interface VendoraApi {
   settings: {
     getAutoLock: () => Promise<AutoLockSetting>;
     setAutoLock: (minutes: number | null) => Promise<AutoLockSetting>;
+    setScalePrefixes: (input: ScalePrefixesInput) => Promise<ScalePrefixesSetting>;
   };
   users: {
     list: () => Promise<ManagedUser[]>;
@@ -85,5 +134,29 @@ export interface VendoraApi {
     resetPin: (id: string, pin: string) => Promise<UserActionResult>;
     deactivate: (id: string) => Promise<DeactivateUserResult>;
     reactivate: (id: string) => Promise<UserActionResult>;
+  };
+  products: {
+    search: (input: ProductSearchQuery) => Promise<ProductSearchResult>;
+    get: (id: string) => Promise<GetProductResult>;
+    create: (input: CreateProductInput) => Promise<CreateProductResult>;
+    update: (input: UpdateProductInput) => Promise<UpdateProductResult>;
+    archive: (id: string) => Promise<ProductStatusResult>;
+    restore: (id: string) => Promise<ProductStatusResult>;
+    delete: (id: string) => Promise<DeleteProductResult>;
+    bulkUpdate: (input: BulkUpdateProductsInput) => Promise<BulkUpdateProductsResult>;
+    lookupBarcode: (barcode: string) => Promise<BarcodeLookup | null>;
+    exportCsv: () => Promise<CatalogExportResult>;
+  };
+  categories: {
+    list: () => Promise<Category[]>;
+    create: (name: string) => Promise<CreateCategoryResult>;
+    rename: (id: string, name: string) => Promise<RenameCategoryResult>;
+    remove: (id: string) => Promise<DeleteCategoryResult>;
+  };
+  taxCategories: {
+    list: () => Promise<TaxCategory[]>;
+    create: (input: CreateTaxCategoryInput) => Promise<CreateTaxCategoryResult>;
+    update: (input: UpdateTaxCategoryInput) => Promise<UpdateTaxCategoryResult>;
+    remove: (id: string) => Promise<DeleteTaxCategoryResult>;
   };
 }

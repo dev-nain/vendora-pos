@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, dialog } from "electron";
 import { ipcChannels } from "@shared/ipc";
 import { openDatabase, type VendoraDatabase } from "./db/client";
 import { seedDevUsers } from "./db/dev-users";
@@ -9,8 +9,12 @@ import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
 import { createAuthService } from "./services/auth";
 import { createAutoLock } from "./services/auto-lock";
+import { createCatalogExportService } from "./services/catalog-export";
+import { createCategoriesService } from "./services/categories";
 import { createSettingsService } from "./services/settings";
 import { getAutoLockMinutes } from "./settings/store-settings";
+import { createProductsService } from "./services/products";
+import { createTaxCategoriesService } from "./services/tax-categories";
 import { createUsersService } from "./services/users";
 import { createApprovalStore } from "./auth/approvals";
 import { createSessionStore } from "./auth/session";
@@ -56,7 +60,35 @@ void app.whenReady().then(async () => {
     }
   });
   const users = createUsersService({ database, audit, sessions, approvals });
-  registerIpcHandlers({ auth, autoLock, settings, users });
+  const products = createProductsService({ database, audit, sessions });
+  const categories = createCategoriesService({ database, audit, sessions });
+  const taxCategories = createTaxCategoriesService({ database, audit, sessions });
+  const catalogExport = createCatalogExportService({
+    database,
+    sessions,
+    chooseSavePath: async (fileName) => {
+      const options = {
+        title: "Export catalog",
+        defaultPath: join(app.getPath("documents"), fileName),
+        filters: [{ name: "CSV file", extensions: ["csv"] }],
+      };
+      const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+      const result = parent
+        ? await dialog.showSaveDialog(parent, options)
+        : await dialog.showSaveDialog(options);
+      return result.canceled || !result.filePath ? null : result.filePath;
+    },
+  });
+  registerIpcHandlers({
+    auth,
+    autoLock,
+    catalogExport,
+    categories,
+    products,
+    settings,
+    taxCategories,
+    users,
+  });
   createMainWindow();
 
   app.on("activate", () => {

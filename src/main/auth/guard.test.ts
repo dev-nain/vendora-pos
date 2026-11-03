@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { userRoleSchema } from "../../shared/auth";
 import { userRoles, type UserRole } from "../db/schema";
 import { ForbiddenError, SessionLockedError, UnauthenticatedError } from "./errors";
-import { requireSession, requireSessionPermission } from "./guard";
+import { requireSession, requireSessionPermission, requireUnlockedSession } from "./guard";
 import { createSessionStore, type Session } from "./session";
 
 const sessionFor = (role: UserRole): Session => ({
@@ -57,6 +57,28 @@ describe("requireSession", () => {
   });
 });
 
+describe("requireUnlockedSession", () => {
+  it("throws with no session", () => {
+    expect(() => requireUnlockedSession(createSessionStore())).toThrow(UnauthenticatedError);
+  });
+
+  it("throws while locked", () => {
+    const sessions = createSessionStore();
+    sessions.start(sessionFor("cashier"));
+    sessions.lock();
+
+    expect(() => requireUnlockedSession(sessions)).toThrow(SessionLockedError);
+  });
+
+  it("returns the session when unlocked", () => {
+    const sessions = createSessionStore();
+    const session = sessionFor("cashier");
+    sessions.start(session);
+
+    expect(requireUnlockedSession(sessions)).toBe(session);
+  });
+});
+
 describe("requireSessionPermission", () => {
   it("throws UnauthenticatedError with no session", () => {
     expect(() => requireSessionPermission(createSessionStore(), "sale.sell")).toThrow(
@@ -85,5 +107,27 @@ describe("requireSessionPermission", () => {
     sessions.start(session);
 
     expect(requireSessionPermission(sessions, "users.manage")).toBe(session);
+  });
+});
+
+describe("requireUnlockedSession", () => {
+  it("throws with no session", () => {
+    expect(() => requireUnlockedSession(createSessionStore())).toThrow(UnauthenticatedError);
+  });
+
+  it("throws while locked", () => {
+    const sessions = createSessionStore();
+    sessions.start(sessionFor("cashier"));
+    sessions.lock();
+
+    expect(() => requireUnlockedSession(sessions)).toThrow(SessionLockedError);
+  });
+
+  it("returns the current session", () => {
+    const sessions = createSessionStore();
+    const session = sessionFor("cashier");
+    sessions.start(session);
+
+    expect(requireUnlockedSession(sessions)).toBe(session);
   });
 });

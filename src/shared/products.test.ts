@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { createProductInputSchema, updateProductInputSchema } from "./products";
+import {
+  adjustPricePaisa,
+  barcodeLookupInputSchema,
+  bulkUpdateProductsInputSchema,
+  barcodeLookupSchema,
+  createProductInputSchema,
+  productSearchInputSchema,
+  productIdInputSchema,
+  updateProductInputSchema,
+} from "./products";
 
 const categoryId = "0192f3a0-0000-7000-8000-000000000001";
 const taxCategoryId = "0192f3a0-0000-7000-8000-000000000002";
@@ -77,5 +86,131 @@ describe("updateProductInputSchema", () => {
     expect(
       updateProductInputSchema.safeParse({ ...valid, id: categoryId, mrpPaisa: 1 }).success,
     ).toBe(false);
+  });
+});
+
+describe("productIdInputSchema", () => {
+  it("accepts a uuid and rejects a bad id or an extra key", () => {
+    expect(productIdInputSchema.safeParse({ id: categoryId }).success).toBe(true);
+    expect(productIdInputSchema.safeParse({ id: "x" }).success).toBe(false);
+    expect(productIdInputSchema.safeParse({ id: categoryId, extra: 1 }).success).toBe(false);
+  });
+});
+
+describe("productSearchInputSchema", () => {
+  const base = { query: "", limit: 20, offset: 0 };
+
+  it("accepts a minimal input", () => {
+    expect(productSearchInputSchema.safeParse(base).success).toBe(true);
+  });
+
+  it.each([
+    ["limit 0", { limit: 0 }],
+    ["limit 101", { limit: 101 }],
+    ["fractional limit", { limit: 1.5 }],
+    ["negative offset", { offset: -1 }],
+    ["oversized query", { query: "a".repeat(201) }],
+    ["non-uuid category", { categoryId: "x" }],
+    ["unknown key", { storeId: "s" }],
+  ])("rejects %s", (_name, extra) => {
+    expect(productSearchInputSchema.safeParse({ ...base, ...extra }).success).toBe(false);
+  });
+});
+
+describe("barcodeLookupInputSchema", () => {
+  it("trims the barcode", () => {
+    expect(barcodeLookupInputSchema.parse({ barcode: " 123 " })).toEqual({ barcode: "123" });
+  });
+
+  it("rejects blank and oversized barcodes", () => {
+    expect(barcodeLookupInputSchema.safeParse({ barcode: "  " }).success).toBe(false);
+    expect(barcodeLookupInputSchema.safeParse({ barcode: "1".repeat(65) }).success).toBe(false);
+  });
+});
+
+describe("barcodeLookupSchema", () => {
+  const product = {
+    id: "p1",
+    nameEn: "Tea",
+    nameUr: null,
+    unit: "piece",
+    salePricePaisa: 100,
+    taxCategoryId: "t1",
+    costPaisa: 80,
+  };
+
+  it("accepts a barcode result and a scale result", () => {
+    expect(
+      barcodeLookupSchema.safeParse({
+        source: "barcode",
+        product,
+        packQtyMilli: 1000,
+        packPricePaisa: null,
+      }).success,
+    ).toBe(true);
+    expect(
+      barcodeLookupSchema.safeParse({
+        source: "scale",
+        product,
+        scale: { itemCode: "00001", kind: "weight", qtyMilli: 500 },
+      }).success,
+    ).toBe(true);
+  });
+});
+
+describe("adjustPricePaisa", () => {
+  it.each([
+    [125000, -1000, 112500],
+    [16050, 1000, 17700],
+    [100, 5000, 200],
+    [40, -5000, 0],
+    [99, -100, 100],
+    [0, 5000, 0],
+  ])("%i paisa at %i bps is %i", (price, bps, expected) => {
+    expect(adjustPricePaisa(price, bps)).toBe(expected);
+  });
+
+  it("throws when the result is not a safe integer", () => {
+    expect(() => adjustPricePaisa(Number.MAX_SAFE_INTEGER, 100000)).toThrow(RangeError);
+  });
+});
+
+describe("bulkUpdateProductsInputSchema", () => {
+  const id = "0192f3a0-0000-7000-8000-000000000001";
+  const adjust = (bps: number) => ({
+    productIds: [id],
+    change: { kind: "adjust-price", bps },
+  });
+
+  it.each([-10000, -10001, 0, 100001])("rejects bps %i", (bps) => {
+    expect(bulkUpdateProductsInputSchema.safeParse(adjust(bps)).success).toBe(false);
+  });
+
+  it("accepts the bps bounds", () => {
+    expect(bulkUpdateProductsInputSchema.safeParse(adjust(-9999)).success).toBe(true);
+    expect(bulkUpdateProductsInputSchema.safeParse(adjust(100000)).success).toBe(true);
+  });
+
+  it("rejects empty, oversized and non-uuid id lists", () => {
+    const change = { kind: "set-price", salePricePaisa: 100 };
+    expect(bulkUpdateProductsInputSchema.safeParse({ productIds: [], change }).success).toBe(false);
+    const many = Array.from(
+      { length: 5001 },
+      (_, i) => `0192f3a0-0000-7000-8000-${String(i).padStart(12, "0")}`,
+    );
+    expect(bulkUpdateProductsInputSchema.safeParse({ productIds: many, change }).success).toBe(
+      false,
+    );
+    expect(bulkUpdateProductsInputSchema.safeParse({ productIds: ["nope"], change }).success).toBe(
+      false,
+    );
+  });
+
+  it("collapses duplicate ids", () => {
+    const parsed = bulkUpdateProductsInputSchema.parse({
+      productIds: [id, id],
+      change: { kind: "set-price", salePricePaisa: 100 },
+    });
+    expect(parsed.productIds).toEqual([id]);
   });
 });

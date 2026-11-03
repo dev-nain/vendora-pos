@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { SafeUser } from "@shared/auth";
 import { serviceErrorMessage } from "../auth/messages";
 import { BackOffice } from "./back-office";
+import { canOpenBackOffice } from "./back-office-nav";
 import { HintBar, type Hint } from "./hint-bar";
 import { TitleBar, type Area } from "./title-bar";
 
@@ -23,7 +24,7 @@ const hintsFor = (area: Area): Hint[] =>
 export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
   const [error, setError] = useState<string | null>(null);
   const [area, setArea] = useState<Area>("sell");
-  const isOwner = user.role === "owner";
+  const backOfficeOpen = canOpenBackOffice(user.role);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -35,14 +36,14 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
       } else if (key === "1") {
         event.preventDefault();
         setArea("sell");
-      } else if (key === "2" && isOwner) {
+      } else if (key === "2" && backOfficeOpen) {
         event.preventDefault();
         setArea("back-office");
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onLock, isOwner]);
+  }, [onLock, backOfficeOpen]);
 
   const logOut = async () => {
     try {
@@ -72,7 +73,7 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
           <p className="m-0">Checkout isn't set up yet.</p>
         </main>
       ) : (
-        <BackOffice currentUserId={user.id} onSessionEnded={onLoggedOut} />
+        <BackOffice role={user.role} currentUserId={user.id} onSessionEnded={onLoggedOut} />
       )}
       <HintBar hints={hintsFor(area)} error={error} />
     </div>

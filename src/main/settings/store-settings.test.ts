@@ -18,6 +18,7 @@ import {
   getAutoLockMinutes,
   getCashierDiscountLimitBps,
   getMiscItemEnabled,
+  getScalePrefixes,
 } from "./store-settings";
 
 const migrationsFolder = join(process.cwd(), "drizzle");
@@ -91,6 +92,26 @@ describe("store settings", () => {
     seedStoreAndTerminal(database);
 
     expect(() => database.db.update(stores).set({ autoLockMinutes: minutes }).run()).toThrow();
+  });
+
+  it("reads the scale prefixes with defaults 21 and 22", () => {
+    runMigrations(database, { migrationsFolder, backupDir });
+    seedStoreAndTerminal(database);
+    expect(getScalePrefixes(database, storeId())).toEqual({
+      weightPrefix: "21",
+      pricePrefix: "22",
+    });
+    database.db.update(stores).set({ scaleWeightPrefix: "02", scalePricePrefix: "29" }).run();
+    expect(getScalePrefixes(database, storeId())).toEqual({
+      weightPrefix: "02",
+      pricePrefix: "29",
+    });
+  });
+
+  it("throws for an unknown store when reading scale prefixes", () => {
+    runMigrations(database, { migrationsFolder, backupDir });
+
+    expect(() => getScalePrefixes(database, "missing")).toThrow("Store not found");
   });
 
   it("keeps an existing store and gives it 500 when migrating from 0000", () => {
