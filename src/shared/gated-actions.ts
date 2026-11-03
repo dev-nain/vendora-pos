@@ -6,7 +6,6 @@ export const gatedActions = [
   "drawer.open-no-sale",
   "stock.adjust",
   "product.cost-change",
-  "product.delete",
 ] as const;
 export type GatedAction = (typeof gatedActions)[number];
 
