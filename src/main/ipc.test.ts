@@ -90,6 +90,8 @@ describe("products ipc", () => {
     ...patch,
   });
 
+  const bulkPrice = { kind: "set-price", salePricePaisa: 500 } as const;
+
   const seedProduct = () => {
     signIn("manager");
     const result = service.create(createProductInputSchema.parse(draft()));
@@ -152,6 +154,12 @@ describe("products ipc", () => {
       ["products:get", "get", {}],
       ["products:search", "search", { query: "", limit: 101, offset: 0 }],
       ["products:lookup-barcode", "lookupBarcode", { barcode: "" }],
+      ["products:bulk-update", "bulkUpdate", { productIds: [], change: bulkPrice }],
+      [
+        "products:bulk-update",
+        "bulkUpdate",
+        { productIds: [unknownId], change: { kind: "adjust-price", bps: 0 } },
+      ],
     ] as const)("%s rejects bad input", async (channel, method, input) => {
       signIn("owner");
       const spy = vi.spyOn(service, method);
@@ -171,6 +179,7 @@ describe("products ipc", () => {
         ["products:archive", { id: product.id }],
         ["products:restore", { id: product.id }],
         ["products:delete", { id: product.id }],
+        ["products:bulk-update", { productIds: [product.id], change: bulkPrice }],
       ];
       for (const [channel, input] of writes) {
         await expect(invoke(channel, input)).rejects.toThrow(new Error(ipcErrorMessages.forbidden));
@@ -225,6 +234,26 @@ describe("products ipc", () => {
         new Error(ipcErrorMessages.forbidden),
       );
       expect(existsSync(join(dir, "catalog.csv"))).toBe(false);
+    });
+  });
+
+  describe("bulk update", () => {
+    it("returns the parsed ok result and audits the change", async () => {
+      const product = seedProduct();
+      expect(
+        await invoke("products:bulk-update", {
+          productIds: [product.id, product.id],
+          change: bulkPrice,
+        }),
+      ).toEqual({ ok: true, changed: 1, unchanged: 0 });
+      expect(counts().audit).toBe(1);
+    });
+
+    it("returns ineligible-products for unknown ids", async () => {
+      seedProduct();
+      expect(
+        await invoke("products:bulk-update", { productIds: [unknownId], change: bulkPrice }),
+      ).toMatchObject({ ok: false, reason: "ineligible-products", productIds: [unknownId] });
     });
   });
 

@@ -23,6 +23,8 @@ import { appInfoSchema, ipcChannels } from "@shared/ipc";
 import {
   barcodeLookupInputSchema,
   barcodeLookupSchema,
+  bulkUpdateProductsInputSchema,
+  bulkUpdateProductsResultSchema,
   catalogExportResultSchema,
   createProductInputSchema,
   createProductResultSchema,
@@ -178,6 +180,11 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.productsDelete, (_event, input) =>
     deleteProductResultSchema.parse(products.delete(productIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsBulkUpdate, (_event, input) =>
+    bulkUpdateProductsResultSchema.parse(
+      products.bulkUpdate(bulkUpdateProductsInputSchema.parse(input)),
+    ),
   );
   handle(ipcChannels.productsLookupBarcode, (_event, input) =>
     barcodeLookupSchema

@@ -14,10 +14,26 @@ export const productMessages = {
   mrpBelowSalePrice: "MRP can't be less than the sale price",
   duplicateBarcode: "This barcode is already in the list",
   systemProduct: "This is a built-in item and can't be archived or deleted.",
+  ineligibleProducts:
+    "Some selected products no longer exist or can't be edited. Refresh the list.",
+  aboveMrp: (count: number) =>
+    `${count} ${count === 1 ? "product would" : "products would"} cost more than ${count === 1 ? "its" : "their"} MRP. Nothing was changed.`,
+  bulkPercentRange: "Enter a percentage above -100 and up to 1000, other than 0",
 } as const;
+
+export const BULK_UPDATE_MAX_IDS = 5000;
+const BULK_MAX_BPS = 100000;
 
 const paisaSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const productUnitSchema = z.enum(productUnits);
+
+export function adjustPricePaisa(pricePaisa: number, bps: number): number {
+  const scaled = BigInt(pricePaisa) * BigInt(10000 + bps);
+  const rupees = (scaled + 500000n) / 1000000n;
+  const next = rupees * 100n;
+  if (next > BigInt(Number.MAX_SAFE_INTEGER)) throw new RangeError("Adjusted price is too large");
+  return Number(next);
+}
 
 const optionalText = (max: number) =>
   z
@@ -163,6 +179,26 @@ export const barcodeLookupSchema = z.discriminatedUnion("source", [
   }),
 ]);
 
+const unique = (ids: string[]) => [...new Set(ids)];
+
+export const bulkProductChangeSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("category"), categoryId: z.uuid() }),
+  z.strictObject({ kind: z.literal("set-price"), salePricePaisa: paisaSchema }),
+  z.strictObject({
+    kind: z.literal("adjust-price"),
+    bps: z
+      .int(productMessages.bulkPercentRange)
+      .gt(-10000, productMessages.bulkPercentRange)
+      .max(BULK_MAX_BPS, productMessages.bulkPercentRange)
+      .refine((bps) => bps !== 0, productMessages.bulkPercentRange),
+  }),
+]);
+
+export const bulkUpdateProductsInputSchema = z.strictObject({
+  productIds: z.array(z.uuid()).min(1).max(BULK_UPDATE_MAX_IDS).transform(unique),
+  change: bulkProductChangeSchema,
+});
+
 const refusal = <Reason extends string>(reason: Reason) =>
   z.strictObject({ ok: z.literal(false), reason: z.literal(reason), message: z.string() });
 
@@ -196,6 +232,34 @@ export const deleteProductResultSchema = z.union([
   refusal("system-product"),
 ]);
 
+export const bulkUpdateProductsResultSchema = z.union([
+  z.strictObject({
+    ok: z.literal(true),
+    changed: z.int().nonnegative(),
+    unchanged: z.int().nonnegative(),
+  }),
+  z.strictObject({
+    ok: z.literal(false),
+    reason: z.literal("ineligible-products"),
+    message: z.string(),
+    productIds: z.array(z.string()),
+  }),
+  refusal("category-not-found"),
+  z.strictObject({
+    ok: z.literal(false),
+    reason: z.literal("above-mrp"),
+    message: z.string(),
+    products: z.array(
+      z.strictObject({
+        id: z.string(),
+        nameEn: z.string(),
+        salePricePaisa: z.number(),
+        mrpPaisa: z.number(),
+      }),
+    ),
+  }),
+]);
+
 export type ProductIdInput = z.infer<typeof productIdInputSchema>;
 export type ProductStatusResult = z.infer<typeof productStatusResultSchema>;
 export type DeleteProductResult = z.infer<typeof deleteProductResultSchema>;
@@ -213,6 +277,9 @@ export type ScaleBarcode = z.infer<typeof scaleBarcodeSchema>;
 export type BarcodeLookupProduct = z.infer<typeof barcodeLookupProductSchema>;
 export type BarcodeLookup = z.infer<typeof barcodeLookupSchema>;
 export type GetProductResult = z.infer<typeof getProductResultSchema>;
+export type BulkProductChange = z.infer<typeof bulkProductChangeSchema>;
+export type BulkUpdateProductsInput = z.input<typeof bulkUpdateProductsInputSchema>;
+export type BulkUpdateProductsResult = z.infer<typeof bulkUpdateProductsResultSchema>;
 
 export const catalogExportResultSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("saved"), path: z.string().min(1) }),

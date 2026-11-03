@@ -4,14 +4,20 @@ import {
   ChevronRightIcon,
   DownloadIcon,
   PackageIcon,
+  PencilIcon,
   PlusIcon,
   SearchIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { ipcErrorMessages } from "@shared/ipc";
-import type { ProductSearchItem, ProductSearchResult } from "@shared/products";
+import {
+  BULK_UPDATE_MAX_IDS,
+  type ProductSearchItem,
+  type ProductSearchResult,
+} from "@shared/products";
 import { Button } from "@renderer/components/ui/button";
+import { Checkbox } from "@renderer/components/ui/checkbox";
 import { Input } from "@renderer/components/ui/input";
 import { Kbd } from "@renderer/components/ui/kbd";
 import {
@@ -32,7 +38,9 @@ import {
 import { formatRupees } from "../lib/money";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { ErrorLine } from "../users/form-parts";
+import { BulkEditDialog } from "./bulk-edit-dialog";
 import { DeleteProductDialog } from "./delete-product-dialog";
+import { ProductDialog } from "./product-dialog";
 import { BarcodeCell, ProductNameCell, StatusBadge } from "./product-cells";
 import {
   PRODUCT_PAGE_SIZE,
@@ -46,13 +54,23 @@ import {
   type ProductFilters,
 } from "./product-list";
 import { ProductRowMenu } from "./product-row-menu";
+import {
+  pageState,
+  setPage as setPageSelection,
+  toggleOne,
+  type Selection,
+} from "./product-selection";
 
 const SEARCH_DEBOUNCE_MS = 150;
 const ALL_CATEGORIES = "all";
 
 interface ProductsScreenProps {
   onSessionEnded: () => void;
-  onOpenProduct?: (productId: string | null) => void;
+}
+
+interface ProductDialogState {
+  productId: string | null;
+  open: boolean;
 }
 
 interface DeleteDialogState {
@@ -65,7 +83,7 @@ const requestKey = (filters: ProductFilters, page: number, reloadKey: number): s
 
 const dash = <span className="text-tertiary">—</span>;
 
-export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreenProps) {
+export function ProductsScreen({ onSessionEnded }: ProductsScreenProps) {
   const [searchText, setSearchText] = useState("");
   const [filters, setFilters] = useState<ProductFilters>({
     query: "",
@@ -84,6 +102,10 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
+  const [selection, setSelection] = useState<Selection>(new Map());
+  const [capped, setCapped] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [productDialog, setProductDialog] = useState<ProductDialogState | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTableSectionElement>(null);
@@ -101,6 +123,11 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
     [onSessionEnded],
   );
 
+  const clearSelection = useCallback(() => {
+    setSelection(new Map());
+    setCapped(false);
+  }, []);
+
   useEffect(() => {
     window.vendora.categories
       .list()
@@ -113,9 +140,10 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
     const timer = setTimeout(() => {
       setFilters((current) => ({ ...current, query: searchText }));
       setPage(0);
+      clearSelection();
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [searchText, filters.query]);
+  }, [searchText, filters.query, clearSelection]);
 
   useEffect(() => {
     const id = ++requestId.current;
@@ -136,6 +164,7 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
   }, [filters, page, reloadKey, fail]);
 
   const items = result?.items ?? [];
+  const selectionSize = selection.size;
 
   useEffect(() => {
     if (!result || !focusAfterLoad.current) return;
@@ -150,10 +179,21 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
     setReloadKey((key) => key + 1);
   };
 
+  const openProduct = useCallback(
+    (productId: string | null) => setProductDialog({ productId, open: true }),
+    [],
+  );
+
   const changeFilters = (next: Partial<ProductFilters>) => {
+    clearSelection();
     setFilters((current) => ({ ...current, ...next }));
     setPage(0);
     setActiveIndex(0);
+  };
+
+  const applySelection = (outcome: { selection: Selection; capped: boolean }) => {
+    setSelection(outcome.selection);
+    setCapped(outcome.capped);
   };
 
   const focusRow = (index: number) => {
@@ -169,19 +209,31 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
         searchRef.current?.select();
         return;
       }
-      if (event.ctrlKey || event.altKey || event.metaKey || deleteDialog !== null) return;
+      if (
+        event.ctrlKey ||
+        event.altKey ||
+        event.metaKey ||
+        deleteDialog !== null ||
+        bulkOpen ||
+        productDialog?.open
+      ) {
+        return;
+      }
       if (isTypingTarget(event.target)) return;
       if (event.key === "/") {
         event.preventDefault();
         searchRef.current?.focus();
-      } else if (event.key.toLowerCase() === "n" && onOpenProduct) {
+      } else if (event.key.toLowerCase() === "n") {
         event.preventDefault();
-        onOpenProduct(null);
+        openProduct(null);
+      } else if (event.key.toLowerCase() === "b" && selectionSize > 0) {
+        event.preventDefault();
+        setBulkOpen(true);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteDialog, onOpenProduct]);
+  }, [deleteDialog, bulkOpen, selectionSize, productDialog?.open, openProduct]);
 
   const onRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
     if (event.target !== event.currentTarget) return;
@@ -199,10 +251,14 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
     if (target !== null) {
       event.preventDefault();
       focusRow(target);
-    } else if (event.key === "Enter" && onOpenProduct) {
+    } else if (event.key === " ") {
       event.preventDefault();
       const item = items[index];
-      if (item) onOpenProduct(item.id);
+      if (item) applySelection(toggleOne(selection, item));
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      const item = items[index];
+      if (item) openProduct(item.id);
     }
   };
 
@@ -248,6 +304,7 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
     ...(categories ?? []).map((category) => ({ value: category.id, label: category.name })),
   ];
 
+  const pageSelection = pageState(selection, items);
   const total = result?.total ?? 0;
   const showEmpty = result !== null && items.length === 0;
   const empty = emptyState(filters);
@@ -330,12 +387,38 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
           <DownloadIcon aria-hidden="true" size={16} strokeWidth={2} />
           {exporting ? "Exporting…" : "Export CSV"}
         </Button>
-        {onOpenProduct ? (
-          <Button onClick={() => onOpenProduct(null)}>
-            <PlusIcon aria-hidden="true" size={16} strokeWidth={2} />
-            Add product
-            <Kbd>N</Kbd>
-          </Button>
+        <Button
+          variant="secondary"
+          disabled={selection.size === 0}
+          onClick={() => setBulkOpen(true)}
+        >
+          <PencilIcon aria-hidden="true" size={16} strokeWidth={2} />
+          Bulk edit
+          <Kbd>B</Kbd>
+        </Button>
+        <Button onClick={() => openProduct(null)}>
+          <PlusIcon aria-hidden="true" size={16} strokeWidth={2} />
+          Add product
+          <Kbd>N</Kbd>
+        </Button>
+      </div>
+      <div className="flex min-h-[var(--height-control-md)] items-center gap-300">
+        {selection.size === 0 ? (
+          <p className="m-0 text-secondary">No products selected</p>
+        ) : (
+          <>
+            <p className="m-0 font-semibold text-foreground tabular-nums">
+              {selection.size} selected
+            </p>
+            <Button variant="ghost" onClick={clearSelection}>
+              Clear selection
+            </Button>
+          </>
+        )}
+        {capped ? (
+          <p className="m-0 text-secondary">
+            You can edit up to {BULK_UPDATE_MAX_IDS.toLocaleString("en-US")} products at once.
+          </p>
         ) : null}
       </div>
       {exportError ? <ErrorLine>{exportError}</ErrorLine> : null}
@@ -369,6 +452,7 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
           aria-busy={loadedKey !== requestKey(filters, page, reloadKey)}
         >
           <colgroup>
+            <col className="w-[56px]" />
             <col />
             <col className="w-[112px]" />
             <col className="w-[184px]" />
@@ -380,6 +464,17 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
           </colgroup>
           <TableHeader>
             <TableRow>
+              <TableHead className="px-0">
+                <Checkbox
+                  aria-label="Select all on this page"
+                  className="mx-auto"
+                  checked={pageSelection === "all"}
+                  indeterminate={pageSelection === "some"}
+                  onCheckedChange={(checked) =>
+                    applySelection(setPageSelection(selection, items, checked))
+                  }
+                />
+              </TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Code</TableHead>
               <TableHead>Barcode</TableHead>
@@ -400,11 +495,19 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
                   key={item.id}
                   tabIndex={index === activeIndex ? 0 : -1}
                   aria-selected={index === activeIndex}
-                  className="outline-none focus-visible:shadow-focus"
+                  className={`outline-none focus-visible:shadow-focus${selection.has(item.id) ? " bg-surface-selected" : ""}`}
                   onFocus={() => setActiveIndex(index)}
                   onClick={() => setActiveIndex(index)}
                   onKeyDown={(event) => onRowKeyDown(event, index)}
                 >
+                  <TableCell className="px-0" onClick={(event) => event.stopPropagation()}>
+                    <Checkbox
+                      aria-label={`Select ${item.nameEn}`}
+                      className="mx-auto"
+                      checked={selection.has(item.id)}
+                      onCheckedChange={() => applySelection(toggleOne(selection, item))}
+                    />
+                  </TableCell>
                   <TableCell className="py-100">
                     <ProductNameCell item={item} />
                   </TableCell>
@@ -430,7 +533,7 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
                   <TableCell className="px-200">
                     <ProductRowMenu
                       item={item}
-                      {...(onOpenProduct ? { onEdit: () => onOpenProduct(item.id) } : {})}
+                      onEdit={() => openProduct(item.id)}
                       onToggleArchive={() => void toggleArchive(item)}
                       onDelete={() => setDeleteDialog({ item, open: true })}
                     />
@@ -471,6 +574,44 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
             </Button>
           </div>
         </div>
+      ) : null}
+      <BulkEditDialog
+        items={[...selection.values()]}
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        onApplied={({ changed, unchanged }) => {
+          setError(null);
+          setStatus(
+            `Updated ${changed} ${changed === 1 ? "product" : "products"}.${unchanged > 0 ? ` ${unchanged} already matched.` : ""}`,
+          );
+          clearSelection();
+          reload(false);
+        }}
+        onIneligible={(ids) => {
+          setSelection((current) => {
+            const next = new Map(current);
+            for (const id of ids) next.delete(id);
+            return next;
+          });
+          reload(false);
+        }}
+        onSessionEnded={onSessionEnded}
+      />
+      {productDialog ? (
+        <ProductDialog
+          productId={productDialog.productId}
+          open={productDialog.open}
+          onOpenChange={(open) =>
+            setProductDialog((current) => (current ? { ...current, open } : null))
+          }
+          onSaved={(product, mode) => {
+            setError(null);
+            setStatus(`${mode === "added" ? "Added" : "Saved"} ${product.nameEn}.`);
+            reload(true);
+          }}
+          onStale={() => reload(true)}
+          onSessionEnded={onSessionEnded}
+        />
       ) : null}
       {deleteDialog ? (
         <DeleteProductDialog

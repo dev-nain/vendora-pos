@@ -11,6 +11,7 @@ import { autoLockSettingSchema, scalePrefixesSettingSchema } from "@shared/setti
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 import {
   barcodeLookupSchema,
+  bulkUpdateProductsResultSchema,
   catalogExportResultSchema,
   createProductResultSchema,
   deleteProductResultSchema,
@@ -134,6 +135,10 @@ const api: VendoraApi = {
       ),
     delete: async (id) =>
       deleteProductResultSchema.parse(await ipcRenderer.invoke(ipcChannels.productsDelete, { id })),
+    bulkUpdate: async (input) =>
+      bulkUpdateProductsResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.productsBulkUpdate, input),
+      ),
     lookupBarcode: async (barcode) =>
       barcodeLookupSchema
         .nullable()
