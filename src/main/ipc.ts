@@ -11,7 +11,12 @@ import {
   sessionStateSchema,
 } from "@shared/auth";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
-import { autoLockInputSchema, autoLockSettingSchema } from "@shared/settings";
+import {
+  autoLockInputSchema,
+  autoLockSettingSchema,
+  scalePrefixesInputSchema,
+  scalePrefixesSettingSchema,
+} from "@shared/settings";
 import {
   createUserInputSchema,
   createUserResultSchema,
@@ -74,6 +79,11 @@ export function registerIpcHandlers({ auth, autoLock, settings, users }: IpcServ
   );
   handle(ipcChannels.settingsSetAutoLock, (_event, input) =>
     autoLockSettingSchema.parse(settings.setAutoLock(autoLockInputSchema.parse(input))),
+  );
+  handle(ipcChannels.settingsSetScalePrefixes, (_event, input) =>
+    scalePrefixesSettingSchema.parse(
+      settings.setScalePrefixes(scalePrefixesInputSchema.parse(input)),
+    ),
   );
   handle(ipcChannels.authNeedsOwnerSetup, () => z.boolean().parse(auth.needsOwnerSetup()));
   handle(ipcChannels.authCreateOwner, async (_event, input) =>

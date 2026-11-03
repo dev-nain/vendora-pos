@@ -7,7 +7,7 @@ import {
   loginUserSchema,
   sessionStateSchema,
 } from "@shared/auth";
-import { autoLockSettingSchema } from "@shared/settings";
+import { autoLockSettingSchema, scalePrefixesSettingSchema } from "@shared/settings";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 import {
   createUserResultSchema,
@@ -65,6 +65,10 @@ const api: VendoraApi = {
     setAutoLock: async (minutes) =>
       autoLockSettingSchema.parse(
         await ipcRenderer.invoke(ipcChannels.settingsSetAutoLock, { minutes }),
+      ),
+    setScalePrefixes: async (input) =>
+      scalePrefixesSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsSetScalePrefixes, input),
       ),
   },
   users: {
