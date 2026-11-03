@@ -1,17 +1,18 @@
 import type { SafeUser } from "@shared/auth";
 import { hasPermission, type Permission } from "../../../shared/permissions";
 
-export type BackOfficePage = "categories" | "users" | "settings";
+export type BackOfficePage = "products" | "categories" | "users" | "settings";
 
 export interface BackOfficeEntry {
   page: BackOfficePage;
   label: string;
-  group?: "Products";
+  group?: "Catalog";
   permission: Permission;
 }
 
 export const backOfficeEntries: readonly BackOfficeEntry[] = [
-  { page: "categories", label: "Categories", group: "Products", permission: "products.manage" },
+  { page: "products", label: "Products", group: "Catalog", permission: "products.manage" },
+  { page: "categories", label: "Categories", group: "Catalog", permission: "products.manage" },
   { page: "users", label: "Users", permission: "users.manage" },
   { page: "settings", label: "Settings", permission: "settings.manage" },
 ];

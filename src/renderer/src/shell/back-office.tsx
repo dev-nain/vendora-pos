@@ -1,14 +1,16 @@
-import { SettingsIcon, TagsIcon, UsersIcon, type LucideIcon } from "lucide-react";
+import { PackageIcon, SettingsIcon, TagsIcon, UsersIcon, type LucideIcon } from "lucide-react";
 import { Fragment, useState, type KeyboardEvent } from "react";
 
 import type { SafeUser } from "@shared/auth";
 import { cn } from "@renderer/lib/utils";
 import { CategoriesScreen } from "../categories/categories-screen";
+import { ProductsScreen } from "../products/products-screen";
 import { AutoLockSetting } from "../settings/auto-lock-setting";
 import { UsersScreen } from "../users/users-screen";
 import { backOfficePages, type BackOfficePage } from "./back-office-nav";
 
 const icons: Record<BackOfficePage, LucideIcon> = {
+  products: PackageIcon,
   categories: TagsIcon,
   users: UsersIcon,
   settings: SettingsIcon,
@@ -71,7 +73,9 @@ export function BackOffice({ role, currentUserId, onSessionEnded }: BackOfficePr
         })}
       </nav>
       <section className="min-w-0 overflow-y-auto rounded-tl-300 border-t border-l border-line-card bg-surface px-[36px] py-[28px]">
-        {page === "categories" ? (
+        {page === "products" ? (
+          <ProductsScreen onSessionEnded={onSessionEnded} />
+        ) : page === "categories" ? (
           <CategoriesScreen role={role} onSessionEnded={onSessionEnded} />
         ) : page === "users" ? (
           <UsersScreen currentUserId={currentUserId} onSessionEnded={onSessionEnded} />

@@ -7,15 +7,16 @@ const pagesFor = (role: "owner" | "manager" | "cashier") =>
 
 describe("back office nav", () => {
   it("lists every page for the owner", () => {
-    expect(pagesFor("owner")).toEqual(["categories", "users", "settings"]);
+    expect(pagesFor("owner")).toEqual(["products", "categories", "users", "settings"]);
   });
 
-  it("lists only categories for a manager", () => {
-    expect(pagesFor("manager")).toEqual(["categories"]);
+  it("lists only the catalog pages for a manager", () => {
+    expect(pagesFor("manager")).toEqual(["products", "categories"]);
   });
 
-  it("lists nothing for a cashier", () => {
+  it("never shows a cashier the products page", () => {
     expect(pagesFor("cashier")).toEqual([]);
+    expect(pagesFor("cashier")).not.toContain("products");
   });
 
   it("opens the back office for owner and manager only", () => {
