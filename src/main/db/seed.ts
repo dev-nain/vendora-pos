@@ -1,6 +1,36 @@
-import { asc } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import type { VendoraDatabase } from "./client";
-import { stores, terminals } from "./schema";
+import { categories, stores, taxCategories, terminals } from "./schema";
+
+type Tx = Parameters<Parameters<VendoraDatabase["db"]["transaction"]>[0]>[0];
+
+// Soft-deleted defaults count as present so an Owner's deletion sticks.
+function seedCatalogDefaults(tx: Tx, storeId: string): void {
+  const hasCategory = (name: string) =>
+    tx
+      .select({ id: categories.id })
+      .from(categories)
+      .where(and(eq(categories.storeId, storeId), sql`lower(${categories.name}) = lower(${name})`))
+      .get();
+  const hasTaxCategory = (name: string) =>
+    tx
+      .select({ id: taxCategories.id })
+      .from(taxCategories)
+      .where(
+        and(eq(taxCategories.storeId, storeId), sql`lower(${taxCategories.name}) = lower(${name})`),
+      )
+      .get();
+
+  if (!hasCategory("General")) {
+    tx.insert(categories).values({ storeId, name: "General" }).run();
+  }
+  if (!hasTaxCategory("Standard")) {
+    tx.insert(taxCategories).values({ storeId, name: "Standard", rateBps: null }).run();
+  }
+  if (!hasTaxCategory("Exempt")) {
+    tx.insert(taxCategories).values({ storeId, name: "Exempt", rateBps: 0 }).run();
+  }
+}
 
 export function seedStoreAndTerminal(database: VendoraDatabase): void {
   database.db.transaction((tx) => {
@@ -10,5 +40,7 @@ export function seedStoreAndTerminal(database: VendoraDatabase): void {
     if (!tx.select({ id: terminals.id }).from(terminals).limit(1).get()) {
       tx.insert(terminals).values({ storeId, code: "T1" }).run();
     }
+
+    seedCatalogDefaults(tx, storeId);
   });
 }
