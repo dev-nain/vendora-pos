@@ -5,6 +5,9 @@ import { uuidv7 } from "./id";
 export const userRoles = ["owner", "manager", "cashier"] as const;
 export type UserRole = (typeof userRoles)[number];
 
+export const productUnits = ["piece", "kg", "litre"] as const;
+export type ProductUnit = (typeof productUnits)[number];
+
 const id = () => text("id").primaryKey().$defaultFn(uuidv7);
 const createdAt = () =>
   integer("created_at", { mode: "timestamp_ms" })
@@ -23,6 +26,7 @@ export const stores = sqliteTable(
     name: text("name"),
     cashierDiscountLimitBps: integer("cashier_discount_limit_bps").notNull().default(500),
     autoLockMinutes: integer("auto_lock_minutes").default(5),
+    standardTaxRateBps: integer("standard_tax_rate_bps").notNull().default(1800),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -35,6 +39,7 @@ export const stores = sqliteTable(
       "stores_auto_lock_minutes_check",
       sql`${t.autoLockMinutes} IS NULL OR ${t.autoLockMinutes} BETWEEN 1 AND 60`,
     ),
+    check("stores_standard_tax_rate_bps_check", sql`${t.standardTaxRateBps} BETWEEN 0 AND 10000`),
   ],
 );
 
@@ -101,4 +106,129 @@ export const auditLog = sqliteTable(
   ],
 );
 
-export const schema = { stores, terminals, users, auditLog };
+export const categories = sqliteTable(
+  "categories",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    name: text("name").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    uniqueIndex("categories_store_id_name_lower_unique")
+      .on(t.storeId, sql`lower(${t.name})`)
+      .where(sql`${t.deletedAt} IS NULL`),
+  ],
+);
+
+export const taxCategories = sqliteTable(
+  "tax_categories",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    name: text("name").notNull(),
+    rateBps: integer("rate_bps"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    uniqueIndex("tax_categories_store_id_name_lower_unique")
+      .on(t.storeId, sql`lower(${t.name})`)
+      .where(sql`${t.deletedAt} IS NULL`),
+    check(
+      "tax_categories_rate_bps_check",
+      sql`${t.rateBps} IS NULL OR ${t.rateBps} BETWEEN 0 AND 10000`,
+    ),
+  ],
+);
+
+export const products = sqliteTable(
+  "products",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    nameEn: text("name_en").notNull(),
+    nameUr: text("name_ur"),
+    searchText: text("search_text").notNull(),
+    categoryId: text("category_id")
+      .notNull()
+      .references(() => categories.id),
+    taxCategoryId: text("tax_category_id")
+      .notNull()
+      .references(() => taxCategories.id),
+    brand: text("brand"),
+    unit: text("unit", { enum: productUnits }).notNull(),
+    internalCode: text("internal_code"),
+    costPaisa: integer("cost_paisa").notNull(),
+    salePricePaisa: integer("sale_price_paisa").notNull(),
+    mrpPaisa: integer("mrp_paisa"),
+    pctCode: text("pct_code"),
+    lowStockThresholdMilli: integer("low_stock_threshold_milli"),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    isSystem: integer("is_system", { mode: "boolean" }).notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    check("products_unit_check", sql`${t.unit} IN ('piece', 'kg', 'litre')`),
+    check("products_cost_paisa_check", sql`${t.costPaisa} >= 0`),
+    check("products_sale_price_paisa_check", sql`${t.salePricePaisa} >= 0`),
+    check("products_mrp_paisa_check", sql`${t.mrpPaisa} IS NULL OR ${t.mrpPaisa} >= 0`),
+    uniqueIndex("products_store_id_internal_code_unique")
+      .on(t.storeId, t.internalCode)
+      .where(sql`${t.deletedAt} IS NULL`),
+    index("products_store_id_search_text_idx").on(t.storeId, t.searchText),
+    index("products_category_id_idx").on(t.categoryId),
+  ],
+);
+
+export const productBarcodes = sqliteTable(
+  "product_barcodes",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id),
+    barcode: text("barcode").notNull(),
+    packQtyMilli: integer("pack_qty_milli").notNull().default(1000),
+    salePricePaisa: integer("sale_price_paisa"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    check("product_barcodes_pack_qty_milli_check", sql`${t.packQtyMilli} > 0`),
+    check(
+      "product_barcodes_sale_price_paisa_check",
+      sql`${t.salePricePaisa} IS NULL OR ${t.salePricePaisa} >= 0`,
+    ),
+    uniqueIndex("product_barcodes_store_id_barcode_unique")
+      .on(t.storeId, t.barcode)
+      .where(sql`${t.deletedAt} IS NULL`),
+    index("product_barcodes_product_id_idx").on(t.productId),
+  ],
+);
+
+export const schema = {
+  stores,
+  terminals,
+  users,
+  auditLog,
+  categories,
+  taxCategories,
+  products,
+  productBarcodes,
+};
