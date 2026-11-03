@@ -114,6 +114,7 @@ export const categories = sqliteTable(
       .notNull()
       .references(() => stores.id),
     name: text("name").notNull(),
+    isSystem: integer("is_system", { mode: "boolean" }).notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
@@ -134,6 +135,7 @@ export const taxCategories = sqliteTable(
       .references(() => stores.id),
     name: text("name").notNull(),
     rateBps: integer("rate_bps"),
+    isSystem: integer("is_system", { mode: "boolean" }).notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
