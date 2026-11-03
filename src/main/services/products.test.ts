@@ -1,9 +1,11 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createProductInputSchema,
+  updateProductInputSchema,
   type CreateProductInput,
   type CreateProductResult,
 } from "../../shared/products";
@@ -22,8 +24,15 @@ import {
 } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import { createAuditService } from "./audit";
+import { searchProducts } from "./product-search";
 import { createProductsService } from "./products";
 import { normalizeSearchText } from "./search-text";
+
+const barcode = (code: string, packQtyMilli = 1000, salePricePaisa: number | null = null) => ({
+  barcode: code,
+  packQtyMilli,
+  salePricePaisa,
+});
 
 describe("createProductsService", () => {
   let dir: string;
@@ -81,6 +90,17 @@ describe("createProductsService", () => {
     if (!result.ok) throw new Error(result.message);
     return result.product;
   };
+
+  const update = (id: string, patch: Partial<CreateProductInput> = {}) =>
+    service.update(updateProductInputSchema.parse({ ...draft(), id, ...patch }));
+
+  const priceAudit = (action: "price_change" | "cost_change") =>
+    database.db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.action, action))
+      .all()
+      .map((row) => ({ ...row, details: JSON.parse(row.details ?? "null") }));
 
   const tables = () => ({
     products: database.db.select().from(products).all(),
@@ -234,6 +254,186 @@ describe("createProductsService", () => {
       expect(result).toMatchObject({ ok: false, reason: "internal-code-taken" });
       expect(result.ok === false && result.message).toContain("First");
       expect(tables().products).toHaveLength(1);
+    });
+  });
+
+  describe("update", () => {
+    it("refuses a cashier and writes nothing", () => {
+      signIn("manager");
+      const product = created();
+      signIn("cashier");
+      expect(() => update(product.id, { salePricePaisa: 120000, mrpPaisa: null })).toThrow(
+        ForbiddenError,
+      );
+      expect(tables().audit).toHaveLength(0);
+      expect(tables().products[0]!.salePricePaisa).toBe(105000);
+    });
+
+    it("writes one price_change for a sale price change", () => {
+      const user = signIn("manager");
+      const product = created();
+      expect(update(product.id, { salePricePaisa: 108000 }).ok).toBe(true);
+
+      const rows = priceAudit("price_change");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        actorUserId: user.id,
+        entityType: "product",
+        entityId: product.id,
+        details: { oldPaisa: 105000, newPaisa: 108000 },
+      });
+      expect(priceAudit("cost_change")).toHaveLength(0);
+    });
+
+    it("writes one cost_change for a cost change", () => {
+      signIn("owner");
+      const product = created();
+      update(product.id, { costPaisa: 95000 });
+
+      expect(priceAudit("cost_change")).toHaveLength(1);
+      expect(priceAudit("cost_change")[0]!.details).toEqual({ oldPaisa: 90000, newPaisa: 95000 });
+      expect(priceAudit("price_change")).toHaveLength(0);
+    });
+
+    it("writes both rows when price and cost change", () => {
+      signIn("manager");
+      const product = created();
+      update(product.id, { costPaisa: 95000, salePricePaisa: 108000 });
+      expect(tables().audit).toHaveLength(2);
+    });
+
+    it("audits a pack barcode price changing to null", () => {
+      signIn("manager");
+      const product = created({ barcodes: [barcode("901", 24000, 3000)] });
+      update(product.id, { barcodes: [barcode("901", 24000, null)] });
+
+      const rows = priceAudit("price_change");
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.details).toEqual({ barcode: "901", oldPaisa: 3000, newPaisa: null });
+    });
+
+    it("writes no audit for plain edits and rebuilds search_text", () => {
+      signIn("manager");
+      const product = created({ nameEn: "Old Name", internalCode: "OLD1" });
+      const otherCategory = database.db
+        .insert(categories)
+        .values({ storeId: database.db.select().from(stores).get()!.id, name: "Drinks" })
+        .returning()
+        .get();
+
+      const result = update(product.id, {
+        nameEn: "Brand New",
+        internalCode: "NEW1",
+        brand: "Other",
+        categoryId: otherCategory.id,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(tables().audit).toHaveLength(0);
+      expect(tables().products[0]!.searchText).toBe(normalizeSearchText("Brand New", null, "NEW1"));
+      const storeId = database.db.select().from(stores).get()!.id;
+      const ids = (query: string) =>
+        searchProducts(database, storeId, { query, limit: 10, offset: 0 }).items.map((i) => i.id);
+      expect(ids("brand new")).toEqual([product.id]);
+      expect(ids("new1")).toEqual([product.id]);
+      expect(ids("old name")).toEqual([]);
+    });
+
+    it("replaces the barcode set", () => {
+      signIn("manager");
+      const product = created({ barcodes: [barcode("A1"), barcode("B2")] });
+      const before = tables().barcodes;
+      const keptId = before.find((b) => b.barcode === "A1")!.id;
+      const removedId = before.find((b) => b.barcode === "B2")!.id;
+
+      const result = update(product.id, { barcodes: [barcode("A1"), barcode("C3", 6000)] });
+
+      expect(result.ok && result.product.barcodes.map((b) => b.barcode)).toEqual(["A1", "C3"]);
+      const after = tables().barcodes;
+      expect(after).toHaveLength(3);
+      expect(after.find((b) => b.id === keptId)!.deletedAt).toBeNull();
+      expect(after.find((b) => b.id === removedId)!.deletedAt).toEqual(t0);
+      expect(after.find((b) => b.barcode === "C3")!.packQtyMilli).toBe(6000);
+    });
+
+    it("refuses a barcode owned by another product", () => {
+      signIn("manager");
+      created({ nameEn: "Owner Of 7", barcodes: [barcode("7")] });
+      const mine = created({ nameEn: "Mine", barcodes: [barcode("8")] });
+
+      const result = update(mine.id, { barcodes: [barcode("7")] });
+      expect(result).toMatchObject({ ok: false, reason: "barcode-taken" });
+      expect(result.ok === false && result.message).toContain("Owner Of 7");
+    });
+
+    it("allows keeping its own barcode and internal code", () => {
+      signIn("manager");
+      const product = created({ internalCode: "K1", barcodes: [barcode("9")] });
+      expect(update(product.id, { internalCode: "K1", barcodes: [barcode("9")] }).ok).toBe(true);
+    });
+
+    it("refuses an internal code held by another product", () => {
+      signIn("manager");
+      created({ nameEn: "Holder", internalCode: "H1" });
+      const mine = created({ nameEn: "Mine" });
+      expect(update(mine.id, { internalCode: "H1" })).toMatchObject({
+        ok: false,
+        reason: "internal-code-taken",
+      });
+    });
+
+    it("returns not-found for an unknown or deleted product", () => {
+      signIn("manager");
+      const product = created();
+      expect(update("0192f3a0-0000-7000-8000-00000000ffff")).toMatchObject({
+        ok: false,
+        reason: "not-found",
+      });
+      database.db.update(products).set({ deletedAt: t0 }).where(eq(products.id, product.id)).run();
+      expect(update(product.id)).toMatchObject({ ok: false, reason: "not-found" });
+    });
+
+    it("rolls product, barcodes and audit back together when audit fails", () => {
+      signIn("manager");
+      const product = created({ barcodes: [barcode("R1"), barcode("R2")] });
+      const real = createAuditService(database);
+      const failing = createProductsService({
+        database,
+        audit: {
+          ...real,
+          record: (input, tx) => {
+            if (input.action === "cost_change") throw new Error("audit down");
+            return real.record(input, tx);
+          },
+        },
+        sessions,
+        now: () => t0,
+      });
+      const before = tables();
+
+      expect(() =>
+        failing.update(
+          updateProductInputSchema.parse({
+            ...draft({
+              nameEn: "Changed",
+              salePricePaisa: 120000,
+              mrpPaisa: null,
+              costPaisa: 99000,
+              barcodes: [barcode("R1"), barcode("R3")],
+            }),
+            id: product.id,
+          }),
+        ),
+      ).toThrow("audit down");
+
+      expect(tables()).toEqual(before);
+      expect(
+        database.db
+          .select()
+          .from(productBarcodes)
+          .where(and(eq(productBarcodes.barcode, "R3")))
+          .all(),
+      ).toHaveLength(0);
     });
   });
 });
