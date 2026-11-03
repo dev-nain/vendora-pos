@@ -71,8 +71,8 @@ const gatedCases = userRoles.flatMap((role) =>
 );
 
 describe("gated actions", () => {
-  it("lists the eight Core 3 actions", () => {
-    expect(gatedActions).toHaveLength(8);
+  it("lists the seven Core 3 actions", () => {
+    expect(gatedActions).toHaveLength(7);
   });
 
   it.each(gatedCases)("%s / %s -> %s", (role, action, decision) => {

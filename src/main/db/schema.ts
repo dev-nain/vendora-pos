@@ -27,6 +27,8 @@ export const stores = sqliteTable(
     cashierDiscountLimitBps: integer("cashier_discount_limit_bps").notNull().default(500),
     autoLockMinutes: integer("auto_lock_minutes").default(5),
     standardTaxRateBps: integer("standard_tax_rate_bps").notNull().default(1800),
+    scaleWeightPrefix: text("scale_weight_prefix").notNull().default("21"),
+    scalePricePrefix: text("scale_price_prefix").notNull().default("22"),
     miscItemEnabled: integer("misc_item_enabled", { mode: "boolean" }).notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -41,6 +43,14 @@ export const stores = sqliteTable(
       sql`${t.autoLockMinutes} IS NULL OR ${t.autoLockMinutes} BETWEEN 1 AND 60`,
     ),
     check("stores_standard_tax_rate_bps_check", sql`${t.standardTaxRateBps} BETWEEN 0 AND 10000`),
+    check(
+      "stores_scale_weight_prefix_check",
+      sql`length(${t.scaleWeightPrefix}) = 2 AND substr(${t.scaleWeightPrefix}, 1, 1) BETWEEN '0' AND '9' AND substr(${t.scaleWeightPrefix}, 2, 1) BETWEEN '0' AND '9'`,
+    ),
+    check(
+      "stores_scale_price_prefix_check",
+      sql`length(${t.scalePricePrefix}) = 2 AND substr(${t.scalePricePrefix}, 1, 1) BETWEEN '0' AND '9' AND substr(${t.scalePricePrefix}, 2, 1) BETWEEN '0' AND '9'`,
+    ),
   ],
 );
 
@@ -115,6 +125,7 @@ export const categories = sqliteTable(
       .notNull()
       .references(() => stores.id),
     name: text("name").notNull(),
+    isSystem: integer("is_system", { mode: "boolean" }).notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
@@ -135,6 +146,7 @@ export const taxCategories = sqliteTable(
       .references(() => stores.id),
     name: text("name").notNull(),
     rateBps: integer("rate_bps"),
+    isSystem: integer("is_system", { mode: "boolean" }).notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),

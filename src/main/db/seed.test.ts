@@ -154,5 +154,87 @@ describe("seedStoreAndTerminal", () => {
 
       expect(systemProducts()).toHaveLength(1);
     });
+
+    it("uses the system defaults after they were renamed", () => {
+      seedStoreAndTerminal(database);
+      database.db.delete(products).run();
+      database.db.update(categories).set({ name: "Misc" }).run();
+      database.db
+        .update(taxCategories)
+        .set({ name: "GST" })
+        .where(eq(taxCategories.name, "Standard"))
+        .run();
+
+      seedStoreAndTerminal(database);
+
+      const general = database.db.select().from(categories).get();
+      const standard = database.db
+        .select()
+        .from(taxCategories)
+        .where(eq(taxCategories.name, "GST"))
+        .get();
+      expect(systemProducts()).toEqual([
+        expect.objectContaining({ categoryId: general?.id, taxCategoryId: standard?.id }),
+      ]);
+    });
+  });
+
+  it("flags the seeded defaults as system rows", () => {
+    seedStoreAndTerminal(database);
+
+    expect(
+      database.db
+        .select()
+        .from(categories)
+        .all()
+        .map((c) => c.isSystem),
+    ).toEqual([true]);
+    expect(
+      database.db
+        .select()
+        .from(taxCategories)
+        .all()
+        .map((t) => t.isSystem),
+    ).toEqual([true, true]);
+  });
+
+  it("does not re-seed renamed defaults", () => {
+    seedStoreAndTerminal(database);
+    database.db
+      .update(categories)
+      .set({ name: "Misc" })
+      .where(eq(categories.name, "General"))
+      .run();
+    database.db
+      .update(taxCategories)
+      .set({ name: "GST" })
+      .where(eq(taxCategories.name, "Standard"))
+      .run();
+
+    seedStoreAndTerminal(database);
+
+    expect(database.db.select().from(categories).all()).toHaveLength(1);
+    expect(database.db.select().from(taxCategories).all()).toHaveLength(2);
+  });
+
+  it("adopts pre-existing defaults without duplicating them", () => {
+    const store = database.db.insert(stores).values({}).returning().get();
+    database.db.insert(categories).values({ storeId: store.id, name: "General" }).run();
+    database.db
+      .insert(taxCategories)
+      .values([
+        { storeId: store.id, name: "Standard", rateBps: null },
+        { storeId: store.id, name: "Exempt", rateBps: 0 },
+      ])
+      .run();
+
+    seedStoreAndTerminal(database);
+    seedStoreAndTerminal(database);
+
+    const cats = database.db.select().from(categories).all();
+    const tax = database.db.select().from(taxCategories).all();
+    expect(cats).toHaveLength(1);
+    expect(tax).toHaveLength(2);
+    expect([...cats, ...tax].every((row) => row.isSystem)).toBe(true);
   });
 });

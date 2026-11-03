@@ -7,8 +7,31 @@ import {
   loginUserSchema,
   sessionStateSchema,
 } from "@shared/auth";
-import { autoLockSettingSchema } from "@shared/settings";
+import { autoLockSettingSchema, scalePrefixesSettingSchema } from "@shared/settings";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
+import {
+  barcodeLookupSchema,
+  bulkUpdateProductsResultSchema,
+  catalogExportResultSchema,
+  createProductResultSchema,
+  deleteProductResultSchema,
+  getProductResultSchema,
+  productSearchResultSchema,
+  productStatusResultSchema,
+  updateProductResultSchema,
+} from "@shared/products";
+import {
+  categorySchema,
+  createCategoryResultSchema,
+  deleteCategoryResultSchema,
+  renameCategoryResultSchema,
+} from "@shared/categories";
+import {
+  createTaxCategoryResultSchema,
+  deleteTaxCategoryResultSchema,
+  taxCategorySchema,
+  updateTaxCategoryResultSchema,
+} from "@shared/tax-categories";
 import {
   createUserResultSchema,
   deactivateUserResultSchema,
@@ -66,6 +89,10 @@ const api: VendoraApi = {
       autoLockSettingSchema.parse(
         await ipcRenderer.invoke(ipcChannels.settingsSetAutoLock, { minutes }),
       ),
+    setScalePrefixes: async (input) =>
+      scalePrefixesSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsSetScalePrefixes, input),
+      ),
   },
   users: {
     list: async () =>
@@ -88,6 +115,68 @@ const api: VendoraApi = {
       ),
     reactivate: async (id) =>
       userActionResultSchema.parse(await ipcRenderer.invoke(ipcChannels.usersReactivate, { id })),
+  },
+  products: {
+    search: async (input) =>
+      productSearchResultSchema.parse(await ipcRenderer.invoke(ipcChannels.productsSearch, input)),
+    get: async (id) =>
+      getProductResultSchema.parse(await ipcRenderer.invoke(ipcChannels.productsGet, { id })),
+    create: async (input) =>
+      createProductResultSchema.parse(await ipcRenderer.invoke(ipcChannels.productsCreate, input)),
+    update: async (input) =>
+      updateProductResultSchema.parse(await ipcRenderer.invoke(ipcChannels.productsUpdate, input)),
+    archive: async (id) =>
+      productStatusResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.productsArchive, { id }),
+      ),
+    restore: async (id) =>
+      productStatusResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.productsRestore, { id }),
+      ),
+    delete: async (id) =>
+      deleteProductResultSchema.parse(await ipcRenderer.invoke(ipcChannels.productsDelete, { id })),
+    bulkUpdate: async (input) =>
+      bulkUpdateProductsResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.productsBulkUpdate, input),
+      ),
+    lookupBarcode: async (barcode) =>
+      barcodeLookupSchema
+        .nullable()
+        .parse(await ipcRenderer.invoke(ipcChannels.productsLookupBarcode, { barcode })),
+    exportCsv: async () =>
+      catalogExportResultSchema.parse(await ipcRenderer.invoke(ipcChannels.productsExportCsv)),
+  },
+  categories: {
+    list: async () =>
+      z.array(categorySchema).parse(await ipcRenderer.invoke(ipcChannels.categoriesList)),
+    create: async (name) =>
+      createCategoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.categoriesCreate, { name }),
+      ),
+    rename: async (id, name) =>
+      renameCategoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.categoriesRename, { id, name }),
+      ),
+    remove: async (id) =>
+      deleteCategoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.categoriesDelete, { id }),
+      ),
+  },
+  taxCategories: {
+    list: async () =>
+      z.array(taxCategorySchema).parse(await ipcRenderer.invoke(ipcChannels.taxCategoriesList)),
+    create: async (input) =>
+      createTaxCategoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.taxCategoriesCreate, input),
+      ),
+    update: async (input) =>
+      updateTaxCategoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.taxCategoriesUpdate, input),
+      ),
+    remove: async (id) =>
+      deleteTaxCategoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.taxCategoriesDelete, { id }),
+      ),
   },
 };
 

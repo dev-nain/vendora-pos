@@ -1,27 +1,42 @@
 import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
 import type { z } from "zod";
 import {
+  adjustPricePaisa,
   productMessages,
+  type BarcodeLookup,
+  type BulkUpdateProductsResult,
+  type bulkUpdateProductsInputSchema,
+  type BarcodeLookupInput,
   type CreateProductResult,
+  type DeleteProductResult,
+  type GetProductResult,
   type createProductInputSchema,
   type Product,
+  type ProductIdInput,
+  type ProductSearchInput,
+  type ProductSearchResult,
+  type ProductStatusResult,
   type UpdateProductResult,
   type updateProductInputSchema,
 } from "../../shared/products";
-import { requireSessionPermission } from "../auth/guard";
+import { requireSessionPermission, requireUnlockedSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { categories, productBarcodes, products, taxCategories } from "../db/schema";
 import type { createAuditService } from "./audit";
 import { getMiscItemEnabled } from "../settings/store-settings";
+import { lookupBarcode } from "./barcode-lookup";
+import { searchProducts } from "./product-search";
 import { normalizeSearchText } from "./search-text";
 
 type CreateInput = z.output<typeof createProductInputSchema>;
 type UpdateInput = z.output<typeof updateProductInputSchema>;
+type BulkUpdateInput = z.output<typeof bulkUpdateProductsInputSchema>;
 type Tx = Parameters<Parameters<VendoraDatabase["db"]["transaction"]>[0]>[0];
 type ProductRow = typeof products.$inferSelect;
 type BarcodeRow = typeof productBarcodes.$inferSelect;
 type Refusal = Extract<UpdateProductResult, { ok: false }>;
+type StatusRefusal = Extract<ProductStatusResult, { ok: false }>;
 type CreateRefusal = Extract<CreateProductResult, { ok: false }>;
 
 interface ProductsDeps {
@@ -31,8 +46,8 @@ interface ProductsDeps {
   now?: () => Date;
 }
 
-const refuse = <R extends Refusal["reason"]>(reason: R, message: string) =>
-  ({ ok: false, reason, message }) as Extract<Refusal, { reason: R }>;
+const refuse = <R extends (Refusal | StatusRefusal)["reason"]>(reason: R, message: string) =>
+  ({ ok: false, reason, message }) as Extract<Refusal | StatusRefusal, { reason: R }>;
 
 function activeBarcodes(tx: Tx, productId: string): BarcodeRow[] {
   return tx
@@ -41,6 +56,14 @@ function activeBarcodes(tx: Tx, productId: string): BarcodeRow[] {
     .where(and(eq(productBarcodes.productId, productId), isNull(productBarcodes.deletedAt)))
     .orderBy(asc(productBarcodes.barcode))
     .all();
+}
+
+function findProduct(tx: Tx, storeId: string, id: string): ProductRow | undefined {
+  return tx
+    .select()
+    .from(products)
+    .where(and(eq(products.id, id), eq(products.storeId, storeId), isNull(products.deletedAt)))
+    .get();
 }
 
 function toProduct(row: ProductRow, barcodes: BarcodeRow[]): Product {
@@ -67,19 +90,27 @@ function toProduct(row: ProductRow, barcodes: BarcodeRow[]): Product {
   };
 }
 
-function checkReferences(tx: Tx, storeId: string, input: CreateInput): CreateRefusal | null {
-  const category = tx
+export function getProduct(database: VendoraDatabase, storeId: string, id: string): Product | null {
+  return database.db.transaction((tx) => {
+    const row = findProduct(tx, storeId, id);
+    if (!row || row.isSystem) return null;
+    return toProduct(row, activeBarcodes(tx, row.id));
+  });
+}
+
+function findCategory(tx: Tx, storeId: string, id: string): { id: string } | undefined {
+  return tx
     .select({ id: categories.id })
     .from(categories)
     .where(
-      and(
-        eq(categories.id, input.categoryId),
-        eq(categories.storeId, storeId),
-        isNull(categories.deletedAt),
-      ),
+      and(eq(categories.id, id), eq(categories.storeId, storeId), isNull(categories.deletedAt)),
     )
     .get();
-  if (!category) return refuse("category-not-found", productMessages.categoryNotFound);
+}
+
+function checkReferences(tx: Tx, storeId: string, input: CreateInput): CreateRefusal | null {
+  if (!findCategory(tx, storeId, input.categoryId))
+    return refuse("category-not-found", productMessages.categoryNotFound);
 
   const taxCategory = tx
     .select({ id: taxCategories.id })
@@ -168,7 +199,202 @@ export function createProductsService({
 }: ProductsDeps) {
   const { db } = database;
 
+  const setActive = (input: ProductIdInput, isActive: boolean): ProductStatusResult => {
+    const session = requireSessionPermission(sessions, "products.manage");
+
+    return db.transaction((tx) => {
+      const current = findProduct(tx, session.storeId, input.id);
+      if (!current) return refuse("not-found", productMessages.notFound);
+      if (!isActive && current.isSystem) {
+        return refuse("system-product", productMessages.systemProduct);
+      }
+      if (current.isActive === isActive) {
+        return { ok: true, product: toProduct(current, activeBarcodes(tx, current.id)) };
+      }
+
+      const row = tx
+        .update(products)
+        .set({ isActive, updatedAt: now() })
+        .where(eq(products.id, current.id))
+        .returning()
+        .get();
+      audit.record(
+        {
+          actorUserId: session.userId,
+          action: isActive ? "product_restore" : "product_archive",
+          entityType: "product",
+          entityId: current.id,
+          details: { nameEn: current.nameEn },
+        },
+        tx,
+      );
+      return { ok: true, product: toProduct(row, activeBarcodes(tx, row.id)) };
+    });
+  };
+
   return {
+    search(input: ProductSearchInput): ProductSearchResult {
+      const session = requireUnlockedSession(sessions);
+      return searchProducts(database, session.storeId, input);
+    },
+
+    get(input: ProductIdInput): GetProductResult {
+      const session = requireUnlockedSession(sessions);
+      const product = getProduct(database, session.storeId, input.id);
+      if (!product) return refuse("not-found", productMessages.notFound);
+      return { ok: true, product };
+    },
+
+    lookupBarcode(input: BarcodeLookupInput): BarcodeLookup | null {
+      const session = requireUnlockedSession(sessions);
+      return lookupBarcode(database, session.storeId, input.barcode);
+    },
+
+    archive: (input: ProductIdInput): ProductStatusResult => setActive(input, false),
+
+    restore: (input: ProductIdInput): ProductStatusResult => setActive(input, true),
+
+    delete(input: ProductIdInput): DeleteProductResult {
+      const session = requireSessionPermission(sessions, "products.manage");
+
+      return db.transaction((tx) => {
+        const current = findProduct(tx, session.storeId, input.id);
+        if (!current) return refuse("not-found", productMessages.notFound);
+        if (current.isSystem) return refuse("system-product", productMessages.systemProduct);
+
+        const barcodes = activeBarcodes(tx, current.id);
+        const deletedAt = now();
+        for (const barcode of barcodes) {
+          tx.update(productBarcodes)
+            .set({ deletedAt, updatedAt: deletedAt })
+            .where(eq(productBarcodes.id, barcode.id))
+            .run();
+        }
+        tx.update(products)
+          .set({ deletedAt, updatedAt: deletedAt })
+          .where(eq(products.id, current.id))
+          .run();
+        audit.record(
+          {
+            actorUserId: session.userId,
+            action: "product_delete",
+            entityType: "product",
+            entityId: current.id,
+            details: { nameEn: current.nameEn, barcodes: barcodes.map((b) => b.barcode) },
+          },
+          tx,
+        );
+        return { ok: true };
+      });
+    },
+
+    bulkUpdate(input: BulkUpdateInput): BulkUpdateProductsResult {
+      const session = requireSessionPermission(sessions, "products.manage");
+
+      return db.transaction((tx) => {
+        const rows = new Map(
+          tx
+            .select({
+              id: products.id,
+              nameEn: products.nameEn,
+              isSystem: products.isSystem,
+              deletedAt: products.deletedAt,
+              salePricePaisa: products.salePricePaisa,
+              mrpPaisa: products.mrpPaisa,
+              categoryId: products.categoryId,
+            })
+            .from(products)
+            .where(
+              and(inArray(products.id, input.productIds), eq(products.storeId, session.storeId)),
+            )
+            .all()
+            .map((row) => [row.id, row]),
+        );
+
+        const offending = input.productIds.filter((id) => {
+          const row = rows.get(id);
+          return !row || row.deletedAt !== null || row.isSystem;
+        });
+        if (offending.length > 0) {
+          return {
+            ok: false,
+            reason: "ineligible-products",
+            message: productMessages.ineligibleProducts,
+            productIds: offending,
+          };
+        }
+
+        const selected = input.productIds.map((id) => rows.get(id)!);
+        const { change } = input;
+
+        if (change.kind === "category") {
+          if (!findCategory(tx, session.storeId, change.categoryId)) {
+            return {
+              ok: false,
+              reason: "category-not-found",
+              message: productMessages.categoryNotFound,
+            };
+          }
+          const changing = selected.filter((row) => row.categoryId !== change.categoryId);
+          for (const row of changing) {
+            tx.update(products)
+              .set({ categoryId: change.categoryId, updatedAt: now() })
+              .where(eq(products.id, row.id))
+              .run();
+          }
+          return {
+            ok: true,
+            changed: changing.length,
+            unchanged: selected.length - changing.length,
+          };
+        }
+
+        const planned = selected.map((row) => ({
+          row,
+          next:
+            change.kind === "set-price"
+              ? change.salePricePaisa
+              : adjustPricePaisa(row.salePricePaisa, change.bps),
+        }));
+
+        const overMrp = planned.filter(
+          ({ row, next }) => row.mrpPaisa !== null && next > row.mrpPaisa,
+        );
+        if (overMrp.length > 0) {
+          return {
+            ok: false,
+            reason: "above-mrp",
+            message: productMessages.aboveMrp(overMrp.length),
+            products: overMrp.map(({ row, next }) => ({
+              id: row.id,
+              nameEn: row.nameEn,
+              salePricePaisa: next,
+              mrpPaisa: row.mrpPaisa!,
+            })),
+          };
+        }
+
+        const changing = planned.filter(({ row, next }) => next !== row.salePricePaisa);
+        for (const { row, next } of changing) {
+          tx.update(products)
+            .set({ salePricePaisa: next, updatedAt: now() })
+            .where(eq(products.id, row.id))
+            .run();
+          audit.record(
+            {
+              actorUserId: session.userId,
+              action: "price_change",
+              entityType: "product",
+              entityId: row.id,
+              details: { oldPaisa: row.salePricePaisa, newPaisa: next, bulk: true },
+            },
+            tx,
+          );
+        }
+        return { ok: true, changed: changing.length, unchanged: selected.length - changing.length };
+      });
+    },
+
     miscItem(): Product | null {
       const session = requireSessionPermission(sessions, "sale.sell");
       return getMiscItem(database, session.storeId);
