@@ -2,20 +2,27 @@ import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
 import type { z } from "zod";
 import {
   productMessages,
+  type BarcodeLookup,
+  type BarcodeLookupInput,
   type CreateProductResult,
   type DeleteProductResult,
+  type GetProductResult,
   type createProductInputSchema,
   type Product,
   type ProductIdInput,
+  type ProductSearchInput,
+  type ProductSearchResult,
   type ProductStatusResult,
   type UpdateProductResult,
   type updateProductInputSchema,
 } from "../../shared/products";
-import { requireSessionPermission } from "../auth/guard";
+import { requireSessionPermission, requireUnlockedSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { categories, productBarcodes, products, taxCategories } from "../db/schema";
 import type { createAuditService } from "./audit";
+import { lookupBarcode } from "./barcode-lookup";
+import { searchProducts } from "./product-search";
 import { normalizeSearchText } from "./search-text";
 
 type CreateInput = z.output<typeof createProductInputSchema>;
@@ -76,6 +83,14 @@ function toProduct(row: ProductRow, barcodes: BarcodeRow[]): Product {
       salePricePaisa: b.salePricePaisa,
     })),
   };
+}
+
+export function getProduct(database: VendoraDatabase, storeId: string, id: string): Product | null {
+  return database.db.transaction((tx) => {
+    const row = findProduct(tx, storeId, id);
+    if (!row || row.isSystem) return null;
+    return toProduct(row, activeBarcodes(tx, row.id));
+  });
 }
 
 function checkReferences(tx: Tx, storeId: string, input: CreateInput): CreateRefusal | null {
@@ -201,6 +216,23 @@ export function createProductsService({
   };
 
   return {
+    search(input: ProductSearchInput): ProductSearchResult {
+      const session = requireUnlockedSession(sessions);
+      return searchProducts(database, session.storeId, input);
+    },
+
+    get(input: ProductIdInput): GetProductResult {
+      const session = requireUnlockedSession(sessions);
+      const product = getProduct(database, session.storeId, input.id);
+      if (!product) return refuse("not-found", productMessages.notFound);
+      return { ok: true, product };
+    },
+
+    lookupBarcode(input: BarcodeLookupInput): BarcodeLookup | null {
+      const session = requireUnlockedSession(sessions);
+      return lookupBarcode(database, session.storeId, input.barcode);
+    },
+
     archive: (input: ProductIdInput): ProductStatusResult => setActive(input, false),
 
     restore: (input: ProductIdInput): ProductStatusResult => setActive(input, true),

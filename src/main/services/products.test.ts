@@ -10,7 +10,7 @@ import {
   type CreateProductInput,
   type CreateProductResult,
 } from "../../shared/products";
-import { ForbiddenError, SessionLockedError } from "../auth/errors";
+import { ForbiddenError, SessionLockedError, UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
@@ -180,6 +180,86 @@ describe("createProductsService", () => {
       sessions.lock();
       expect(() => create()).toThrow(SessionLockedError);
       expect(tables().products).toHaveLength(0);
+    });
+  });
+
+  describe("reads", () => {
+    it("gets an active product with cost and barcodes", () => {
+      signIn("manager");
+      const product = created({ barcodes: [barcode("B1"), barcode("B2")] });
+      signIn("cashier");
+      expect(service.get({ id: product.id })).toEqual({ ok: true, product });
+      expect(product.costPaisa).toBe(90000);
+      expect(product.barcodes.map((b) => b.barcode)).toEqual(["B1", "B2"]);
+    });
+
+    it("returns an archived product", () => {
+      signIn("manager");
+      const product = created();
+      service.archive({ id: product.id });
+      expect(service.get({ id: product.id })).toMatchObject({
+        ok: true,
+        product: { isActive: false },
+      });
+    });
+
+    it("leaves out a removed barcode", () => {
+      signIn("manager");
+      const product = created({ barcodes: [barcode("B1"), barcode("B2")] });
+      update(product.id, { barcodes: [barcode("B1")] });
+      const result = service.get({ id: product.id });
+      expect(result.ok && result.product.barcodes.map((b) => b.barcode)).toEqual(["B1"]);
+    });
+
+    it("refuses a deleted, system or unknown product", () => {
+      signIn("manager");
+      const deleted = created();
+      service.delete({ id: deleted.id });
+      const system = database.db
+        .insert(products)
+        .values({
+          ...productRow(deleted.id),
+          id: undefined,
+          internalCode: null,
+          isSystem: true,
+          deletedAt: null,
+          searchText: "system",
+        })
+        .returning()
+        .get();
+      for (const id of [deleted.id, system.id, "0192f3a0-0000-7000-8000-000000000099"]) {
+        expect(service.get({ id })).toEqual({
+          ok: false,
+          reason: "not-found",
+          message: productMessages.notFound,
+        });
+      }
+    });
+
+    it("lets a cashier search and look up a barcode in the session store", () => {
+      signIn("manager");
+      const product = created({ barcodes: [barcode("B1", 6000, 500000)] });
+      signIn("cashier");
+      expect(service.search({ query: "tapal", limit: 10, offset: 0 }).items).toHaveLength(1);
+      expect(service.lookupBarcode({ barcode: "B1" })).toMatchObject({
+        source: "barcode",
+        product: { id: product.id, costPaisa: 90000 },
+        packQtyMilli: 6000,
+      });
+    });
+
+    it("refuses every read while locked or signed out", () => {
+      signIn("manager");
+      const product = created();
+      const reads = [
+        () => service.search({ query: "", limit: 10, offset: 0 }),
+        () => service.get({ id: product.id }),
+        () => service.lookupBarcode({ barcode: "B1" }),
+      ];
+      sessions.lock();
+      for (const read of reads) expect(read).toThrow(SessionLockedError);
+      sessions.end();
+      for (const read of reads) expect(read).toThrow(UnauthenticatedError);
     });
   });
 
