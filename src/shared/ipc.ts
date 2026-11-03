@@ -7,8 +7,22 @@ import type {
   LoginUser,
   SessionState,
 } from "./auth";
+import type {
+  Category,
+  CreateCategoryResult,
+  DeleteCategoryResult,
+  RenameCategoryResult,
+} from "./categories";
 import type { GatedAction } from "./gated-actions";
 import type { AutoLockSetting } from "./settings";
+import type {
+  CreateTaxCategoryInput,
+  CreateTaxCategoryResult,
+  DeleteTaxCategoryResult,
+  TaxCategory,
+  UpdateTaxCategoryInput,
+  UpdateTaxCategoryResult,
+} from "./tax-categories";
 import type {
   CreateUserInput,
   CreateUserResult,
@@ -45,6 +59,14 @@ export const ipcChannels = {
   usersResetPin: "users:reset-pin",
   usersDeactivate: "users:deactivate",
   usersReactivate: "users:reactivate",
+  categoriesList: "categories:list",
+  categoriesCreate: "categories:create",
+  categoriesRename: "categories:rename",
+  categoriesDelete: "categories:delete",
+  taxCategoriesList: "tax-categories:list",
+  taxCategoriesCreate: "tax-categories:create",
+  taxCategoriesUpdate: "tax-categories:update",
+  taxCategoriesDelete: "tax-categories:delete",
 } as const;
 
 export const ipcErrorMessages = {
@@ -85,5 +107,17 @@ export interface VendoraApi {
     resetPin: (id: string, pin: string) => Promise<UserActionResult>;
     deactivate: (id: string) => Promise<DeactivateUserResult>;
     reactivate: (id: string) => Promise<UserActionResult>;
+  };
+  categories: {
+    list: () => Promise<Category[]>;
+    create: (name: string) => Promise<CreateCategoryResult>;
+    rename: (id: string, name: string) => Promise<RenameCategoryResult>;
+    remove: (id: string) => Promise<DeleteCategoryResult>;
+  };
+  taxCategories: {
+    list: () => Promise<TaxCategory[]>;
+    create: (input: CreateTaxCategoryInput) => Promise<CreateTaxCategoryResult>;
+    update: (input: UpdateTaxCategoryInput) => Promise<UpdateTaxCategoryResult>;
+    remove: (id: string) => Promise<DeleteTaxCategoryResult>;
   };
 }
