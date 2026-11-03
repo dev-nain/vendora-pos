@@ -11,6 +11,7 @@ import { createAuthService } from "./services/auth";
 import { createAutoLock } from "./services/auto-lock";
 import { createSettingsService } from "./services/settings";
 import { getAutoLockMinutes } from "./settings/store-settings";
+import { createProductsService } from "./services/products";
 import { createUsersService } from "./services/users";
 import { createApprovalStore } from "./auth/approvals";
 import { createSessionStore } from "./auth/session";
@@ -56,7 +57,8 @@ void app.whenReady().then(async () => {
     }
   });
   const users = createUsersService({ database, audit, sessions, approvals });
-  registerIpcHandlers({ auth, autoLock, settings, users });
+  const products = createProductsService({ database, audit, sessions });
+  registerIpcHandlers({ auth, autoLock, settings, users, products });
   createMainWindow();
 
   app.on("activate", () => {

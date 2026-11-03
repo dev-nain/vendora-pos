@@ -10,6 +10,15 @@ import {
 import { autoLockSettingSchema, scalePrefixesSettingSchema } from "@shared/settings";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 import {
+  barcodeLookupSchema,
+  createProductResultSchema,
+  deleteProductResultSchema,
+  getProductResultSchema,
+  productSearchResultSchema,
+  productStatusResultSchema,
+  updateProductResultSchema,
+} from "@shared/products";
+import {
   createUserResultSchema,
   deactivateUserResultSchema,
   managedUserSchema,
@@ -92,6 +101,30 @@ const api: VendoraApi = {
       ),
     reactivate: async (id) =>
       userActionResultSchema.parse(await ipcRenderer.invoke(ipcChannels.usersReactivate, { id })),
+  },
+  products: {
+    search: async (input) =>
+      productSearchResultSchema.parse(await ipcRenderer.invoke(ipcChannels.productsSearch, input)),
+    get: async (id) =>
+      getProductResultSchema.parse(await ipcRenderer.invoke(ipcChannels.productsGet, { id })),
+    create: async (input) =>
+      createProductResultSchema.parse(await ipcRenderer.invoke(ipcChannels.productsCreate, input)),
+    update: async (input) =>
+      updateProductResultSchema.parse(await ipcRenderer.invoke(ipcChannels.productsUpdate, input)),
+    archive: async (id) =>
+      productStatusResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.productsArchive, { id }),
+      ),
+    restore: async (id) =>
+      productStatusResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.productsRestore, { id }),
+      ),
+    delete: async (id) =>
+      deleteProductResultSchema.parse(await ipcRenderer.invoke(ipcChannels.productsDelete, { id })),
+    lookupBarcode: async (barcode) =>
+      barcodeLookupSchema
+        .nullable()
+        .parse(await ipcRenderer.invoke(ipcChannels.productsLookupBarcode, { barcode })),
   },
 };
 
