@@ -1,33 +1,15 @@
-import { and, asc, count, eq, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, getTableName, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { VendoraDatabase } from "../db/client";
-import { productBarcodes, products, type ProductUnit } from "../db/schema";
+import { productBarcodes, products } from "../db/schema";
+import {
+  PRODUCT_SEARCH_MAX_LIMIT,
+  type ProductSearchInput,
+  type ProductSearchResult,
+} from "../../shared/products";
 import { normalizeSearchText } from "./search-text";
 
-export const PRODUCT_SEARCH_MAX_LIMIT = 100;
-
-export interface ProductSearchInput {
-  query: string;
-  categoryId?: string;
-  includeArchived?: boolean;
-  limit: number;
-  offset: number;
-}
-
-export interface ProductSearchItem {
-  id: string;
-  nameEn: string;
-  nameUr: string | null;
-  internalCode: string | null;
-  categoryId: string;
-  unit: ProductUnit;
-  salePricePaisa: number;
-  isActive: boolean;
-}
-
-export interface ProductSearchResult {
-  items: ProductSearchItem[];
-  total: number;
-}
+// Drizzle drops the table qualifier in single-table selects, so the correlated outer id must be qualified by hand.
+const outerProductId = sql`${sql.identifier(getTableName(products))}.${sql.identifier("id")}`;
 
 function escapeLike(term: string): string {
   return term.replace(/[\\%_]/g, (char) => `\\${char}`);
@@ -93,6 +75,10 @@ export function searchProducts(
       unit: products.unit,
       salePricePaisa: products.salePricePaisa,
       isActive: products.isActive,
+      primaryBarcode: sql<
+        string | null
+      >`(SELECT ${productBarcodes.barcode} FROM ${productBarcodes} WHERE ${productBarcodes.productId} = ${outerProductId} AND ${productBarcodes.deletedAt} IS NULL ORDER BY (${productBarcodes.packQtyMilli} = 1000) DESC, ${productBarcodes.createdAt}, ${productBarcodes.id} LIMIT 1)`,
+      extraBarcodeCount: sql<number>`max((SELECT count(*) FROM ${productBarcodes} WHERE ${productBarcodes.productId} = ${outerProductId} AND ${productBarcodes.deletedAt} IS NULL) - 1, 0)`,
     })
     .from(products)
     .where(where)

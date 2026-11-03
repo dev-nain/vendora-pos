@@ -1,35 +1,59 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { VendoraDatabase } from "./client";
 import { normalizeSearchText } from "../services/search-text";
 import { categories, products, stores, taxCategories, terminals } from "./schema";
 
 type Tx = Parameters<Parameters<VendoraDatabase["db"]["transaction"]>[0]>[0];
 
-// Soft-deleted defaults count as present so an Owner's deletion sticks.
+// Defaults are keyed by is_system so renames stick; a soft-deleted default is adopted, not re-seeded.
 function seedCatalogDefaults(tx: Tx, storeId: string): void {
-  const hasCategory = (name: string) =>
-    tx
+  const inStore = eq(categories.storeId, storeId);
+  const taxInStore = eq(taxCategories.storeId, storeId);
+
+  const hasSystemCategory = tx
+    .select({ id: categories.id })
+    .from(categories)
+    .where(and(inStore, eq(categories.isSystem, true)))
+    .get();
+  if (!hasSystemCategory) {
+    const adoptable = tx
       .select({ id: categories.id })
       .from(categories)
-      .where(and(eq(categories.storeId, storeId), sql`lower(${categories.name}) = lower(${name})`))
+      .where(and(inStore, sql`lower(${categories.name}) = 'general'`))
+      .orderBy(asc(sql`${categories.deletedAt} IS NOT NULL`), asc(categories.id))
       .get();
-  const hasTaxCategory = (name: string) =>
-    tx
+    if (adoptable) {
+      tx.update(categories).set({ isSystem: true }).where(eq(categories.id, adoptable.id)).run();
+    } else {
+      tx.insert(categories).values({ storeId, name: "General", isSystem: true }).run();
+    }
+  }
+
+  const defaults = [
+    { name: "Standard", rateBps: null, rateMatch: isNull(taxCategories.rateBps) },
+    { name: "Exempt", rateBps: 0, rateMatch: eq(taxCategories.rateBps, 0) },
+  ] as const;
+  for (const { name, rateBps, rateMatch } of defaults) {
+    const present = tx
       .select({ id: taxCategories.id })
       .from(taxCategories)
-      .where(
-        and(eq(taxCategories.storeId, storeId), sql`lower(${taxCategories.name}) = lower(${name})`),
-      )
+      .where(and(taxInStore, eq(taxCategories.isSystem, true), rateMatch))
       .get();
-
-  if (!hasCategory("General")) {
-    tx.insert(categories).values({ storeId, name: "General" }).run();
-  }
-  if (!hasTaxCategory("Standard")) {
-    tx.insert(taxCategories).values({ storeId, name: "Standard", rateBps: null }).run();
-  }
-  if (!hasTaxCategory("Exempt")) {
-    tx.insert(taxCategories).values({ storeId, name: "Exempt", rateBps: 0 }).run();
+    if (present) continue;
+    const adoptable = tx
+      .select({ id: taxCategories.id })
+      .from(taxCategories)
+      .where(and(taxInStore, sql`lower(${taxCategories.name}) = ${name.toLowerCase()}`, rateMatch))
+      .orderBy(asc(sql`${taxCategories.deletedAt} IS NOT NULL`), asc(taxCategories.id))
+      .get();
+    if (adoptable) {
+      tx.update(taxCategories)
+        .set({ isSystem: true })
+        .where(eq(taxCategories.id, adoptable.id))
+        .run();
+    } else {
+      tx.insert(taxCategories).values({ storeId, name, rateBps, isSystem: true }).run();
+    }
   }
 }
 
@@ -44,12 +68,18 @@ function seedMiscItem(tx: Tx, storeId: string): void {
   const category = tx
     .select({ id: categories.id })
     .from(categories)
-    .where(and(eq(categories.storeId, storeId), sql`lower(${categories.name}) = 'general'`))
+    .where(and(eq(categories.storeId, storeId), eq(categories.isSystem, true)))
     .get();
   const taxCategory = tx
     .select({ id: taxCategories.id })
     .from(taxCategories)
-    .where(and(eq(taxCategories.storeId, storeId), sql`lower(${taxCategories.name}) = 'standard'`))
+    .where(
+      and(
+        eq(taxCategories.storeId, storeId),
+        eq(taxCategories.isSystem, true),
+        isNull(taxCategories.rateBps),
+      ),
+    )
     .get();
   if (!category || !taxCategory) return;
 

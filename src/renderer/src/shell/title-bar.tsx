@@ -7,6 +7,7 @@ import { Brand } from "@renderer/components/brand";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { Avatar } from "../auth/avatar";
 import { roleLabel } from "../auth/role-label";
+import { canOpenBackOffice } from "./back-office-nav";
 
 export type Area = "sell" | "back-office";
 
@@ -26,7 +27,7 @@ const itemClasses =
 
 export function TitleBar({ user, area, onAreaChange, onLock, onLogOut }: TitleBarProps) {
   const tabs: { area: Area; label: string }[] = [{ area: "sell", label: "Sell" }];
-  if (user.role === "owner") tabs.push({ area: "back-office", label: "Back office" });
+  if (canOpenBackOffice(user.role)) tabs.push({ area: "back-office", label: "Back office" });
 
   const moveTab = (event: KeyboardEvent<HTMLDivElement>) => {
     const elements = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')];

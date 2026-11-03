@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "88fc909d-8845-4895-a5b6-d4225dfc179a",
+  "id": "24b05772-053e-4d9a-97d4-0d6dfb91c706",
   "prevId": "a2c0e267-65a6-4198-8e2c-82a193007106",
   "tables": {
     "audit_log": {
@@ -639,13 +639,21 @@
           "autoincrement": false,
           "default": 1800
         },
-        "misc_item_enabled": {
-          "name": "misc_item_enabled",
-          "type": "integer",
+        "scale_weight_prefix": {
+          "name": "scale_weight_prefix",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": false
+          "default": "'21'"
+        },
+        "scale_price_prefix": {
+          "name": "scale_price_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'22'"
         },
         "created_at": {
           "name": "created_at",
@@ -678,6 +686,14 @@
         "stores_standard_tax_rate_bps_check": {
           "name": "stores_standard_tax_rate_bps_check",
           "value": "\"stores\".\"standard_tax_rate_bps\" BETWEEN 0 AND 10000"
+        },
+        "stores_scale_weight_prefix_check": {
+          "name": "stores_scale_weight_prefix_check",
+          "value": "length(\"stores\".\"scale_weight_prefix\") = 2 AND substr(\"stores\".\"scale_weight_prefix\", 1, 1) BETWEEN '0' AND '9' AND substr(\"stores\".\"scale_weight_prefix\", 2, 1) BETWEEN '0' AND '9'"
+        },
+        "stores_scale_price_prefix_check": {
+          "name": "stores_scale_price_prefix_check",
+          "value": "length(\"stores\".\"scale_price_prefix\") = 2 AND substr(\"stores\".\"scale_price_prefix\", 1, 1) BETWEEN '0' AND '9' AND substr(\"stores\".\"scale_price_prefix\", 2, 1) BETWEEN '0' AND '9'"
         }
       }
     },
