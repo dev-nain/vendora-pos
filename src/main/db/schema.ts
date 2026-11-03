@@ -1,12 +1,12 @@
 import { sql } from "drizzle-orm";
 import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { productUnits, type ProductUnit } from "../../shared/products";
 import { uuidv7 } from "./id";
 
 export const userRoles = ["owner", "manager", "cashier"] as const;
 export type UserRole = (typeof userRoles)[number];
 
-export const productUnits = ["piece", "kg", "litre"] as const;
-export type ProductUnit = (typeof productUnits)[number];
+export { productUnits, type ProductUnit };
 
 const id = () => text("id").primaryKey().$defaultFn(uuidv7);
 const createdAt = () =>
