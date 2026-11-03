@@ -2,12 +2,14 @@ import {
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  DownloadIcon,
   PackageIcon,
   PlusIcon,
   SearchIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 
+import { ipcErrorMessages } from "@shared/ipc";
 import type { ProductSearchItem, ProductSearchResult } from "@shared/products";
 import { Button } from "@renderer/components/ui/button";
 import { Input } from "@renderer/components/ui/input";
@@ -35,6 +37,8 @@ import { BarcodeCell, ProductNameCell, StatusBadge } from "./product-cells";
 import {
   PRODUCT_PAGE_SIZE,
   emptyState,
+  exportFailedMessage,
+  exportStatusMessage,
   fetchProductPage,
   isTypingTarget,
   pageRangeLabel,
@@ -77,6 +81,8 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
   const [status, setStatus] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
@@ -218,6 +224,24 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
     }
   };
 
+  const exportCatalog = async () => {
+    if (exporting) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      setStatus(exportStatusMessage(await window.vendora.products.exportCsv()));
+    } catch (cause) {
+      if (isSessionError(cause)) {
+        onSessionEnded();
+      } else if (!(cause instanceof Error && cause.message.includes(ipcErrorMessages.locked))) {
+        setExportError(exportFailedMessage);
+        setStatus(null);
+      }
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const categoryNames = new Map(categories?.map((category) => [category.id, category.name]));
   const categoryItems = [
     { value: ALL_CATEGORIES, label: "All categories" },
@@ -296,6 +320,16 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
           {filters.showArchived ? <CheckIcon aria-hidden="true" size={16} strokeWidth={2} /> : null}
           Show archived
         </Button>
+        <Button
+          variant="secondary"
+          disabled={exporting}
+          focusableWhenDisabled
+          aria-busy={exporting}
+          onClick={() => void exportCatalog()}
+        >
+          <DownloadIcon aria-hidden="true" size={16} strokeWidth={2} />
+          {exporting ? "Exporting…" : "Export CSV"}
+        </Button>
         {onOpenProduct ? (
           <Button onClick={() => onOpenProduct(null)}>
             <PlusIcon aria-hidden="true" size={16} strokeWidth={2} />
@@ -304,6 +338,7 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
           </Button>
         ) : null}
       </div>
+      {exportError ? <ErrorLine>{exportError}</ErrorLine> : null}
       {error ? (
         <div className="flex items-center gap-300">
           <ErrorLine>{error}</ErrorLine>
