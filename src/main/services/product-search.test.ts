@@ -7,11 +7,8 @@ import { uuidv7 } from "../db/id";
 import { runMigrations } from "../db/migrate";
 import { categories, productBarcodes, products, stores, taxCategories } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
-import {
-  PRODUCT_SEARCH_MAX_LIMIT,
-  searchProducts,
-  type ProductSearchInput,
-} from "./product-search";
+import { PRODUCT_SEARCH_MAX_LIMIT, type ProductSearchInput } from "../../shared/products";
+import { searchProducts } from "./product-search";
 import { normalizeSearchText } from "./search-text";
 
 describe("searchProducts", () => {
