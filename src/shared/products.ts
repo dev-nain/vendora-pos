@@ -127,8 +127,15 @@ export const productStatusResultSchema = z.union([
   refusal("system-product"),
 ]);
 
+export const deleteProductResultSchema = z.union([
+  z.strictObject({ ok: z.literal(true) }),
+  refusal("not-found"),
+  refusal("system-product"),
+]);
+
 export type ProductIdInput = z.infer<typeof productIdInputSchema>;
 export type ProductStatusResult = z.infer<typeof productStatusResultSchema>;
+export type DeleteProductResult = z.infer<typeof deleteProductResultSchema>;
 export type CreateProductInput = z.input<typeof createProductInputSchema>;
 export type UpdateProductInput = z.input<typeof updateProductInputSchema>;
 export type Product = z.infer<typeof productSchema>;

@@ -602,5 +602,128 @@ describe("createProductsService", () => {
       );
       expect(productRow(product.id).isActive).toBe(true);
     });
+
+    it("refuses a cashier on delete and writes nothing", () => {
+      signIn("manager");
+      const product = created({ barcodes: [barcode("D0")] });
+      signIn("cashier");
+      const before = tables();
+      expect(() => service.delete({ id: product.id })).toThrow(ForbiddenError);
+      expect(tables()).toEqual(before);
+    });
+
+    it("soft-deletes the product, hides it and frees its barcodes and code", () => {
+      signIn("manager");
+      const product = created({ internalCode: "TD-1", barcodes: [barcode("D1"), barcode("D2")] });
+
+      expect(service.delete({ id: product.id })).toEqual({ ok: true });
+
+      expect(productRow(product.id).deletedAt).toEqual(t0);
+      const rows = database.db.select().from(productBarcodes).all();
+      expect(rows).toHaveLength(2);
+      expect(rows.every((r) => r.deletedAt !== null)).toBe(true);
+      expect(search()).toEqual([]);
+      expect(search(true)).toEqual([]);
+      expect(update(product.id)).toMatchObject({ ok: false, reason: "not-found" });
+      expect(service.archive({ id: product.id })).toMatchObject({ reason: "not-found" });
+      expect(service.restore({ id: product.id })).toMatchObject({ reason: "not-found" });
+      expect(service.delete({ id: product.id })).toMatchObject({ reason: "not-found" });
+
+      const again = created({ internalCode: "TD-1", barcodes: [barcode("D1"), barcode("D2")] });
+      expect(again.id).not.toBe(product.id);
+    });
+
+    it("deletes an archived product", () => {
+      signIn("manager");
+      const product = created();
+      service.archive({ id: product.id });
+      expect(service.delete({ id: product.id })).toEqual({ ok: true });
+      expect(productRow(product.id)).toMatchObject({ isActive: false, deletedAt: t0 });
+    });
+
+    it("leaves already-deleted barcodes alone", () => {
+      signIn("manager");
+      const product = created({ barcodes: [barcode("K1"), barcode("K2")] });
+      const earlier = new Date("2026-01-01T12:00:00.000Z");
+      createProductsService({
+        database,
+        audit: createAuditService(database),
+        sessions,
+        now: () => earlier,
+      }).update(
+        updateProductInputSchema.parse({
+          ...draft({ barcodes: [barcode("K2")] }),
+          id: product.id,
+        }),
+      );
+
+      service.delete({ id: product.id });
+
+      const byCode = new Map(
+        database.db
+          .select()
+          .from(productBarcodes)
+          .all()
+          .map((r) => [r.barcode, r.deletedAt]),
+      );
+      expect(byCode.get("K1")).toEqual(earlier);
+      expect(byCode.get("K2")).toEqual(t0);
+    });
+
+    it("protects a system product from delete", () => {
+      signIn("manager");
+      const base = created();
+      const system = database.db
+        .insert(products)
+        .values({
+          ...productRow(base.id),
+          id: undefined,
+          internalCode: null,
+          isSystem: true,
+          searchText: "system",
+        })
+        .returning()
+        .get();
+      const before = tables();
+      expect(service.delete({ id: system.id })).toEqual({
+        ok: false,
+        reason: "system-product",
+        message: productMessages.systemProduct,
+      });
+      expect(tables()).toEqual(before);
+    });
+
+    it("returns not-found for an unknown product on delete", () => {
+      signIn("manager");
+      expect(service.delete({ id: "0190a3b4-7c5d-7e8f-9a0b-1c2d3e4f5a6b" })).toMatchObject({
+        ok: false,
+        reason: "not-found",
+      });
+    });
+
+    it("writes a delete audit row with the freed barcodes sorted", () => {
+      const user = signIn("manager");
+      const product = created({ barcodes: [barcode("B2"), barcode("A1")] });
+      service.delete({ id: product.id });
+
+      expect(auditRows("product_delete")).toEqual([
+        expect.objectContaining({
+          actorUserId: user.id,
+          approverUserId: null,
+          entityType: "product",
+          entityId: product.id,
+          details: { nameEn: "Tapal Danedar 950g", barcodes: ["A1", "B2"] },
+        }),
+      ]);
+    });
+
+    it("rolls the delete back when audit fails", () => {
+      signIn("manager");
+      const product = created({ barcodes: [barcode("F1")] });
+      const before = tables();
+      expect(() => failingAudit("product_delete").delete({ id: product.id })).toThrow("audit down");
+      expect(tables()).toEqual(before);
+      expect(productRow(product.id).deletedAt).toBeNull();
+    });
   });
 });

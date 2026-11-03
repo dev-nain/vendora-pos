@@ -3,6 +3,7 @@ import type { z } from "zod";
 import {
   productMessages,
   type CreateProductResult,
+  type DeleteProductResult,
   type createProductInputSchema,
   type Product,
   type ProductIdInput,
@@ -203,6 +204,40 @@ export function createProductsService({
     archive: (input: ProductIdInput): ProductStatusResult => setActive(input, false),
 
     restore: (input: ProductIdInput): ProductStatusResult => setActive(input, true),
+
+    delete(input: ProductIdInput): DeleteProductResult {
+      const session = requireSessionPermission(sessions, "products.manage");
+
+      return db.transaction((tx) => {
+        const current = findProduct(tx, session.storeId, input.id);
+        if (!current) return refuse("not-found", productMessages.notFound);
+        if (current.isSystem) return refuse("system-product", productMessages.systemProduct);
+
+        const barcodes = activeBarcodes(tx, current.id);
+        const deletedAt = now();
+        for (const barcode of barcodes) {
+          tx.update(productBarcodes)
+            .set({ deletedAt, updatedAt: deletedAt })
+            .where(eq(productBarcodes.id, barcode.id))
+            .run();
+        }
+        tx.update(products)
+          .set({ deletedAt, updatedAt: deletedAt })
+          .where(eq(products.id, current.id))
+          .run();
+        audit.record(
+          {
+            actorUserId: session.userId,
+            action: "product_delete",
+            entityType: "product",
+            entityId: current.id,
+            details: { nameEn: current.nameEn, barcodes: barcodes.map((b) => b.barcode) },
+          },
+          tx,
+        );
+        return { ok: true };
+      });
+    },
 
     create(input: CreateInput): CreateProductResult {
       const session = requireSessionPermission(sessions, "products.manage");
