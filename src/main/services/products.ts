@@ -1,8 +1,11 @@
 import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
 import type { z } from "zod";
 import {
+  adjustPricePaisa,
   productMessages,
   type BarcodeLookup,
+  type BulkUpdateProductsResult,
+  type bulkUpdateProductsInputSchema,
   type BarcodeLookupInput,
   type CreateProductResult,
   type DeleteProductResult,
@@ -27,6 +30,7 @@ import { normalizeSearchText } from "./search-text";
 
 type CreateInput = z.output<typeof createProductInputSchema>;
 type UpdateInput = z.output<typeof updateProductInputSchema>;
+type BulkUpdateInput = z.output<typeof bulkUpdateProductsInputSchema>;
 type Tx = Parameters<Parameters<VendoraDatabase["db"]["transaction"]>[0]>[0];
 type ProductRow = typeof products.$inferSelect;
 type BarcodeRow = typeof productBarcodes.$inferSelect;
@@ -93,19 +97,19 @@ export function getProduct(database: VendoraDatabase, storeId: string, id: strin
   });
 }
 
-function checkReferences(tx: Tx, storeId: string, input: CreateInput): CreateRefusal | null {
-  const category = tx
+function findCategory(tx: Tx, storeId: string, id: string): { id: string } | undefined {
+  return tx
     .select({ id: categories.id })
     .from(categories)
     .where(
-      and(
-        eq(categories.id, input.categoryId),
-        eq(categories.storeId, storeId),
-        isNull(categories.deletedAt),
-      ),
+      and(eq(categories.id, id), eq(categories.storeId, storeId), isNull(categories.deletedAt)),
     )
     .get();
-  if (!category) return refuse("category-not-found", productMessages.categoryNotFound);
+}
+
+function checkReferences(tx: Tx, storeId: string, input: CreateInput): CreateRefusal | null {
+  if (!findCategory(tx, storeId, input.categoryId))
+    return refuse("category-not-found", productMessages.categoryNotFound);
 
   const taxCategory = tx
     .select({ id: taxCategories.id })
@@ -268,6 +272,113 @@ export function createProductsService({
           tx,
         );
         return { ok: true };
+      });
+    },
+
+    bulkUpdate(input: BulkUpdateInput): BulkUpdateProductsResult {
+      const session = requireSessionPermission(sessions, "products.manage");
+
+      return db.transaction((tx) => {
+        const rows = new Map(
+          tx
+            .select({
+              id: products.id,
+              nameEn: products.nameEn,
+              isSystem: products.isSystem,
+              deletedAt: products.deletedAt,
+              salePricePaisa: products.salePricePaisa,
+              mrpPaisa: products.mrpPaisa,
+              categoryId: products.categoryId,
+            })
+            .from(products)
+            .where(
+              and(inArray(products.id, input.productIds), eq(products.storeId, session.storeId)),
+            )
+            .all()
+            .map((row) => [row.id, row]),
+        );
+
+        const offending = input.productIds.filter((id) => {
+          const row = rows.get(id);
+          return !row || row.deletedAt !== null || row.isSystem;
+        });
+        if (offending.length > 0) {
+          return {
+            ok: false,
+            reason: "ineligible-products",
+            message: productMessages.ineligibleProducts,
+            productIds: offending,
+          };
+        }
+
+        const selected = input.productIds.map((id) => rows.get(id)!);
+        const { change } = input;
+
+        if (change.kind === "category") {
+          if (!findCategory(tx, session.storeId, change.categoryId)) {
+            return {
+              ok: false,
+              reason: "category-not-found",
+              message: productMessages.categoryNotFound,
+            };
+          }
+          const changing = selected.filter((row) => row.categoryId !== change.categoryId);
+          for (const row of changing) {
+            tx.update(products)
+              .set({ categoryId: change.categoryId, updatedAt: now() })
+              .where(eq(products.id, row.id))
+              .run();
+          }
+          return {
+            ok: true,
+            changed: changing.length,
+            unchanged: selected.length - changing.length,
+          };
+        }
+
+        const planned = selected.map((row) => ({
+          row,
+          next:
+            change.kind === "set-price"
+              ? change.salePricePaisa
+              : adjustPricePaisa(row.salePricePaisa, change.bps),
+        }));
+
+        const overMrp = planned.filter(
+          ({ row, next }) => row.mrpPaisa !== null && next > row.mrpPaisa,
+        );
+        if (overMrp.length > 0) {
+          return {
+            ok: false,
+            reason: "above-mrp",
+            message: productMessages.aboveMrp(overMrp.length),
+            products: overMrp.map(({ row, next }) => ({
+              id: row.id,
+              nameEn: row.nameEn,
+              salePricePaisa: next,
+              mrpPaisa: row.mrpPaisa!,
+            })),
+          };
+        }
+
+        const changing = planned.filter(({ row, next }) => next !== row.salePricePaisa);
+        for (const { row, next } of changing) {
+          tx.update(products)
+            .set({ salePricePaisa: next, updatedAt: now() })
+            .where(eq(products.id, row.id))
+            .run();
+          audit.record(
+            {
+              actorUserId: session.userId,
+              action: "price_change",
+              entityType: "product",
+              entityId: row.id,
+              details: { oldPaisa: row.salePricePaisa, newPaisa: next, bulk: true },
+            },
+            tx,
+          );
+        }
+        return { ok: true, changed: changing.length, unchanged: selected.length - changing.length };
       });
     },
 
