@@ -3,6 +3,7 @@ import { useState, type KeyboardEvent } from "react";
 
 import { cn } from "@renderer/lib/utils";
 import { AutoLockSetting } from "../settings/auto-lock-setting";
+import { MiscItemSetting } from "../settings/misc-item-setting";
 import { UsersScreen } from "../users/users-screen";
 
 type Page = "users" | "settings";
@@ -64,6 +65,7 @@ export function BackOffice({ currentUserId, onSessionEnded }: BackOfficeProps) {
               Settings
             </h1>
             <AutoLockSetting />
+            <MiscItemSetting />
           </div>
         )}
       </section>
