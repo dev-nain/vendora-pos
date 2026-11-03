@@ -213,3 +213,9 @@ export type ScaleBarcode = z.infer<typeof scaleBarcodeSchema>;
 export type BarcodeLookupProduct = z.infer<typeof barcodeLookupProductSchema>;
 export type BarcodeLookup = z.infer<typeof barcodeLookupSchema>;
 export type GetProductResult = z.infer<typeof getProductResultSchema>;
+
+export const catalogExportResultSchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("saved"), path: z.string().min(1) }),
+  z.strictObject({ status: z.literal("cancelled") }),
+]);
+export type CatalogExportResult = z.infer<typeof catalogExportResultSchema>;
