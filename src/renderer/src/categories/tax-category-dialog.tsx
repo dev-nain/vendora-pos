@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@renderer/components/ui/dialog";
-import { Field, FieldDescription, FieldError, FieldLabel } from "@renderer/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@renderer/components/ui/field";
 import { Input } from "@renderer/components/ui/input";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { ErrorLine } from "../users/form-parts";
@@ -147,11 +147,7 @@ function TaxCategoryForm({
               value={rate}
               onChange={(event) => setRate(event.target.value)}
             />
-            {rateError ? (
-              <FieldError>{rateError}</FieldError>
-            ) : (
-              <FieldDescription>Up to 2 decimals, 0 to 100.</FieldDescription>
-            )}
+            {rateError ? <FieldError>{rateError}</FieldError> : null}
           </Field>
         )}
         {serviceError ? <ErrorLine>{serviceError}</ErrorLine> : null}

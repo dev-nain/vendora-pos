@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@renderer/components/ui/dialog";
-import { Field, FieldDescription, FieldError, FieldLabel } from "@renderer/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@renderer/components/ui/field";
 import { Input } from "@renderer/components/ui/input";
 import { Kbd } from "@renderer/components/ui/kbd";
 import {
@@ -85,13 +85,11 @@ const moneyProps = {
 
 function FormField({
   label,
-  description,
   error,
   className,
   children,
 }: {
   label: string;
-  description?: string;
   error: string | undefined;
   className?: string;
   children: ReactNode;
@@ -100,11 +98,7 @@ function FormField({
     <Field invalid={error !== undefined} className={className}>
       <FieldLabel>{label}</FieldLabel>
       {children}
-      {error ? (
-        <FieldError>{error}</FieldError>
-      ) : description ? (
-        <FieldDescription>{description}</FieldDescription>
-      ) : null}
+      {error ? <FieldError>{error}</FieldError> : null}
     </Field>
   );
 }
@@ -358,7 +352,7 @@ function ProductForm({
               <FormField label="Name (English)" error={errors.fields.nameEn}>
                 <Input {...text("nameEn")} {...controlProps} maxLength={120} />
               </FormField>
-              <FormField label="Name (Urdu)" description="Optional" error={errors.fields.nameUr}>
+              <FormField label="Name (Urdu)" error={errors.fields.nameUr}>
                 <Input
                   {...text("nameUr")}
                   {...controlProps}

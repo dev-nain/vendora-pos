@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@renderer/components/ui/dialog";
-import { Field, FieldDescription, FieldError, FieldLabel } from "@renderer/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@renderer/components/ui/field";
 import { Input } from "@renderer/components/ui/input";
 import {
   Select,
@@ -191,13 +191,7 @@ function BulkEditBody({
                 value={form.percent}
                 onChange={(event) => edit({ percent: event.target.value })}
               />
-              {fieldError ? (
-                <FieldError>{fieldError}</FieldError>
-              ) : (
-                <FieldDescription>
-                  Use a minus sign to lower prices. Prices round to the nearest rupee.
-                </FieldDescription>
-              )}
+              {fieldError ? <FieldError>{fieldError}</FieldError> : null}
             </Field>
           ) : null}
           {form.mode === "price" ? (
