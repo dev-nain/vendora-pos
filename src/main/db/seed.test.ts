@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase, type VendoraDatabase } from "./client";
 import { runMigrations } from "./migrate";
 import { eq } from "drizzle-orm";
-import { categories, stores, taxCategories, terminals } from "./schema";
+import { categories, productBarcodes, products, stores, taxCategories, terminals } from "./schema";
 import { seedStoreAndTerminal } from "./seed";
 
 describe("seedStoreAndTerminal", () => {
@@ -25,6 +25,9 @@ describe("seedStoreAndTerminal", () => {
     database.sqlite.close();
     rmSync(dir, { recursive: true, force: true });
   });
+
+  const systemProducts = () =>
+    database.db.select().from(products).where(eq(products.isSystem, true)).all();
 
   it("creates one unnamed store with terminal T1", () => {
     seedStoreAndTerminal(database);
@@ -100,5 +103,56 @@ describe("seedStoreAndTerminal", () => {
 
     expect(database.db.select().from(categories).all()).toHaveLength(1);
     expect(database.db.select().from(taxCategories).all()).toHaveLength(2);
+  });
+
+  describe("misc item", () => {
+    it("seeds one system product with the General and Standard categories", () => {
+      seedStoreAndTerminal(database);
+
+      const store = database.db.select().from(stores).get();
+      const general = database.db.select().from(categories).get();
+      const standard = database.db
+        .select()
+        .from(taxCategories)
+        .where(eq(taxCategories.name, "Standard"))
+        .get();
+      expect(systemProducts()).toEqual([
+        expect.objectContaining({
+          storeId: store?.id,
+          nameEn: "Misc item",
+          nameUr: null,
+          unit: "piece",
+          costPaisa: 0,
+          salePricePaisa: 0,
+          mrpPaisa: null,
+          internalCode: null,
+          brand: null,
+          pctCode: null,
+          lowStockThresholdMilli: null,
+          isSystem: true,
+          isActive: true,
+          searchText: "misc item",
+          categoryId: general?.id,
+          taxCategoryId: standard?.id,
+        }),
+      ]);
+      expect(database.db.select().from(productBarcodes).all()).toEqual([]);
+    });
+
+    it("seeds once across repeated runs", () => {
+      seedStoreAndTerminal(database);
+      seedStoreAndTerminal(database);
+
+      expect(database.db.select().from(products).all()).toHaveLength(1);
+    });
+
+    it("does not add a second one after the product is soft-deleted", () => {
+      seedStoreAndTerminal(database);
+      database.db.update(products).set({ deletedAt: new Date() }).run();
+
+      seedStoreAndTerminal(database);
+
+      expect(systemProducts()).toHaveLength(1);
+    });
   });
 });
