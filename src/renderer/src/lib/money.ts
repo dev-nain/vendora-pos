@@ -1,3 +1,11 @@
+const rupeePattern = /^(\d{1,13})(?:\.(\d{1,2}))?$/;
+
+export function parseRupees(text: string): { ok: true; paisa: number } | { ok: false } {
+  const match = rupeePattern.exec(text.trim());
+  if (!match) return { ok: false };
+  return { ok: true, paisa: Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0")) };
+}
+
 export function formatRupees(paisa: number): string {
   if (!Number.isInteger(paisa)) throw new Error("Amount must be whole paisa");
   const rupees = Math.trunc(paisa / 100);

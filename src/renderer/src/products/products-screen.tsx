@@ -36,6 +36,7 @@ import {
 import { formatRupees } from "../lib/money";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { ErrorLine } from "../users/form-parts";
+import { BulkEditDialog } from "./bulk-edit-dialog";
 import { DeleteProductDialog } from "./delete-product-dialog";
 import { BarcodeCell, ProductNameCell, StatusBadge } from "./product-cells";
 import {
@@ -92,6 +93,7 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
   const [selection, setSelection] = useState<Selection>(new Map());
   const [capped, setCapped] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTableSectionElement>(null);
@@ -150,6 +152,7 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
   }, [filters, page, reloadKey, fail]);
 
   const items = result?.items ?? [];
+  const selectionSize = selection.size;
 
   useEffect(() => {
     if (!result || !focusAfterLoad.current) return;
@@ -189,7 +192,8 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
         searchRef.current?.select();
         return;
       }
-      if (event.ctrlKey || event.altKey || event.metaKey || deleteDialog !== null) return;
+      if (event.ctrlKey || event.altKey || event.metaKey || deleteDialog !== null || bulkOpen)
+        return;
       if (isTypingTarget(event.target)) return;
       if (event.key === "/") {
         event.preventDefault();
@@ -197,11 +201,14 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
       } else if (event.key.toLowerCase() === "n" && onOpenProduct) {
         event.preventDefault();
         onOpenProduct(null);
+      } else if (event.key.toLowerCase() === "b" && selectionSize > 0) {
+        event.preventDefault();
+        setBulkOpen(true);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteDialog, onOpenProduct]);
+  }, [deleteDialog, bulkOpen, selectionSize, onOpenProduct]);
 
   const onRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
     if (event.target !== event.currentTarget) return;
@@ -327,7 +334,11 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
           {filters.showArchived ? <CheckIcon aria-hidden="true" size={16} strokeWidth={2} /> : null}
           Show archived
         </Button>
-        <Button variant="secondary" disabled>
+        <Button
+          variant="secondary"
+          disabled={selection.size === 0}
+          onClick={() => setBulkOpen(true)}
+        >
           <PencilIcon aria-hidden="true" size={16} strokeWidth={2} />
           Bulk edit
           <Kbd>B</Kbd>
@@ -512,6 +523,28 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
           </div>
         </div>
       ) : null}
+      <BulkEditDialog
+        items={[...selection.values()]}
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        onApplied={({ changed, unchanged }) => {
+          setError(null);
+          setStatus(
+            `Updated ${changed} ${changed === 1 ? "product" : "products"}.${unchanged > 0 ? ` ${unchanged} already matched.` : ""}`,
+          );
+          clearSelection();
+          reload(false);
+        }}
+        onIneligible={(ids) => {
+          setSelection((current) => {
+            const next = new Map(current);
+            for (const id of ids) next.delete(id);
+            return next;
+          });
+          reload(false);
+        }}
+        onSessionEnded={onSessionEnded}
+      />
       {deleteDialog ? (
         <DeleteProductDialog
           item={deleteDialog.item}
