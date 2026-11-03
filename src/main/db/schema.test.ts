@@ -482,3 +482,88 @@ describe("product migration on an existing database", () => {
     }
   });
 });
+
+const seedScaleStore = () => {
+  const dir = mkdtempSync(join(tmpdir(), "vendora-scale-"));
+  const database = openDatabase(join(dir, "vendora.db"));
+  runMigrations(database, { migrationsFolder, backupDir: join(dir, "backups") });
+  database.sqlite.exec(
+    "INSERT INTO stores (id, name, created_at, updated_at) VALUES ('s1', 'Store', 0, 0)",
+  );
+  return { dir, database };
+};
+
+describe("scale prefix settings", () => {
+  it("defaults a fresh store to 21 and 22", () => {
+    const { dir, database } = seedScaleStore();
+    try {
+      expect(
+        database.sqlite
+          .prepare("SELECT scale_weight_prefix AS w, scale_price_prefix AS p FROM stores")
+          .get(),
+      ).toEqual({ w: "21", p: "22" });
+    } finally {
+      database.sqlite.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.each(["scale_weight_prefix", "scale_price_prefix"])("enforces two digits on %s", (column) => {
+    const { dir, database } = seedScaleStore();
+    try {
+      for (const bad of ["'2'", "'210'", "'2a'", "'ab'", "NULL"]) {
+        expect(() => database.sqlite.exec(`UPDATE stores SET ${column} = ${bad}`)).toThrow();
+      }
+      database.sqlite.exec(`UPDATE stores SET ${column} = '02'`);
+      expect(database.sqlite.prepare(`SELECT ${column} AS v FROM stores`).get()).toEqual({
+        v: "02",
+      });
+    } finally {
+      database.sqlite.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("adds the columns without rebuilding the stores table", () => {
+    const sql = readFileSync(join(migrationsFolder, "0005_scale_barcode_prefixes.sql"), "utf8");
+    expect(sql).not.toContain("__new_stores");
+  });
+
+  it("backs up, keeps the store and fills in the defaults on upgrade", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vendora-upgrade-"));
+    const database = openDatabase(join(dir, "vendora.db"));
+    try {
+      const oldFolder = join(dir, "old-migrations");
+      mkdirSync(join(oldFolder, "meta"), { recursive: true });
+      const journal = JSON.parse(
+        readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+      ) as { entries: { tag: string }[] };
+      journal.entries = journal.entries.slice(0, 5);
+      writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
+      for (const entry of journal.entries) {
+        copyFileSync(
+          join(migrationsFolder, `${entry.tag}.sql`),
+          join(oldFolder, `${entry.tag}.sql`),
+        );
+      }
+
+      const backupDir = join(dir, "backups");
+      runMigrations(database, { migrationsFolder: oldFolder, backupDir });
+      database.sqlite.exec(
+        "INSERT INTO stores (id, name, created_at, updated_at) VALUES ('s1', 'Existing', 0, 0)",
+      );
+
+      expect(runMigrations(database, { migrationsFolder, backupDir })).toBe("migrated");
+
+      expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
+      expect(
+        database.sqlite
+          .prepare("SELECT name, scale_weight_prefix AS w, scale_price_prefix AS p FROM stores")
+          .all(),
+      ).toEqual([{ name: "Existing", w: "21", p: "22" }]);
+    } finally {
+      database.sqlite.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
