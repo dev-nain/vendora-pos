@@ -27,6 +27,7 @@ export const stores = sqliteTable(
     cashierDiscountLimitBps: integer("cashier_discount_limit_bps").notNull().default(500),
     autoLockMinutes: integer("auto_lock_minutes").default(5),
     standardTaxRateBps: integer("standard_tax_rate_bps").notNull().default(1800),
+    miscItemEnabled: integer("misc_item_enabled", { mode: "boolean" }).notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

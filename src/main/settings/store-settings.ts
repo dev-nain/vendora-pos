@@ -21,3 +21,13 @@ export function getAutoLockMinutes(database: VendoraDatabase, storeId: string): 
   if (!row) throw new Error("Store not found");
   return row.minutes;
 }
+
+export function getMiscItemEnabled(database: VendoraDatabase, storeId: string): boolean {
+  const row = database.db
+    .select({ enabled: stores.miscItemEnabled })
+    .from(stores)
+    .where(eq(stores.id, storeId))
+    .get();
+  if (!row) throw new Error("Store not found");
+  return row.enabled;
+}

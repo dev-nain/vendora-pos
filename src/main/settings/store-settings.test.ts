@@ -14,7 +14,11 @@ import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
 import { stores } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
-import { getAutoLockMinutes, getCashierDiscountLimitBps } from "./store-settings";
+import {
+  getAutoLockMinutes,
+  getCashierDiscountLimitBps,
+  getMiscItemEnabled,
+} from "./store-settings";
 
 const migrationsFolder = join(process.cwd(), "drizzle");
 
@@ -106,6 +110,27 @@ describe("store settings", () => {
     for (const table of ["terminals", "users", "audit_log"]) {
       expect(database.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get()).toEqual({ n: 1 });
     }
+    expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
+  });
+
+  it("defaults misc item to off and reads an updated value", () => {
+    runMigrations(database, { migrationsFolder, backupDir });
+    seedStoreAndTerminal(database);
+
+    expect(getMiscItemEnabled(database, storeId())).toBe(false);
+    database.db.update(stores).set({ miscItemEnabled: true }).run();
+    expect(getMiscItemEnabled(database, storeId())).toBe(true);
+  });
+
+  it("throws for an unknown store when reading misc item", () => {
+    runMigrations(database, { migrationsFolder, backupDir });
+
+    expect(() => getMiscItemEnabled(database, "missing")).toThrow("Store not found");
+  });
+
+  it("keeps an existing store with misc item off when migrating from 0004", () => {
+    seedAndMigrate(5);
+    expect(getMiscItemEnabled(database, "s1")).toBe(false);
     expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
   });
 
