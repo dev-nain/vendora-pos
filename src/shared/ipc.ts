@@ -19,6 +19,7 @@ import type {
   BarcodeLookup,
   BulkUpdateProductsInput,
   BulkUpdateProductsResult,
+  CatalogExportResult,
   CreateProductInput,
   CreateProductResult,
   DeleteProductResult,
@@ -83,6 +84,7 @@ export const ipcChannels = {
   productsDelete: "products:delete",
   productsBulkUpdate: "products:bulk-update",
   productsLookupBarcode: "products:lookup-barcode",
+  productsExportCsv: "products:export-csv",
   categoriesList: "categories:list",
   categoriesCreate: "categories:create",
   categoriesRename: "categories:rename",
@@ -143,6 +145,7 @@ export interface VendoraApi {
     delete: (id: string) => Promise<DeleteProductResult>;
     bulkUpdate: (input: BulkUpdateProductsInput) => Promise<BulkUpdateProductsResult>;
     lookupBarcode: (barcode: string) => Promise<BarcodeLookup | null>;
+    exportCsv: () => Promise<CatalogExportResult>;
   };
   categories: {
     list: () => Promise<Category[]>;

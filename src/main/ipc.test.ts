@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +19,7 @@ import {
 import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
+import { createCatalogExportService } from "./services/catalog-export";
 import { createProductsService, type ProductsService } from "./services/products";
 
 const handlers = vi.hoisted(
@@ -48,6 +49,7 @@ describe("products ipc", () => {
   let database: VendoraDatabase;
   let sessions: SessionStore;
   let service: ProductsService;
+  let exportPath: string | null;
   let categoryId: string;
   let taxCategoryId: string;
 
@@ -115,10 +117,17 @@ describe("products ipc", () => {
     taxCategoryId = database.db.select().from(taxCategories).get()!.id;
     sessions = createSessionStore();
     service = createProductsService({ database, audit: createAuditService(database), sessions });
+    exportPath = join(dir, "catalog.csv");
+    const catalogExport = createCatalogExportService({
+      database,
+      sessions,
+      chooseSavePath: async () => exportPath,
+    });
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
       autoLock: stub,
+      catalogExport,
       categories: stub,
       products: service,
       settings: stub,
@@ -200,6 +209,31 @@ describe("products ipc", () => {
         offset: 0,
       })) as { items: { id: string }[] };
       expect(found.items.map((i) => i.id)).toEqual([product.id]);
+    });
+  });
+
+  describe("export csv", () => {
+    it("saves for a manager and returns the path", async () => {
+      seedProduct();
+      expect(await invoke("products:export-csv")).toEqual({
+        status: "saved",
+        path: join(dir, "catalog.csv"),
+      });
+      expect(existsSync(join(dir, "catalog.csv"))).toBe(true);
+    });
+
+    it("returns cancelled when the dialog is dismissed", async () => {
+      signIn("owner");
+      exportPath = null;
+      expect(await invoke("products:export-csv")).toEqual({ status: "cancelled" });
+    });
+
+    it("is forbidden for a cashier", async () => {
+      signIn("cashier");
+      await expect(invoke("products:export-csv")).rejects.toThrow(
+        new Error(ipcErrorMessages.forbidden),
+      );
+      expect(existsSync(join(dir, "catalog.csv"))).toBe(false);
     });
   });
 

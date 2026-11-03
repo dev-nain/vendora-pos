@@ -280,3 +280,9 @@ export type GetProductResult = z.infer<typeof getProductResultSchema>;
 export type BulkProductChange = z.infer<typeof bulkProductChangeSchema>;
 export type BulkUpdateProductsInput = z.input<typeof bulkUpdateProductsInputSchema>;
 export type BulkUpdateProductsResult = z.infer<typeof bulkUpdateProductsResultSchema>;
+
+export const catalogExportResultSchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("saved"), path: z.string().min(1) }),
+  z.strictObject({ status: z.literal("cancelled") }),
+]);
+export type CatalogExportResult = z.infer<typeof catalogExportResultSchema>;

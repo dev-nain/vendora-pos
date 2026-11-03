@@ -1,5 +1,6 @@
 import type { VendoraApi } from "@shared/ipc";
 import type {
+  CatalogExportResult,
   ProductSearchItem,
   ProductSearchQuery,
   ProductSearchResult,
@@ -7,6 +8,12 @@ import type {
 } from "@shared/products";
 
 export const PRODUCT_PAGE_SIZE = 50;
+
+export const exportFailedMessage =
+  "Couldn't save the CSV file. If it's open in Excel, close it and try again.";
+
+export const exportStatusMessage = (result: CatalogExportResult): string | null =>
+  result.status === "saved" ? `Catalog exported to ${result.path}.` : null;
 
 export interface ProductFilters {
   query: string;

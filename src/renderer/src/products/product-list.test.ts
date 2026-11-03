@@ -3,6 +3,7 @@ import type { ProductSearchQuery, ProductSearchResult } from "@shared/products";
 import {
   barcodeSummary,
   emptyState,
+  exportStatusMessage,
   fetchProductPage,
   pageRangeLabel,
   statusLabel,
@@ -139,5 +140,17 @@ describe("emptyState", () => {
     expect(emptyState({ ...base, showArchived: true }).title).toBe(
       "No products match these filters",
     );
+  });
+});
+
+describe("exportStatusMessage", () => {
+  it("names the saved path", () => {
+    expect(exportStatusMessage({ status: "saved", path: "C:\\x\\a.csv" })).toBe(
+      "Catalog exported to C:\\x\\a.csv.",
+    );
+  });
+
+  it("is silent when cancelled", () => {
+    expect(exportStatusMessage({ status: "cancelled" })).toBeNull();
   });
 });
