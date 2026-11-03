@@ -31,6 +31,7 @@ import {
   deleteProductResultSchema,
   getProductResultSchema,
   productIdInputSchema,
+  productSchema,
   productSearchInputSchema,
   productSearchResultSchema,
   productStatusResultSchema,
@@ -40,6 +41,8 @@ import {
 import {
   autoLockInputSchema,
   autoLockSettingSchema,
+  miscItemInputSchema,
+  miscItemSettingSchema,
   scalePrefixesInputSchema,
   scalePrefixesSettingSchema,
 } from "@shared/settings";
@@ -136,6 +139,15 @@ export function registerIpcHandlers({
     scalePrefixesSettingSchema.parse(
       settings.setScalePrefixes(scalePrefixesInputSchema.parse(input)),
     ),
+  );
+  handle(ipcChannels.settingsGetMiscItemEnabled, () =>
+    miscItemSettingSchema.parse(settings.getMiscItemEnabled()),
+  );
+  handle(ipcChannels.settingsSetMiscItemEnabled, (_event, input) =>
+    miscItemSettingSchema.parse(settings.setMiscItemEnabled(miscItemInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsGetMiscItem, () =>
+    productSchema.nullable().parse(products.miscItem()),
   );
   handle(ipcChannels.authNeedsOwnerSetup, () => z.boolean().parse(auth.needsOwnerSetup()));
   handle(ipcChannels.authCreateOwner, async (_event, input) =>

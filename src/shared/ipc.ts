@@ -14,7 +14,12 @@ import type {
   RenameCategoryResult,
 } from "./categories";
 import type { GatedAction } from "./gated-actions";
-import type { AutoLockSetting, ScalePrefixesInput, ScalePrefixesSetting } from "./settings";
+import type {
+  AutoLockSetting,
+  MiscItemSetting,
+  ScalePrefixesInput,
+  ScalePrefixesSetting,
+} from "./settings";
 import type {
   BarcodeLookup,
   BulkUpdateProductsInput,
@@ -24,6 +29,7 @@ import type {
   CreateProductResult,
   DeleteProductResult,
   GetProductResult,
+  Product,
   ProductSearchQuery,
   ProductSearchResult,
   ProductStatusResult,
@@ -66,6 +72,8 @@ export const ipcChannels = {
   settingsGetAutoLock: "settings:get-auto-lock",
   settingsSetAutoLock: "settings:set-auto-lock",
   settingsSetScalePrefixes: "settings:set-scale-prefixes",
+  settingsGetMiscItemEnabled: "settings:get-misc-item-enabled",
+  settingsSetMiscItemEnabled: "settings:set-misc-item-enabled",
   authNeedsOwnerSetup: "auth:needs-owner-setup",
   authCreateOwner: "auth:create-owner",
   usersList: "users:list",
@@ -85,6 +93,7 @@ export const ipcChannels = {
   productsBulkUpdate: "products:bulk-update",
   productsLookupBarcode: "products:lookup-barcode",
   productsExportCsv: "products:export-csv",
+  productsGetMiscItem: "products:get-misc-item",
   categoriesList: "categories:list",
   categoriesCreate: "categories:create",
   categoriesRename: "categories:rename",
@@ -125,6 +134,8 @@ export interface VendoraApi {
     getAutoLock: () => Promise<AutoLockSetting>;
     setAutoLock: (minutes: number | null) => Promise<AutoLockSetting>;
     setScalePrefixes: (input: ScalePrefixesInput) => Promise<ScalePrefixesSetting>;
+    getMiscItemEnabled: () => Promise<MiscItemSetting>;
+    setMiscItemEnabled: (enabled: boolean) => Promise<MiscItemSetting>;
   };
   users: {
     list: () => Promise<ManagedUser[]>;
@@ -136,6 +147,7 @@ export interface VendoraApi {
     reactivate: (id: string) => Promise<UserActionResult>;
   };
   products: {
+    getMiscItem: () => Promise<Product | null>;
     search: (input: ProductSearchQuery) => Promise<ProductSearchResult>;
     get: (id: string) => Promise<GetProductResult>;
     create: (input: CreateProductInput) => Promise<CreateProductResult>;

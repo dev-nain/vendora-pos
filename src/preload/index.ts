@@ -7,7 +7,11 @@ import {
   loginUserSchema,
   sessionStateSchema,
 } from "@shared/auth";
-import { autoLockSettingSchema, scalePrefixesSettingSchema } from "@shared/settings";
+import {
+  autoLockSettingSchema,
+  miscItemSettingSchema,
+  scalePrefixesSettingSchema,
+} from "@shared/settings";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 import {
   barcodeLookupSchema,
@@ -16,6 +20,7 @@ import {
   createProductResultSchema,
   deleteProductResultSchema,
   getProductResultSchema,
+  productSchema,
   productSearchResultSchema,
   productStatusResultSchema,
   updateProductResultSchema,
@@ -93,6 +98,12 @@ const api: VendoraApi = {
       scalePrefixesSettingSchema.parse(
         await ipcRenderer.invoke(ipcChannels.settingsSetScalePrefixes, input),
       ),
+    getMiscItemEnabled: async () =>
+      miscItemSettingSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsGetMiscItemEnabled)),
+    setMiscItemEnabled: async (enabled) =>
+      miscItemSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsSetMiscItemEnabled, { enabled }),
+      ),
   },
   users: {
     list: async () =>
@@ -117,6 +128,8 @@ const api: VendoraApi = {
       userActionResultSchema.parse(await ipcRenderer.invoke(ipcChannels.usersReactivate, { id })),
   },
   products: {
+    getMiscItem: async () =>
+      productSchema.nullable().parse(await ipcRenderer.invoke(ipcChannels.productsGetMiscItem)),
     search: async (input) =>
       productSearchResultSchema.parse(await ipcRenderer.invoke(ipcChannels.productsSearch, input)),
     get: async (id) =>

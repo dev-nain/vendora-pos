@@ -6,6 +6,7 @@ import { cn } from "@renderer/lib/utils";
 import { CategoriesScreen } from "../categories/categories-screen";
 import { ProductsScreen } from "../products/products-screen";
 import { AutoLockSetting } from "../settings/auto-lock-setting";
+import { MiscItemSetting } from "../settings/misc-item-setting";
 import { UsersScreen } from "../users/users-screen";
 import { backOfficePages, type BackOfficePage } from "./back-office-nav";
 
@@ -85,6 +86,7 @@ export function BackOffice({ role, currentUserId, onSessionEnded }: BackOfficePr
               Settings
             </h1>
             <AutoLockSetting />
+            <MiscItemSetting />
           </div>
         ) : null}
       </section>
