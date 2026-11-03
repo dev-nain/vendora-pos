@@ -5,6 +5,7 @@ export type ProductUnit = (typeof productUnits)[number];
 
 export const productMessages = {
   notFound: "That product no longer exists. Refresh the list.",
+  systemProduct: "Misc item is built in and can't be edited, archived or deleted.",
   categoryNotFound: "That category no longer exists. Pick another.",
   taxCategoryNotFound: "That tax category no longer exists. Pick another.",
   barcodeTaken: (barcode: string, productName: string) =>
@@ -13,7 +14,6 @@ export const productMessages = {
     `Internal code ${code} already belongs to "${productName}".`,
   mrpBelowSalePrice: "MRP can't be less than the sale price",
   duplicateBarcode: "This barcode is already in the list",
-  systemProduct: "This is a built-in item and can't be archived or deleted.",
   ineligibleProducts:
     "Some selected products no longer exist or can't be edited. Refresh the list.",
   aboveMrp: (count: number) =>
@@ -215,6 +215,7 @@ export const createProductResultSchema = z.union([okResult, ...createRefusals]);
 export const updateProductResultSchema = z.union([
   okResult,
   refusal("not-found"),
+  refusal("system-product"),
   ...createRefusals,
 ]);
 

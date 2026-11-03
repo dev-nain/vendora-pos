@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   autoLockInputSchema,
   autoLockSettingSchema,
+  miscItemInputSchema,
+  miscItemSettingSchema,
   scalePrefixesInputSchema,
   scalePrefixesSettingSchema,
 } from "../../shared/settings";
@@ -14,7 +16,11 @@ import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
 import { auditLog, stores, users, type UserRole } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
-import { getAutoLockMinutes, getScalePrefixes } from "../settings/store-settings";
+import {
+  getAutoLockMinutes,
+  getMiscItemEnabled,
+  getScalePrefixes,
+} from "../settings/store-settings";
 import { createAuditService } from "./audit";
 import { createSettingsService } from "./settings";
 
@@ -32,6 +38,23 @@ describe("auto-lock schemas", () => {
     expect(autoLockInputSchema.safeParse({}).success).toBe(false);
     expect(autoLockInputSchema.safeParse({ minutes: 5, extra: 1 }).success).toBe(false);
     expect(autoLockInputSchema.safeParse(undefined).success).toBe(false);
+  });
+});
+
+describe("misc item schemas", () => {
+  it.each([true, false])("accepts %s", (enabled) => {
+    expect(miscItemInputSchema.safeParse({ enabled }).success).toBe(true);
+    expect(miscItemSettingSchema.safeParse({ enabled }).success).toBe(true);
+  });
+
+  it.each(["yes", 1, null, undefined])("rejects %s", (enabled) => {
+    expect(miscItemInputSchema.safeParse({ enabled }).success).toBe(false);
+  });
+
+  it("rejects missing input and extra keys", () => {
+    expect(miscItemInputSchema.safeParse({}).success).toBe(false);
+    expect(miscItemInputSchema.safeParse({ enabled: true, extra: 1 }).success).toBe(false);
+    expect(miscItemInputSchema.safeParse(undefined).success).toBe(false);
   });
 });
 
@@ -168,6 +191,56 @@ describe("createSettingsService", () => {
     expect(() => service.getAutoLock()).toThrow(SessionLockedError);
     expect(() => service.setAutoLock({ minutes: 10 })).toThrow(SessionLockedError);
     expect(getAutoLockMinutes(database, storeId())).toBe(5);
+  });
+
+  describe("misc item", () => {
+    it("lets the owner read and set it, writing one settings_change row", () => {
+      const owner = signIn("owner");
+
+      expect(service.getMiscItemEnabled()).toEqual({ enabled: false });
+      expect(service.setMiscItemEnabled({ enabled: true })).toEqual({ enabled: true });
+
+      expect(getMiscItemEnabled(database, storeId())).toBe(true);
+      const rows = auditRows();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        action: "settings_change",
+        actorUserId: owner.id,
+        entityType: "store",
+        entityId: storeId(),
+      });
+      expect(JSON.parse(rows[0]!.details!)).toEqual({
+        setting: "miscItemEnabled",
+        from: false,
+        to: true,
+      });
+    });
+
+    it("writes nothing when the value is unchanged", () => {
+      signIn("owner");
+
+      expect(service.setMiscItemEnabled({ enabled: false })).toEqual({ enabled: false });
+
+      expect(auditRows()).toHaveLength(0);
+    });
+
+    it.each(["manager", "cashier"] as const)("refuses a %s on get and set", (role) => {
+      signIn(role);
+
+      expect(() => service.getMiscItemEnabled()).toThrow(ForbiddenError);
+      expect(() => service.setMiscItemEnabled({ enabled: true })).toThrow(ForbiddenError);
+      expect(getMiscItemEnabled(database, storeId())).toBe(false);
+      expect(auditRows()).toHaveLength(0);
+    });
+
+    it("refuses while locked", () => {
+      signIn("owner");
+      sessions.lock();
+
+      expect(() => service.getMiscItemEnabled()).toThrow(SessionLockedError);
+      expect(() => service.setMiscItemEnabled({ enabled: true })).toThrow(SessionLockedError);
+      expect(getMiscItemEnabled(database, storeId())).toBe(false);
+    });
   });
 
   describe("setScalePrefixes", () => {

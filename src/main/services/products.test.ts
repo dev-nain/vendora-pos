@@ -7,6 +7,7 @@ import {
   createProductInputSchema,
   productMessages,
   updateProductInputSchema,
+  updateProductResultSchema,
   type CreateProductInput,
   type CreateProductResult,
 } from "../../shared/products";
@@ -26,7 +27,7 @@ import {
 import { seedStoreAndTerminal } from "../db/seed";
 import { createAuditService } from "./audit";
 import { searchProducts } from "./product-search";
-import { createProductsService } from "./products";
+import { createProductsService, getMiscItem } from "./products";
 import { normalizeSearchText } from "./search-text";
 
 const barcode = (code: string, packQtyMilli = 1000, salePricePaisa: number | null = null) => ({
@@ -102,6 +103,8 @@ describe("createProductsService", () => {
       .where(eq(auditLog.action, action))
       .all()
       .map((row) => ({ ...row, details: JSON.parse(row.details ?? "null") }));
+
+  const storeIdOf = () => database.db.select().from(stores).get()!.id;
 
   const tables = () => ({
     products: database.db.select().from(products).where(eq(products.isSystem, false)).all(),
@@ -530,6 +533,34 @@ describe("createProductsService", () => {
       expect(update(product.id)).toMatchObject({ ok: false, reason: "not-found" });
     });
 
+    it.each(["owner", "manager"] as const)(
+      "refuses %s editing the misc item and writes nothing",
+      (role) => {
+        signIn(role);
+        const misc = database.db.select().from(products).where(eq(products.isSystem, true)).get()!;
+        const before = database.db.select().from(products).all();
+        const auditBefore = database.db.select().from(auditLog).all();
+
+        const result = update(misc.id, { nameEn: "Renamed", salePricePaisa: 500, mrpPaisa: null });
+
+        expect(result).toEqual({
+          ok: false,
+          reason: "system-product",
+          message: productMessages.systemProduct,
+        });
+        expect(updateProductResultSchema.safeParse(result).success).toBe(true);
+        expect(database.db.select().from(products).all()).toEqual(before);
+        expect(database.db.select().from(productBarcodes).all()).toEqual([]);
+        expect(database.db.select().from(auditLog).all()).toEqual(auditBefore);
+      },
+    );
+
+    it("keeps the misc item out of search results", () => {
+      expect(
+        searchProducts(database, storeIdOf(), { query: "misc", limit: 10, offset: 0 }).items,
+      ).toEqual([]);
+    });
+
     it("rolls product, barcodes and audit back together when audit fails", () => {
       signIn("manager");
       const product = created({ barcodes: [barcode("R1"), barcode("R2")] });
@@ -571,6 +602,47 @@ describe("createProductsService", () => {
           .where(and(eq(productBarcodes.barcode, "R3")))
           .all(),
       ).toHaveLength(0);
+    });
+  });
+
+  describe("misc item lookup", () => {
+    it("returns null while the setting is off and the product once it is on", () => {
+      expect(getMiscItem(database, storeIdOf())).toBeNull();
+
+      database.db.update(stores).set({ miscItemEnabled: true }).run();
+
+      expect(getMiscItem(database, storeIdOf())).toMatchObject({
+        nameEn: "Misc item",
+        unit: "piece",
+        salePricePaisa: 0,
+        costPaisa: 0,
+        barcodes: [],
+      });
+    });
+
+    it("returns null when the setting is on but the product is gone", () => {
+      database.db.update(stores).set({ miscItemEnabled: true }).run();
+      database.db.update(products).set({ deletedAt: t0 }).run();
+
+      expect(getMiscItem(database, storeIdOf())).toBeNull();
+    });
+
+    it("lets a cashier read it", () => {
+      database.db.update(stores).set({ miscItemEnabled: true }).run();
+      signIn("cashier");
+
+      expect(service.miscItem()?.nameEn).toBe("Misc item");
+    });
+
+    it("requires a session", () => {
+      expect(() => service.miscItem()).toThrow(UnauthenticatedError);
+    });
+
+    it("refuses a locked session", () => {
+      signIn("cashier");
+      sessions.lock();
+
+      expect(() => service.miscItem()).toThrow(SessionLockedError);
     });
   });
 

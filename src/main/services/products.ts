@@ -24,6 +24,7 @@ import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { categories, productBarcodes, products, taxCategories } from "../db/schema";
 import type { createAuditService } from "./audit";
+import { getMiscItemEnabled } from "../settings/store-settings";
 import { lookupBarcode } from "./barcode-lookup";
 import { searchProducts } from "./product-search";
 import { normalizeSearchText } from "./search-text";
@@ -176,6 +177,18 @@ function checkClashes(
     }
   }
   return null;
+}
+
+export function getMiscItem(database: VendoraDatabase, storeId: string): Product | null {
+  if (!getMiscItemEnabled(database, storeId)) return null;
+  const row = database.db
+    .select()
+    .from(products)
+    .where(
+      and(eq(products.storeId, storeId), eq(products.isSystem, true), isNull(products.deletedAt)),
+    )
+    .get();
+  return row ? toProduct(row, []) : null;
 }
 
 export function createProductsService({
@@ -382,6 +395,11 @@ export function createProductsService({
       });
     },
 
+    miscItem(): Product | null {
+      const session = requireSessionPermission(sessions, "sale.sell");
+      return getMiscItem(database, session.storeId);
+    },
+
     create(input: CreateInput): CreateProductResult {
       const session = requireSessionPermission(sessions, "products.manage");
 
@@ -450,6 +468,7 @@ export function createProductsService({
           )
           .get();
         if (!current) return refuse("not-found", productMessages.notFound);
+        if (current.isSystem) return refuse("system-product", productMessages.systemProduct);
 
         const refusal =
           checkReferences(tx, session.storeId, input) ??
