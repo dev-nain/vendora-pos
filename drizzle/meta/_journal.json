@@ -43,6 +43,13 @@
       "when": 1793691840331,
       "tag": "0005_scale_barcode_prefixes",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793700683529,
+      "tag": "0006_catalog_system_rows",
+      "breakpoints": true
     }
   ]
 }

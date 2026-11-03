@@ -47,7 +47,7 @@ Staff log in fast, and sensitive actions always record who approved them.
 
 - Three fixed roles: **Owner**, **Manager**, **Cashier**
 - Login by username + password; quick switch by PIN at the counter; auto-lock after a configurable idle time
-- Gated actions ask for a Manager/Owner PIN inline instead of forcing a logout: discount above the cashier limit, price override, void a completed sale, return without receipt, open drawer without a sale, stock adjustment, cost-price change, delete product
+- Gated actions ask for a Manager/Owner PIN inline instead of forcing a logout: discount above the cashier limit, price override, void a completed sale, return without receipt, open drawer without a sale, stock adjustment, cost-price change
 - Every override records the approver
 - PIN locks after 5 failed attempts
 

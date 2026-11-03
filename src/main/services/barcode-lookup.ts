@@ -1,27 +1,9 @@
 import { and, eq, isNull } from "drizzle-orm";
 import type { VendoraDatabase } from "../db/client";
-import { productBarcodes, products, type ProductUnit } from "../db/schema";
-import { parseScaleBarcode, type ScaleBarcode } from "../hardware/scale-barcode";
+import { productBarcodes, products } from "../db/schema";
+import type { BarcodeLookup } from "../../shared/products";
+import { parseScaleBarcode } from "../hardware/scale-barcode";
 import { getScalePrefixes } from "../settings/store-settings";
-
-export interface BarcodeLookupProduct {
-  id: string;
-  nameEn: string;
-  nameUr: string | null;
-  unit: ProductUnit;
-  salePricePaisa: number;
-  taxCategoryId: string;
-  costPaisa: number;
-}
-
-export type BarcodeLookup =
-  | {
-      source: "barcode";
-      product: BarcodeLookupProduct;
-      packQtyMilli: number;
-      packPricePaisa: number | null;
-    }
-  | { source: "scale"; product: BarcodeLookupProduct; scale: ScaleBarcode };
 
 const productColumns = {
   id: products.id,

@@ -10,13 +10,45 @@ import {
   pinSwitchInputSchema,
   sessionStateSchema,
 } from "@shared/auth";
+import {
+  categoryIdInputSchema,
+  categorySchema,
+  createCategoryInputSchema,
+  createCategoryResultSchema,
+  deleteCategoryResultSchema,
+  renameCategoryInputSchema,
+  renameCategoryResultSchema,
+} from "@shared/categories";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
+import {
+  barcodeLookupInputSchema,
+  barcodeLookupSchema,
+  createProductInputSchema,
+  createProductResultSchema,
+  deleteProductResultSchema,
+  getProductResultSchema,
+  productIdInputSchema,
+  productSearchInputSchema,
+  productSearchResultSchema,
+  productStatusResultSchema,
+  updateProductInputSchema,
+  updateProductResultSchema,
+} from "@shared/products";
 import {
   autoLockInputSchema,
   autoLockSettingSchema,
   scalePrefixesInputSchema,
   scalePrefixesSettingSchema,
 } from "@shared/settings";
+import {
+  createTaxCategoryInputSchema,
+  createTaxCategoryResultSchema,
+  deleteTaxCategoryResultSchema,
+  taxCategoryIdInputSchema,
+  taxCategorySchema,
+  updateTaxCategoryInputSchema,
+  updateTaxCategoryResultSchema,
+} from "@shared/tax-categories";
 import {
   createUserInputSchema,
   createUserResultSchema,
@@ -32,8 +64,11 @@ import {
 import { z } from "zod";
 import { toIpcError } from "./ipc-errors";
 import type { AuthService } from "./services/auth";
+import type { CategoriesService } from "./services/categories";
 import type { AutoLock } from "./services/auto-lock";
+import type { ProductsService } from "./services/products";
 import type { SettingsService } from "./services/settings";
+import type { TaxCategoriesService } from "./services/tax-categories";
 import type { UsersService } from "./services/users";
 
 function handle(
@@ -52,11 +87,22 @@ function handle(
 interface IpcServices {
   auth: AuthService;
   autoLock: AutoLock;
+  categories: CategoriesService;
   settings: SettingsService;
+  taxCategories: TaxCategoriesService;
   users: UsersService;
+  products: ProductsService;
 }
 
-export function registerIpcHandlers({ auth, autoLock, settings, users }: IpcServices): void {
+export function registerIpcHandlers({
+  auth,
+  autoLock,
+  categories,
+  products,
+  settings,
+  taxCategories,
+  users,
+}: IpcServices): void {
   handle(ipcChannels.appGetInfo, () => appInfoSchema.parse({ version: app.getVersion() }));
   handle(ipcChannels.authLogin, async (_event, input) =>
     authResultSchema.parse(await auth.login(loginInputSchema.parse(input))),
@@ -107,5 +153,59 @@ export function registerIpcHandlers({ auth, autoLock, settings, users }: IpcServ
   );
   handle(ipcChannels.usersReactivate, (_event, input) =>
     userActionResultSchema.parse(users.reactivate(userIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsSearch, (_event, input) =>
+    productSearchResultSchema.parse(products.search(productSearchInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsGet, (_event, input) =>
+    getProductResultSchema.parse(products.get(productIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsCreate, (_event, input) =>
+    createProductResultSchema.parse(products.create(createProductInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsUpdate, (_event, input) =>
+    updateProductResultSchema.parse(products.update(updateProductInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsArchive, (_event, input) =>
+    productStatusResultSchema.parse(products.archive(productIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsRestore, (_event, input) =>
+    productStatusResultSchema.parse(products.restore(productIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsDelete, (_event, input) =>
+    deleteProductResultSchema.parse(products.delete(productIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsLookupBarcode, (_event, input) =>
+    barcodeLookupSchema
+      .nullable()
+      .parse(products.lookupBarcode(barcodeLookupInputSchema.parse(input))),
+  );
+  handle(ipcChannels.categoriesList, () => z.array(categorySchema).parse(categories.list()));
+  handle(ipcChannels.categoriesCreate, (_event, input) =>
+    createCategoryResultSchema.parse(categories.create(createCategoryInputSchema.parse(input))),
+  );
+  handle(ipcChannels.categoriesRename, (_event, input) =>
+    renameCategoryResultSchema.parse(categories.rename(renameCategoryInputSchema.parse(input))),
+  );
+  handle(ipcChannels.categoriesDelete, (_event, input) =>
+    deleteCategoryResultSchema.parse(categories.remove(categoryIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.taxCategoriesList, () =>
+    z.array(taxCategorySchema).parse(taxCategories.list()),
+  );
+  handle(ipcChannels.taxCategoriesCreate, (_event, input) =>
+    createTaxCategoryResultSchema.parse(
+      taxCategories.create(createTaxCategoryInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.taxCategoriesUpdate, (_event, input) =>
+    updateTaxCategoryResultSchema.parse(
+      taxCategories.update(updateTaxCategoryInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.taxCategoriesDelete, (_event, input) =>
+    deleteTaxCategoryResultSchema.parse(
+      taxCategories.remove(taxCategoryIdInputSchema.parse(input)),
+    ),
   );
 }

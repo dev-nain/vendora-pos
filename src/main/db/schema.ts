@@ -1,12 +1,12 @@
 import { sql } from "drizzle-orm";
 import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { productUnits, type ProductUnit } from "../../shared/products";
 import { uuidv7 } from "./id";
 
 export const userRoles = ["owner", "manager", "cashier"] as const;
 export type UserRole = (typeof userRoles)[number];
 
-export const productUnits = ["piece", "kg", "litre"] as const;
-export type ProductUnit = (typeof productUnits)[number];
+export { productUnits, type ProductUnit };
 
 const id = () => text("id").primaryKey().$defaultFn(uuidv7);
 const createdAt = () =>
@@ -124,6 +124,7 @@ export const categories = sqliteTable(
       .notNull()
       .references(() => stores.id),
     name: text("name").notNull(),
+    isSystem: integer("is_system", { mode: "boolean" }).notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
@@ -144,6 +145,7 @@ export const taxCategories = sqliteTable(
       .references(() => stores.id),
     name: text("name").notNull(),
     rateBps: integer("rate_bps"),
+    isSystem: integer("is_system", { mode: "boolean" }).notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),

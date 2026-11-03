@@ -232,7 +232,7 @@ With `prefers-reduced-motion: reduce`, durations drop to 0 and `--scale-enter` b
 ## Shell
 
 - **Title bar:** 44px, on Mica, draggable. App mark and "Vendora" at 12px, the area tabs, then the user button. Windows draws the native caption buttons over the right edge, so the bar keeps clear padding there.
-- **Tabs:** Sell and Back office (owner only), 44px high. The selected tab is semibold with a 16×3px accent pill under its label. `Ctrl+1` and `Ctrl+2` switch.
+- **Tabs:** Sell and Back office (owners and managers), 44px high. The selected tab is semibold with a 16×3px accent pill under its label. `Ctrl+1` and `Ctrl+2` switch.
 - **User button:** a 24px avatar and name. It opens a menu with Lock (`Ctrl+L`) and Log out.
 - **Content layer:** `bg-surface` with an 8px top-left radius and a top and left `border-card` stroke, sitting on Mica.
 - **Hint bar:** 36px, `bg-surface`, 12px `text-secondary`. Keycaps plus a label for each shortcut in the current area. It is plain text.

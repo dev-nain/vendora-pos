@@ -1,11 +1,9 @@
+import type { ScaleBarcode } from "../../shared/products";
+
 export interface ScaleBarcodeConfig {
   weightPrefix: string;
   pricePrefix: string;
 }
-
-export type ScaleBarcode =
-  | { itemCode: string; kind: "weight"; qtyMilli: number }
-  | { itemCode: string; kind: "price"; pricePaisa: number };
 
 export function ean13CheckDigit(first12: string): number {
   let sum = 0;
