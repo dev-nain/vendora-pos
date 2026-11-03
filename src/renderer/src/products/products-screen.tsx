@@ -38,6 +38,7 @@ import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { ErrorLine } from "../users/form-parts";
 import { BulkEditDialog } from "./bulk-edit-dialog";
 import { DeleteProductDialog } from "./delete-product-dialog";
+import { ProductDialog } from "./product-dialog";
 import { BarcodeCell, ProductNameCell, StatusBadge } from "./product-cells";
 import {
   PRODUCT_PAGE_SIZE,
@@ -61,7 +62,11 @@ const ALL_CATEGORIES = "all";
 
 interface ProductsScreenProps {
   onSessionEnded: () => void;
-  onOpenProduct?: (productId: string | null) => void;
+}
+
+interface ProductDialogState {
+  productId: string | null;
+  open: boolean;
 }
 
 interface DeleteDialogState {
@@ -74,7 +79,7 @@ const requestKey = (filters: ProductFilters, page: number, reloadKey: number): s
 
 const dash = <span className="text-tertiary">—</span>;
 
-export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreenProps) {
+export function ProductsScreen({ onSessionEnded }: ProductsScreenProps) {
   const [searchText, setSearchText] = useState("");
   const [filters, setFilters] = useState<ProductFilters>({
     query: "",
@@ -94,6 +99,7 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
   const [selection, setSelection] = useState<Selection>(new Map());
   const [capped, setCapped] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [productDialog, setProductDialog] = useState<ProductDialogState | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTableSectionElement>(null);
@@ -167,6 +173,11 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
     setReloadKey((key) => key + 1);
   };
 
+  const openProduct = useCallback(
+    (productId: string | null) => setProductDialog({ productId, open: true }),
+    [],
+  );
+
   const changeFilters = (next: Partial<ProductFilters>) => {
     clearSelection();
     setFilters((current) => ({ ...current, ...next }));
@@ -192,15 +203,23 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
         searchRef.current?.select();
         return;
       }
-      if (event.ctrlKey || event.altKey || event.metaKey || deleteDialog !== null || bulkOpen)
+      if (
+        event.ctrlKey ||
+        event.altKey ||
+        event.metaKey ||
+        deleteDialog !== null ||
+        bulkOpen ||
+        productDialog?.open
+      ) {
         return;
+      }
       if (isTypingTarget(event.target)) return;
       if (event.key === "/") {
         event.preventDefault();
         searchRef.current?.focus();
-      } else if (event.key.toLowerCase() === "n" && onOpenProduct) {
+      } else if (event.key.toLowerCase() === "n") {
         event.preventDefault();
-        onOpenProduct(null);
+        openProduct(null);
       } else if (event.key.toLowerCase() === "b" && selectionSize > 0) {
         event.preventDefault();
         setBulkOpen(true);
@@ -208,7 +227,7 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleteDialog, bulkOpen, selectionSize, onOpenProduct]);
+  }, [deleteDialog, bulkOpen, selectionSize, productDialog?.open, openProduct]);
 
   const onRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
     if (event.target !== event.currentTarget) return;
@@ -230,10 +249,10 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
       event.preventDefault();
       const item = items[index];
       if (item) applySelection(toggleOne(selection, item));
-    } else if (event.key === "Enter" && onOpenProduct) {
+    } else if (event.key === "Enter") {
       event.preventDefault();
       const item = items[index];
-      if (item) onOpenProduct(item.id);
+      if (item) openProduct(item.id);
     }
   };
 
@@ -343,13 +362,11 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
           Bulk edit
           <Kbd>B</Kbd>
         </Button>
-        {onOpenProduct ? (
-          <Button onClick={() => onOpenProduct(null)}>
-            <PlusIcon aria-hidden="true" size={16} strokeWidth={2} />
-            Add product
-            <Kbd>N</Kbd>
-          </Button>
-        ) : null}
+        <Button onClick={() => openProduct(null)}>
+          <PlusIcon aria-hidden="true" size={16} strokeWidth={2} />
+          Add product
+          <Kbd>N</Kbd>
+        </Button>
       </div>
       <div className="flex min-h-[var(--height-control-md)] items-center gap-300">
         {selection.size === 0 ? (
@@ -481,7 +498,7 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
                   <TableCell className="px-200">
                     <ProductRowMenu
                       item={item}
-                      {...(onOpenProduct ? { onEdit: () => onOpenProduct(item.id) } : {})}
+                      onEdit={() => openProduct(item.id)}
                       onToggleArchive={() => void toggleArchive(item)}
                       onDelete={() => setDeleteDialog({ item, open: true })}
                     />
@@ -545,6 +562,22 @@ export function ProductsScreen({ onSessionEnded, onOpenProduct }: ProductsScreen
         }}
         onSessionEnded={onSessionEnded}
       />
+      {productDialog ? (
+        <ProductDialog
+          productId={productDialog.productId}
+          open={productDialog.open}
+          onOpenChange={(open) =>
+            setProductDialog((current) => (current ? { ...current, open } : null))
+          }
+          onSaved={(product, mode) => {
+            setError(null);
+            setStatus(`${mode === "added" ? "Added" : "Saved"} ${product.nameEn}.`);
+            reload(true);
+          }}
+          onStale={() => reload(true)}
+          onSessionEnded={onSessionEnded}
+        />
+      ) : null}
       {deleteDialog ? (
         <DeleteProductDialog
           item={deleteDialog.item}
