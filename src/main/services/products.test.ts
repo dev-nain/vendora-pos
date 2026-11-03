@@ -144,6 +144,27 @@ describe("createProductsService", () => {
       .all()
       .map((row) => ({ ...row, details: JSON.parse(row.details ?? "null") }));
 
+  const priced = (price: number, patch: Partial<CreateProductInput> = {}) =>
+    created({
+      nameEn: `Item ${Math.random().toString(36).slice(2, 8)}`,
+      costPaisa: 100,
+      salePricePaisa: price,
+      mrpPaisa: null,
+      ...patch,
+    });
+
+  const price = (id: string) => productRow(id).salePricePaisa;
+  const makeCategory = (deleted = false) =>
+    database.db
+      .insert(categories)
+      .values({
+        storeId: database.db.select().from(stores).get()!.id,
+        name: `Other ${Math.random().toString(36).slice(2, 8)}`,
+        deletedAt: deleted ? t0 : null,
+      })
+      .returning()
+      .get().id;
+
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-products-"));
     database = openDatabase(join(dir, "vendora.db"));
@@ -804,6 +825,263 @@ describe("createProductsService", () => {
       expect(() => failingAudit("product_delete").delete({ id: product.id })).toThrow("audit down");
       expect(tables()).toEqual(before);
       expect(productRow(product.id).deletedAt).toBeNull();
+    });
+  });
+
+  describe("bulkUpdate", () => {
+    const later = new Date("2026-02-01T10:00:00.000Z");
+    const unknownId = "0192f3a0-0000-7000-8000-0000000000ff";
+
+    const laterService = () =>
+      createProductsService({
+        database,
+        audit: createAuditService(database),
+        sessions,
+        now: () => later,
+      });
+
+    it("sets a category on changed products only", () => {
+      signIn("manager");
+      const target = makeCategory();
+      const a = priced(1000);
+      const b = priced(2000, { categoryId: target });
+      const result = laterService().bulkUpdate({
+        productIds: [a.id, b.id],
+        change: { kind: "category", categoryId: target },
+      });
+      expect(result).toEqual({ ok: true, changed: 1, unchanged: 1 });
+      expect(productRow(a.id).categoryId).toBe(target);
+      expect(productRow(a.id).updatedAt).toEqual(later);
+      expect(productRow(b.id).updatedAt).toEqual(t0);
+      expect(tables().audit).toHaveLength(0);
+    });
+
+    it("refuses a deleted or unknown category and writes nothing", () => {
+      signIn("manager");
+      const a = priced(1000);
+      const before = tables();
+      for (const target of [makeCategory(true), unknownId]) {
+        expect(
+          service.bulkUpdate({
+            productIds: [a.id],
+            change: { kind: "category", categoryId: target },
+          }),
+        ).toMatchObject({ ok: false, reason: "category-not-found" });
+      }
+      expect(tables().products).toEqual(before.products);
+    });
+
+    it("sets a price and audits each changed product", () => {
+      const user = signIn("manager");
+      const a = priced(1000);
+      const b = priced(5000);
+      const result = service.bulkUpdate({
+        productIds: [a.id, b.id],
+        change: { kind: "set-price", salePricePaisa: 5000 },
+      });
+      expect(result).toEqual({ ok: true, changed: 1, unchanged: 1 });
+      expect(price(a.id)).toBe(5000);
+      expect(auditRows("price_change")).toEqual([
+        expect.objectContaining({
+          actorUserId: user.id,
+          entityType: "product",
+          entityId: a.id,
+          details: { oldPaisa: 1000, newPaisa: 5000, bulk: true },
+        }),
+      ]);
+    });
+
+    it("adjusts by percentage with rounding and skips products that round to their price", () => {
+      signIn("manager");
+      const a = priced(16050);
+      const b = priced(125000);
+      const c = priced(10000);
+      const result = laterService().bulkUpdate({
+        productIds: [a.id, b.id, c.id],
+        change: { kind: "adjust-price", bps: 1000 },
+      });
+      expect(result).toEqual({ ok: true, changed: 3, unchanged: 0 });
+      expect([price(a.id), price(b.id), price(c.id)]).toEqual([17700, 137500, 11000]);
+
+      const near = priced(10000);
+      const same = laterService().bulkUpdate({
+        productIds: [near.id],
+        change: { kind: "adjust-price", bps: 10 },
+      });
+      expect(same).toEqual({ ok: true, changed: 0, unchanged: 1 });
+      expect(price(near.id)).toBe(10000);
+      expect(productRow(near.id).updatedAt).toEqual(t0);
+      expect(auditRows("price_change")).toHaveLength(3);
+    });
+
+    it("aborts the whole batch when one price exceeds MRP", () => {
+      signIn("manager");
+      const a = priced(1000);
+      const b = priced(125000, { mrpPaisa: 130000 });
+      const c = priced(2000);
+      const before = tables();
+      const result = service.bulkUpdate({
+        productIds: [a.id, b.id, c.id],
+        change: { kind: "adjust-price", bps: 1000 },
+      });
+      expect(result).toEqual({
+        ok: false,
+        reason: "above-mrp",
+        message: productMessages.aboveMrp(1),
+        products: [{ id: b.id, nameEn: b.nameEn, salePricePaisa: 137500, mrpPaisa: 130000 }],
+      });
+      expect(tables()).toEqual(before);
+    });
+
+    it("never caps products without an MRP", () => {
+      signIn("manager");
+      const a = priced(1000);
+      expect(
+        service.bulkUpdate({
+          productIds: [a.id],
+          change: { kind: "set-price", salePricePaisa: 99999999 },
+        }),
+      ).toEqual({ ok: true, changed: 1, unchanged: 0 });
+    });
+
+    it("rejects the whole call for unknown, deleted and system products", () => {
+      signIn("manager");
+      const ok = priced(1000);
+      const gone = priced(1000);
+      service.delete({ id: gone.id });
+      const system = created();
+      database.db.update(products).set({ isSystem: true }).where(eq(products.id, system.id)).run();
+      const before = tables();
+
+      const result = service.bulkUpdate({
+        productIds: [ok.id, unknownId, gone.id, system.id],
+        change: { kind: "set-price", salePricePaisa: 5 },
+      });
+      expect(result).toEqual({
+        ok: false,
+        reason: "ineligible-products",
+        message: productMessages.ineligibleProducts,
+        productIds: [unknownId, gone.id, system.id],
+      });
+      expect(tables()).toEqual(before);
+    });
+
+    it("treats products from another store as ineligible", () => {
+      signIn("manager");
+      const a = priced(1000);
+      const otherStore = database.db.insert(stores).values({ name: "Other" }).returning().get();
+      database.db
+        .update(products)
+        .set({ storeId: otherStore.id })
+        .where(eq(products.id, a.id))
+        .run();
+      expect(
+        service.bulkUpdate({
+          productIds: [a.id],
+          change: { kind: "set-price", salePricePaisa: 5 },
+        }),
+      ).toMatchObject({ ok: false, reason: "ineligible-products", productIds: [a.id] });
+    });
+
+    it("updates archived products", () => {
+      signIn("manager");
+      const a = priced(1000);
+      service.archive({ id: a.id });
+      expect(
+        service.bulkUpdate({
+          productIds: [a.id],
+          change: { kind: "set-price", salePricePaisa: 2000 },
+        }),
+      ).toEqual({ ok: true, changed: 1, unchanged: 0 });
+      expect(productRow(a.id)).toMatchObject({ salePricePaisa: 2000, isActive: false });
+    });
+
+    it("leaves pack barcode prices alone", () => {
+      signIn("manager");
+      const a = priced(1000, { barcodes: [barcode("P1", 12000, 11000)] });
+      service.bulkUpdate({ productIds: [a.id], change: { kind: "adjust-price", bps: 5000 } });
+      expect(price(a.id)).toBe(1500);
+      expect(tables().barcodes.map((b) => b.salePricePaisa)).toEqual([11000]);
+    });
+
+    it("allows manager and owner, denies cashier and a locked session", () => {
+      const change = { kind: "set-price", salePricePaisa: 1 } as const;
+      signIn("manager");
+      const a = priced(1000);
+      expect(service.bulkUpdate({ productIds: [a.id], change })).toMatchObject({ ok: true });
+
+      sessions.end();
+      signIn("owner");
+      expect(service.bulkUpdate({ productIds: [a.id], change })).toMatchObject({ ok: true });
+
+      sessions.end();
+      signIn("cashier");
+      expect(() => service.bulkUpdate({ productIds: [a.id], change })).toThrow(ForbiddenError);
+
+      sessions.end();
+      signIn("manager");
+      sessions.lock();
+      expect(() => service.bulkUpdate({ productIds: [a.id], change })).toThrow(SessionLockedError);
+    });
+
+    it("rolls every product back when an audit write fails midway", () => {
+      signIn("manager");
+      const items = [priced(1000), priced(2000), priced(3000)];
+      const real = createAuditService(database);
+      let calls = 0;
+      const flaky = createProductsService({
+        database,
+        audit: {
+          ...real,
+          record: (input, tx) => {
+            calls += 1;
+            if (calls === 2) throw new Error("audit down");
+            return real.record(input, tx);
+          },
+        },
+        sessions,
+        now: () => t0,
+      });
+      expect(() =>
+        flaky.bulkUpdate({
+          productIds: items.map((p) => p.id),
+          change: { kind: "set-price", salePricePaisa: 7 },
+        }),
+      ).toThrow("audit down");
+      expect(items.map((p) => price(p.id))).toEqual([1000, 2000, 3000]);
+      expect(tables().audit).toHaveLength(0);
+    });
+
+    it("handles 5,000 products in one call", () => {
+      signIn("manager");
+      const storeId = database.db.select().from(stores).get()!.id;
+      const rows = Array.from({ length: 5000 }, (_, i) => ({
+        storeId,
+        nameEn: `Bulk ${i}`,
+        searchText: `bulk ${i}`,
+        categoryId,
+        taxCategoryId,
+        unit: "piece" as const,
+        costPaisa: 10,
+        salePricePaisa: 1000,
+        createdAt: t0,
+        updatedAt: t0,
+      }));
+      const ids: string[] = [];
+      for (let i = 0; i < rows.length; i += 500) {
+        ids.push(
+          ...database.db
+            .insert(products)
+            .values(rows.slice(i, i + 500))
+            .returning({ id: products.id })
+            .all()
+            .map((r) => r.id),
+        );
+      }
+      expect(
+        service.bulkUpdate({ productIds: ids, change: { kind: "adjust-price", bps: 1000 } }),
+      ).toEqual({ ok: true, changed: 5000, unchanged: 0 });
+      expect(auditRows("price_change")).toHaveLength(5000);
     });
   });
 });
