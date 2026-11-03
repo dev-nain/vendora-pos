@@ -14,6 +14,7 @@ import {
   type ProductUnit,
 } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
+import { ean13CheckDigit } from "../hardware/scale-barcode";
 import { lookupBarcode } from "./barcode-lookup";
 
 describe("lookupBarcode", () => {
@@ -78,6 +79,7 @@ describe("lookupBarcode", () => {
     addBarcode(product.id, "8961000000017");
 
     expect(lookupBarcode(database, storeId, "8961000000017")).toEqual({
+      source: "barcode",
       product: {
         id: product.id,
         nameEn: "Tea",
@@ -99,8 +101,7 @@ describe("lookupBarcode", () => {
 
     const result = lookupBarcode(database, storeId, "carton");
     expect(result?.product.id).toBe(product.id);
-    expect(result?.packQtyMilli).toBe(24000);
-    expect(result?.packPricePaisa).toBe(270000);
+    expect(result).toMatchObject({ packQtyMilli: 24000, packPricePaisa: 270000 });
   });
 
   it("returns a null pack price when the pack has no own price", () => {
@@ -108,8 +109,7 @@ describe("lookupBarcode", () => {
     addBarcode(product.id, "dozen", { packQtyMilli: 12000 });
 
     const result = lookupBarcode(database, storeId, "dozen");
-    expect(result?.packQtyMilli).toBe(12000);
-    expect(result?.packPricePaisa).toBeNull();
+    expect(result).toMatchObject({ packQtyMilli: 12000, packPricePaisa: null });
   });
 
   it("returns null for an archived product", () => {
@@ -188,7 +188,103 @@ describe("lookupBarcode", () => {
     expect(result?.product.unit).toBe("kg");
     expect(result?.product.salePricePaisa).toBe(45050);
   });
+
+  describe("scale barcodes", () => {
+    const weightCode = scaleCode("21", "00123", "01234");
+    const priceCode = scaleCode("22", "00123", "00250");
+
+    it("resolves a weight code to a kg product", () => {
+      const product = addProduct({ unit: "kg", internalCode: "00123" });
+
+      const result = lookupBarcode(database, storeId, weightCode);
+      expect(result).toEqual({
+        source: "scale",
+        product: expect.objectContaining({ id: product.id, unit: "kg" }),
+        scale: { itemCode: "00123", kind: "weight", qtyMilli: 1234 },
+      });
+    });
+
+    it.each<ProductUnit>(["piece", "litre"])("does not resolve a weight code for %s", (unit) => {
+      addProduct({ unit, internalCode: "00123" });
+      expect(lookupBarcode(database, storeId, weightCode)).toBeNull();
+    });
+
+    it.each<ProductUnit>(["piece", "kg", "litre"])("resolves a price code for %s", (unit) => {
+      const product = addProduct({ unit, internalCode: "00123" });
+
+      expect(lookupBarcode(database, storeId, priceCode)).toEqual({
+        source: "scale",
+        product: expect.objectContaining({ id: product.id }),
+        scale: { itemCode: "00123", kind: "price", pricePaisa: 25000 },
+      });
+    });
+
+    it("returns null for archived, deleted and unmatched products", () => {
+      addProduct({ unit: "kg", internalCode: "00123", isActive: false });
+      expect(lookupBarcode(database, storeId, weightCode)).toBeNull();
+
+      database.db.update(products).set({ deletedAt: new Date() }).run();
+      expect(lookupBarcode(database, storeId, weightCode)).toBeNull();
+
+      addProduct({ unit: "kg", internalCode: "00999" });
+      expect(lookupBarcode(database, storeId, weightCode)).toBeNull();
+    });
+
+    it("does not match an internal code from another store", () => {
+      const otherStoreId = database.db.insert(stores).values({}).returning().get().id;
+      const otherCategoryId = database.db
+        .insert(categories)
+        .values({ storeId: otherStoreId, name: "General" })
+        .returning()
+        .get().id;
+      const otherTaxId = database.db
+        .insert(taxCategories)
+        .values({ storeId: otherStoreId, name: "Standard" })
+        .returning()
+        .get().id;
+      addProduct({
+        storeId: otherStoreId,
+        categoryId: otherCategoryId,
+        taxCategoryId: otherTaxId,
+        unit: "kg",
+        internalCode: "00123",
+      });
+
+      expect(lookupBarcode(database, storeId, weightCode)).toBeNull();
+      expect(lookupBarcode(database, otherStoreId, weightCode)?.source).toBe("scale");
+    });
+
+    it("trims scanner whitespace", () => {
+      addProduct({ unit: "kg", internalCode: "00123" });
+      expect(lookupBarcode(database, storeId, ` ${weightCode}\r\n`)?.source).toBe("scale");
+    });
+
+    it("prefers an exact product barcode over scale parsing", () => {
+      addProduct({ unit: "kg", internalCode: "00123", nameEn: "Loose" });
+      const packed = addProduct({ nameEn: "Packed" });
+      addBarcode(packed.id, weightCode);
+
+      const result = lookupBarcode(database, storeId, weightCode);
+      expect(result?.source).toBe("barcode");
+      expect(result?.product.id).toBe(packed.id);
+    });
+
+    it("follows changed prefixes", () => {
+      addProduct({ unit: "kg", internalCode: "00123" });
+      database.db.update(stores).set({ scaleWeightPrefix: "02", scalePricePrefix: "29" }).run();
+
+      expect(lookupBarcode(database, storeId, weightCode)).toBeNull();
+      expect(lookupBarcode(database, storeId, scaleCode("02", "00123", "01234"))?.source).toBe(
+        "scale",
+      );
+    });
+  });
 });
+
+const scaleCode = (prefix: string, item: string, value: string) => {
+  const first12 = `${prefix}${item}${value}`;
+  return `${first12}${ean13CheckDigit(first12)}`;
+};
 
 const productCount = 30_000;
 const packCount = 10_000;
@@ -200,6 +296,11 @@ const codeAt = (n: number) => {
   if (n % 3 === 0) return pieceCode(i);
   if (n % 3 === 1) return packCode(i % packCount);
   return `UNKNOWN${i}`;
+};
+
+const scaleCodeAt = (n: number) => {
+  const item = String(Math.floor((n * 7919) % productCount)).padStart(5, "0");
+  return scaleCode("22", item, "00250");
 };
 
 describe("lookupBarcode benchmark", () => {
@@ -220,8 +321,8 @@ describe("lookupBarcode benchmark", () => {
     const taxCategoryId = database.db.select().from(taxCategories).get()!.id;
 
     const insertProduct = database.sqlite.prepare(
-      `INSERT INTO products (id, store_id, name_en, search_text, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'piece', ?, ?, ?, ?)`,
+      `INSERT INTO products (id, store_id, name_en, search_text, internal_code, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'piece', ?, ?, ?, ?)`,
     );
     const insertBarcode = database.sqlite.prepare(
       `INSERT INTO product_barcodes (id, store_id, product_id, barcode, pack_qty_milli, sale_price_paisa, created_at, updated_at)
@@ -237,6 +338,7 @@ describe("lookupBarcode benchmark", () => {
           storeId,
           name,
           name.toLowerCase(),
+          String(i).padStart(5, "0"),
           categoryId,
           taxCategoryId,
           1000 + i,
@@ -283,12 +385,35 @@ describe("lookupBarcode benchmark", () => {
 
         if (n % 3 === 1) {
           const i = ((n * 7919) % productCount) % packCount;
-          expect(result?.packQtyMilli).toBe(packSizes[i % 3]);
+          expect(result).toMatchObject({ packQtyMilli: packSizes[i % 3] });
         } else if (n % 3 === 2) {
           expect(result).toBeNull();
         } else {
-          expect(result?.packQtyMilli).toBe(1000);
+          expect(result).toMatchObject({ packQtyMilli: 1000 });
         }
+      }
+
+      durations.sort((a, b) => a - b);
+      expect(durations[Math.floor(durations.length * 0.95)]!).toBeLessThan(10);
+    },
+  );
+
+  it(
+    "resolves scale barcodes in well under the 100 ms scan budget at 30,000 products",
+    {
+      timeout: 60_000,
+    },
+    () => {
+      for (let n = 0; n < 50; n++) lookupBarcode(database, storeId, scaleCodeAt(n));
+
+      const durations: number[] = [];
+      for (let n = 0; n < 1000; n++) {
+        const code = scaleCodeAt(n);
+        const start = performance.now();
+        const result = lookupBarcode(database, storeId, code);
+        durations.push(performance.now() - start);
+
+        expect(result?.source).toBe("scale");
       }
 
       durations.sort((a, b) => a - b);

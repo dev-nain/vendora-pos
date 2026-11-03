@@ -1,6 +1,8 @@
 import { and, eq, isNull } from "drizzle-orm";
 import type { VendoraDatabase } from "../db/client";
 import { productBarcodes, products, type ProductUnit } from "../db/schema";
+import { parseScaleBarcode, type ScaleBarcode } from "../hardware/scale-barcode";
+import { getScalePrefixes } from "../settings/store-settings";
 
 export interface BarcodeLookupProduct {
   id: string;
@@ -12,11 +14,24 @@ export interface BarcodeLookupProduct {
   costPaisa: number;
 }
 
-export interface BarcodeLookup {
-  product: BarcodeLookupProduct;
-  packQtyMilli: number;
-  packPricePaisa: number | null;
-}
+export type BarcodeLookup =
+  | {
+      source: "barcode";
+      product: BarcodeLookupProduct;
+      packQtyMilli: number;
+      packPricePaisa: number | null;
+    }
+  | { source: "scale"; product: BarcodeLookupProduct; scale: ScaleBarcode };
+
+const productColumns = {
+  id: products.id,
+  nameEn: products.nameEn,
+  nameUr: products.nameUr,
+  unit: products.unit,
+  salePricePaisa: products.salePricePaisa,
+  taxCategoryId: products.taxCategoryId,
+  costPaisa: products.costPaisa,
+};
 
 export function lookupBarcode(
   database: VendoraDatabase,
@@ -28,13 +43,7 @@ export function lookupBarcode(
 
   const row = database.db
     .select({
-      id: products.id,
-      nameEn: products.nameEn,
-      nameUr: products.nameUr,
-      unit: products.unit,
-      salePricePaisa: products.salePricePaisa,
-      taxCategoryId: products.taxCategoryId,
-      costPaisa: products.costPaisa,
+      ...productColumns,
       packQtyMilli: productBarcodes.packQtyMilli,
       packPricePaisa: productBarcodes.salePricePaisa,
     })
@@ -51,8 +60,38 @@ export function lookupBarcode(
       ),
     )
     .get();
-  if (!row) return null;
+  if (row) {
+    const { packQtyMilli, packPricePaisa, ...product } = row;
+    return { source: "barcode", product, packQtyMilli, packPricePaisa };
+  }
 
-  const { packQtyMilli, packPricePaisa, ...product } = row;
-  return { product, packQtyMilli, packPricePaisa };
+  return lookupScaleBarcode(database, storeId, code);
+}
+
+function lookupScaleBarcode(
+  database: VendoraDatabase,
+  storeId: string,
+  code: string,
+): BarcodeLookup | null {
+  if (!/^\d{13}$/.test(code)) return null;
+
+  const scale = parseScaleBarcode(code, getScalePrefixes(database, storeId));
+  if (!scale) return null;
+
+  const product = database.db
+    .select(productColumns)
+    .from(products)
+    .where(
+      and(
+        eq(products.storeId, storeId),
+        eq(products.internalCode, scale.itemCode),
+        isNull(products.deletedAt),
+        eq(products.isActive, true),
+      ),
+    )
+    .get();
+  if (!product) return null;
+  if (scale.kind === "weight" && product.unit !== "kg") return null;
+
+  return { source: "scale", product, scale };
 }
