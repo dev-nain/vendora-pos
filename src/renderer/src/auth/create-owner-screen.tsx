@@ -3,7 +3,7 @@ import { useRef, useState, type FormEvent } from "react";
 
 import type { SafeUser } from "@shared/auth";
 import { Button } from "@renderer/components/ui/button";
-import { Field, FieldDescription, FieldError, FieldLabel } from "@renderer/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@renderer/components/ui/field";
 import { Input } from "@renderer/components/ui/input";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { serviceErrorMessage } from "./messages";
@@ -110,7 +110,6 @@ export function CreateOwnerScreen({ onCreated, onOwnerExists }: CreateOwnerScree
   const field = (
     name: OwnerFormField,
     label: string,
-    description: string | null,
     inputProps: React.ComponentProps<typeof Input>,
   ) => (
     <Field invalid={Boolean(errors[name])}>
@@ -122,11 +121,7 @@ export function CreateOwnerScreen({ onCreated, onOwnerExists }: CreateOwnerScree
         value={values[name]}
         {...inputProps}
       />
-      {errors[name] ? (
-        <FieldError>{errors[name]}</FieldError>
-      ) : description ? (
-        <FieldDescription>{description}</FieldDescription>
-      ) : null}
+      {errors[name] ? <FieldError>{errors[name]}</FieldError> : null}
     </Field>
   );
 
@@ -142,35 +137,35 @@ export function CreateOwnerScreen({ onCreated, onOwnerExists }: CreateOwnerScree
           noValidate
           className="grid grid-cols-2 items-start gap-x-400 gap-y-400"
         >
-          {field("username", "Username", "Used to log in", {
+          {field("username", "Username", {
             autoFocus: true,
             autoComplete: "username",
             maxLength: 64,
             onChange: (event) => set("username", event.target.value),
           })}
-          {field("displayName", "Display name", null, {
+          {field("displayName", "Display name", {
             autoComplete: "name",
             maxLength: 64,
             onChange: (event) => set("displayName", event.target.value),
           })}
-          {field("password", "Password", "4–5 characters", {
+          {field("password", "Password", {
             type: "password",
             autoComplete: "new-password",
             onChange: (event) => set("password", event.target.value),
           })}
-          {field("confirmPassword", "Confirm password", null, {
+          {field("confirmPassword", "Confirm password", {
             type: "password",
             autoComplete: "new-password",
             onChange: (event) => set("confirmPassword", event.target.value),
           })}
-          {field("pin", "PIN", "4–6 digits, for quick switching at the counter", {
+          {field("pin", "PIN", {
             type: "password",
             inputMode: "numeric",
             autoComplete: "off",
             maxLength: 6,
             onChange: (event) => set("pin", sanitizePin(event.target.value)),
           })}
-          {field("confirmPin", "Confirm PIN", null, {
+          {field("confirmPin", "Confirm PIN", {
             type: "password",
             inputMode: "numeric",
             autoComplete: "off",

@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@renderer/components/ui/dialog";
-import { Field, FieldDescription, FieldError, FieldLabel } from "@renderer/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@renderer/components/ui/field";
 import { Input } from "@renderer/components/ui/input";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { sanitizePin } from "../auth/pin-entry";
@@ -35,7 +35,6 @@ const copy = {
     title: "Reset password",
     label: "New password",
     confirmLabel: "Confirm new password",
-    hint: "4–5 characters",
     action: "Reset password",
     pending: "Resetting password…",
   },
@@ -43,7 +42,6 @@ const copy = {
     title: "Reset PIN",
     label: "New PIN",
     confirmLabel: "Confirm new PIN",
-    hint: "4–6 digits",
     action: "Reset PIN",
     pending: "Resetting PIN…",
   },
@@ -134,11 +132,7 @@ function ResetCredentialForm({
               value={value}
               onChange={(event) => setValue(clean(event.target.value))}
             />
-            {errors.value ? (
-              <FieldError>{errors.value}</FieldError>
-            ) : (
-              <FieldDescription>{text.hint}</FieldDescription>
-            )}
+            {errors.value ? <FieldError>{errors.value}</FieldError> : null}
           </Field>
           <Field invalid={Boolean(errors.confirm)}>
             <FieldLabel>{text.confirmLabel}</FieldLabel>

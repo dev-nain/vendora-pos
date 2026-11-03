@@ -22,16 +22,6 @@ function FieldLabel({ className, ...props }: FieldPrimitive.Label.Props) {
   );
 }
 
-function FieldDescription({ className, ...props }: FieldPrimitive.Description.Props) {
-  return (
-    <FieldPrimitive.Description
-      data-slot="field-description"
-      className={cn("m-0 text-[length:var(--font-size-350)] text-tertiary", className)}
-      {...props}
-    />
-  );
-}
-
 function FieldError({ className, children, match = true, ...props }: FieldPrimitive.Error.Props) {
   return (
     <FieldPrimitive.Error
@@ -49,4 +39,4 @@ function FieldError({ className, children, match = true, ...props }: FieldPrimit
   );
 }
 
-export { Field, FieldLabel, FieldDescription, FieldError };
+export { Field, FieldLabel, FieldError };
