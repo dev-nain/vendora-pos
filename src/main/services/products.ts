@@ -3,8 +3,11 @@ import type { z } from "zod";
 import {
   productMessages,
   type CreateProductResult,
+  type DeleteProductResult,
   type createProductInputSchema,
   type Product,
+  type ProductIdInput,
+  type ProductStatusResult,
   type UpdateProductResult,
   type updateProductInputSchema,
 } from "../../shared/products";
@@ -21,6 +24,7 @@ type Tx = Parameters<Parameters<VendoraDatabase["db"]["transaction"]>[0]>[0];
 type ProductRow = typeof products.$inferSelect;
 type BarcodeRow = typeof productBarcodes.$inferSelect;
 type Refusal = Extract<UpdateProductResult, { ok: false }>;
+type StatusRefusal = Extract<ProductStatusResult, { ok: false }>;
 type CreateRefusal = Extract<CreateProductResult, { ok: false }>;
 
 interface ProductsDeps {
@@ -30,8 +34,8 @@ interface ProductsDeps {
   now?: () => Date;
 }
 
-const refuse = <R extends Refusal["reason"]>(reason: R, message: string) =>
-  ({ ok: false, reason, message }) as Extract<Refusal, { reason: R }>;
+const refuse = <R extends (Refusal | StatusRefusal)["reason"]>(reason: R, message: string) =>
+  ({ ok: false, reason, message }) as Extract<Refusal | StatusRefusal, { reason: R }>;
 
 function activeBarcodes(tx: Tx, productId: string): BarcodeRow[] {
   return tx
@@ -40,6 +44,14 @@ function activeBarcodes(tx: Tx, productId: string): BarcodeRow[] {
     .where(and(eq(productBarcodes.productId, productId), isNull(productBarcodes.deletedAt)))
     .orderBy(asc(productBarcodes.barcode))
     .all();
+}
+
+function findProduct(tx: Tx, storeId: string, id: string): ProductRow | undefined {
+  return tx
+    .select()
+    .from(products)
+    .where(and(eq(products.id, id), eq(products.storeId, storeId), isNull(products.deletedAt)))
+    .get();
 }
 
 function toProduct(row: ProductRow, barcodes: BarcodeRow[]): Product {
@@ -155,7 +167,78 @@ export function createProductsService({
 }: ProductsDeps) {
   const { db } = database;
 
+  const setActive = (input: ProductIdInput, isActive: boolean): ProductStatusResult => {
+    const session = requireSessionPermission(sessions, "products.manage");
+
+    return db.transaction((tx) => {
+      const current = findProduct(tx, session.storeId, input.id);
+      if (!current) return refuse("not-found", productMessages.notFound);
+      if (!isActive && current.isSystem) {
+        return refuse("system-product", productMessages.systemProduct);
+      }
+      if (current.isActive === isActive) {
+        return { ok: true, product: toProduct(current, activeBarcodes(tx, current.id)) };
+      }
+
+      const row = tx
+        .update(products)
+        .set({ isActive, updatedAt: now() })
+        .where(eq(products.id, current.id))
+        .returning()
+        .get();
+      audit.record(
+        {
+          actorUserId: session.userId,
+          action: isActive ? "product_restore" : "product_archive",
+          entityType: "product",
+          entityId: current.id,
+          details: { nameEn: current.nameEn },
+        },
+        tx,
+      );
+      return { ok: true, product: toProduct(row, activeBarcodes(tx, row.id)) };
+    });
+  };
+
   return {
+    archive: (input: ProductIdInput): ProductStatusResult => setActive(input, false),
+
+    restore: (input: ProductIdInput): ProductStatusResult => setActive(input, true),
+
+    delete(input: ProductIdInput): DeleteProductResult {
+      const session = requireSessionPermission(sessions, "products.manage");
+
+      return db.transaction((tx) => {
+        const current = findProduct(tx, session.storeId, input.id);
+        if (!current) return refuse("not-found", productMessages.notFound);
+        if (current.isSystem) return refuse("system-product", productMessages.systemProduct);
+
+        const barcodes = activeBarcodes(tx, current.id);
+        const deletedAt = now();
+        for (const barcode of barcodes) {
+          tx.update(productBarcodes)
+            .set({ deletedAt, updatedAt: deletedAt })
+            .where(eq(productBarcodes.id, barcode.id))
+            .run();
+        }
+        tx.update(products)
+          .set({ deletedAt, updatedAt: deletedAt })
+          .where(eq(products.id, current.id))
+          .run();
+        audit.record(
+          {
+            actorUserId: session.userId,
+            action: "product_delete",
+            entityType: "product",
+            entityId: current.id,
+            details: { nameEn: current.nameEn, barcodes: barcodes.map((b) => b.barcode) },
+          },
+          tx,
+        );
+        return { ok: true };
+      });
+    },
+
     create(input: CreateInput): CreateProductResult {
       const session = requireSessionPermission(sessions, "products.manage");
 
