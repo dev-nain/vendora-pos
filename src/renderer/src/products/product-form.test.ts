@@ -270,7 +270,7 @@ describe("saveProduct", () => {
     const api = fakeApi();
     const denied: ProductRefusal = { ok: false, reason: "internal-code-taken", message: "x" };
     api.create.mockResolvedValue(denied as never);
-    expect(await saveProduct(api, null, payload, false)).toEqual(refusal);
+    expect(await saveProduct(api, null, payload, false)).toEqual(denied);
     expect(api.archive).not.toHaveBeenCalled();
     expect(api.restore).not.toHaveBeenCalled();
   });
