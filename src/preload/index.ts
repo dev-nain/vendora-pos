@@ -19,6 +19,18 @@ import {
   updateProductResultSchema,
 } from "@shared/products";
 import {
+  categorySchema,
+  createCategoryResultSchema,
+  deleteCategoryResultSchema,
+  renameCategoryResultSchema,
+} from "@shared/categories";
+import {
+  createTaxCategoryResultSchema,
+  deleteTaxCategoryResultSchema,
+  taxCategorySchema,
+  updateTaxCategoryResultSchema,
+} from "@shared/tax-categories";
+import {
   createUserResultSchema,
   deactivateUserResultSchema,
   managedUserSchema,
@@ -125,6 +137,38 @@ const api: VendoraApi = {
       barcodeLookupSchema
         .nullable()
         .parse(await ipcRenderer.invoke(ipcChannels.productsLookupBarcode, { barcode })),
+  },
+  categories: {
+    list: async () =>
+      z.array(categorySchema).parse(await ipcRenderer.invoke(ipcChannels.categoriesList)),
+    create: async (name) =>
+      createCategoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.categoriesCreate, { name }),
+      ),
+    rename: async (id, name) =>
+      renameCategoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.categoriesRename, { id, name }),
+      ),
+    remove: async (id) =>
+      deleteCategoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.categoriesDelete, { id }),
+      ),
+  },
+  taxCategories: {
+    list: async () =>
+      z.array(taxCategorySchema).parse(await ipcRenderer.invoke(ipcChannels.taxCategoriesList)),
+    create: async (input) =>
+      createTaxCategoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.taxCategoriesCreate, input),
+      ),
+    update: async (input) =>
+      updateTaxCategoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.taxCategoriesUpdate, input),
+      ),
+    remove: async (id) =>
+      deleteTaxCategoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.taxCategoriesDelete, { id }),
+      ),
   },
 };
 

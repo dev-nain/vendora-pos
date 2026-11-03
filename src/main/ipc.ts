@@ -10,6 +10,15 @@ import {
   pinSwitchInputSchema,
   sessionStateSchema,
 } from "@shared/auth";
+import {
+  categoryIdInputSchema,
+  categorySchema,
+  createCategoryInputSchema,
+  createCategoryResultSchema,
+  deleteCategoryResultSchema,
+  renameCategoryInputSchema,
+  renameCategoryResultSchema,
+} from "@shared/categories";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
 import {
   barcodeLookupInputSchema,
@@ -32,6 +41,15 @@ import {
   scalePrefixesSettingSchema,
 } from "@shared/settings";
 import {
+  createTaxCategoryInputSchema,
+  createTaxCategoryResultSchema,
+  deleteTaxCategoryResultSchema,
+  taxCategoryIdInputSchema,
+  taxCategorySchema,
+  updateTaxCategoryInputSchema,
+  updateTaxCategoryResultSchema,
+} from "@shared/tax-categories";
+import {
   createUserInputSchema,
   createUserResultSchema,
   deactivateUserResultSchema,
@@ -46,9 +64,11 @@ import {
 import { z } from "zod";
 import { toIpcError } from "./ipc-errors";
 import type { AuthService } from "./services/auth";
+import type { CategoriesService } from "./services/categories";
 import type { AutoLock } from "./services/auto-lock";
 import type { ProductsService } from "./services/products";
 import type { SettingsService } from "./services/settings";
+import type { TaxCategoriesService } from "./services/tax-categories";
 import type { UsersService } from "./services/users";
 
 function handle(
@@ -67,7 +87,9 @@ function handle(
 interface IpcServices {
   auth: AuthService;
   autoLock: AutoLock;
+  categories: CategoriesService;
   settings: SettingsService;
+  taxCategories: TaxCategoriesService;
   users: UsersService;
   products: ProductsService;
 }
@@ -75,9 +97,11 @@ interface IpcServices {
 export function registerIpcHandlers({
   auth,
   autoLock,
-  settings,
-  users,
+  categories,
   products,
+  settings,
+  taxCategories,
+  users,
 }: IpcServices): void {
   handle(ipcChannels.appGetInfo, () => appInfoSchema.parse({ version: app.getVersion() }));
   handle(ipcChannels.authLogin, async (_event, input) =>
@@ -155,5 +179,33 @@ export function registerIpcHandlers({
     barcodeLookupSchema
       .nullable()
       .parse(products.lookupBarcode(barcodeLookupInputSchema.parse(input))),
+  );
+  handle(ipcChannels.categoriesList, () => z.array(categorySchema).parse(categories.list()));
+  handle(ipcChannels.categoriesCreate, (_event, input) =>
+    createCategoryResultSchema.parse(categories.create(createCategoryInputSchema.parse(input))),
+  );
+  handle(ipcChannels.categoriesRename, (_event, input) =>
+    renameCategoryResultSchema.parse(categories.rename(renameCategoryInputSchema.parse(input))),
+  );
+  handle(ipcChannels.categoriesDelete, (_event, input) =>
+    deleteCategoryResultSchema.parse(categories.remove(categoryIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.taxCategoriesList, () =>
+    z.array(taxCategorySchema).parse(taxCategories.list()),
+  );
+  handle(ipcChannels.taxCategoriesCreate, (_event, input) =>
+    createTaxCategoryResultSchema.parse(
+      taxCategories.create(createTaxCategoryInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.taxCategoriesUpdate, (_event, input) =>
+    updateTaxCategoryResultSchema.parse(
+      taxCategories.update(updateTaxCategoryInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.taxCategoriesDelete, (_event, input) =>
+    deleteTaxCategoryResultSchema.parse(
+      taxCategories.remove(taxCategoryIdInputSchema.parse(input)),
+    ),
   );
 }

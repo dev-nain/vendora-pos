@@ -9,9 +9,11 @@ import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
 import { createAuthService } from "./services/auth";
 import { createAutoLock } from "./services/auto-lock";
+import { createCategoriesService } from "./services/categories";
 import { createSettingsService } from "./services/settings";
 import { getAutoLockMinutes } from "./settings/store-settings";
 import { createProductsService } from "./services/products";
+import { createTaxCategoriesService } from "./services/tax-categories";
 import { createUsersService } from "./services/users";
 import { createApprovalStore } from "./auth/approvals";
 import { createSessionStore } from "./auth/session";
@@ -58,7 +60,17 @@ void app.whenReady().then(async () => {
   });
   const users = createUsersService({ database, audit, sessions, approvals });
   const products = createProductsService({ database, audit, sessions });
-  registerIpcHandlers({ auth, autoLock, settings, users, products });
+  const categories = createCategoriesService({ database, audit, sessions });
+  const taxCategories = createTaxCategoriesService({ database, audit, sessions });
+  registerIpcHandlers({
+    auth,
+    autoLock,
+    categories,
+    products,
+    settings,
+    taxCategories,
+    users,
+  });
   createMainWindow();
 
   app.on("activate", () => {
