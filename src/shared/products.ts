@@ -102,6 +102,65 @@ export const productSchema = z.strictObject({
   ),
 });
 
+export const PRODUCT_SEARCH_MAX_LIMIT = 100;
+
+export const productSearchInputSchema = z.strictObject({
+  query: z.string().max(200),
+  categoryId: z.uuid().optional(),
+  includeArchived: z.boolean().optional(),
+  limit: z.int().min(1).max(PRODUCT_SEARCH_MAX_LIMIT),
+  offset: z.int().min(0).max(Number.MAX_SAFE_INTEGER),
+});
+
+export const productSearchItemSchema = z.strictObject({
+  id: z.string(),
+  nameEn: z.string(),
+  nameUr: z.string().nullable(),
+  internalCode: z.string().nullable(),
+  categoryId: z.string(),
+  unit: productUnitSchema,
+  salePricePaisa: z.number(),
+  isActive: z.boolean(),
+});
+
+export const productSearchResultSchema = z.strictObject({
+  items: z.array(productSearchItemSchema),
+  total: z.number(),
+});
+
+export const barcodeLookupInputSchema = z.strictObject({
+  barcode: z.string().trim().min(1).max(64),
+});
+
+export const scaleBarcodeSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ itemCode: z.string(), kind: z.literal("weight"), qtyMilli: z.number() }),
+  z.strictObject({ itemCode: z.string(), kind: z.literal("price"), pricePaisa: z.number() }),
+]);
+
+export const barcodeLookupProductSchema = z.strictObject({
+  id: z.string(),
+  nameEn: z.string(),
+  nameUr: z.string().nullable(),
+  unit: productUnitSchema,
+  salePricePaisa: z.number(),
+  taxCategoryId: z.string(),
+  costPaisa: z.number(),
+});
+
+export const barcodeLookupSchema = z.discriminatedUnion("source", [
+  z.strictObject({
+    source: z.literal("barcode"),
+    product: barcodeLookupProductSchema,
+    packQtyMilli: z.number(),
+    packPricePaisa: z.number().nullable(),
+  }),
+  z.strictObject({
+    source: z.literal("scale"),
+    product: barcodeLookupProductSchema,
+    scale: scaleBarcodeSchema,
+  }),
+]);
+
 const refusal = <Reason extends string>(reason: Reason) =>
   z.strictObject({ ok: z.literal(false), reason: z.literal(reason), message: z.string() });
 
@@ -120,6 +179,8 @@ export const updateProductResultSchema = z.union([
   refusal("not-found"),
   ...createRefusals,
 ]);
+
+export const getProductResultSchema = z.union([okResult, refusal("not-found")]);
 
 export const productStatusResultSchema = z.union([
   okResult,
@@ -141,3 +202,12 @@ export type UpdateProductInput = z.input<typeof updateProductInputSchema>;
 export type Product = z.infer<typeof productSchema>;
 export type CreateProductResult = z.infer<typeof createProductResultSchema>;
 export type UpdateProductResult = z.infer<typeof updateProductResultSchema>;
+export type ProductSearchQuery = z.input<typeof productSearchInputSchema>;
+export type ProductSearchInput = z.output<typeof productSearchInputSchema>;
+export type ProductSearchItem = z.infer<typeof productSearchItemSchema>;
+export type ProductSearchResult = z.infer<typeof productSearchResultSchema>;
+export type BarcodeLookupInput = z.infer<typeof barcodeLookupInputSchema>;
+export type ScaleBarcode = z.infer<typeof scaleBarcodeSchema>;
+export type BarcodeLookupProduct = z.infer<typeof barcodeLookupProductSchema>;
+export type BarcodeLookup = z.infer<typeof barcodeLookupSchema>;
+export type GetProductResult = z.infer<typeof getProductResultSchema>;

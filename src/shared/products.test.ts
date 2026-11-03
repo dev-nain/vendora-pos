@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  barcodeLookupInputSchema,
+  barcodeLookupSchema,
   createProductInputSchema,
+  productSearchInputSchema,
   productIdInputSchema,
   updateProductInputSchema,
 } from "./products";
@@ -89,5 +92,66 @@ describe("productIdInputSchema", () => {
     expect(productIdInputSchema.safeParse({ id: categoryId }).success).toBe(true);
     expect(productIdInputSchema.safeParse({ id: "x" }).success).toBe(false);
     expect(productIdInputSchema.safeParse({ id: categoryId, extra: 1 }).success).toBe(false);
+  });
+});
+
+describe("productSearchInputSchema", () => {
+  const base = { query: "", limit: 20, offset: 0 };
+
+  it("accepts a minimal input", () => {
+    expect(productSearchInputSchema.safeParse(base).success).toBe(true);
+  });
+
+  it.each([
+    ["limit 0", { limit: 0 }],
+    ["limit 101", { limit: 101 }],
+    ["fractional limit", { limit: 1.5 }],
+    ["negative offset", { offset: -1 }],
+    ["oversized query", { query: "a".repeat(201) }],
+    ["non-uuid category", { categoryId: "x" }],
+    ["unknown key", { storeId: "s" }],
+  ])("rejects %s", (_name, extra) => {
+    expect(productSearchInputSchema.safeParse({ ...base, ...extra }).success).toBe(false);
+  });
+});
+
+describe("barcodeLookupInputSchema", () => {
+  it("trims the barcode", () => {
+    expect(barcodeLookupInputSchema.parse({ barcode: " 123 " })).toEqual({ barcode: "123" });
+  });
+
+  it("rejects blank and oversized barcodes", () => {
+    expect(barcodeLookupInputSchema.safeParse({ barcode: "  " }).success).toBe(false);
+    expect(barcodeLookupInputSchema.safeParse({ barcode: "1".repeat(65) }).success).toBe(false);
+  });
+});
+
+describe("barcodeLookupSchema", () => {
+  const product = {
+    id: "p1",
+    nameEn: "Tea",
+    nameUr: null,
+    unit: "piece",
+    salePricePaisa: 100,
+    taxCategoryId: "t1",
+    costPaisa: 80,
+  };
+
+  it("accepts a barcode result and a scale result", () => {
+    expect(
+      barcodeLookupSchema.safeParse({
+        source: "barcode",
+        product,
+        packQtyMilli: 1000,
+        packPricePaisa: null,
+      }).success,
+    ).toBe(true);
+    expect(
+      barcodeLookupSchema.safeParse({
+        source: "scale",
+        product,
+        scale: { itemCode: "00001", kind: "weight", qtyMilli: 500 },
+      }).success,
+    ).toBe(true);
   });
 });

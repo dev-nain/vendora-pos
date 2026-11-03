@@ -12,6 +12,20 @@ import {
 } from "@shared/auth";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
 import {
+  barcodeLookupInputSchema,
+  barcodeLookupSchema,
+  createProductInputSchema,
+  createProductResultSchema,
+  deleteProductResultSchema,
+  getProductResultSchema,
+  productIdInputSchema,
+  productSearchInputSchema,
+  productSearchResultSchema,
+  productStatusResultSchema,
+  updateProductInputSchema,
+  updateProductResultSchema,
+} from "@shared/products";
+import {
   autoLockInputSchema,
   autoLockSettingSchema,
   scalePrefixesInputSchema,
@@ -33,6 +47,7 @@ import { z } from "zod";
 import { toIpcError } from "./ipc-errors";
 import type { AuthService } from "./services/auth";
 import type { AutoLock } from "./services/auto-lock";
+import type { ProductsService } from "./services/products";
 import type { SettingsService } from "./services/settings";
 import type { UsersService } from "./services/users";
 
@@ -54,9 +69,16 @@ interface IpcServices {
   autoLock: AutoLock;
   settings: SettingsService;
   users: UsersService;
+  products: ProductsService;
 }
 
-export function registerIpcHandlers({ auth, autoLock, settings, users }: IpcServices): void {
+export function registerIpcHandlers({
+  auth,
+  autoLock,
+  settings,
+  users,
+  products,
+}: IpcServices): void {
   handle(ipcChannels.appGetInfo, () => appInfoSchema.parse({ version: app.getVersion() }));
   handle(ipcChannels.authLogin, async (_event, input) =>
     authResultSchema.parse(await auth.login(loginInputSchema.parse(input))),
@@ -107,5 +129,31 @@ export function registerIpcHandlers({ auth, autoLock, settings, users }: IpcServ
   );
   handle(ipcChannels.usersReactivate, (_event, input) =>
     userActionResultSchema.parse(users.reactivate(userIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsSearch, (_event, input) =>
+    productSearchResultSchema.parse(products.search(productSearchInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsGet, (_event, input) =>
+    getProductResultSchema.parse(products.get(productIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsCreate, (_event, input) =>
+    createProductResultSchema.parse(products.create(createProductInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsUpdate, (_event, input) =>
+    updateProductResultSchema.parse(products.update(updateProductInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsArchive, (_event, input) =>
+    productStatusResultSchema.parse(products.archive(productIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsRestore, (_event, input) =>
+    productStatusResultSchema.parse(products.restore(productIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsDelete, (_event, input) =>
+    deleteProductResultSchema.parse(products.delete(productIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.productsLookupBarcode, (_event, input) =>
+    barcodeLookupSchema
+      .nullable()
+      .parse(products.lookupBarcode(barcodeLookupInputSchema.parse(input))),
   );
 }

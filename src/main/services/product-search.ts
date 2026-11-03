@@ -1,33 +1,12 @@
 import { and, asc, count, eq, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { VendoraDatabase } from "../db/client";
-import { productBarcodes, products, type ProductUnit } from "../db/schema";
+import { productBarcodes, products } from "../db/schema";
+import {
+  PRODUCT_SEARCH_MAX_LIMIT,
+  type ProductSearchInput,
+  type ProductSearchResult,
+} from "../../shared/products";
 import { normalizeSearchText } from "./search-text";
-
-export const PRODUCT_SEARCH_MAX_LIMIT = 100;
-
-export interface ProductSearchInput {
-  query: string;
-  categoryId?: string;
-  includeArchived?: boolean;
-  limit: number;
-  offset: number;
-}
-
-export interface ProductSearchItem {
-  id: string;
-  nameEn: string;
-  nameUr: string | null;
-  internalCode: string | null;
-  categoryId: string;
-  unit: ProductUnit;
-  salePricePaisa: number;
-  isActive: boolean;
-}
-
-export interface ProductSearchResult {
-  items: ProductSearchItem[];
-  total: number;
-}
 
 function escapeLike(term: string): string {
   return term.replace(/[\\%_]/g, (char) => `\\${char}`);

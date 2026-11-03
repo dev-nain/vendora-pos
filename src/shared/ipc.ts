@@ -10,6 +10,18 @@ import type {
 import type { GatedAction } from "./gated-actions";
 import type { AutoLockSetting, ScalePrefixesInput, ScalePrefixesSetting } from "./settings";
 import type {
+  BarcodeLookup,
+  CreateProductInput,
+  CreateProductResult,
+  DeleteProductResult,
+  GetProductResult,
+  ProductSearchQuery,
+  ProductSearchResult,
+  ProductStatusResult,
+  UpdateProductInput,
+  UpdateProductResult,
+} from "./products";
+import type {
   CreateUserInput,
   CreateUserResult,
   DeactivateUserResult,
@@ -46,6 +58,14 @@ export const ipcChannels = {
   usersResetPin: "users:reset-pin",
   usersDeactivate: "users:deactivate",
   usersReactivate: "users:reactivate",
+  productsSearch: "products:search",
+  productsGet: "products:get",
+  productsCreate: "products:create",
+  productsUpdate: "products:update",
+  productsArchive: "products:archive",
+  productsRestore: "products:restore",
+  productsDelete: "products:delete",
+  productsLookupBarcode: "products:lookup-barcode",
 } as const;
 
 export const ipcErrorMessages = {
@@ -87,5 +107,15 @@ export interface VendoraApi {
     resetPin: (id: string, pin: string) => Promise<UserActionResult>;
     deactivate: (id: string) => Promise<DeactivateUserResult>;
     reactivate: (id: string) => Promise<UserActionResult>;
+  };
+  products: {
+    search: (input: ProductSearchQuery) => Promise<ProductSearchResult>;
+    get: (id: string) => Promise<GetProductResult>;
+    create: (input: CreateProductInput) => Promise<CreateProductResult>;
+    update: (input: UpdateProductInput) => Promise<UpdateProductResult>;
+    archive: (id: string) => Promise<ProductStatusResult>;
+    restore: (id: string) => Promise<ProductStatusResult>;
+    delete: (id: string) => Promise<DeleteProductResult>;
+    lookupBarcode: (barcode: string) => Promise<BarcodeLookup | null>;
   };
 }
