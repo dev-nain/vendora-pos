@@ -109,3 +109,25 @@ describe("requireSessionPermission", () => {
     expect(requireSessionPermission(sessions, "users.manage")).toBe(session);
   });
 });
+
+describe("requireUnlockedSession", () => {
+  it("throws with no session", () => {
+    expect(() => requireUnlockedSession(createSessionStore())).toThrow(UnauthenticatedError);
+  });
+
+  it("throws while locked", () => {
+    const sessions = createSessionStore();
+    sessions.start(sessionFor("cashier"));
+    sessions.lock();
+
+    expect(() => requireUnlockedSession(sessions)).toThrow(SessionLockedError);
+  });
+
+  it("returns the current session", () => {
+    const sessions = createSessionStore();
+    const session = sessionFor("cashier");
+    sessions.start(session);
+
+    expect(requireUnlockedSession(sessions)).toBe(session);
+  });
+});

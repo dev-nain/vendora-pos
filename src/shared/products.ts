@@ -121,6 +121,8 @@ export const productSearchItemSchema = z.strictObject({
   unit: productUnitSchema,
   salePricePaisa: z.number(),
   isActive: z.boolean(),
+  primaryBarcode: z.string().nullable(),
+  extraBarcodeCount: z.int().nonnegative(),
 });
 
 export const productSearchResultSchema = z.strictObject({

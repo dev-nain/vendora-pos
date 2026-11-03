@@ -257,6 +257,73 @@ describe("searchProducts", () => {
     );
   });
 
+  describe("barcode summary", () => {
+    it("prefers a base barcode added after a pack barcode", () => {
+      const product = addProduct({ nameEn: "Milk" });
+      addBarcode(product.id, "8961000000100", { packQtyMilli: 12000, createdAt: at(0) });
+      addBarcode(product.id, "8961000000001", { packQtyMilli: 1000, createdAt: at(10) });
+      expect(search("").items[0]!).toMatchObject({
+        primaryBarcode: "8961000000001",
+        extraBarcodeCount: 1,
+      });
+    });
+
+    it("takes the earlier of two base barcodes", () => {
+      const product = addProduct({ nameEn: "Milk" });
+      addBarcode(product.id, "8961000000002", { createdAt: at(10) });
+      addBarcode(product.id, "8961000000001", { createdAt: at(0) });
+      expect(search("").items[0]!.primaryBarcode).toBe("8961000000001");
+    });
+
+    it("falls back to the earliest pack barcode", () => {
+      const product = addProduct({ nameEn: "Milk" });
+      addBarcode(product.id, "8961000000012", { packQtyMilli: 24000, createdAt: at(10) });
+      addBarcode(product.id, "8961000000011", { packQtyMilli: 12000, createdAt: at(0) });
+      expect(search("").items[0]!).toMatchObject({
+        primaryBarcode: "8961000000011",
+        extraBarcodeCount: 1,
+      });
+    });
+
+    it("reports no barcode", () => {
+      addProduct({ nameEn: "Milk" });
+      expect(search("").items[0]!).toMatchObject({ primaryBarcode: null, extraBarcodeCount: 0 });
+    });
+
+    it("ignores a soft-deleted base barcode", () => {
+      const product = addProduct({ nameEn: "Milk" });
+      addBarcode(product.id, "8961000000001", { createdAt: at(0), deletedAt: new Date() });
+      addBarcode(product.id, "8961000000100", { packQtyMilli: 12000, createdAt: at(10) });
+      expect(search("").items[0]!).toMatchObject({
+        primaryBarcode: "8961000000100",
+        extraBarcodeCount: 0,
+      });
+    });
+
+    it("counts every other live barcode", () => {
+      const product = addProduct({ nameEn: "Milk" });
+      addBarcode(product.id, "8961000000001", { createdAt: at(0) });
+      addBarcode(product.id, "8961000000002", { packQtyMilli: 12000, createdAt: at(1) });
+      addBarcode(product.id, "8961000000003", { packQtyMilli: 24000, createdAt: at(2) });
+      expect(search("").items[0]!.extraBarcodeCount).toBe(2);
+    });
+
+    it("carries the fields on an exact barcode match ranked first", () => {
+      const zinger = addProduct({ nameEn: "Zinger Burger" });
+      addBarcode(zinger.id, "8961000000017", { createdAt: at(0) });
+      addBarcode(zinger.id, "8961000000024", { packQtyMilli: 12000, createdAt: at(1) });
+      addProduct({ nameEn: "Alpha", internalCode: "8961000000017-A" });
+
+      const [top, second] = search("8961000000017").items;
+      expect(top).toMatchObject({
+        nameEn: "Zinger Burger",
+        primaryBarcode: "8961000000017",
+        extraBarcodeCount: 1,
+      });
+      expect(second).toMatchObject({ primaryBarcode: null, extraBarcodeCount: 0 });
+    });
+  });
+
   it("treats a whitespace query as empty", () => {
     addProduct({ nameEn: "Banana" });
     addProduct({ nameEn: "Apple" });
@@ -264,7 +331,11 @@ describe("searchProducts", () => {
   });
 });
 
+const at = (ms: number) => new Date(1_700_000_000_000 + ms);
+
 const barcodeOf = (i: number) => `896${String(i).padStart(10, "0")}`;
+
+const packBarcodeOf = (i: number) => `897${String(i).padStart(10, "0")}`;
 
 const percentile = (sorted: number[], p: number) =>
   sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * p) - 1)]!;
@@ -292,6 +363,7 @@ describe("searchProducts benchmark", () => {
   let database: VendoraDatabase;
   let storeId: string;
   let barcodeProductId: string;
+  let categoryIds: string[];
 
   beforeAll(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-product-search-bench-"));
@@ -304,7 +376,7 @@ describe("searchProducts benchmark", () => {
     storeId = database.db.select().from(stores).get()!.id;
     const generalId = database.db.select().from(categories).get()!.id;
     const taxCategoryId = database.db.select().from(taxCategories).get()!.id;
-    const categoryIds = [generalId];
+    categoryIds = [generalId];
     for (const name of ["Grocery", "Beverages", "Household"]) {
       categoryIds.push(
         database.db.insert(categories).values({ storeId, name }).returning().get().id,
@@ -317,7 +389,7 @@ describe("searchProducts benchmark", () => {
     );
     const insertBarcode = database.sqlite.prepare(
       `INSERT INTO product_barcodes (id, store_id, product_id, barcode, pack_qty_milli, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 1000, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
     );
     const now = Date.now();
     database.sqlite.transaction(() => {
@@ -343,7 +415,10 @@ describe("searchProducts benchmark", () => {
           now,
           now,
         );
-        insertBarcode.run(uuidv7(), storeId, productId, barcodeOf(i), now, now);
+        if (i % 10 === 0) {
+          insertBarcode.run(uuidv7(), storeId, productId, packBarcodeOf(i), 12000, now - 1, now);
+        }
+        insertBarcode.run(uuidv7(), storeId, productId, barcodeOf(i), 1000, now, now);
       }
     })();
   }, 60_000);
@@ -353,15 +428,20 @@ describe("searchProducts benchmark", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  const measure = (group: string, queries: string[]) => {
+  const measure = (group: string, queries: string[], categoryFilter?: string[]) => {
     const durations: number[] = [];
-    for (const query of queries) {
+    const inputs: ProductSearchInput[] = categoryFilter
+      ? categoryFilter.flatMap((categoryId) =>
+          queries.map((query) => ({ query, categoryId, limit: 50, offset: 0 })),
+        )
+      : queries.map((query) => ({ query, limit: 50, offset: 0 }));
+    for (const input of inputs) {
       for (let i = 0; i < 5; i++) {
-        searchProducts(database, storeId, { query, limit: 50, offset: 0 });
+        searchProducts(database, storeId, input);
       }
       for (let i = 0; i < 50; i++) {
         const start = performance.now();
-        searchProducts(database, storeId, { query, limit: 50, offset: 0 });
+        searchProducts(database, storeId, input);
         durations.push(performance.now() - start);
       }
     }
@@ -389,6 +469,29 @@ describe("searchProducts benchmark", () => {
     expect(byBarcode.items[0]?.id).toBe(barcodeProductId);
   });
 
+  it("returns barcode summaries", () => {
+    const multi = searchProducts(database, storeId, {
+      query: "C12340",
+      includeArchived: true,
+      limit: 50,
+      offset: 0,
+    });
+    expect(multi.items[0]).toMatchObject({
+      primaryBarcode: barcodeOf(12_340),
+      extraBarcodeCount: 1,
+    });
+    const single = searchProducts(database, storeId, {
+      query: barcodeOf(barcodeIndex),
+      includeArchived: true,
+      limit: 50,
+      offset: 0,
+    });
+    expect(single.items[0]).toMatchObject({
+      primaryBarcode: barcodeOf(barcodeIndex),
+      extraBarcodeCount: 0,
+    });
+  });
+
   it("answers 3-character queries under 100 ms p95", { timeout: 60_000 }, () => {
     expect(measure("3-character", ["tea", "mil", "bis", "oil", "sha", "چائ"])).toBeLessThan(100);
   });
@@ -397,5 +500,10 @@ describe("searchProducts benchmark", () => {
     expect(measure("full-word", ["biscuit", "masala", "shampoo", "tapal", "دودھ"])).toBeLessThan(
       100,
     );
+  });
+
+  it("answers the empty query under 100 ms p95", { timeout: 60_000 }, () => {
+    expect(measure("empty query", [""])).toBeLessThan(100);
+    expect(measure("empty query by category", [""], categoryIds)).toBeLessThan(100);
   });
 });

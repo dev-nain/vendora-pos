@@ -476,6 +476,12 @@ describe("product migration on an existing database", () => {
         .all()
         .map((row) => (row as { name: string }).name);
       expect(tables).toEqual(expect.arrayContaining(["products", "product_barcodes"]));
+      expect(database.sqlite.prepare("SELECT is_system AS s FROM categories").all()).toEqual([
+        { s: 0 },
+      ]);
+      expect(database.sqlite.prepare("SELECT is_system AS s FROM tax_categories").all()).toEqual([
+        { s: 0 },
+      ]);
     } finally {
       database.sqlite.close();
       rmSync(dir, { recursive: true, force: true });

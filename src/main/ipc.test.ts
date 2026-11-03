@@ -117,9 +117,11 @@ describe("products ipc", () => {
     registerIpcHandlers({
       auth: stub,
       autoLock: stub,
-      settings: stub,
-      users: stub,
+      categories: stub,
       products: service,
+      settings: stub,
+      taxCategories: stub,
+      users: stub,
     });
   });
 
