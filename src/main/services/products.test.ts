@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createProductInputSchema,
   updateProductInputSchema,
+  updateProductResultSchema,
   type CreateProductInput,
   type CreateProductResult,
 } from "../../shared/products";
@@ -101,6 +102,8 @@ describe("createProductsService", () => {
       .where(eq(auditLog.action, action))
       .all()
       .map((row) => ({ ...row, details: JSON.parse(row.details ?? "null") }));
+
+  const storeIdOf = () => database.db.select().from(stores).get()!.id;
 
   const tables = () => ({
     products: database.db.select().from(products).where(eq(products.isSystem, false)).all(),
@@ -391,6 +394,34 @@ describe("createProductsService", () => {
       });
       database.db.update(products).set({ deletedAt: t0 }).where(eq(products.id, product.id)).run();
       expect(update(product.id)).toMatchObject({ ok: false, reason: "not-found" });
+    });
+
+    it.each(["owner", "manager"] as const)(
+      "refuses %s editing the misc item and writes nothing",
+      (role) => {
+        signIn(role);
+        const misc = database.db.select().from(products).where(eq(products.isSystem, true)).get()!;
+        const before = database.db.select().from(products).all();
+        const auditBefore = database.db.select().from(auditLog).all();
+
+        const result = update(misc.id, { nameEn: "Renamed", salePricePaisa: 500, mrpPaisa: null });
+
+        expect(result).toEqual({
+          ok: false,
+          reason: "system-product",
+          message: "Misc item is built in and can't be edited.",
+        });
+        expect(updateProductResultSchema.safeParse(result).success).toBe(true);
+        expect(database.db.select().from(products).all()).toEqual(before);
+        expect(database.db.select().from(productBarcodes).all()).toEqual([]);
+        expect(database.db.select().from(auditLog).all()).toEqual(auditBefore);
+      },
+    );
+
+    it("keeps the misc item out of search results", () => {
+      expect(
+        searchProducts(database, storeIdOf(), { query: "misc", limit: 10, offset: 0 }).items,
+      ).toEqual([]);
     });
 
     it("rolls product, barcodes and audit back together when audit fails", () => {

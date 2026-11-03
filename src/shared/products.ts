@@ -5,6 +5,7 @@ export type ProductUnit = (typeof productUnits)[number];
 
 export const productMessages = {
   notFound: "That product no longer exists. Refresh the list.",
+  systemProduct: "Misc item is built in and can't be edited.",
   categoryNotFound: "That category no longer exists. Pick another.",
   taxCategoryNotFound: "That tax category no longer exists. Pick another.",
   barcodeTaken: (barcode: string, productName: string) =>
@@ -115,6 +116,7 @@ export const createProductResultSchema = z.union([okResult, ...createRefusals]);
 export const updateProductResultSchema = z.union([
   okResult,
   refusal("not-found"),
+  refusal("system-product"),
   ...createRefusals,
 ]);
 

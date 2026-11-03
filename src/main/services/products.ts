@@ -224,6 +224,7 @@ export function createProductsService({
           )
           .get();
         if (!current) return refuse("not-found", productMessages.notFound);
+        if (current.isSystem) return refuse("system-product", productMessages.systemProduct);
 
         const refusal =
           checkReferences(tx, session.storeId, input) ??
