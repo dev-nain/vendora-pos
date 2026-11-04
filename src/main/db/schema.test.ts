@@ -642,6 +642,7 @@ describe("remove roles and lock migration on an existing database", () => {
         "misc_item_enabled",
         "created_at",
         "updated_at",
+        "shift_variance_warn_paisa",
       ]);
       expect(columnsOf(database, "users")).not.toContain("role");
       expect(columnsOf(database, "audit_log")).not.toContain("approver_user_id");
@@ -656,6 +657,7 @@ describe("remove roles and lock migration on an existing database", () => {
           misc_item_enabled: 1,
           created_at: 11,
           updated_at: 12,
+          shift_variance_warn_paisa: 0,
         },
       ]);
       expect(database.sqlite.prepare("SELECT * FROM users ORDER BY id").all()).toEqual([
@@ -811,6 +813,126 @@ describe("remove roles and lock migration on an existing database", () => {
     } finally {
       database.sqlite.close();
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("shift schema", () => {
+  let dir: string;
+  let database: VendoraDatabase;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vendora-shifts-"));
+    database = openDatabase(join(dir, "vendora.db"));
+    runMigrations(database, { migrationsFolder, backupDir: join(dir, "backups") });
+    database.sqlite.exec(`
+      INSERT INTO stores (id, created_at, updated_at) VALUES ('s1', 1, 1);
+      INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 1);
+      INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at)
+        VALUES ('u1', 'bilal', 'Bilal', 'h', 'h', 1, 1);
+    `);
+  });
+
+  afterEach(() => {
+    database.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const openShift = (id: string, float = 0) =>
+    database.sqlite.exec(
+      `INSERT INTO shifts (id, store_id, terminal_id, opened_by, opened_at, opening_float_paisa, created_at, updated_at)
+       VALUES ('${id}', 's1', 't1', 'u1', 1, ${float}, 1, 1)`,
+    );
+
+  const insertMove = (kind: string, amount: number) =>
+    database.sqlite.exec(
+      `INSERT INTO shift_cash_moves (id, store_id, terminal_id, shift_id, kind, amount_paisa, reason, created_by, created_at, updated_at)
+       VALUES ('m${kind}${amount}', 's1', 't1', 'sh1', '${kind}', ${amount}, 'x', 'u1', 1, 1)`,
+    );
+
+  it("creates the four tables and defaults the variance warning to 0", () => {
+    const names = database.sqlite
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all()
+      .map((row) => (row as { name: string }).name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "cash_denominations",
+        "shifts",
+        "shift_cash_moves",
+        "shift_cash_counts",
+      ]),
+    );
+    expect(
+      database.sqlite.prepare("SELECT shift_variance_warn_paisa AS v FROM stores").get(),
+    ).toEqual({ v: 0 });
+  });
+
+  it("adds the column without rebuilding the stores table", () => {
+    const sqlText = readFileSync(join(migrationsFolder, "0009_shifts.sql"), "utf8");
+    expect(sqlText).not.toContain("__new_stores");
+    expect(sqlText).toContain("ALTER TABLE `stores` ADD `shift_variance_warn_paisa`");
+  });
+
+  it("allows one open shift per terminal and a new one after it closes", () => {
+    openShift("sh1");
+    expect(() => openShift("sh2")).toThrow();
+    database.sqlite.exec("UPDATE shifts SET closed_at = 2, closed_by = 'u1' WHERE id = 'sh1'");
+    expect(() => openShift("sh2")).not.toThrow();
+  });
+
+  it("rejects a negative float, bad move amounts and kinds, and a half-set close", () => {
+    expect(() => openShift("neg", -1)).toThrow();
+    openShift("sh1");
+    expect(() => insertMove("in", 0)).toThrow();
+    expect(() => insertMove("out", -5)).toThrow();
+    expect(() => insertMove("sideways", 5)).toThrow();
+    expect(() => insertMove("in", 500)).not.toThrow();
+    expect(() =>
+      database.sqlite.exec("UPDATE shifts SET closed_at = 2 WHERE id = 'sh1'"),
+    ).toThrow();
+  });
+
+  it("upgrades from 0008, backing up and keeping the store, users and audit rows", () => {
+    const upgradeDir = mkdtempSync(join(tmpdir(), "vendora-upgrade-"));
+    const old = openDatabase(join(upgradeDir, "vendora.db"));
+    try {
+      const oldFolder = join(upgradeDir, "old-migrations");
+      mkdirSync(join(oldFolder, "meta"), { recursive: true });
+      const journal = JSON.parse(
+        readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+      ) as { entries: { tag: string }[] };
+      journal.entries = journal.entries.slice(0, 9);
+      writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
+      for (const entry of journal.entries) {
+        copyFileSync(
+          join(migrationsFolder, `${entry.tag}.sql`),
+          join(oldFolder, `${entry.tag}.sql`),
+        );
+      }
+      const backupDir = join(upgradeDir, "backups");
+      runMigrations(old, { migrationsFolder: oldFolder, backupDir });
+      old.sqlite.exec(`
+        INSERT INTO stores (id, name, created_at, updated_at) VALUES ('s1', 'Existing', 1, 1);
+        INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 1);
+        INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at)
+          VALUES ('u1', 'bilal', 'Bilal', 'h', 'h', 1, 1);
+        INSERT INTO audit_log (id, store_id, terminal_id, actor_user_id, action, created_at)
+          VALUES ('a1', 's1', 't1', 'u1', 'login', 1);
+      `);
+
+      expect(runMigrations(old, { migrationsFolder, backupDir })).toBe("migrated");
+
+      expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
+      expect(old.sqlite.pragma("foreign_key_check")).toEqual([]);
+      expect(
+        old.sqlite.prepare("SELECT name, shift_variance_warn_paisa AS v FROM stores").all(),
+      ).toEqual([{ name: "Existing", v: 0 }]);
+      expect(old.sqlite.prepare("SELECT count(*) AS n FROM users").get()).toEqual({ n: 1 });
+      expect(old.sqlite.prepare("SELECT count(*) AS n FROM audit_log").get()).toEqual({ n: 1 });
+    } finally {
+      old.sqlite.close();
+      rmSync(upgradeDir, { recursive: true, force: true });
     }
   });
 });
