@@ -14,6 +14,8 @@ import { Kbd } from "@renderer/components/ui/kbd";
 import { cn } from "@renderer/lib/utils";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { formatRupees } from "../lib/money";
+import { BuyerFields, BuyerToggle, buyerInputId, type BuyerErrors } from "./buyer-details";
+import { buyerFields, emptyBuyerText, parseBuyer, type BuyerField } from "./buyer-input";
 import { LargePaymentDialog } from "./large-payment-dialog";
 import { Numpad } from "./numpad";
 import { amountInputId, PaymentLineList, referenceInputId } from "./payment-line-list";
@@ -67,6 +69,7 @@ const tenderButtons: { key: string; kind: TenderKind; label: string }[] = [
 type FocusTarget =
   | { kind: "amount"; method: PaymentMethod }
   | { kind: "reference"; method: PaymentMethod }
+  | { kind: "buyer"; field: BuyerField }
   | { kind: "cash-button" };
 
 interface PaymentScreenProps {
@@ -102,6 +105,7 @@ export function PaymentScreen({
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<{ paidPaisa: number; totalPaisa: number } | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [buyerErrors, setBuyerErrors] = useState<BuyerErrors>({});
   const locked = useRef(false);
   const [focusRequest, setFocusRequest] = useState<{ target: FocusTarget; n: number } | null>(null);
   const keyHandler = useRef<(event: KeyboardEvent) => void>(() => {});
@@ -120,7 +124,9 @@ export function PaymentScreen({
         ? amountInputId(target.method)
         : target.kind === "reference"
           ? referenceInputId(target.method)
-          : cashButtonId;
+          : target.kind === "buyer"
+            ? buyerInputId(target.field)
+            : cashButtonId;
     document.getElementById(id)?.focus();
   }, [focusRequest]);
 
@@ -174,7 +180,15 @@ export function PaymentScreen({
         setConfirm({ paidPaisa: issue.paidPaisa, totalPaisa: issue.totalPaisa });
         return;
       }
-      const result = await window.vendora.checkout.complete(toCompletePayload(draft, undefined));
+      const buyer = parseBuyer(draft.buyer);
+      if (!buyer.ok) {
+        setBuyerErrors(buyer.errors);
+        onDraftChange({ ...draft, buyerOpen: true });
+        const first = buyerFields.find((field) => buyer.errors[field]);
+        if (first) focusOn({ kind: "buyer", field: first });
+        return;
+      }
+      const result = await window.vendora.checkout.complete(toCompletePayload(draft, buyer.buyer));
       if (result.ok) onCompleted(result.sale);
       else if (result.reason === "underpaid") {
         showNotice(`${formatRupees(result.duePaisa)} left to pay`);
@@ -186,6 +200,26 @@ export function PaymentScreen({
       locked.current = false;
       setBusy(false);
     }
+  };
+
+  const focusSelectedAmount = (next: PaymentDraft) =>
+    focusOn(next.selected ? { kind: "amount", method: next.selected } : { kind: "cash-button" });
+
+  const toggleBuyer = () => {
+    const next = { ...draft, buyerOpen: !draft.buyerOpen };
+    onDraftChange(next);
+    if (next.buyerOpen) focusOn({ kind: "buyer", field: "name" });
+    else focusSelectedAmount(next);
+  };
+
+  const editBuyer = (field: BuyerField, value: string) => {
+    change({ ...draft, buyer: { ...draft.buyer, [field]: value } });
+    setBuyerErrors((prev) => ({ ...prev, [field]: undefined }));
+  };
+
+  const checkBuyerField = (field: BuyerField) => {
+    const result = parseBuyer({ ...emptyBuyerText(), [field]: draft.buyer[field] });
+    setBuyerErrors((prev) => ({ ...prev, [field]: result.ok ? undefined : result.errors[field] }));
   };
 
   const closeConfirm = () => {
@@ -239,7 +273,10 @@ export function PaymentScreen({
       } else if (kind !== undefined) {
         event.preventDefault();
         tender(kind);
-      } else if (event.key === "F11" || event.key === "F12") {
+      } else if (event.key === "F11") {
+        event.preventDefault();
+        toggleBuyer();
+      } else if (event.key === "F12") {
         event.preventDefault();
       } else if (event.key === "Enter") {
         if (target instanceof HTMLButtonElement) return;
@@ -346,6 +383,7 @@ export function PaymentScreen({
               </Button>
             ))}
           </div>
+          <BuyerToggle text={draft.buyer} open={draft.buyerOpen} onToggle={toggleBuyer} />
         </section>
         <section
           aria-label="Payment lines"
@@ -377,6 +415,14 @@ export function PaymentScreen({
               <CircleAlertIcon aria-hidden="true" size={16} strokeWidth={2} className="shrink-0" />
               {notice}
             </p>
+          ) : null}
+          {draft.buyerOpen ? (
+            <BuyerFields
+              text={draft.buyer}
+              errors={buyerErrors}
+              onChange={editBuyer}
+              onBlurField={checkBuyerField}
+            />
           ) : null}
         </section>
         <section aria-label="Totals and keypad" className="flex min-h-0 flex-col gap-400 p-400">
