@@ -12,15 +12,7 @@ import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
-import {
-  auditLog,
-  categories,
-  products,
-  stores,
-  taxCategories,
-  users,
-  type UserRole,
-} from "../db/schema";
+import { auditLog, categories, products, stores, taxCategories, users } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import { createAuditService } from "./audit";
 import { createCategoriesService } from "./categories";
@@ -56,13 +48,13 @@ describe("createCategoriesService", () => {
   const categoryRows = () => database.db.select().from(categories).all();
   const generalId = () => categoryRows().find((c) => c.isSystem)!.id;
 
-  const signIn = (role: UserRole) => {
+  const signIn = (name: string) => {
     const user = database.db
       .insert(users)
-      .values({ username: role, displayName: role, role, passwordHash: "p", pinHash: "q" })
+      .values({ username: name, displayName: name, passwordHash: "p", pinHash: "q" })
       .returning()
       .get();
-    sessions.start({ userId: user.id, role, storeId: storeId(), loggedInAt: new Date(0) });
+    sessions.start({ userId: user.id, storeId: storeId(), loggedInAt: new Date(0) });
     return user;
   };
 
@@ -119,8 +111,8 @@ describe("createCategoriesService", () => {
 
   it.each(["cashier", "manager", "owner"] as const)(
     "lets a %s create, rename and remove",
-    (role) => {
-      const user = signIn(role);
+    (name) => {
+      const user = signIn(name);
 
       const created = service.create({ name: "Snacks" });
       expect(created).toMatchObject({ ok: true, category: { name: "Snacks", isSystem: false } });
@@ -135,7 +127,7 @@ describe("createCategoriesService", () => {
     },
   );
 
-  it("lists live categories for any role, sorted by name", () => {
+  it("lists live categories for any user, sorted by name", () => {
     signIn("owner");
     service.create({ name: "banana" });
     const apple = service.create({ name: "Apple" });

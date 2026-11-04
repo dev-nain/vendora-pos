@@ -1,6 +1,5 @@
 import { useRef, useState, type ComponentProps, type FormEvent } from "react";
 
-import type { SafeUser } from "@shared/auth";
 import { Button } from "@renderer/components/ui/button";
 import {
   Dialog,
@@ -14,7 +13,7 @@ import { Field, FieldError, FieldLabel } from "@renderer/components/ui/field";
 import { Input } from "@renderer/components/ui/input";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { sanitizePin } from "../auth/pin-entry";
-import { ErrorLine, RoleSelect } from "./form-parts";
+import { ErrorLine } from "./form-parts";
 import {
   validateCreateUserForm,
   type CreateUserFormErrors,
@@ -57,7 +56,6 @@ function CreateUserForm({
   onSessionEnded: () => void;
 }) {
   const [values, setValues] = useState<CreateUserFormValues>(emptyValues);
-  const [role, setRole] = useState<SafeUser["role"]>("cashier");
   const [errors, setErrors] = useState<CreateUserFormErrors>({});
   const [serviceError, setServiceError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -108,7 +106,6 @@ function CreateUserForm({
       const result = await window.vendora.users.create({
         username,
         displayName,
-        role,
         password,
         pin,
       });
@@ -165,8 +162,6 @@ function CreateUserForm({
             maxLength: 64,
             onChange: (event) => set("displayName", event.target.value),
           })}
-          <RoleSelect value={role} onChange={setRole} />
-          <div />
           {field("password", "Password", {
             type: "password",
             autoComplete: "new-password",

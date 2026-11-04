@@ -1,8 +1,6 @@
 import { z } from "zod";
 import { passwordSchema, pinSchema } from "./credentials";
 
-export const userRoleSchema = z.enum(["owner", "manager", "cashier"]);
-
 export const authMessages = {
   invalidCredentials: "Username or password is incorrect",
   invalidPin: "PIN is incorrect",
@@ -38,13 +36,11 @@ export const safeUserSchema = z.strictObject({
   id: z.string(),
   username: z.string(),
   displayName: z.string(),
-  role: userRoleSchema,
 });
 
 export const loginUserSchema = z.strictObject({
   id: z.string(),
   displayName: z.string(),
-  role: userRoleSchema,
 });
 
 export const authRefusalSchema = z.discriminatedUnion("reason", [

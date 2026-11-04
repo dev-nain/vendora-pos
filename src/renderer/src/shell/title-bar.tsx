@@ -6,7 +6,6 @@ import type { SafeUser } from "@shared/auth";
 import { Brand } from "@renderer/components/brand";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { Avatar } from "../auth/avatar";
-import { roleLabel } from "../auth/role-label";
 
 export type Area = "sell" | "back-office";
 
@@ -91,7 +90,7 @@ export function TitleBar({ user, area, onAreaChange, onSwitchUser, onLogOut }: T
         >
           <Avatar name={user.displayName} className="size-6 text-[10px]" />
           {user.displayName}
-          <span className="sr-only">, {roleLabel(user.role)}. Account menu</span>
+          <span className="sr-only">, Account menu</span>
         </Menu.Trigger>
         <Menu.Portal>
           <Menu.Positioner side="bottom" align="end" sideOffset={4} className="z-50 outline-none">

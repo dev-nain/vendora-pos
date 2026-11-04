@@ -46,13 +46,12 @@ describe("createProductsService", () => {
 
   const t0 = new Date("2026-01-01T10:00:00.000Z");
 
-  const signIn = (role: "owner" | "manager" | "cashier") => {
+  const signIn = (name: string) => {
     const user = database.db
       .insert(users)
       .values({
-        username: `${role}-${Math.random().toString(36).slice(2, 8)}`,
-        displayName: role,
-        role,
+        username: `${name}-${Math.random().toString(36).slice(2, 8)}`,
+        displayName: name,
         passwordHash: "x",
         pinHash: "x",
       })
@@ -60,7 +59,6 @@ describe("createProductsService", () => {
       .get();
     sessions.start({
       userId: user.id,
-      role,
       storeId: database.db.select().from(stores).get()!.id,
       loggedInAt: t0,
     });
@@ -525,8 +523,8 @@ describe("createProductsService", () => {
 
     it.each(["owner", "manager"] as const)(
       "refuses %s editing the misc item and writes nothing",
-      (role) => {
-        signIn(role);
+      (name) => {
+        signIn(name);
         const misc = database.db.select().from(products).where(eq(products.isSystem, true)).get()!;
         const before = database.db.select().from(products).all();
         const auditBefore = database.db.select().from(auditLog).all();
@@ -728,7 +726,6 @@ describe("createProductsService", () => {
       expect(auditRows("product_archive")).toEqual([
         expect.objectContaining({
           actorUserId: user.id,
-          approverUserId: null,
           entityType: "product",
           entityId: product.id,
           details: { nameEn: "Tapal Danedar 950g" },
@@ -859,7 +856,6 @@ describe("createProductsService", () => {
       expect(auditRows("product_delete")).toEqual([
         expect.objectContaining({
           actorUserId: user.id,
-          approverUserId: null,
           entityType: "product",
           entityId: product.id,
           details: { nameEn: "Tapal Danedar 950g", barcodes: ["A1", "B2"] },

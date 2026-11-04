@@ -36,19 +36,18 @@ describe("createCatalogExportService", () => {
   let chooseSavePath: ReturnType<typeof vi.fn<(name: string) => Promise<string | null>>>;
   let service: ReturnType<typeof createCatalogExportService>;
 
-  const signIn = (role: "owner" | "manager" | "cashier") => {
+  const signIn = (name: string) => {
     const user = database.db
       .insert(users)
       .values({
-        username: `${role}-${Math.random().toString(36).slice(2, 8)}`,
-        displayName: role,
-        role,
+        username: `${name}-${Math.random().toString(36).slice(2, 8)}`,
+        displayName: name,
         passwordHash: "x",
         pinHash: "x",
       })
       .returning()
       .get();
-    sessions.start({ userId: user.id, role, storeId, loggedInAt: new Date() });
+    sessions.start({ userId: user.id, storeId, loggedInAt: new Date() });
   };
 
   const addProduct = (overrides: Partial<typeof products.$inferInsert> & { nameEn: string }) => {

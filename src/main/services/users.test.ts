@@ -39,12 +39,11 @@ describe("createUsersService", () => {
   const addUser = (
     username: string,
     displayName: string,
-    role: "owner" | "manager" | "cashier",
     extra: Partial<typeof users.$inferInsert> = {},
   ) =>
     database.db
       .insert(users)
-      .values({ username, displayName, role, passwordHash, pinHash, ...extra })
+      .values({ username, displayName, passwordHash, pinHash, ...extra })
       .returning()
       .get();
 
@@ -56,11 +55,10 @@ describe("createUsersService", () => {
       .find((row) => row.id === id)!;
   const auditRows = () => database.db.select().from(auditLog).all();
 
-  const signInAs = (user: { id: string; role: "owner" | "manager" | "cashier" }) => {
+  const signInAs = (user: { id: string }) => {
     const terminal = database.db.select().from(terminals).get()!;
     sessions.start({
       userId: user.id,
-      role: user.role,
       storeId: terminal.storeId,
       loggedInAt: t0,
     });
@@ -69,7 +67,6 @@ describe("createUsersService", () => {
   const newUser = {
     username: "sara",
     displayName: "Sara Khan",
-    role: "manager" as const,
     password: "ab123",
     pin: "5555",
   };
@@ -97,7 +94,7 @@ describe("createUsersService", () => {
   const calls = (id: string): (() => unknown)[] => [
     () => service.list(),
     () => service.create(newUser),
-    () => service.update({ id, displayName: "X", role: "cashier" }),
+    () => service.update({ id, displayName: "X" }),
     () => service.resetPassword({ id, password: "abcd" }),
     () => service.resetPin({ id, pin: "1234" }),
     () => service.deactivate({ id }),
@@ -106,7 +103,7 @@ describe("createUsersService", () => {
 
   describe("session", () => {
     it("refuses a signed-out call", async () => {
-      const target = addUser("target", "Target", "cashier");
+      const target = addUser("target", "Target");
 
       for (const call of calls(target.id)) {
         await expect(Promise.resolve().then(call)).rejects.toBeInstanceOf(UnauthenticatedError);
@@ -118,7 +115,7 @@ describe("createUsersService", () => {
 
   describe("create", () => {
     it("stores verifiable hashes and audits user_create without secrets", async () => {
-      const owner = addUser("owner", "Owner", "owner");
+      const owner = addUser("owner", "Owner");
       signInAs(owner);
 
       const result = await service.create(newUser);
@@ -137,7 +134,6 @@ describe("createUsersService", () => {
           id: row.id,
           username: "sara",
           displayName: "Sara Khan",
-          role: "manager",
           isActive: true,
           pinLocked: false,
         },
@@ -150,12 +146,12 @@ describe("createUsersService", () => {
         entityType: "user",
         entityId: row.id,
       });
-      expect(JSON.parse(rows[0]!.details!)).toEqual({ username: "sara", role: "manager" });
+      expect(JSON.parse(rows[0]!.details!)).toEqual({ username: "sara" });
     });
 
     it("returns username-taken ignoring case, including for inactive users", async () => {
-      const owner = addUser("owner", "Owner", "owner");
-      addUser("gone", "Gone", "cashier", { isActive: false });
+      const owner = addUser("owner", "Owner");
+      addUser("gone", "Gone", { isActive: false });
       signInAs(owner);
 
       const taken = await service.create({ ...newUser, username: "Owner" });
@@ -172,14 +168,14 @@ describe("createUsersService", () => {
     });
 
     it("lets the created user log in and switch by PIN", async () => {
-      const owner = addUser("owner", "Owner", "owner");
+      const owner = addUser("owner", "Owner");
       signInAs(owner);
-      const created = await service.create({ ...newUser, role: "cashier" });
+      const created = await service.create(newUser);
       expect(created.ok).toBe(true);
       if (!created.ok) return;
 
       const login = await auth.login({ username: "sara", password: "ab123" });
-      expect(login).toMatchObject({ ok: true, user: { role: "cashier" } });
+      expect(login).toMatchObject({ ok: true, user: { username: "sara" } });
 
       signInAs(owner);
       const switched = await auth.switchByPin({ userId: created.user.id, pin: "5555" });
@@ -189,9 +185,9 @@ describe("createUsersService", () => {
 
   describe("list", () => {
     it("returns no hash keys, inactive users, and sorts active first by name", () => {
-      const owner = addUser("owner", "Zed", "owner");
-      addUser("a", "adam", "cashier", { isActive: false });
-      addUser("b", "Bilal", "cashier");
+      const owner = addUser("owner", "Zed");
+      addUser("a", "adam", { isActive: false });
+      addUser("b", "Bilal");
       signInAs(owner);
 
       const list = service.list();
@@ -203,19 +199,18 @@ describe("createUsersService", () => {
           "id",
           "isActive",
           "pinLocked",
-          "role",
           "username",
         ]);
       }
     });
 
     it("flags pinLocked only while the cooldown is in the future", () => {
-      const owner = addUser("owner", "Owner", "owner");
-      addUser("locked", "Locked", "cashier", {
+      const owner = addUser("owner", "Owner");
+      addUser("locked", "Locked", {
         failedPinAttempts: 5,
         pinRetryAfter: new Date(t0.getTime() + 30_000),
       });
-      addUser("past", "Past", "cashier", {
+      addUser("past", "Past", {
         failedPinAttempts: 5,
         pinRetryAfter: new Date(t0.getTime() - 1000),
       });
@@ -228,107 +223,112 @@ describe("createUsersService", () => {
   });
 
   describe("update", () => {
-    it("changes display name and role and audits only changed fields", () => {
-      const owner = addUser("owner", "Owner", "owner");
-      const target = addUser("t", "Old Name", "cashier");
+    it("changes the display name and audits the change", () => {
+      const owner = addUser("owner", "Owner");
+      const target = addUser("t", "Old Name");
       signInAs(owner);
 
-      const renamed = service.update({ id: target.id, displayName: "New Name", role: "cashier" });
-      const promoted = service.update({ id: target.id, displayName: "New Name", role: "manager" });
+      const renamed = service.update({ id: target.id, displayName: "New Name" });
 
-      expect(renamed).toEqual({ ok: true, sessionEnded: false });
-      expect(promoted).toEqual({ ok: true, sessionEnded: false });
-      expect(userRow(target.id)).toMatchObject({ displayName: "New Name", role: "manager" });
+      expect(renamed).toEqual({ ok: true });
+      expect(userRow(target.id)).toMatchObject({ displayName: "New Name" });
       const rows = auditRows();
-      expect(rows).toHaveLength(2);
-      expect(rows.map((r) => r.action)).toEqual(["user_update", "user_update"]);
-      expect(rows.map((r) => JSON.parse(r.details!))).toEqual([
-        { changes: { displayName: { from: "Old Name", to: "New Name" } } },
-        { changes: { role: { from: "cashier", to: "manager" } } },
-      ]);
-      expect(rows[0]!.actorUserId).toBe(owner.id);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        action: "user_update",
+        actorUserId: owner.id,
+        entityType: "user",
+        entityId: target.id,
+      });
+      expect(JSON.parse(rows[0]!.details!)).toEqual({
+        changes: { displayName: { from: "Old Name", to: "New Name" } },
+      });
     });
 
     it("writes no row when nothing changed", () => {
-      const owner = addUser("owner", "Owner", "owner");
-      const target = addUser("t", "Name", "cashier");
+      const owner = addUser("owner", "Owner");
+      const target = addUser("t", "Name");
       signInAs(owner);
 
-      const result = service.update({ id: target.id, displayName: "Name", role: "cashier" });
+      const result = service.update({ id: target.id, displayName: "Name" });
 
-      expect(result).toEqual({ ok: true, sessionEnded: false });
+      expect(result).toEqual({ ok: true });
       expect(auditRows()).toHaveLength(0);
     });
 
+    it("keeps the session when a user edits their own display name", () => {
+      const owner = addUser("owner", "Owner");
+      signInAs(owner);
+
+      expect(service.update({ id: owner.id, displayName: "Boss" })).toEqual({ ok: true });
+      expect(sessions.current()).not.toBeNull();
+    });
+
     it("returns not-found for an unknown id", () => {
-      signInAs(addUser("owner", "Owner", "owner"));
+      signInAs(addUser("owner", "Owner"));
 
       const result = service.update({
         id: "0190a3b4-7c5d-7e8f-9a0b-1c2d3e4f5a6b",
         displayName: "X",
-        role: "cashier",
       });
 
       expect(result).toMatchObject({ ok: false, reason: "not-found" });
     });
   });
 
-  describe("last-Owner guard", () => {
-    it("refuses to deactivate the only active Owner", () => {
-      const owner = addUser("owner", "Owner", "owner");
-      signInAs(owner);
+  describe("last active user guard", () => {
+    it("refuses to deactivate the only active user", () => {
+      const only = addUser("only", "Only");
+      signInAs(only);
 
-      const result = service.deactivate({ id: owner.id });
+      const result = service.deactivate({ id: only.id });
 
       expect(result).toEqual({
         ok: false,
-        reason: "last-owner",
-        message: userMessages.lastOwner,
+        reason: "last-active-user",
+        message: userMessages.lastActiveUser,
       });
-      expect(userRow(owner.id).isActive).toBe(true);
+      expect(userRow(only.id).isActive).toBe(true);
       expect(auditRows()).toHaveLength(0);
       expect(sessions.current()).not.toBeNull();
     });
 
-    it("refuses to move the only active Owner to another role", () => {
-      const owner = addUser("owner", "Owner", "owner");
-      signInAs(owner);
+    it("allows deactivating one of two active users", () => {
+      const first = addUser("first", "First");
+      const second = addUser("second", "Second");
+      signInAs(first);
 
-      const result = service.update({ id: owner.id, displayName: "Owner", role: "manager" });
-
-      expect(result).toMatchObject({ ok: false, reason: "last-owner" });
-      expect(userRow(owner.id).role).toBe("owner");
-      expect(auditRows()).toHaveLength(0);
+      expect(service.deactivate({ id: second.id }).ok).toBe(true);
+      expect(userRow(second.id).isActive).toBe(false);
     });
 
-    it("allows both with a second active Owner", () => {
-      const owner = addUser("owner", "Owner", "owner");
-      const other = addUser("other", "Other", "owner");
-      signInAs(owner);
+    it("does not count an inactive or soft-deleted user", () => {
+      const only = addUser("only", "Only");
+      addUser("inactive", "Inactive", { isActive: false });
+      addUser("deleted", "Deleted", { deletedAt: t0 });
+      signInAs(only);
 
-      expect(service.update({ id: other.id, displayName: "Other", role: "cashier" }).ok).toBe(true);
-      expect(userRow(other.id).role).toBe("cashier");
-      const third = addUser("third", "Third", "owner");
-      expect(service.deactivate({ id: third.id }).ok).toBe(true);
-      expect(userRow(third.id).isActive).toBe(false);
-    });
-
-    it("does not count an inactive second Owner", () => {
-      const owner = addUser("owner", "Owner", "owner");
-      addUser("other", "Other", "owner", { isActive: false });
-      signInAs(owner);
-
-      expect(service.deactivate({ id: owner.id })).toMatchObject({
+      expect(service.deactivate({ id: only.id })).toMatchObject({
         ok: false,
-        reason: "last-owner",
+        reason: "last-active-user",
       });
+    });
+
+    it("allows deactivating again after another user is reactivated", () => {
+      const first = addUser("first", "First");
+      const second = addUser("second", "Second", { isActive: false });
+      signInAs(first);
+
+      expect(service.deactivate({ id: first.id })).toMatchObject({ reason: "last-active-user" });
+      expect(service.reactivate({ id: second.id })).toEqual({ ok: true });
+      expect(service.deactivate({ id: first.id })).toEqual({ ok: true, sessionEnded: true });
     });
   });
 
   describe("deactivate and reactivate", () => {
     it("flips isActive, keeps deletedAt null, and audits each change once", async () => {
-      const owner = addUser("owner", "Owner", "owner");
-      const target = addUser("t", "Target", "cashier");
+      const owner = addUser("owner", "Owner");
+      const target = addUser("t", "Target");
       signInAs(owner);
 
       expect(service.deactivate({ id: target.id })).toEqual({ ok: true, sessionEnded: false });
@@ -362,7 +362,7 @@ describe("createUsersService", () => {
     });
 
     it("returns not-found for unknown ids", () => {
-      signInAs(addUser("owner", "Owner", "owner"));
+      signInAs(addUser("owner", "Owner"));
       const id = "0190a3b4-7c5d-7e8f-9a0b-1c2d3e4f5a6b";
 
       expect(service.deactivate({ id })).toMatchObject({ ok: false, reason: "not-found" });
@@ -372,8 +372,8 @@ describe("createUsersService", () => {
 
   describe("resets", () => {
     it("resetPassword replaces the password and audits the reset", async () => {
-      const owner = addUser("owner", "Owner", "owner");
-      const target = addUser("t", "Target", "cashier");
+      const owner = addUser("owner", "Owner");
+      const target = addUser("t", "Target");
       signInAs(owner);
 
       expect(await service.resetPassword({ id: target.id, password: "zz999" })).toEqual({
@@ -389,8 +389,8 @@ describe("createUsersService", () => {
     });
 
     it("resetPin clears the lockout so the new PIN works at once", async () => {
-      const owner = addUser("owner", "Owner", "owner");
-      const target = addUser("t", "Target", "cashier", {
+      const owner = addUser("owner", "Owner");
+      const target = addUser("t", "Target", {
         failedPinAttempts: 5,
         pinRetryAfter: new Date(t0.getTime() + 60_000),
       });
@@ -407,7 +407,7 @@ describe("createUsersService", () => {
     });
 
     it("returns not-found for unknown ids", async () => {
-      signInAs(addUser("owner", "Owner", "owner"));
+      signInAs(addUser("owner", "Owner"));
       const id = "0190a3b4-7c5d-7e8f-9a0b-1c2d3e4f5a6b";
 
       expect(await service.resetPassword({ id, password: "abcd" })).toMatchObject({
@@ -418,41 +418,20 @@ describe("createUsersService", () => {
   });
 
   describe("session end", () => {
-    it("ends the session when the Owner deactivates themselves", () => {
-      const owner = addUser("owner", "Owner", "owner");
-      addUser("other", "Other", "owner");
-      signInAs(owner);
+    it("ends the session when a user deactivates themselves", () => {
+      const self = addUser("self", "Self");
+      addUser("other", "Other");
+      signInAs(self);
 
-      const result = service.deactivate({ id: owner.id });
-
-      expect(result).toEqual({ ok: true, sessionEnded: true });
-      expect(sessions.current()).toBeNull();
-    });
-
-    it("ends the session when the Owner changes their own role", () => {
-      const owner = addUser("owner", "Owner", "owner");
-      addUser("other", "Other", "owner");
-      signInAs(owner);
-
-      const result = service.update({ id: owner.id, displayName: "Owner", role: "manager" });
+      const result = service.deactivate({ id: self.id });
 
       expect(result).toEqual({ ok: true, sessionEnded: true });
       expect(sessions.current()).toBeNull();
     });
 
-    it("keeps the session when the Owner edits their own display name", () => {
-      const owner = addUser("owner", "Owner", "owner");
-      signInAs(owner);
-
-      const result = service.update({ id: owner.id, displayName: "Boss", role: "owner" });
-
-      expect(result).toEqual({ ok: true, sessionEnded: false });
-      expect(sessions.current()).not.toBeNull();
-    });
-
-    it("keeps the session when the Owner deactivates someone else", () => {
-      const owner = addUser("owner", "Owner", "owner");
-      const target = addUser("t", "Target", "cashier");
+    it("keeps the session when a user deactivates someone else", () => {
+      const owner = addUser("owner", "Owner");
+      const target = addUser("t", "Target");
       signInAs(owner);
 
       expect(service.deactivate({ id: target.id })).toEqual({ ok: true, sessionEnded: false });
@@ -461,13 +440,13 @@ describe("createUsersService", () => {
   });
 
   it("never stores a plain password or PIN in an audit row", async () => {
-    const owner = addUser("owner", "Owner", "owner");
+    const owner = addUser("owner", "Owner");
     signInAs(owner);
     const created = await service.create(newUser);
     if (!created.ok) throw new Error("create failed");
     await service.resetPassword({ id: created.user.id, password: "qw987" });
     await service.resetPin({ id: created.user.id, pin: "9182" });
-    service.update({ id: created.user.id, displayName: "Sara K", role: "cashier" });
+    service.update({ id: created.user.id, displayName: "Sara K" });
     service.deactivate({ id: created.user.id });
     service.reactivate({ id: created.user.id });
 

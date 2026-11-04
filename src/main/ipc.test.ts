@@ -7,15 +7,7 @@ import { createProductInputSchema } from "@shared/products";
 import { createSessionStore, type SessionStore } from "./auth/session";
 import { openDatabase, type VendoraDatabase } from "./db/client";
 import { runMigrations } from "./db/migrate";
-import {
-  auditLog,
-  categories,
-  products,
-  stores,
-  taxCategories,
-  users,
-  type UserRole,
-} from "./db/schema";
+import { auditLog, categories, products, stores, taxCategories, users } from "./db/schema";
 import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
@@ -53,13 +45,12 @@ describe("products ipc", () => {
   let categoryId: string;
   let taxCategoryId: string;
 
-  const signIn = (role: UserRole) => {
+  const signIn = (name: string) => {
     const user = database.db
       .insert(users)
       .values({
-        username: `${role}-${Math.random().toString(36).slice(2, 8)}`,
-        displayName: role,
-        role,
+        username: `${name}-${Math.random().toString(36).slice(2, 8)}`,
+        displayName: name,
         passwordHash: "x",
         pinHash: "x",
       })
@@ -67,7 +58,6 @@ describe("products ipc", () => {
       .get();
     sessions.start({
       userId: user.id,
-      role,
       storeId: database.db.select().from(stores).get()!.id,
       loggedInAt: new Date(0),
     });

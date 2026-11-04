@@ -4,7 +4,6 @@ import type { KeyboardEvent, Ref } from "react";
 import type { LoginUser } from "@shared/auth";
 import { cn } from "@renderer/lib/utils";
 import { Avatar } from "./avatar";
-import { roleLabel } from "./role-label";
 
 interface UserTileProps {
   user: LoginUser;
@@ -53,10 +52,9 @@ export function UserTile({
         <span className="text-[length:var(--font-size-400)] leading-[var(--line-height-tight)] font-semibold text-foreground">
           {user.displayName}
         </span>
-        <span className="text-[length:var(--font-size-350)] text-tertiary">
-          {roleLabel(user.role)}
-          {detail ? ` · ${detail}` : ""}
-        </span>
+        {detail ? (
+          <span className="text-[length:var(--font-size-350)] text-tertiary">{detail}</span>
+        ) : null}
       </span>
     </button>
   );

@@ -14,12 +14,14 @@ const uuid = "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
 
 describe("user views", () => {
   it("reject secret keys", () => {
-    const safe = { id: uuid, username: "u", displayName: "U", role: "owner" };
+    const safe = { id: uuid, username: "u", displayName: "U" };
     expect(safeUserSchema.safeParse(safe).success).toBe(true);
     expect(safeUserSchema.safeParse({ ...safe, passwordHash: "x" }).success).toBe(false);
-    const tile = { id: uuid, displayName: "U", role: "cashier" };
+    const tile = { id: uuid, displayName: "U" };
     expect(loginUserSchema.safeParse(tile).success).toBe(true);
     expect(loginUserSchema.safeParse({ ...tile, pinHash: "x" }).success).toBe(false);
+    expect(safeUserSchema.safeParse({ ...safe, role: "owner" }).success).toBe(false);
+    expect(loginUserSchema.safeParse({ ...tile, role: "cashier" }).success).toBe(false);
   });
 });
 
@@ -40,7 +42,7 @@ describe("input schemas", () => {
 
 describe("authResultSchema", () => {
   it("parses each variant", () => {
-    const user = { id: uuid, username: "u", displayName: "U", role: "owner" };
+    const user = { id: uuid, username: "u", displayName: "U" };
     expect(authResultSchema.safeParse({ ok: true, user }).success).toBe(true);
     expect(
       authResultSchema.safeParse({
@@ -111,7 +113,7 @@ describe("createFirstUserInputSchema", () => {
 
 describe("createFirstUserResultSchema", () => {
   it("rejects a user carrying a hash", () => {
-    const user = { id: uuid, username: "u", displayName: "U", role: "owner" };
+    const user = { id: uuid, username: "u", displayName: "U" };
     expect(createFirstUserResultSchema.safeParse({ ok: true, user }).success).toBe(true);
     expect(
       createFirstUserResultSchema.safeParse({ ok: true, user: { ...user, passwordHash: "x" } })

@@ -48,10 +48,10 @@ describe("store settings", () => {
     expect(() => getScalePrefixes(database, "missing")).toThrow("Store not found");
   });
 
-  it("keeps an existing store and gives it 500 when migrating from 0000", () => {
+  it("keeps an existing store when migrating from 0000", () => {
     seedAndMigrate(1);
     expect(database.db.select().from(stores).all()).toEqual([
-      expect.objectContaining({ id: "s1", name: "Old", cashierDiscountLimitBps: 500 }),
+      expect.objectContaining({ id: "s1", name: "Old" }),
     ]);
     for (const table of ["terminals", "users", "audit_log"]) {
       expect(database.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get()).toEqual({ n: 1 });

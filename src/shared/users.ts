@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { createFirstUserInputSchema, userRoleSchema } from "./auth";
+import { createFirstUserInputSchema } from "./auth";
 import { passwordSchema, pinSchema } from "./credentials";
 
 export const userMessages = {
   usernameTaken: "That username is already taken.",
-  lastOwner: "Vendora needs at least one active Owner.",
+  lastActiveUser: "At least one user must stay active.",
   notFound: "That user no longer exists. Refresh the list.",
 } as const;
 
@@ -13,7 +13,6 @@ const { username, displayName } = createFirstUserInputSchema.shape;
 export const createUserInputSchema = z.strictObject({
   username,
   displayName,
-  role: userRoleSchema,
   password: passwordSchema,
   pin: pinSchema,
 });
@@ -21,7 +20,6 @@ export const createUserInputSchema = z.strictObject({
 export const updateUserInputSchema = z.strictObject({
   id: z.uuid(),
   displayName,
-  role: userRoleSchema,
 });
 
 export const resetPasswordInputSchema = z.strictObject({
@@ -40,7 +38,6 @@ export const managedUserSchema = z.strictObject({
   id: z.string(),
   username: z.string(),
   displayName: z.string(),
-  role: userRoleSchema,
   isActive: z.boolean(),
   pinLocked: z.boolean(),
 });
@@ -51,9 +48,9 @@ const usernameTakenSchema = z.strictObject({
   message: z.string(),
 });
 
-const lastOwnerSchema = z.strictObject({
+const lastActiveUserSchema = z.strictObject({
   ok: z.literal(false),
-  reason: z.literal("last-owner"),
+  reason: z.literal("last-active-user"),
   message: z.string(),
 });
 
@@ -63,22 +60,21 @@ const notFoundSchema = z.strictObject({
   message: z.string(),
 });
 
-const sessionChangeResultSchema = z.union([
-  z.strictObject({ ok: z.literal(true), sessionEnded: z.boolean() }),
-  lastOwnerSchema,
-  notFoundSchema,
-]);
-
 export const createUserResultSchema = z.union([
   z.strictObject({ ok: z.literal(true), user: managedUserSchema }),
   usernameTakenSchema,
 ]);
 
-export const updateUserResultSchema = sessionChangeResultSchema;
-export const deactivateUserResultSchema = sessionChangeResultSchema;
-
 export const userActionResultSchema = z.union([
   z.strictObject({ ok: z.literal(true) }),
+  notFoundSchema,
+]);
+
+export const updateUserResultSchema = userActionResultSchema;
+
+export const deactivateUserResultSchema = z.union([
+  z.strictObject({ ok: z.literal(true), sessionEnded: z.boolean() }),
+  lastActiveUserSchema,
   notFoundSchema,
 ]);
 

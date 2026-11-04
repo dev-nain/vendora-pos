@@ -9,21 +9,18 @@ export const devUsers = [
     password: "ow123",
     pin: "1111",
     displayName: "Imran Qureshi",
-    role: "owner",
   },
   {
     username: "manager",
     password: "mg123",
     pin: "2222",
     displayName: "Sana Malik",
-    role: "manager",
   },
   {
     username: "cashier",
     password: "ca123",
     pin: "3333",
     displayName: "Bilal Ahmed",
-    role: "cashier",
   },
 ] as const;
 
@@ -49,7 +46,6 @@ export async function seedDevUsers(database: VendoraDatabase): Promise<void> {
         .values({
           username: fixture.username,
           displayName: fixture.displayName,
-          role: fixture.role,
           passwordHash,
           pinHash,
         })

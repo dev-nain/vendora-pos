@@ -3,7 +3,6 @@ import { createSessionStore, type Session } from "./session";
 
 const sessionFor = (userId: string): Session => ({
   userId,
-  role: "owner",
   storeId: "s1",
   loggedInAt: new Date(0),
 });

@@ -13,7 +13,6 @@ const id = "0190a3b4-7c5d-7e8f-9a0b-1c2d3e4f5a6b";
 const validCreate = {
   username: "sara",
   displayName: "Sara Khan",
-  role: "manager",
   password: "ab123",
   pin: "5555",
 };
@@ -21,9 +20,7 @@ const validCreate = {
 describe("users input schemas", () => {
   it("accepts valid inputs", () => {
     expect(createUserInputSchema.safeParse(validCreate).success).toBe(true);
-    expect(
-      updateUserInputSchema.safeParse({ id, displayName: "Sara", role: "cashier" }).success,
-    ).toBe(true);
+    expect(updateUserInputSchema.safeParse({ id, displayName: "Sara" }).success).toBe(true);
     expect(resetPasswordInputSchema.safeParse({ id, password: "abcd" }).success).toBe(true);
     expect(resetPinInputSchema.safeParse({ id, pin: "123456" }).success).toBe(true);
     expect(userIdInputSchema.safeParse({ id }).success).toBe(true);
@@ -31,10 +28,13 @@ describe("users input schemas", () => {
 
   it("rejects extra keys", () => {
     expect(createUserInputSchema.safeParse({ ...validCreate, isActive: true }).success).toBe(false);
-    expect(
-      updateUserInputSchema.safeParse({ id, displayName: "S", role: "cashier", username: "x" })
-        .success,
-    ).toBe(false);
+    expect(createUserInputSchema.safeParse({ ...validCreate, role: "owner" }).success).toBe(false);
+    expect(updateUserInputSchema.safeParse({ id, displayName: "S", role: "cashier" }).success).toBe(
+      false,
+    );
+    expect(updateUserInputSchema.safeParse({ id, displayName: "S", username: "x" }).success).toBe(
+      false,
+    );
     expect(resetPasswordInputSchema.safeParse({ id, password: "abcd", extra: 1 }).success).toBe(
       false,
     );
@@ -44,9 +44,7 @@ describe("users input schemas", () => {
 
   it("rejects a bad uuid", () => {
     expect(userIdInputSchema.safeParse({ id: "nope" }).success).toBe(false);
-    expect(
-      updateUserInputSchema.safeParse({ id: "1", displayName: "S", role: "owner" }).success,
-    ).toBe(false);
+    expect(updateUserInputSchema.safeParse({ id: "1", displayName: "S" }).success).toBe(false);
     expect(resetPasswordInputSchema.safeParse({ id: "1", password: "abcd" }).success).toBe(false);
     expect(resetPinInputSchema.safeParse({ id: "1", pin: "1234" }).success).toBe(false);
   });
@@ -75,13 +73,16 @@ describe("managedUserSchema", () => {
     id,
     username: "sara",
     displayName: "Sara",
-    role: "manager",
     isActive: true,
     pinLocked: false,
   };
 
   it("accepts a managed user", () => {
     expect(managedUserSchema.safeParse(user).success).toBe(true);
+  });
+
+  it("rejects a role key", () => {
+    expect(managedUserSchema.safeParse({ ...user, role: "manager" }).success).toBe(false);
   });
 
   it("rejects a password hash", () => {

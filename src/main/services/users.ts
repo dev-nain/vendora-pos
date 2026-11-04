@@ -37,7 +37,7 @@ interface UsersDeps {
 
 type UserRow = typeof users.$inferSelect;
 
-const activeOwner = and(eq(users.role, "owner"), eq(users.isActive, true), isNull(users.deletedAt));
+const isActiveUser = and(eq(users.isActive, true), isNull(users.deletedAt));
 
 const usernameTaken = {
   ok: false,
@@ -45,10 +45,10 @@ const usernameTaken = {
   message: userMessages.usernameTaken,
 } as const;
 
-const lastOwner = {
+const lastActiveUser = {
   ok: false,
-  reason: "last-owner",
-  message: userMessages.lastOwner,
+  reason: "last-active-user",
+  message: userMessages.lastActiveUser,
 } as const;
 
 const notFound = {
@@ -69,14 +69,9 @@ export function createUsersService({
     id: row.id,
     username: row.username,
     displayName: row.displayName,
-    role: row.role,
     isActive: row.isActive,
     pinLocked: pinLockStatus(row, now()).locked,
   });
-
-  function endSession(): void {
-    sessions.end();
-  }
 
   function list(): ManagedUser[] {
     requireSession(sessions);
@@ -93,7 +88,7 @@ export function createUsersService({
   }
 
   async function create(input: CreateInput): Promise<CreateUserResult> {
-    const owner = requireSession(sessions);
+    const actor = requireSession(sessions);
     const [passwordHash, pinHash] = await Promise.all([
       hashCredential(input.password),
       hashCredential(input.pin),
@@ -113,7 +108,6 @@ export function createUsersService({
           .values({
             username: input.username,
             displayName: input.displayName,
-            role: input.role,
             passwordHash,
             pinHash,
           })
@@ -122,10 +116,10 @@ export function createUsersService({
         audit.record(
           {
             action: "user_create",
-            actorUserId: owner.userId,
+            actorUserId: actor.userId,
             entityType: "user",
             entityId: row.id,
-            details: { username: row.username, role: row.role },
+            details: { username: row.username },
           },
           tx,
         );
@@ -138,47 +132,34 @@ export function createUsersService({
   }
 
   function update(input: UpdateInput): UpdateUserResult {
-    const owner = requireSession(sessions);
-    const result = db.transaction((tx): UpdateUserResult => {
+    const actor = requireSession(sessions);
+    return db.transaction((tx): UpdateUserResult => {
       const target = tx.select().from(users).where(eq(users.id, input.id)).get();
       if (!target) return notFound;
-
-      const roleChanged = input.role !== target.role;
-      const nameChanged = input.displayName !== target.displayName;
-
-      if (target.role === "owner" && target.isActive && roleChanged) {
-        const owners = tx.select({ id: users.id }).from(users).where(activeOwner).all();
-        if (owners.length <= 1) return lastOwner;
-      }
-      if (!roleChanged && !nameChanged) return { ok: true, sessionEnded: false };
-
-      const changes: Record<string, { from: string; to: string }> = {};
-      if (nameChanged) changes.displayName = { from: target.displayName, to: input.displayName };
-      if (roleChanged) changes.role = { from: target.role, to: input.role };
+      if (input.displayName === target.displayName) return { ok: true };
 
       tx.update(users)
-        .set({ displayName: input.displayName, role: input.role, updatedAt: now() })
+        .set({ displayName: input.displayName, updatedAt: now() })
         .where(eq(users.id, target.id))
         .run();
       audit.record(
         {
           action: "user_update",
-          actorUserId: owner.userId,
+          actorUserId: actor.userId,
           entityType: "user",
           entityId: target.id,
-          details: { changes },
+          details: {
+            changes: { displayName: { from: target.displayName, to: input.displayName } },
+          },
         },
         tx,
       );
-      return { ok: true, sessionEnded: roleChanged && target.id === owner.userId };
+      return { ok: true };
     });
-
-    if (result.ok && result.sessionEnded) endSession();
-    return result;
   }
 
   async function resetPassword(input: ResetPasswordInput): Promise<UserActionResult> {
-    const owner = requireSession(sessions);
+    const actor = requireSession(sessions);
     const passwordHash = await hashCredential(input.password);
     return db.transaction((tx): UserActionResult => {
       const target = tx.select({ id: users.id }).from(users).where(eq(users.id, input.id)).get();
@@ -187,7 +168,7 @@ export function createUsersService({
       audit.record(
         {
           action: "user_update",
-          actorUserId: owner.userId,
+          actorUserId: actor.userId,
           entityType: "user",
           entityId: target.id,
           details: { reset: "password" },
@@ -199,7 +180,7 @@ export function createUsersService({
   }
 
   async function resetPin(input: ResetPinInput): Promise<UserActionResult> {
-    const owner = requireSession(sessions);
+    const actor = requireSession(sessions);
     const pinHash = await hashCredential(input.pin);
     return db.transaction((tx): UserActionResult => {
       const target = tx.select({ id: users.id }).from(users).where(eq(users.id, input.id)).get();
@@ -211,7 +192,7 @@ export function createUsersService({
       audit.record(
         {
           action: "user_update",
-          actorUserId: owner.userId,
+          actorUserId: actor.userId,
           entityType: "user",
           entityId: target.id,
           details: { reset: "pin" },
@@ -223,16 +204,14 @@ export function createUsersService({
   }
 
   function deactivate(input: UserIdInput): DeactivateUserResult {
-    const owner = requireSession(sessions);
+    const actor = requireSession(sessions);
     const result = db.transaction((tx): DeactivateUserResult => {
       const target = tx.select().from(users).where(eq(users.id, input.id)).get();
       if (!target) return notFound;
       if (!target.isActive) return { ok: true, sessionEnded: false };
 
-      if (target.role === "owner") {
-        const owners = tx.select({ id: users.id }).from(users).where(activeOwner).all();
-        if (owners.length <= 1) return lastOwner;
-      }
+      const activeUsers = tx.select({ id: users.id }).from(users).where(isActiveUser).all();
+      if (activeUsers.length <= 1) return lastActiveUser;
 
       tx.update(users)
         .set({ isActive: false, updatedAt: now() })
@@ -241,22 +220,22 @@ export function createUsersService({
       audit.record(
         {
           action: "user_deactivate",
-          actorUserId: owner.userId,
+          actorUserId: actor.userId,
           entityType: "user",
           entityId: target.id,
           details: { username: target.username },
         },
         tx,
       );
-      return { ok: true, sessionEnded: target.id === owner.userId };
+      return { ok: true, sessionEnded: target.id === actor.userId };
     });
 
-    if (result.ok && result.sessionEnded) endSession();
+    if (result.ok && result.sessionEnded) sessions.end();
     return result;
   }
 
   function reactivate(input: UserIdInput): UserActionResult {
-    const owner = requireSession(sessions);
+    const actor = requireSession(sessions);
     return db.transaction((tx): UserActionResult => {
       const target = tx.select().from(users).where(eq(users.id, input.id)).get();
       if (!target) return notFound;
@@ -269,7 +248,7 @@ export function createUsersService({
       audit.record(
         {
           action: "user_reactivate",
-          actorUserId: owner.userId,
+          actorUserId: actor.userId,
           entityType: "user",
           entityId: target.id,
           details: { username: target.username },

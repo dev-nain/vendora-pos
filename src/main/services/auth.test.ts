@@ -43,12 +43,11 @@ describe("createAuthService", () => {
   const addUser = (
     username: string,
     displayName: string,
-    role: "owner" | "manager" | "cashier",
     extra: Partial<typeof users.$inferInsert> = {},
   ) =>
     database.db
       .insert(users)
-      .values({ username, displayName, role, passwordHash, pinHash, ...extra })
+      .values({ username, displayName, passwordHash, pinHash, ...extra })
       .returning()
       .get();
 
@@ -90,18 +89,17 @@ describe("createAuthService", () => {
 
   describe("login", () => {
     it("starts a session and writes one audit row", async () => {
-      const owner = addUser("owner", "Owner", "owner");
+      const owner = addUser("owner", "Owner");
 
       const result = await service.login({ username: "owner", password: PASSWORD });
 
       expect(result).toEqual({
         ok: true,
-        user: { id: owner.id, username: "owner", displayName: "Owner", role: "owner" },
+        user: { id: owner.id, username: "owner", displayName: "Owner" },
       });
       const terminal = database.db.select().from(terminals).get()!;
       expect(sessions.current()).toEqual({
         userId: owner.id,
-        role: "owner",
         storeId: terminal.storeId,
         loggedInAt: t0,
       });
@@ -112,7 +110,7 @@ describe("createAuthService", () => {
     });
 
     it("matches the username case-insensitively", async () => {
-      addUser("Owner", "Owner", "owner");
+      addUser("Owner", "Owner");
 
       const result = await service.login({ username: "OWNER", password: PASSWORD });
 
@@ -120,9 +118,9 @@ describe("createAuthService", () => {
     });
 
     it("gives the same refusal for wrong, unknown, inactive and deleted users", async () => {
-      addUser("wrong", "Wrong", "cashier");
-      addUser("inactive", "Inactive", "cashier", { isActive: false });
-      addUser("deleted", "Deleted", "cashier", { deletedAt: t0 });
+      addUser("wrong", "Wrong");
+      addUser("inactive", "Inactive", { isActive: false });
+      addUser("deleted", "Deleted", { deletedAt: t0 });
 
       const results = [
         await service.login({ username: "wrong", password: "nope" }),
@@ -142,8 +140,8 @@ describe("createAuthService", () => {
     });
 
     it("replaces an existing session with one login row", async () => {
-      addUser("owner", "Owner", "owner");
-      const cashier = addUser("cashier", "Cashier", "cashier");
+      addUser("owner", "Owner");
+      const cashier = addUser("cashier", "Cashier");
       await asUser("owner");
 
       await asUser("cashier");
@@ -155,14 +153,14 @@ describe("createAuthService", () => {
 
   describe("switchByPin", () => {
     it("moves the session and writes a pin login row", async () => {
-      const owner = addUser("owner", "Owner", "owner");
-      const cashier = addUser("cashier", "Cashier", "cashier", { failedPinAttempts: 2 });
+      const owner = addUser("owner", "Owner");
+      const cashier = addUser("cashier", "Cashier", { failedPinAttempts: 2 });
       await asUser("owner");
 
       const result = await service.switchByPin({ userId: cashier.id, pin: PIN });
 
       expect(result.ok).toBe(true);
-      expect(sessions.current()).toMatchObject({ userId: cashier.id, role: "cashier" });
+      expect(sessions.current()).toMatchObject({ userId: cashier.id });
       expect(userRow(cashier.id).failedPinAttempts).toBe(0);
       const row = auditRows().find((r) => r.actorUserId === cashier.id)!;
       expect(row.action).toBe("login");
@@ -170,8 +168,8 @@ describe("createAuthService", () => {
     });
 
     it("refuses a wrong PIN and counts the attempt", async () => {
-      const owner = addUser("owner", "Owner", "owner");
-      const cashier = addUser("cashier", "Cashier", "cashier");
+      const owner = addUser("owner", "Owner");
+      const cashier = addUser("cashier", "Cashier");
       await asUser("owner");
 
       const result = await service.switchByPin({ userId: cashier.id, pin: "0000" });
@@ -183,8 +181,8 @@ describe("createAuthService", () => {
     });
 
     it("locks after five wrong PINs until the cooldown passes", async () => {
-      addUser("owner", "Owner", "owner");
-      const cashier = addUser("cashier", "Cashier", "cashier");
+      const owner = addUser("owner", "Owner");
+      const cashier = addUser("cashier", "Cashier");
       await asUser("owner");
 
       for (let i = 0; i < 4; i += 1) {
@@ -206,7 +204,7 @@ describe("createAuthService", () => {
         message: "PIN is incorrect",
         retryAfterMs: 20_000,
       });
-      expect(sessions.current()?.role).toBe("owner");
+      expect(sessions.current()?.userId).toBe(owner.id);
 
       clock = new Date(t0.getTime() + 30_000);
       const result = await service.switchByPin({ userId: cashier.id, pin: PIN });
@@ -215,8 +213,8 @@ describe("createAuthService", () => {
     });
 
     it("keeps the cooldown across a new service instance", async () => {
-      addUser("owner", "Owner", "owner");
-      const cashier = addUser("cashier", "Cashier", "cashier");
+      addUser("owner", "Owner");
+      const cashier = addUser("cashier", "Cashier");
       await asUser("owner");
       for (let i = 0; i < 5; i += 1) {
         await service.switchByPin({ userId: cashier.id, pin: "0000" });
@@ -235,9 +233,9 @@ describe("createAuthService", () => {
     });
 
     it("refuses inactive and soft-deleted users", async () => {
-      addUser("owner", "Owner", "owner");
-      const inactive = addUser("inactive", "Inactive", "cashier", { isActive: false });
-      const deleted = addUser("deleted", "Deleted", "cashier", { deletedAt: t0 });
+      const owner = addUser("owner", "Owner");
+      const inactive = addUser("inactive", "Inactive", { isActive: false });
+      const deleted = addUser("deleted", "Deleted", { deletedAt: t0 });
       await asUser("owner");
 
       for (const target of [inactive, deleted]) {
@@ -245,11 +243,11 @@ describe("createAuthService", () => {
           reason: "invalid-pin",
         });
       }
-      expect(sessions.current()?.role).toBe("owner");
+      expect(sessions.current()?.userId).toBe(owner.id);
     });
 
     it("throws with no session", async () => {
-      const cashier = addUser("cashier", "Cashier", "cashier");
+      const cashier = addUser("cashier", "Cashier");
 
       await expect(service.switchByPin({ userId: cashier.id, pin: PIN })).rejects.toBeInstanceOf(
         UnauthenticatedError,
@@ -259,7 +257,7 @@ describe("createAuthService", () => {
 
   describe("logout", () => {
     it("clears the session and audits once", async () => {
-      const owner = addUser("owner", "Owner", "owner");
+      const owner = addUser("owner", "Owner");
       await asUser("owner");
 
       service.logout();
@@ -278,7 +276,7 @@ describe("createAuthService", () => {
     });
 
     it("current clears the session once the user is deactivated", async () => {
-      const owner = addUser("owner", "Owner", "owner");
+      const owner = addUser("owner", "Owner");
       await asUser("owner");
       expect(service.current()).toEqual({ user: expect.objectContaining({ id: owner.id }) });
 
@@ -289,7 +287,7 @@ describe("createAuthService", () => {
     });
 
     it("current clears the session once the user is soft-deleted", async () => {
-      const owner = addUser("owner", "Owner", "owner");
+      const owner = addUser("owner", "Owner");
       await asUser("owner");
 
       database.sqlite.prepare("UPDATE users SET deleted_at = 1 WHERE id = ?").run(owner.id);
@@ -298,22 +296,22 @@ describe("createAuthService", () => {
     });
 
     it("lists only active users ordered by display name", () => {
-      addUser("b", "Bilal", "cashier");
-      addUser("a", "Asad", "owner");
-      addUser("c", "Chand", "cashier", { isActive: false });
-      addUser("d", "Danish", "cashier", { deletedAt: t0 });
+      addUser("b", "Bilal");
+      addUser("a", "Asad");
+      addUser("c", "Chand", { isActive: false });
+      addUser("d", "Danish", { deletedAt: t0 });
 
       const list = service.listLoginUsers();
 
       expect(list.map((u) => u.displayName)).toEqual(["Asad", "Bilal"]);
-      expect(Object.keys(list[0]!).toSorted()).toEqual(["displayName", "id", "role"]);
+      expect(Object.keys(list[0]!).toSorted()).toEqual(["displayName", "id"]);
     });
   });
 
   describe("no secrets in returned values", () => {
     it("never returns passwords, PINs or hashes", async () => {
-      addUser("owner", "Owner", "owner");
-      const cashier = addUser("cashier", "Cashier", "cashier");
+      addUser("owner", "Owner");
+      const cashier = addUser("cashier", "Cashier");
       const returned: unknown[] = [];
 
       returned.push(await service.login({ username: "owner", password: "bad" }));
@@ -369,7 +367,6 @@ describe("createAuthService", () => {
       expect(result.user).toMatchObject({
         username: "owner1",
         displayName: "Imran",
-        role: "owner",
       });
       expect(service.needsSetup()).toBe(false);
       expect(service.current()).toEqual({ user: result.user });
@@ -388,7 +385,7 @@ describe("createAuthService", () => {
         entityType: "user",
         entityId: result.user.id,
       });
-      expect(JSON.parse(created[0]!.details!)).toEqual({ username: "owner1", role: "owner" });
+      expect(JSON.parse(created[0]!.details!)).toEqual({ username: "owner1" });
     });
 
     it("writes one user_create and one login row on creation", async () => {
@@ -417,7 +414,7 @@ describe("createAuthService", () => {
     });
 
     it("counts inactive and soft-deleted users as existing", async () => {
-      addUser("gone", "Gone", "cashier", { isActive: false, deletedAt: t0 });
+      addUser("gone", "Gone", { isActive: false, deletedAt: t0 });
 
       expect(service.needsSetup()).toBe(false);
       const result = await service.createFirstUser(ownerInput);

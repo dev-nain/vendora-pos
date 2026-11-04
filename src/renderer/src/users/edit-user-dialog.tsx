@@ -1,7 +1,5 @@
-import { TriangleAlertIcon } from "lucide-react";
 import { useRef, useState, type FormEvent } from "react";
 
-import type { SafeUser } from "@shared/auth";
 import type { ManagedUser } from "@shared/users";
 import { Button } from "@renderer/components/ui/button";
 import {
@@ -15,13 +13,12 @@ import {
 import { Field, FieldError, FieldLabel } from "@renderer/components/ui/field";
 import { Input } from "@renderer/components/ui/input";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
-import { ErrorLine, RoleSelect } from "./form-parts";
+import { ErrorLine } from "./form-parts";
 import { validateDisplayName } from "./user-form";
 
 interface EditUserDialogProps {
   user: ManagedUser;
   open: boolean;
-  isCurrentUser: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
   onSessionEnded: () => void;
@@ -29,13 +26,11 @@ interface EditUserDialogProps {
 
 function EditUserForm({
   user,
-  isCurrentUser,
   onClose,
   onSaved,
   onSessionEnded,
 }: Omit<EditUserDialogProps, "open" | "onOpenChange"> & { onClose: () => void }) {
   const [displayName, setDisplayName] = useState(user.displayName);
-  const [role, setRole] = useState<SafeUser["role"]>(user.role);
   const [nameError, setNameError] = useState<string | undefined>();
   const [serviceError, setServiceError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -57,12 +52,8 @@ function EditUserForm({
     setServiceError(null);
     setPending(true);
     try {
-      const result = await window.vendora.users.update({ id: user.id, displayName, role });
+      const result = await window.vendora.users.update({ id: user.id, displayName });
       if (result.ok) {
-        if (result.sessionEnded) {
-          onSessionEnded();
-          return;
-        }
         onSaved();
         onClose();
         return;
@@ -82,7 +73,7 @@ function EditUserForm({
     <form onSubmit={submit} noValidate>
       <DialogHeader>
         <DialogTitle>Edit {user.displayName}</DialogTitle>
-        <DialogDescription>Change the name or role. Usernames can't be changed.</DialogDescription>
+        <DialogDescription>Change the display name. Usernames can't be changed.</DialogDescription>
         <div className="grid gap-400">
           <div className="grid gap-200">
             <span className="text-[length:var(--font-size-350)] font-semibold text-foreground">
@@ -104,18 +95,6 @@ function EditUserForm({
             />
             {nameError ? <FieldError>{nameError}</FieldError> : null}
           </Field>
-          <RoleSelect value={role} onChange={setRole} />
-          {isCurrentUser && role !== user.role ? (
-            <p className="m-0 flex items-center gap-100 text-[length:var(--font-size-350)] font-medium text-warning">
-              <TriangleAlertIcon
-                aria-hidden="true"
-                size={14}
-                strokeWidth={2}
-                className="shrink-0"
-              />
-              You'll be signed out and need to log in again.
-            </p>
-          ) : null}
         </div>
         {serviceError ? <ErrorLine>{serviceError}</ErrorLine> : null}
       </DialogHeader>

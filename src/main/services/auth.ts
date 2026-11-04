@@ -36,13 +36,11 @@ const toSafeUser = (row: typeof users.$inferSelect): SafeUser => ({
   id: row.id,
   username: row.username,
   displayName: row.displayName,
-  role: row.role,
 });
 
-const toLoginUser = (row: Pick<typeof users.$inferSelect, "id" | "displayName" | "role">) => ({
+const toLoginUser = (row: Pick<typeof users.$inferSelect, "id" | "displayName">) => ({
   id: row.id,
   displayName: row.displayName,
-  role: row.role,
 });
 
 const invalidCredentials: AuthResult = {
@@ -106,7 +104,7 @@ export function createAuthService({ database, audit, sessions, now = () => new D
     db.transaction((tx) => {
       audit.record({ action: "login", actorUserId: user.id, details: { method: "password" } }, tx);
     });
-    sessions.start({ userId: user.id, role: user.role, storeId: store, loggedInAt });
+    sessions.start({ userId: user.id, storeId: store, loggedInAt });
     return { ok: true, user: toSafeUser(user) };
   }
 
@@ -156,7 +154,7 @@ export function createAuthService({ database, audit, sessions, now = () => new D
           retryAfterMs: retryAt.getTime() - at.getTime(),
         };
       }
-      sessions.start({ userId: user.id, role: user.role, storeId: storeId(), loggedInAt: at });
+      sessions.start({ userId: user.id, storeId: storeId(), loggedInAt: at });
       return { ok: true, user: toSafeUser(user) };
     });
   }
@@ -182,12 +180,11 @@ export function createAuthService({ database, audit, sessions, now = () => new D
     const loggedInAt = now();
     const row = db.transaction((tx) => {
       if (tx.select({ id: users.id }).from(users).limit(1).get()) return null;
-      const owner = tx
+      const created = tx
         .insert(users)
         .values({
           username: input.username,
           displayName: input.displayName,
-          role: "owner",
           passwordHash,
           pinHash,
         })
@@ -196,19 +193,22 @@ export function createAuthService({ database, audit, sessions, now = () => new D
       audit.record(
         {
           action: "user_create",
-          actorUserId: owner.id,
+          actorUserId: created.id,
           entityType: "user",
-          entityId: owner.id,
-          details: { username: owner.username, role: "owner" },
+          entityId: created.id,
+          details: { username: created.username },
         },
         tx,
       );
-      audit.record({ action: "login", actorUserId: owner.id, details: { method: "password" } }, tx);
-      return owner;
+      audit.record(
+        { action: "login", actorUserId: created.id, details: { method: "password" } },
+        tx,
+      );
+      return created;
     });
     if (!row) return accountExists;
 
-    sessions.start({ userId: row.id, role: "owner", storeId: storeId(), loggedInAt });
+    sessions.start({ userId: row.id, storeId: storeId(), loggedInAt });
     return { ok: true, user: toSafeUser(row) };
   }
 
@@ -238,7 +238,7 @@ export function createAuthService({ database, audit, sessions, now = () => new D
 
   function listLoginUsers(): LoginUser[] {
     return db
-      .select({ id: users.id, displayName: users.displayName, role: users.role })
+      .select({ id: users.id, displayName: users.displayName })
       .from(users)
       .where(isActiveUser)
       .orderBy(asc(users.displayName))

@@ -3,9 +3,6 @@ import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-o
 import { productUnits, type ProductUnit } from "../../shared/products";
 import { uuidv7 } from "./id";
 
-export const userRoles = ["owner", "manager", "cashier"] as const;
-export type UserRole = (typeof userRoles)[number];
-
 export { productUnits, type ProductUnit };
 
 const id = () => text("id").primaryKey().$defaultFn(uuidv7);
@@ -24,8 +21,6 @@ export const stores = sqliteTable(
   {
     id: id(),
     name: text("name"),
-    cashierDiscountLimitBps: integer("cashier_discount_limit_bps").notNull().default(500),
-    autoLockMinutes: integer("auto_lock_minutes").default(5),
     standardTaxRateBps: integer("standard_tax_rate_bps").notNull().default(1800),
     scaleWeightPrefix: text("scale_weight_prefix").notNull().default("21"),
     scalePricePrefix: text("scale_price_prefix").notNull().default("22"),
@@ -34,14 +29,6 @@ export const stores = sqliteTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    check(
-      "stores_cashier_discount_limit_bps_check",
-      sql`${t.cashierDiscountLimitBps} BETWEEN 0 AND 10000`,
-    ),
-    check(
-      "stores_auto_lock_minutes_check",
-      sql`${t.autoLockMinutes} IS NULL OR ${t.autoLockMinutes} BETWEEN 1 AND 60`,
-    ),
     check("stores_standard_tax_rate_bps_check", sql`${t.standardTaxRateBps} BETWEEN 0 AND 10000`),
     check(
       "stores_scale_weight_prefix_check",
@@ -74,7 +61,6 @@ export const users = sqliteTable(
     id: id(),
     username: text("username").notNull(),
     displayName: text("display_name").notNull(),
-    role: text("role", { enum: userRoles }).notNull(),
     passwordHash: text("password_hash").notNull(),
     pinHash: text("pin_hash").notNull(),
     failedPinAttempts: integer("failed_pin_attempts").notNull().default(0),
@@ -84,10 +70,7 @@ export const users = sqliteTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [
-    uniqueIndex("users_username_lower_unique").on(sql`lower(${t.username})`),
-    check("users_role_check", sql`${t.role} IN ('owner', 'manager', 'cashier')`),
-  ],
+  (t) => [uniqueIndex("users_username_lower_unique").on(sql`lower(${t.username})`)],
 );
 
 export const auditLog = sqliteTable(
@@ -103,7 +86,6 @@ export const auditLog = sqliteTable(
     actorUserId: text("actor_user_id")
       .notNull()
       .references(() => users.id),
-    approverUserId: text("approver_user_id").references(() => users.id),
     action: text("action").notNull(),
     entityType: text("entity_type"),
     entityId: text("entity_id"),

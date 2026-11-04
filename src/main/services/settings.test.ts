@@ -12,7 +12,7 @@ import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
-import { auditLog, stores, users, type UserRole } from "../db/schema";
+import { auditLog, stores, users } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import { getMiscItemEnabled, getScalePrefixes } from "../settings/store-settings";
 import { createAuditService } from "./audit";
@@ -67,19 +67,18 @@ describe("createSettingsService", () => {
   const storeId = () => database.db.select().from(stores).get()!.id;
   const auditRows = () => database.db.select().from(auditLog).all();
 
-  const signIn = (role: UserRole) => {
+  const signIn = (name: string) => {
     const user = database.db
       .insert(users)
       .values({
-        username: role,
-        displayName: role,
-        role,
+        username: name,
+        displayName: name,
         passwordHash: "p",
         pinHash: "q",
       })
       .returning()
       .get();
-    sessions.start({ userId: user.id, role, storeId: storeId(), loggedInAt: new Date(0) });
+    sessions.start({ userId: user.id, storeId: storeId(), loggedInAt: new Date(0) });
     return user;
   };
 
@@ -131,8 +130,8 @@ describe("createSettingsService", () => {
       expect(auditRows()).toHaveLength(0);
     });
 
-    it.each(["manager", "cashier"] as const)("lets a %s get and set", (role) => {
-      signIn(role);
+    it.each(["manager", "cashier"] as const)("lets a %s get and set", (name) => {
+      signIn(name);
 
       expect(service.getMiscItemEnabled()).toEqual({ enabled: false });
       expect(service.setMiscItemEnabled({ enabled: true })).toEqual({ enabled: true });
@@ -182,8 +181,8 @@ describe("createSettingsService", () => {
       expect(auditRows()).toHaveLength(0);
     });
 
-    it.each(["manager", "cashier"] as const)("lets a %s save", (role) => {
-      signIn(role);
+    it.each(["manager", "cashier"] as const)("lets a %s save", (name) => {
+      signIn(name);
 
       expect(service.setScalePrefixes(input)).toEqual(input);
       expect(getScalePrefixes(database, storeId())).toEqual(input);

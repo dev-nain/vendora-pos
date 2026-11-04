@@ -13,7 +13,7 @@ import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
-import { auditLog, products, stores, taxCategories, users, type UserRole } from "../db/schema";
+import { auditLog, products, stores, taxCategories, users } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import { createAuditService } from "./audit";
 import { createTaxCategoriesService } from "./tax-categories";
@@ -57,13 +57,13 @@ describe("createTaxCategoriesService", () => {
   const standardId = () => rows().find((t) => t.isSystem && t.rateBps === null)!.id;
   const exemptId = () => rows().find((t) => t.isSystem && t.rateBps === 0)!.id;
 
-  const signIn = (role: UserRole) => {
+  const signIn = (name: string) => {
     const user = database.db
       .insert(users)
-      .values({ username: role, displayName: role, role, passwordHash: "p", pinHash: "q" })
+      .values({ username: name, displayName: name, passwordHash: "p", pinHash: "q" })
       .returning()
       .get();
-    sessions.start({ userId: user.id, role, storeId: storeId(), loggedInAt: new Date(0) });
+    sessions.start({ userId: user.id, storeId: storeId(), loggedInAt: new Date(0) });
     return user;
   };
 
@@ -127,8 +127,8 @@ describe("createTaxCategoriesService", () => {
 
   it.each(["owner", "manager", "cashier"] as const)(
     "lets a %s create, update and remove",
-    (role) => {
-      const owner = signIn(role);
+    (name) => {
+      const owner = signIn(name);
 
       const created = service.create({ name: "Reduced", rateBps: 500 });
       expect(created).toMatchObject({
@@ -146,7 +146,7 @@ describe("createTaxCategoriesService", () => {
     },
   );
 
-  it("lists live rows for any role, sorted by name", () => {
+  it("lists live rows for any user, sorted by name", () => {
     signIn("owner");
     const id = createReduced();
     service.remove({ id });

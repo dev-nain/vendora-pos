@@ -11,10 +11,9 @@ import { auditActions, auditRecordInputSchema, createAuditService } from "./audi
 
 const actor = "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
 
-const newUser = (username: string, role: "owner" | "manager") => ({
+const newUser = (username: string) => ({
   username,
   displayName: "Name",
-  role,
   passwordHash: "hash",
   pinHash: "hash",
 });
@@ -36,12 +35,8 @@ describe("createAuditService", () => {
       backupDir: join(dir, "backups"),
     });
     seedStoreAndTerminal(database);
-    ownerId = database.db.insert(users).values(newUser("owner", "owner")).returning().get().id;
-    managerId = database.db
-      .insert(users)
-      .values(newUser("manager", "manager"))
-      .returning()
-      .get().id;
+    ownerId = database.db.insert(users).values(newUser("owner")).returning().get().id;
+    managerId = database.db.insert(users).values(newUser("manager")).returning().get().id;
     audit = createAuditService(database);
   });
 
