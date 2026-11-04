@@ -78,6 +78,13 @@
       "when": 1793794021765,
       "tag": "0010_stock_movements",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1793798415098,
+      "tag": "0011_sales",
+      "breakpoints": true
     }
   ]
 }

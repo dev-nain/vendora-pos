@@ -640,9 +640,13 @@ describe("remove roles and lock migration on an existing database", () => {
         "scale_weight_prefix",
         "scale_price_prefix",
         "misc_item_enabled",
+        "shift_variance_warn_paisa",
+        "prices_include_tax",
+        "cash_rounding_enabled",
+        "cash_rounding_paisa",
+        "cash_rounding_cash_only",
         "created_at",
         "updated_at",
-        "shift_variance_warn_paisa",
       ]);
       expect(columnsOf(database, "users")).not.toContain("role");
       expect(columnsOf(database, "audit_log")).not.toContain("approver_user_id");
@@ -658,6 +662,10 @@ describe("remove roles and lock migration on an existing database", () => {
           created_at: 11,
           updated_at: 12,
           shift_variance_warn_paisa: 0,
+          prices_include_tax: 1,
+          cash_rounding_enabled: 0,
+          cash_rounding_paisa: 100,
+          cash_rounding_cash_only: 1,
         },
       ]);
       expect(database.sqlite.prepare("SELECT * FROM users ORDER BY id").all()).toEqual([
@@ -1069,7 +1077,13 @@ describe("stock movements migration on an existing database", () => {
         INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at) VALUES ('u1', 'owner', 'Owner', 'p', 'q', 1, 2);
       `);
       const snapshot = () => ({
-        products: database.sqlite.prepare("SELECT * FROM products").all(),
+        products: (
+          database.sqlite.prepare("SELECT * FROM products").all() as Record<string, unknown>[]
+        ).map((row) => {
+          const copy = { ...row };
+          delete copy.is_third_schedule;
+          return copy;
+        }),
         barcodes: database.sqlite.prepare("SELECT * FROM product_barcodes").all(),
         users: database.sqlite.prepare("SELECT * FROM users").all(),
       });
