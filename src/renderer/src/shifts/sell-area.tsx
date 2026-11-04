@@ -11,6 +11,7 @@ import { CashMoveDialog } from "./cash-move-dialog";
 import { CloseShiftScreen } from "./close-shift-screen";
 import { OrdersScreen } from "../orders/orders-screen";
 import { OpenShiftScreen } from "./open-shift-screen";
+import { ReportPrintResult, useReportPrint } from "./report-print";
 import { ShiftReportView } from "./shift-report-view";
 import { ShiftStrip } from "./shift-strip";
 import { XReportDialog } from "./x-report-dialog";
@@ -45,6 +46,48 @@ interface SellAreaProps {
 
 const layerClasses =
   "flex min-h-0 flex-col rounded-tl-300 border-t border-l border-line-card bg-surface";
+
+interface ZReportProps {
+  report: ShiftReport;
+  warnPaisa: number;
+  onDone: () => void;
+  onPrinterChanged: () => void;
+  onSessionEnded: () => void;
+}
+
+function ZReport({ report, warnPaisa, onDone, onPrinterChanged, onSessionEnded }: ZReportProps) {
+  const printer = useReportPrint(report.shiftId, onPrinterChanged, onSessionEnded);
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto p-800">
+      <div className="mx-auto grid max-w-[720px] gap-500">
+        <ShiftReportView
+          title={
+            <h1 className="m-0 font-display text-[length:var(--font-size-700)] leading-[36px] font-semibold text-foreground">
+              Z-report
+            </h1>
+          }
+          report={report}
+          varianceWarnPaisa={warnPaisa}
+        />
+        <ReportPrintResult
+          result={printer.result}
+          running={printer.running}
+          onRetry={printer.print}
+        />
+        <div className="flex justify-end gap-200">
+          <Button variant="secondary" disabled={printer.running} onClick={printer.print}>
+            Print
+            <Kbd>Ctrl+P</Kbd>
+          </Button>
+          <Button autoFocus onClick={onDone}>
+            Done
+            <Kbd>Enter</Kbd>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings }: SellAreaProps) {
   const [state, setState] = useState<ShiftState | null>(null);
@@ -150,31 +193,16 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
   return (
     <main id="panel-sell" role="tabpanel" aria-labelledby="tab-sell" className={layerClasses}>
       {mode.name === "z-report" ? (
-        <div className="min-h-0 flex-1 overflow-y-auto p-800">
-          <div className="mx-auto grid max-w-[720px] gap-500">
-            <ShiftReportView
-              title={
-                <h1 className="m-0 font-display text-[length:var(--font-size-700)] leading-[36px] font-semibold text-foreground">
-                  Z-report
-                </h1>
-              }
-              report={mode.report}
-              varianceWarnPaisa={mode.warnPaisa}
-            />
-            <div className="flex justify-end">
-              <Button
-                autoFocus
-                onClick={() => {
-                  setMode({ name: "main" });
-                  load();
-                }}
-              >
-                Done
-                <Kbd>Enter</Kbd>
-              </Button>
-            </div>
-          </div>
-        </div>
+        <ZReport
+          report={mode.report}
+          warnPaisa={mode.warnPaisa}
+          onDone={() => {
+            setMode({ name: "main" });
+            load();
+          }}
+          onPrinterChanged={refreshPrinter}
+          onSessionEnded={onSessionEnded}
+        />
       ) : state === null ? (
         <div className="grid flex-1 place-items-center">
           {loadFailed ? (
@@ -273,6 +301,7 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
           }}
           onChanged={load}
           onSessionEnded={onSessionEnded}
+          onPrinterChanged={refreshPrinter}
         />
       ) : null}
     </main>
