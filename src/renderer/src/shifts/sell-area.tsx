@@ -30,12 +30,13 @@ type Dialog =
 interface SellAreaProps {
   onSessionEnded: () => void;
   onHintsChange: (hints: Hint[]) => void;
+  onOpenPrinterSettings: () => void;
 }
 
 const layerClasses =
   "flex min-h-0 flex-col rounded-tl-300 border-t border-l border-line-card bg-surface";
 
-export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
+export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings }: SellAreaProps) {
   const [state, setState] = useState<ShiftState | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -199,6 +200,8 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
             onSessionEnded={onSessionEnded}
             onHintsChange={setBillingHints}
             onStepChange={setBillingStep}
+            onPrinterChanged={() => undefined}
+            onOpenPrinterSettings={onOpenPrinterSettings}
           />
         </>
       )}
