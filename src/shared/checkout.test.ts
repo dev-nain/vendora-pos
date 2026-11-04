@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   completeSaleInputSchema,
   discountSchema,
+  holdInputSchema,
   paymentMethodLabels,
   paymentMethods,
   scanInputSchema,
@@ -25,6 +26,11 @@ describe("checkout schemas", () => {
     expect(discountSchema.safeParse({ kind: "percent", bps: 10001 }).success).toBe(false);
     expect(discountSchema.safeParse({ kind: "amount", amountPaisa: -1 }).success).toBe(false);
     expect(discountSchema.safeParse({ kind: "percent", bps: 1000 }).success).toBe(true);
+  });
+
+  it("takes no label on hold", () => {
+    expect(holdInputSchema.safeParse({ draftId: id }).success).toBe(true);
+    expect(holdInputSchema.safeParse({ draftId: id, label: "Mr Khan" }).success).toBe(false);
   });
 
   it("trims and bounds a scanned barcode and refuses extra keys", () => {

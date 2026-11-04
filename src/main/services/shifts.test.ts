@@ -166,7 +166,16 @@ describe("createShiftsService", () => {
     it("returns the X-report, held bills and the variance threshold when open", () => {
       signIn("cashier");
       database.db.update(stores).set({ shiftVarianceWarnPaisa: 150 }).run();
-      held = [{ id: "b1", label: "Bill 1", totalPaisa: 500, heldAt: new Date(0).toISOString() }];
+      held = [
+        {
+          id: "b1",
+          heldAt: new Date(0).toISOString(),
+          cashier: "Bilal Ahmed",
+          lineCount: 1,
+          itemNames: ["Tea"],
+          totalPaisa: 500,
+        },
+      ];
       openWith(5000);
 
       const state = service.state();
@@ -479,7 +488,16 @@ describe("createShiftsService", () => {
     it("refuses while held bills exist, returning them, and writes nothing", () => {
       signIn("cashier");
       const shiftId = openWith(0);
-      held = [{ id: "b1", label: "Bill 1", totalPaisa: 900, heldAt: new Date(0).toISOString() }];
+      held = [
+        {
+          id: "b1",
+          heldAt: new Date(0).toISOString(),
+          cashier: "Bilal Ahmed",
+          lineCount: 1,
+          itemNames: ["Tea"],
+          totalPaisa: 900,
+        },
+      ];
 
       const result = service.close({
         shiftId,

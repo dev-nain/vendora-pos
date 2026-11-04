@@ -85,6 +85,13 @@
       "when": 1793798415098,
       "tag": "0011_sales",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1793810380797,
+      "tag": "0012_illegal_stardust",
+      "breakpoints": true
     }
   ]
 }

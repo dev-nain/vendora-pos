@@ -65,9 +65,11 @@ export const cashMoveSchema = z.strictObject({
 
 export const heldBillSummarySchema = z.strictObject({
   id: z.string(),
-  label: z.string(),
-  totalPaisa: z.int(),
   heldAt: isoSchema,
+  cashier: z.string(),
+  lineCount: z.int(),
+  itemNames: z.array(z.string()).max(3),
+  totalPaisa: z.int(),
 });
 
 const cashMovesSectionSchema = z.strictObject({

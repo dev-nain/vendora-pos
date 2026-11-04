@@ -376,7 +376,10 @@ export function CloseShiftScreen({
             <ul className="m-0 grid list-none gap-100 p-0 text-[length:var(--font-size-350)]">
               {bills.map((bill) => (
                 <li key={bill.id} className="flex justify-between gap-400">
-                  <span>{bill.label}</span>
+                  <span>
+                    {bill.lineCount} {bill.lineCount === 1 ? "item" : "items"} ·{" "}
+                    {bill.itemNames.join(", ")}
+                  </span>
                   <span className="tabular-nums">{formatRupees(bill.totalPaisa)}</span>
                 </li>
               ))}

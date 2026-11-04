@@ -19,7 +19,7 @@ import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import { computeBill, divRoundHalfUp, type TotalsLine } from "../checkout/totals";
 import type { VendoraDatabase } from "../db/client";
-import { billDraftLines, billDrafts, products, taxCategories } from "../db/schema";
+import { billDraftLines, billDrafts, products, taxCategories, users } from "../db/schema";
 import { resolveTaxRateBps } from "../db/sale-rows";
 import { currentTerminal, type DbExecutor } from "../db/terminal";
 import { scaleLabelPricePaisa } from "../hardware/scale-barcode";
@@ -89,10 +89,6 @@ function discountColumns(discount: Discount | null) {
   return discount.kind === "amount"
     ? { kind: discount.kind, value: discount.amountPaisa }
     : { kind: discount.kind, value: discount.bps };
-}
-
-function itemLabel(count: number): string {
-  return `${count} ${count === 1 ? "item" : "items"}`;
 }
 
 function liveLineCount(tx: DbExecutor, draftId: string): number {
@@ -170,7 +166,6 @@ function toBill(tx: DbExecutor, draft: DraftRow): Bill {
 
   return {
     id: draft.id,
-    label: draft.label,
     heldAt: draft.heldAt ? draft.heldAt.toISOString() : null,
     billDiscount: toDiscount(draft.billDiscountKind, draft.billDiscountValue),
     lines,
@@ -182,11 +177,25 @@ function toBill(tx: DbExecutor, draft: DraftRow): Bill {
 }
 
 function summaryOf(tx: DbExecutor, draft: DraftRow, lineCount: number): HeldBillSummary {
+  const cashier =
+    tx.select({ name: users.displayName }).from(users).where(eq(users.id, draft.createdBy)).get()
+      ?.name ?? "";
+  const itemNames = tx
+    .select({ name: sql<string>`coalesce(${billDraftLines.miscName}, ${products.nameEn})` })
+    .from(billDraftLines)
+    .innerJoin(products, eq(products.id, billDraftLines.productId))
+    .where(and(eq(billDraftLines.draftId, draft.id), isNull(billDraftLines.deletedAt)))
+    .orderBy(asc(billDraftLines.position))
+    .limit(3)
+    .all()
+    .map((row) => row.name);
   return {
     id: draft.id,
-    label: draft.label ?? itemLabel(lineCount),
-    totalPaisa: toBill(tx, draft).totals.totalPaisa,
     heldAt: (draft.heldAt ?? draft.updatedAt).toISOString(),
+    cashier,
+    lineCount,
+    itemNames,
+    totalPaisa: toBill(tx, draft).totals.totalPaisa,
   };
 }
 
@@ -600,7 +609,6 @@ export function createBillDraftsService({
       if (liveLineCount(tx, draft.id) === 0) return emptyBill;
       const changes: Partial<typeof billDrafts.$inferInsert> = { updatedAt: now() };
       if (draft.heldAt === null) changes.heldAt = now();
-      if (input.label !== undefined) changes.label = input.label;
       tx.update(billDrafts).set(changes).where(eq(billDrafts.id, draft.id)).run();
       return { ok: true } as const;
     });

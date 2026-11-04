@@ -86,7 +86,6 @@ export const setBillDiscountInputSchema = z.strictObject({
 
 export const holdInputSchema = z.strictObject({
   draftId: z.uuid(),
-  label: z.string().trim().min(1).max(40).optional(),
 });
 
 const buyerSchema = z.strictObject({
@@ -148,7 +147,6 @@ export const billTotalsSchema = z.strictObject({
 
 export const billSchema = z.strictObject({
   id: z.string(),
-  label: z.string().nullable(),
   heldAt: isoSchema.nullable(),
   billDiscount: discountSchema.nullable(),
   lines: z.array(billLineSchema),
