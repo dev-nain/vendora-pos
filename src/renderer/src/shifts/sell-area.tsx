@@ -4,7 +4,7 @@ import type { AddCashMoveInput, ShiftReport, ShiftState } from "@shared/shifts";
 import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
-import { BillingScreen } from "../billing/billing-screen";
+import { BillingScreen, type BillingStep } from "../billing/billing-screen";
 import type { Hint } from "../shell/hint-bar";
 import { CashMoveDialog } from "./cash-move-dialog";
 import { CloseShiftScreen } from "./close-shift-screen";
@@ -41,6 +41,7 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [mode, setMode] = useState<Mode>({ name: "main" });
   const [billingHints, setBillingHints] = useState<Hint[]>(baseHints);
+  const [billingStep, setBillingStep] = useState<BillingStep>("products");
   const strip = useRef<HTMLDivElement | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
 
@@ -86,7 +87,7 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
   }, []);
 
   useEffect(() => {
-    if (!shiftOpen || dialog || mode.name !== "main") return;
+    if (!shiftOpen || dialog || mode.name !== "main" || billingStep !== "products") return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.altKey || event.metaKey) return;
       if (event.key === "F6") {
@@ -105,7 +106,7 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [shiftOpen, dialog, mode.name, openDialog]);
+  }, [shiftOpen, dialog, mode.name, billingStep, openDialog]);
 
   const retry = () => {
     setLoadFailed(false);
@@ -182,19 +183,22 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
         />
       ) : (
         <>
-          <ShiftStrip
-            ref={strip}
-            openedAt={state.shift.openedAt}
-            openedBy={state.shift.openedBy}
-            onCashIn={(opener) => openDialog({ kind: "cash-move", moveKind: "in" }, opener)}
-            onCashOut={(opener) => openDialog({ kind: "cash-move", moveKind: "out" }, opener)}
-            onXReport={(opener) => openDialog({ kind: "x-report" }, opener)}
-            onCloseShift={() => setMode({ name: "closing" })}
-          />
+          {billingStep === "products" ? (
+            <ShiftStrip
+              ref={strip}
+              openedAt={state.shift.openedAt}
+              openedBy={state.shift.openedBy}
+              onCashIn={(opener) => openDialog({ kind: "cash-move", moveKind: "in" }, opener)}
+              onCashOut={(opener) => openDialog({ kind: "cash-move", moveKind: "out" }, opener)}
+              onXReport={(opener) => openDialog({ kind: "x-report" }, opener)}
+              onCloseShift={() => setMode({ name: "closing" })}
+            />
+          ) : null}
           <BillingScreen
             active={dialog === null}
             onSessionEnded={onSessionEnded}
             onHintsChange={setBillingHints}
+            onStepChange={setBillingStep}
           />
         </>
       )}

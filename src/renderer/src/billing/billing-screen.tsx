@@ -33,6 +33,8 @@ import { MiscItemDialog } from "./misc-item-dialog";
 import { moveSelection, selectAfter, selectAfterDelete } from "./line-selection";
 import { backspace, freshField, typeKey, type NumpadMode } from "./numpad-entry";
 import { Numpad } from "./numpad";
+import { newPaymentDraft, type PaymentDraft } from "./payment-lines";
+import { PaymentScreen } from "./payment-screen";
 import { ProductGrid, type ProductGridHandle } from "./product-grid";
 import { QuantityConfirmDialog } from "./quantity-confirm-dialog";
 import { quantityGuardMessage } from "./quantity-guard";
@@ -61,6 +63,17 @@ const idleHints = (miscEnabled: boolean): Hint[] => [
   ["Ctrl+L", "Switch user"],
 ];
 
+const paymentHints: Hint[] = [
+  ["F2–F6", "Method"],
+  ["F7", "Exact"],
+  ["F8–F10", "500 / 1000 / 5000"],
+  ["F11", "Buyer details"],
+  ["Del", "Remove line"],
+  ["Enter", "Validate"],
+  ["Esc", "Back"],
+  ["Ctrl+L", "Switch user"],
+];
+
 const editingHints: Hint[] = [
   ["Enter", "Save"],
   ["Esc", "Cancel"],
@@ -73,6 +86,8 @@ const discountEditingHints: Hint[] = [
   ["Tab", "Rs/%"],
   ["Ctrl+L", "Switch user"],
 ];
+
+export type BillingStep = "products" | "payment";
 
 interface View {
   bill: Bill | null;
@@ -99,13 +114,19 @@ interface BillingScreenProps {
   active: boolean;
   onSessionEnded: () => void;
   onHintsChange: (hints: Hint[]) => void;
+  onStepChange: (step: BillingStep) => void;
 }
 
 const fieldUnit = (line: BillLine) => (isWeighedLine(line) ? line.unit : "piece");
 
 const allowsDecimal = (mode: NumpadMode, line: BillLine) => mode !== "qty" || isWeighedLine(line);
 
-export function BillingScreen({ active, onSessionEnded, onHintsChange }: BillingScreenProps) {
+export function BillingScreen({
+  active,
+  onSessionEnded,
+  onHintsChange,
+  onStepChange,
+}: BillingScreenProps) {
   const [view, setView] = useState<View>({ bill: null, selectedId: null });
   const [editing, setEditing] = useState<Editing | null>(null);
   const [searchText, setSearchText] = useState("");
@@ -114,6 +135,8 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [miscEnabled, setMiscEnabled] = useState(false);
   const [heldCount, setHeldCount] = useState(0);
+  const [step, setStep] = useState<BillingStep>("products");
+  const [paymentState, setPayment] = useState<PaymentDraft | null>(null);
   const query = useDebouncedValue(searchText, SEARCH_DEBOUNCE_MS);
 
   const scanRef = useRef<HTMLInputElement | null>(null);
@@ -124,6 +147,8 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
   const keyHandler = useRef<(event: KeyboardEvent) => void>(() => {});
 
   const queue = useRef<ScanQueue | null>(null);
+
+  const payment = paymentState?.draftId === view.bill?.id ? paymentState : null;
 
   const selectedLine = view.bill?.lines.find((line) => line.id === view.selectedId) ?? null;
 
@@ -476,6 +501,7 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
       const result = await window.vendora.checkout.hold({ draftId: bill.id });
       if (result.ok) {
         setView({ bill: null, selectedId: null });
+        setPayment(null);
         setEditing(null);
         refreshHeld();
       } else {
@@ -510,15 +536,33 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
     setPrompt({ kind: "misc" });
   };
 
-  const moveLine = (step: 1 | -1) =>
+  const moveLine = (direction: 1 | -1) =>
     setView((prev) => ({
       ...prev,
-      selectedId: moveSelection(prev.bill?.lines ?? [], prev.selectedId, step),
+      selectedId: moveSelection(prev.bill?.lines ?? [], prev.selectedId, direction),
     }));
+
+  const canPay =
+    view.bill !== null && view.bill.lines.length > 0 && view.bill.totals.totalPaisa >= 0;
+
+  const openPayment = () => {
+    const { bill } = view;
+    if (!bill || !canPay || prompt !== null) return;
+    setEditing(null);
+    setPayment(payment ?? newPaymentDraft(bill.id));
+    setStep("payment");
+  };
+
+  const closePayment = () => setStep("products");
+
+  useEffect(() => {
+    onStepChange(step);
+    if (step === "products") focusScan();
+  }, [step, onStepChange, focusScan]);
 
   useEffect(() => {
     keyHandler.current = (event) => {
-      if (event.defaultPrevented || prompt !== null) return;
+      if (event.defaultPrevented || prompt !== null || step !== "products") return;
       const target = event.target as HTMLElement | null;
       const inScanField = target?.id === "scan-field";
       const plainTarget = !isTypingTarget(target) || (inScanField && searchText === "");
@@ -544,6 +588,8 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
         openHeld();
       } else if (event.key === "F5") {
         openEditing("price");
+      } else if (event.key === "F12") {
+        openPayment();
       }
       if (event.ctrlKey && !event.altKey && !event.metaKey && event.key === "Delete") {
         event.preventDefault();
@@ -584,9 +630,9 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
   const editingOpen = editing !== null;
 
   useEffect(() => {
-    if (promptOpen || editingOpen) queue.current?.pause();
+    if (promptOpen || editingOpen || step !== "products") queue.current?.pause();
     else queue.current?.resume();
-  }, [promptOpen, editingOpen]);
+  }, [promptOpen, editingOpen, step]);
 
   useEffect(() => {
     if (!active || (!promptOpen && !editingOpen)) return;
@@ -609,17 +655,32 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
   }, [active, promptOpen, editingOpen]);
 
   const idle = useMemo(() => idleHints(miscEnabled), [miscEnabled]);
-  const hints = editing
-    ? editing.mode === "discount"
-      ? discountEditingHints
-      : editingHints
-    : idle;
+  const hints =
+    step === "payment"
+      ? paymentHints
+      : editing
+        ? editing.mode === "discount"
+          ? discountEditingHints
+          : editingHints
+        : idle;
 
   useEffect(() => {
     onHintsChange(hints);
   }, [hints, onHintsChange]);
 
   const lines = view.bill?.lines ?? [];
+
+  if (step === "payment" && view.bill && payment) {
+    return (
+      <PaymentScreen
+        bill={view.bill}
+        draft={payment}
+        active={active}
+        onDraftChange={setPayment}
+        onBack={closePayment}
+      />
+    );
+  }
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[45%_minmax(0,1fr)]">
@@ -649,6 +710,7 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
           <div className="min-w-0 flex-1">
             <BillActions
               hasLines={lines.length > 0}
+              canPay={canPay}
               miscEnabled={miscEnabled}
               heldCount={heldCount}
               onBillDiscount={openBillDiscount}
@@ -656,6 +718,7 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
               onHeldBills={openHeld}
               onMisc={openMisc}
               onDiscard={openDiscard}
+              onPay={openPayment}
             />
           </div>
         </div>
@@ -713,6 +776,7 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
           returnFocus={scanRef}
           onResumed={(bill) => {
             setView({ bill, selectedId: bill.lines.at(-1)?.id ?? null });
+            setPayment(null);
             refreshHeld();
             closePrompt();
           }}
@@ -729,6 +793,7 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
           returnFocus={scanRef}
           onDiscarded={() => {
             setView({ bill: null, selectedId: null });
+            setPayment(null);
             closePrompt();
           }}
           onCancel={closePrompt}

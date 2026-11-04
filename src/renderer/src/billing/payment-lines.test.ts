@@ -9,6 +9,7 @@ import {
   quickTender,
   removeSelected,
   selectOrAdd,
+  setAmountText,
   setReference,
   suggestedAmountPaisa,
   toCompletePayload,
@@ -114,6 +115,17 @@ describe("lines and selection", () => {
     expect(amountOf(draft, "cash")).toBe(1250);
     draft = backspaceAmount(draft);
     expect(draft.lines[0]?.amount.text).toBe("12.");
+  });
+
+  it("takes typed text, refuses bad text and ends the tender run", () => {
+    const bill = billOf(72000);
+    let draft = quickTender(newPaymentDraft("d1"), bill, 500000);
+    draft = setAmountText(draft, "cash", "250.5");
+    expect(amountOf(draft, "cash")).toBe(25050);
+    expect(setAmountText(draft, "cash", "2.505")).toBe(draft);
+    expect(setAmountText(draft, "cash", "abc")).toBe(draft);
+    draft = quickTender(draft, bill, 50000);
+    expect(amountOf(draft, "cash")).toBe(50000);
   });
 
   it("removes the selected line and selects the next, else the previous", () => {

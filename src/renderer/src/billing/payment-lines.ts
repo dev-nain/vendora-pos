@@ -148,6 +148,24 @@ export function typeAmount(draft: PaymentDraft, key: string): PaymentDraft {
   return { ...draft, lines };
 }
 
+const amountTextPattern = /^\d{0,13}(\.\d{0,2})?$/;
+
+export function setAmountText(
+  draft: PaymentDraft,
+  method: PaymentMethod,
+  text: string,
+): PaymentDraft {
+  if (!amountTextPattern.test(text)) return draft;
+  return {
+    ...draft,
+    lines: withLine(draft, method, (line) => ({
+      ...line,
+      amount: { text, fresh: false },
+      tenderRun: false,
+    })),
+  };
+}
+
 export function backspaceAmount(draft: PaymentDraft): PaymentDraft {
   if (draft.selected === null) return draft;
   const lines = withLine(draft, draft.selected, (line) => {

@@ -2,7 +2,15 @@ import type { Bill } from "@shared/checkout";
 import { formatRupees } from "../lib/money";
 import { billDiscountLabel, itemCountText, negativeRupees } from "./bill-format";
 
-function Row({ label, value, critical }: { label: string; value: string; critical?: boolean }) {
+export function Row({
+  label,
+  value,
+  critical,
+}: {
+  label: string;
+  value: string;
+  critical?: boolean;
+}) {
   return (
     <div className="flex justify-between gap-400">
       <dt>{label}</dt>
