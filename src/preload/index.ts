@@ -6,7 +6,20 @@ import {
   loginUserSchema,
   sessionStateSchema,
 } from "@shared/auth";
-import { miscItemSettingSchema, scalePrefixesSettingSchema } from "@shared/settings";
+import {
+  miscItemSettingSchema,
+  scalePrefixesSettingSchema,
+  shiftVarianceSettingSchema,
+} from "@shared/settings";
+import {
+  addCashMoveResultSchema,
+  closeShiftResultSchema,
+  deleteCashMoveResultSchema,
+  denominationSchema,
+  openShiftResultSchema,
+  shiftReportResultSchema,
+  shiftStateSchema,
+} from "@shared/shifts";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 import {
   barcodeLookupSchema,
@@ -76,6 +89,14 @@ const api: VendoraApi = {
     setMiscItemEnabled: async (enabled) =>
       miscItemSettingSchema.parse(
         await ipcRenderer.invoke(ipcChannels.settingsSetMiscItemEnabled, { enabled }),
+      ),
+    getShiftVarianceWarn: async () =>
+      shiftVarianceSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsGetShiftVarianceWarn),
+      ),
+    setShiftVarianceWarn: async (warnPaisa) =>
+      shiftVarianceSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsSetShiftVarianceWarn, { warnPaisa }),
       ),
   },
   users: {
@@ -163,6 +184,27 @@ const api: VendoraApi = {
       deleteTaxCategoryResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.taxCategoriesDelete, { id }),
       ),
+  },
+  shifts: {
+    state: async () => shiftStateSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsState)),
+    open: async (openingFloatPaisa) =>
+      openShiftResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.shiftsOpen, { openingFloatPaisa }),
+      ),
+    addCashMove: async (input) =>
+      addCashMoveResultSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsAddCashMove, input)),
+    deleteCashMove: async (id) =>
+      deleteCashMoveResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.shiftsDeleteCashMove, { id }),
+      ),
+    report: async (id) =>
+      shiftReportResultSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsReport, { id })),
+    listDenominations: async () =>
+      z
+        .array(denominationSchema)
+        .parse(await ipcRenderer.invoke(ipcChannels.shiftsListDenominations)),
+    close: async (input) =>
+      closeShiftResultSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsClose, input)),
   },
 };
 

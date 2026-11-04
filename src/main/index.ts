@@ -10,6 +10,7 @@ import { createAuthService } from "./services/auth";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createCategoriesService } from "./services/categories";
 import { createSettingsService } from "./services/settings";
+import { createShiftsService } from "./services/shifts";
 import { createProductsService } from "./services/products";
 import { createTaxCategoriesService } from "./services/tax-categories";
 import { createUsersService } from "./services/users";
@@ -38,6 +39,7 @@ void app.whenReady().then(async () => {
   const sessions = createSessionStore();
   const auth = createAuthService({ database, audit, sessions });
   const settings = createSettingsService({ database, audit, sessions });
+  const shifts = createShiftsService({ database, audit, sessions, heldBills: () => [] });
   const users = createUsersService({ database, audit, sessions });
   const products = createProductsService({ database, audit, sessions });
   const categories = createCategoriesService({ database, audit, sessions });
@@ -64,6 +66,7 @@ void app.whenReady().then(async () => {
     categories,
     products,
     settings,
+    shifts,
     taxCategories,
     users,
   });
