@@ -87,9 +87,14 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 - Scans are queued one at a time with ok/error sounds
 - Typed quantities ≥ 100 (pieces/packs) or ≥ 25 (kg/L) ask to confirm
 - Held bills list cashier, items and total; the last open bill returns after a restart
-- Payment methods: cash, card (manual record + reference), bank transfer / mobile wallet (JazzCash, Easypaisa — manual reference), and **split** across methods
-- Cash payment shows change due; quick-tender buttons (exact, 500, 1000, 5000)
+- Payment is a separate step after the bill (F12 / Pay); Esc returns to the bill unchanged, and nothing is saved until Validate
+- Payment methods are fixed: cash, card (manual record + reference), bank transfer, JazzCash and Easypaisa (manual reference), each its own method, and **split** across them with one line per method
+- Cash payment shows change due; quick-tender buttons (exact, 500, 1000, 5000): the first note press replaces the cash amount and later presses add to it
 - Overpaying by card, bank transfer or wallet returns the excess as cash change; references are optional
+- Validate is blocked while the bill is underpaid and shows what is left to pay; paying more than 1,000 times the total asks to confirm; a double press makes one sale
+- Optional buyer details (name, phone, NTN, CNIC) are validated and stored on the sale only
+- A receipt screen follows Validate with the invoice number, total, paid and change; Enter or a scan starts the next bill
+- Payment shortcuts: F2–F6 methods, F7 exact, F8–F10 500 / 1000 / 5000, F11 buyer details, Del remove line, Enter validate, Esc back
 - Totals show subtotal, discount, sales tax, rounding (configurable, shown as its own line) and grand total
 - Tax is computed and rounded half-up per line
 - Cash rounding is applied to every bill or only to the cash share, per a store setting
