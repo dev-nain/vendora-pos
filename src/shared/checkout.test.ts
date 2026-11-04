@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buyerSchema,
   completeSaleInputSchema,
   discountSchema,
   holdInputSchema,
@@ -65,5 +66,40 @@ describe("checkout schemas", () => {
         payments: [{ method: "cash", amountPaisa: 10.5 }],
       }).success,
     ).toBe(false);
+  });
+
+  describe("buyer", () => {
+    it("accepts and normalises NTN and CNIC", () => {
+      expect(buyerSchema.parse({ ntn: "12345678" }).ntn).toBe("1234567-8");
+      expect(buyerSchema.parse({ ntn: " 1234567-8 " }).ntn).toBe("1234567-8");
+      expect(buyerSchema.parse({ cnic: "1234512345671" }).cnic).toBe("12345-1234567-1");
+      expect(buyerSchema.parse({ cnic: "12345-1234567-1" }).cnic).toBe("12345-1234567-1");
+    });
+
+    it("refuses malformed NTN, CNIC and phone", () => {
+      expect(buyerSchema.safeParse({ ntn: "12345" }).success).toBe(false);
+      expect(buyerSchema.safeParse({ ntn: "1234 5678" }).success).toBe(false);
+      expect(buyerSchema.safeParse({ cnic: "12345-123456-12" }).success).toBe(false);
+      expect(buyerSchema.safeParse({ phone: "0412345678" }).success).toBe(false);
+      expect(buyerSchema.safeParse({ phone: "0300 1234567" }).success).toBe(false);
+    });
+
+    it("accepts both phone forms", () => {
+      expect(buyerSchema.safeParse({ phone: "03001234567" }).success).toBe(true);
+      expect(buyerSchema.safeParse({ phone: "+923001234567" }).success).toBe(true);
+    });
+
+    it("limits the name to 100 characters", () => {
+      expect(buyerSchema.safeParse({ name: "a".repeat(100) }).success).toBe(true);
+      expect(buyerSchema.safeParse({ name: "a".repeat(101) }).success).toBe(false);
+    });
+
+    it("carries a cashier-facing message and refuses extra keys", () => {
+      const result = buyerSchema.safeParse({ ntn: "1" });
+      expect(result.success ? "" : result.error.issues[0]?.message).toBe(
+        "NTN is 7 digits, then 1 digit, like 1234567-8.",
+      );
+      expect(buyerSchema.safeParse({ email: "a@b.c" }).success).toBe(false);
+    });
   });
 });
