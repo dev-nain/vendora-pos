@@ -556,6 +556,57 @@ describe("checkout ipc", () => {
     for (const spy of [...spies, complete]) expect(spy).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["sales:list", {}],
+    ["sales:list", { invoiceNo: "" }],
+    ["sales:list", { invoiceNo: "x".repeat(33) }],
+    ["sales:list", { date: "27-10-2026" }],
+    ["sales:list", { scope: "all" }],
+    ["sales:list", { scope: "shift", extra: 1 }],
+    ["sales:get", { id: "nope" }],
+    ["sales:get", {}],
+  ])("rejects invalid input on %s before the service runs", async (channel, input) => {
+    kit.signIn("cashier");
+    const list = vi.spyOn(sales, "list");
+    const get = vi.spyOn(sales, "get");
+
+    await expect(invoke(channel, input)).rejects.toThrow();
+
+    expect(list).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["sales:list", { scope: "shift" }],
+    ["sales:get", { id: unknownId }],
+  ])("rejects %s with no session", async (channel, input) => {
+    await expect(invoke(channel, input)).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
+  });
+
+  it("lists a completed sale and reads its detail", async () => {
+    kit.signIn("cashier");
+    kit.openShift(5000);
+    kit.setMiscEnabled(true);
+    const added = (await invoke("checkout:add-misc", { name: "Loose tea", pricePaisa: 45000 })) as {
+      bill: { id: string };
+    };
+    const done = (await invoke("checkout:complete", {
+      draftId: added.bill.id,
+      payments: [{ method: "cash", amountPaisa: 50000 }],
+    })) as { sale: { id: string } };
+
+    expect(await invoke("sales:list", { scope: "shift" })).toEqual([
+      expect.objectContaining({ invoiceNo: "T1-000001", methods: ["cash"], totalPaisa: 45000 }),
+    ]);
+    expect(await invoke("sales:list", { invoiceNo: "1" })).toHaveLength(1);
+    expect(await invoke("sales:get", { id: done.sale.id })).toMatchObject({
+      ok: true,
+      sale: { invoiceNo: "T1-000001", printCount: 0, changePaisa: 5000 },
+    });
+  });
+
   it("builds a bill, completes it and parses every result", async () => {
     kit.signIn("cashier");
     kit.openShift(5000);
