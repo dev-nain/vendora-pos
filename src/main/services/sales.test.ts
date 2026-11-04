@@ -550,16 +550,18 @@ describe("order lookup", () => {
   it("returns at most the newest 200", () => {
     kit.openShift();
     const product = kit.addProduct({ salePricePaisa: 100 });
-    for (let i = 0; i < 205; i++) {
-      clock = new Date(2026, 9, 27, 10, 0, 0, i);
-      const added = kit.billDrafts.addProduct({ productId: product.id, qtyMilli: 1000 });
-      saleOf(
-        service.complete({
-          draftId: draftIdOf(added),
-          payments: [{ method: "cash", amountPaisa: 100 }],
-        }),
-      );
-    }
+    kit.database.db.transaction(() => {
+      for (let i = 0; i < 205; i++) {
+        clock = new Date(2026, 9, 27, 10, 0, 0, i);
+        const added = kit.billDrafts.addProduct({ productId: product.id, qtyMilli: 1000 });
+        saleOf(
+          service.complete({
+            draftId: draftIdOf(added),
+            payments: [{ method: "cash", amountPaisa: 100 }],
+          }),
+        );
+      }
+    });
 
     const orders = service.list({ scope: "shift" });
 

@@ -14,6 +14,7 @@ interface ShiftStripProps {
   openedBy: string;
   printerStatus: PrinterStatus | null;
   onOpenPrinterSettings: () => void;
+  onOrders: () => void;
   onCashIn: (opener: HTMLElement | null) => void;
   onCashOut: (opener: HTMLElement | null) => void;
   onXReport: (opener: HTMLElement | null) => void;
@@ -26,6 +27,7 @@ export function ShiftStrip({
   openedBy,
   printerStatus,
   onOpenPrinterSettings,
+  onOrders,
   onCashIn,
   onCashOut,
   onXReport,
@@ -47,6 +49,10 @@ export function ShiftStrip({
         <span>{openedBy}</span>
       </div>
       <div className="flex items-center gap-200">
+        <Button variant="secondary" onClick={onOrders}>
+          Orders
+          <Kbd>Ctrl+O</Kbd>
+        </Button>
         <Button variant="secondary" onClick={(event) => onCashIn(event.currentTarget)}>
           Cash in
           <Kbd>F6</Kbd>

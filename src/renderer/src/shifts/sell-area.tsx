@@ -9,6 +9,7 @@ import { BillingScreen, type BillingStep } from "../billing/billing-screen";
 import type { Hint } from "../shell/hint-bar";
 import { CashMoveDialog } from "./cash-move-dialog";
 import { CloseShiftScreen } from "./close-shift-screen";
+import { OrdersScreen } from "../orders/orders-screen";
 import { OpenShiftScreen } from "./open-shift-screen";
 import { ShiftReportView } from "./shift-report-view";
 import { ShiftStrip } from "./shift-strip";
@@ -17,10 +18,18 @@ import { XReportDialog } from "./x-report-dialog";
 const baseHints: Hint[] = [["Ctrl+L", "Switch user"]];
 const closingHints: Hint[] = [["Ctrl+Enter", "Close shift"], ["Esc", "Cancel"], ...baseHints];
 const reportHints: Hint[] = [["Enter", "Done"], ...baseHints];
+const ordersHints: Hint[] = [
+  ["Enter", "Search"],
+  ["↑/↓", "Select"],
+  ["Ctrl+P", "Reprint"],
+  ["Esc", "Back"],
+  ...baseHints,
+];
 
 type Mode =
   | { name: "main" }
   | { name: "closing" }
+  | { name: "orders" }
   | { name: "z-report"; report: ShiftReport; warnPaisa: number };
 
 type Dialog =
@@ -89,9 +98,11 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
         ? closingHints
         : mode.name === "z-report"
           ? reportHints
-          : shiftOpen
-            ? billingHints
-            : baseHints,
+          : mode.name === "orders"
+            ? ordersHints
+            : shiftOpen
+              ? billingHints
+              : baseHints,
     );
   }, [onHintsChange, shiftOpen, mode.name, billingHints]);
 
@@ -107,6 +118,11 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
   useEffect(() => {
     if (!shiftOpen || dialog || mode.name !== "main" || billingStep !== "products") return;
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === "o") {
+        event.preventDefault();
+        setMode({ name: "orders" });
+        return;
+      }
       if (event.ctrlKey || event.altKey || event.metaKey) return;
       if (event.key === "F6") {
         event.preventDefault();
@@ -182,6 +198,13 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
           onSessionEnded={onSessionEnded}
           onPrinterChanged={refreshPrinter}
         />
+      ) : mode.name === "orders" ? (
+        <OrdersScreen
+          active={dialog === null}
+          onBack={() => setMode({ name: "main" })}
+          onSessionEnded={onSessionEnded}
+          onPrinterChanged={refreshPrinter}
+        />
       ) : mode.name === "closing" ? (
         <CloseShiftScreen
           shiftId={state.shift.id}
@@ -210,6 +233,7 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
               openedBy={state.shift.openedBy}
               printerStatus={printerStatus}
               onOpenPrinterSettings={onOpenPrinterSettings}
+              onOrders={() => setMode({ name: "orders" })}
               onCashIn={(opener) => openDialog({ kind: "cash-move", moveKind: "in" }, opener)}
               onCashOut={(opener) => openDialog({ kind: "cash-move", moveKind: "out" }, opener)}
               onXReport={(opener) => openDialog({ kind: "x-report" }, opener)}
