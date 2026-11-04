@@ -1,6 +1,8 @@
+import { CircleCheckIcon, TriangleAlertIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-import type { CashMove, ShiftReport } from "@shared/shifts";
+import { isVarianceWarning, type CashMove, type ShiftReport } from "@shared/shifts";
+import { Badge } from "@renderer/components/ui/badge";
 import { Button } from "@renderer/components/ui/button";
 import { formatRupees } from "@renderer/lib/money";
 import { cn } from "@renderer/lib/utils";
@@ -91,13 +93,45 @@ function MovesSection({ id, title, kind, moves, totalPaisa, onDeleteMove }: Move
   );
 }
 
+export function varianceLabel(variance: number): string {
+  if (variance === 0) return "No variance";
+  return `${variance < 0 ? "Short" : "Over"} ${formatRupees(Math.abs(variance))}`;
+}
+
+export function VarianceBadges({ variance, warnPaisa }: { variance: number; warnPaisa: number }) {
+  return (
+    <span className="inline-flex flex-wrap items-center justify-end gap-200">
+      {variance === 0 ? (
+        <Badge variant="success">
+          <CircleCheckIcon aria-hidden="true" strokeWidth={2} />
+          No variance
+        </Badge>
+      ) : (
+        <span>{varianceLabel(variance)}</span>
+      )}
+      {isVarianceWarning(variance, warnPaisa) ? (
+        <Badge variant="warning">
+          <TriangleAlertIcon aria-hidden="true" strokeWidth={2} />
+          Check
+        </Badge>
+      ) : null}
+    </span>
+  );
+}
+
 interface ShiftReportViewProps {
   title: ReactNode;
   report: ShiftReport;
+  varianceWarnPaisa?: number;
   onDeleteMove?: ((move: CashMove, opener: HTMLElement) => void) | undefined;
 }
 
-export function ShiftReportView({ title, report, onDeleteMove }: ShiftReportViewProps) {
+export function ShiftReportView({
+  title,
+  report,
+  varianceWarnPaisa = 0,
+  onDeleteMove,
+}: ShiftReportViewProps) {
   return (
     <div className="grid gap-500">
       <div className="flex flex-wrap items-baseline justify-between gap-x-400 gap-y-100">
@@ -156,6 +190,50 @@ export function ShiftReportView({ title, report, onDeleteMove }: ShiftReportView
           </tbody>
         </table>
       </Section>
+      {report.count && report.variancePaisa !== null ? (
+        <Section id={`${report.shiftId}-counted`} title="Counted cash">
+          <table className="w-full border-collapse text-[length:var(--font-size-350)]">
+            <tbody>
+              {report.count.method === "denominations" ? (
+                report.count.lines.map((line) => (
+                  <tr key={line.valuePaisa}>
+                    <th scope="row" className={`${cellBase} text-left font-normal text-foreground`}>
+                      {formatRupees(line.valuePaisa)} × {line.count}
+                    </th>
+                    <td className={amountCell}>{formatRupees(line.totalPaisa)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <th scope="row" className={`${cellBase} text-left font-normal text-secondary`}>
+                    Entered as a total
+                  </th>
+                  <td className={amountCell} />
+                </tr>
+              )}
+              <tr className="border-t border-line font-semibold">
+                <th scope="row" className={`${cellBase} text-left font-semibold`}>
+                  Counted
+                </th>
+                <td className={amountCell}>{formatRupees(report.count.countedCashPaisa)}</td>
+              </tr>
+              <tr>
+                <th scope="row" className={`${cellBase} text-left font-semibold`}>
+                  Variance
+                </th>
+                <td className={cn(amountCell, "font-semibold")}>
+                  <VarianceBadges variance={report.variancePaisa} warnPaisa={varianceWarnPaisa} />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </Section>
+      ) : null}
+      {report.note ? (
+        <Section id={`${report.shiftId}-note`} title="Note">
+          <p className="m-0 text-[length:var(--font-size-350)] text-foreground">{report.note}</p>
+        </Section>
+      ) : null}
     </div>
   );
 }
