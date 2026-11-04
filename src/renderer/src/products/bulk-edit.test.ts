@@ -13,6 +13,7 @@ const item = (n: number, salePricePaisa: number, categoryId = "c1"): ProductSear
   isActive: true,
   primaryBarcode: null,
   extraBarcodeCount: 0,
+  onHandMilli: 0,
 });
 
 const names = new Map([

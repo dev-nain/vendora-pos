@@ -139,6 +139,7 @@ export const productSearchItemSchema = z.strictObject({
   isActive: z.boolean(),
   primaryBarcode: z.string().nullable(),
   extraBarcodeCount: z.int().nonnegative(),
+  onHandMilli: z.int(),
 });
 
 export const productSearchResultSchema = z.strictObject({

@@ -5,7 +5,16 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { uuidv7 } from "../db/id";
 import { runMigrations } from "../db/migrate";
-import { categories, productBarcodes, products, stores, taxCategories } from "../db/schema";
+import {
+  categories,
+  productBarcodes,
+  products,
+  stockMovements,
+  stores,
+  taxCategories,
+  terminals,
+  users,
+} from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import { PRODUCT_SEARCH_MAX_LIMIT, type ProductSearchInput } from "../../shared/products";
 import { searchProducts } from "./product-search";
@@ -324,6 +333,33 @@ describe("searchProducts", () => {
     });
   });
 
+  it("returns stock on hand as the sum of the product's movements", () => {
+    const tea = addProduct({ nameEn: "Tea" });
+    const rice = addProduct({ nameEn: "Rice", unit: "kg" });
+    addProduct({ nameEn: "Unstocked" });
+    const terminalId = database.db.select().from(terminals).get()!.id;
+    const actorUserId = database.db
+      .insert(users)
+      .values({ username: "owner", displayName: "Owner", passwordHash: "x", pinHash: "x" })
+      .returning()
+      .get().id;
+    const move = (productId: string, type: "receipt" | "sale", qtyMilli: number) =>
+      database.db
+        .insert(stockMovements)
+        .values({ storeId, terminalId, productId, type, qtyMilli, unitCostPaisa: 100, actorUserId })
+        .run();
+    move(tea.id, "receipt", 12_000);
+    move(tea.id, "sale", -2_000);
+    move(rice.id, "receipt", 1_250);
+
+    const onHand = Object.fromEntries(
+      search("").items.map((item) => [item.nameEn, item.onHandMilli]),
+    );
+
+    expect(onHand).toEqual({ Rice: 1_250, Tea: 10_000, Unstocked: 0 });
+    expect(search("").total).toBe(3);
+  });
+
   it("treats a whitespace query as empty", () => {
     addProduct({ nameEn: "Banana" });
     addProduct({ nameEn: "Apple" });
@@ -374,6 +410,12 @@ describe("searchProducts benchmark", () => {
     });
     seedStoreAndTerminal(database);
     storeId = database.db.select().from(stores).get()!.id;
+    const terminalId = database.db.select().from(terminals).get()!.id;
+    const actorId = database.db
+      .insert(users)
+      .values({ username: "owner", displayName: "Owner", passwordHash: "x", pinHash: "x" })
+      .returning()
+      .get().id;
     const generalId = database.db.select().from(categories).get()!.id;
     const taxCategoryId = database.db.select().from(taxCategories).get()!.id;
     categoryIds = [generalId];
@@ -390,6 +432,10 @@ describe("searchProducts benchmark", () => {
     const insertBarcode = database.sqlite.prepare(
       `INSERT INTO product_barcodes (id, store_id, product_id, barcode, pack_qty_milli, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const insertMovement = database.sqlite.prepare(
+      `INSERT INTO stock_movements (id, store_id, terminal_id, product_id, type, qty_milli, unit_cost_paisa, actor_user_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, 100, ?, ?)`,
     );
     const now = Date.now();
     database.sqlite.transaction(() => {
@@ -415,6 +461,17 @@ describe("searchProducts benchmark", () => {
           now,
           now,
         );
+        insertMovement.run(
+          uuidv7(),
+          storeId,
+          terminalId,
+          productId,
+          "receipt",
+          10_000,
+          actorId,
+          now,
+        );
+        insertMovement.run(uuidv7(), storeId, terminalId, productId, "sale", -2_000, actorId, now);
         if (i % 10 === 0) {
           insertBarcode.run(uuidv7(), storeId, productId, packBarcodeOf(i), 12000, now - 1, now);
         }
@@ -467,6 +524,11 @@ describe("searchProducts benchmark", () => {
       offset: 0,
     });
     expect(byBarcode.items[0]?.id).toBe(barcodeProductId);
+  });
+
+  it("returns stock on hand for every result", () => {
+    const tea = searchProducts(database, storeId, { query: "tea", limit: 50, offset: 0 });
+    for (const item of tea.items) expect(item.onHandMilli).toBe(8_000);
   });
 
   it("returns barcode summaries", () => {
