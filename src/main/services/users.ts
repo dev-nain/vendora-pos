@@ -13,7 +13,6 @@ import {
   type UserActionResult,
   type userIdInputSchema,
 } from "../../shared/users";
-import type { ApprovalStore } from "../auth/approvals";
 import { hashCredential } from "../auth/credentials";
 import { requireSessionPermission } from "../auth/guard";
 import { pinLockStatus, recordPinSuccess } from "../auth/pin-lockout";
@@ -33,7 +32,6 @@ interface UsersDeps {
   database: VendoraDatabase;
   audit: ReturnType<typeof createAuditService>;
   sessions: SessionStore;
-  approvals: ApprovalStore;
   now?: () => Date;
 }
 
@@ -63,7 +61,6 @@ export function createUsersService({
   database,
   audit,
   sessions,
-  approvals,
   now = () => new Date(),
 }: UsersDeps) {
   const { db } = database;
@@ -78,7 +75,6 @@ export function createUsersService({
   });
 
   function endSession(): void {
-    approvals.clear();
     sessions.end();
   }
 

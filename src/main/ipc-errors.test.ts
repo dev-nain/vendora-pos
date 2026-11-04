@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ipcErrorMessages } from "../shared/ipc";
-import {
-  ApprovalError,
-  ForbiddenError,
-  SessionLockedError,
-  UnauthenticatedError,
-} from "./auth/errors";
+import { ForbiddenError, SessionLockedError, UnauthenticatedError } from "./auth/errors";
 import { toIpcError } from "./ipc-errors";
 
 describe("toIpcError", () => {
@@ -30,13 +25,6 @@ describe("toIpcError", () => {
 
     expect((mapped as Error).message).toBe(ipcErrorMessages.locked);
     expect(mapped).not.toBeInstanceOf(SessionLockedError);
-  });
-
-  it("maps ApprovalError to the safe message", () => {
-    const mapped = toIpcError(new ApprovalError());
-
-    expect((mapped as Error).message).toBe(ipcErrorMessages.approvalInvalid);
-    expect(mapped).not.toBeInstanceOf(ApprovalError);
   });
 
   it("passes other errors through unchanged", () => {

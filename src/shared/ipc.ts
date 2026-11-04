@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type {
-  ApprovalResult,
   AuthResult,
   CreateOwnerInput,
   CreateOwnerResult,
@@ -13,7 +12,6 @@ import type {
   DeleteCategoryResult,
   RenameCategoryResult,
 } from "./categories";
-import type { GatedAction } from "./gated-actions";
 import type {
   AutoLockSetting,
   MiscItemSetting,
@@ -62,7 +60,6 @@ export const ipcChannels = {
   appGetInfo: "app:get-info",
   authLogin: "auth:login",
   authSwitchByPin: "auth:switch-by-pin",
-  authApprove: "auth:approve",
   authLogout: "auth:logout",
   authLock: "auth:lock",
   authLocked: "auth:locked",
@@ -108,7 +105,6 @@ export const ipcErrorMessages = {
   unauthenticated: "Log in to continue.",
   locked: "Vendora is locked. Unlock to continue.",
   forbidden: "You don't have permission to do this. Ask the owner or a manager.",
-  approvalInvalid: "Approval expired or was already used. Ask for approval again.",
 } as const;
 
 export interface VendoraApi {
@@ -118,7 +114,6 @@ export interface VendoraApi {
   auth: {
     login: (username: string, password: string) => Promise<AuthResult>;
     switchByPin: (userId: string, pin: string) => Promise<AuthResult>;
-    approve: (action: GatedAction, approverUserId: string, pin: string) => Promise<ApprovalResult>;
     logout: () => Promise<void>;
     lock: () => Promise<void>;
     onLocked: (listener: () => void) => () => void;

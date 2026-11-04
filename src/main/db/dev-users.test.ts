@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { passwordSchema, pinSchema } from "../../shared/credentials";
-import { createApprovalStore } from "../auth/approvals";
 import { createSessionStore } from "../auth/session";
 import { createAuditService } from "../services/audit";
 import { createAuthService } from "../services/auth";
@@ -32,7 +31,6 @@ describe("seedDevUsers", () => {
       database,
       audit: createAuditService(database),
       sessions,
-      approvals: createApprovalStore({ sessions }),
     });
   });
 

@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { authMessages } from "../../shared/auth";
 import { userMessages } from "../../shared/users";
-import { createApprovalStore } from "../auth/approvals";
 import { hashCredential, verifyCredential } from "../auth/credentials";
 import { ForbiddenError, UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
@@ -86,9 +85,8 @@ describe("createUsersService", () => {
     sessions = createSessionStore();
     clock = t0;
     const audit = createAuditService(database);
-    const approvals = createApprovalStore({ sessions, now: () => clock });
-    auth = createAuthService({ database, audit, sessions, approvals, now: () => clock });
-    service = createUsersService({ database, audit, sessions, approvals, now: () => clock });
+    auth = createAuthService({ database, audit, sessions, now: () => clock });
+    service = createUsersService({ database, audit, sessions, now: () => clock });
   });
 
   afterEach(() => {

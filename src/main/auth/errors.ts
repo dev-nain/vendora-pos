@@ -12,15 +12,6 @@ export class ForbiddenError extends Error {
   }
 }
 
-export class ApprovalError extends Error {
-  readonly code = "approval-invalid";
-
-  constructor() {
-    super("Approval invalid");
-    this.name = "ApprovalError";
-  }
-}
-
 export class UnauthenticatedError extends Error {
   readonly code = "unauthenticated";
 

@@ -1,7 +1,6 @@
 import { Activity, useCallback, useEffect, useRef, useState } from "react";
 
 import type { SafeUser } from "@shared/auth";
-import { ApprovalProvider } from "./auth/approval-provider";
 import { AppShell } from "./shell/app-shell";
 import { CreateOwnerScreen } from "./auth/create-owner-screen";
 import { LockScreen } from "./auth/lock-screen";
@@ -91,9 +90,7 @@ export function App() {
       return (
         <>
           <Activity mode={view.overlay ? "hidden" : "visible"}>
-            <ApprovalProvider key={view.user.id} user={view.user} onUnauthenticated={toLogin}>
-              <AppShell user={view.user} onLock={lock} onLoggedOut={toLogin} />
-            </ApprovalProvider>
+            <AppShell key={view.user.id} user={view.user} onLock={lock} onLoggedOut={toLogin} />
           </Activity>
           {view.overlay === "locked" ? (
             <LockScreen

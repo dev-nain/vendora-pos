@@ -10,7 +10,6 @@ import * as auditModule from "./audit";
 import { auditActions, auditRecordInputSchema, createAuditService } from "./audit";
 
 const actor = "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
-const approver = "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c";
 
 const newUser = (username: string, role: "owner" | "manager") => ({
   username,
@@ -66,13 +65,20 @@ describe("createAuditService", () => {
     expect(Math.abs((row?.createdAt.getTime() ?? 0) - Date.now())).toBeLessThan(5000);
   });
 
-  it("stores the approver", () => {
-    audit.record({ action: "override", actorUserId: ownerId, approverUserId: managerId });
-    expect(rows()[0]?.approverUserId).toBe(managerId);
-  });
-
   it("writes nothing for invalid input", () => {
-    expect(() => audit.record({ action: "override", actorUserId: ownerId })).toThrow();
+    expect(() =>
+      audit.record({
+        action: "override",
+        actorUserId: ownerId,
+      } as unknown as auditModule.AuditRecordInput),
+    ).toThrow();
+    expect(() =>
+      audit.record({
+        action: "login",
+        actorUserId: ownerId,
+        approverUserId: managerId,
+      } as unknown as auditModule.AuditRecordInput),
+    ).toThrow();
     expect(() =>
       audit.record({ action: "login", actorUserId: ownerId, details: { pin: "1" } }),
     ).toThrow();
@@ -107,7 +113,6 @@ describe("createAuditService", () => {
     expect(second?.details).toBeNull();
     expect(second?.entityType).toBeNull();
     expect(second?.entityId).toBeNull();
-    expect(second?.approverUserId).toBeNull();
   });
 
   it("leaves no row when the transaction rolls back", () => {
@@ -138,13 +143,12 @@ describe("createAuditService", () => {
 describe("auditRecordInputSchema", () => {
   it("accepts each Core action", () => {
     for (const action of auditActions) {
-      const input =
-        action === "override"
-          ? { action, actorUserId: actor, approverUserId: approver }
-          : { action, actorUserId: actor };
-      expect(auditRecordInputSchema.safeParse(input).success).toBe(true);
+      expect(auditRecordInputSchema.safeParse({ action, actorUserId: actor }).success).toBe(true);
     }
-    expect(auditActions).toHaveLength(19);
+    expect(auditActions).toHaveLength(18);
+    expect(
+      auditRecordInputSchema.safeParse({ action: "override", actorUserId: actor }).success,
+    ).toBe(false);
   });
 
   it("rejects an unknown action", () => {
@@ -153,9 +157,13 @@ describe("auditRecordInputSchema", () => {
     );
   });
 
-  it("rejects an override without an approver", () => {
+  it("rejects an approver id", () => {
     expect(
-      auditRecordInputSchema.safeParse({ action: "override", actorUserId: actor }).success,
+      auditRecordInputSchema.safeParse({
+        action: "login",
+        actorUserId: actor,
+        approverUserId: actor,
+      }).success,
     ).toBe(false);
   });
 
