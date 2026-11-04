@@ -67,6 +67,11 @@ describe("createStockService", () => {
     expect(movementRows()).toEqual([]);
   };
 
+  const setOnHand = (onHandMilli: number, id = productId) =>
+    database.db.transaction((tx) =>
+      service.setOnHand(tx, { productId: id, onHandMilli, actorUserId: actorId }),
+    );
+
   const costOf = (id = productId) =>
     database.db.select().from(products).where(eq(products.id, id)).get()!.costPaisa;
   const movementRows = () => database.db.select().from(stockMovements).all();
@@ -380,9 +385,77 @@ describe("createStockService", () => {
     });
   });
 
+  describe("setOnHand", () => {
+    it("records opening stock for a product with no movements", () => {
+      const result = setOnHand(12000);
+      expect(result.onHandMilli).toBe(12000);
+      expect(result.movement).toMatchObject({ type: "opening", qtyMilli: 12000, reason: null });
+      expect(costOf()).toBe(10000);
+      expect(service.onHand(productId)).toBe(12000);
+      expect(auditRows()).toHaveLength(1);
+      expect(auditRows()[0]).toMatchObject({
+        actorUserId: actorId,
+        details: { type: "opening", onHandBeforeMilli: 0, onHandAfterMilli: 12000 },
+      });
+    });
+
+    it("records a negative opening", () => {
+      const result = setOnHand(-2000);
+      expect(result.movement).toMatchObject({ type: "opening", qtyMilli: -2000 });
+      expect(service.onHand(productId)).toBe(-2000);
+    });
+
+    it("records a correction adjustment on a product with movements", () => {
+      record({ type: "receipt", qtyMilli: 10000, unitCostPaisa: 10000 });
+      record({ type: "sale", qtyMilli: -3000 });
+      record({ type: "return", qtyMilli: 1000 });
+      record({ type: "damage", qtyMilli: -500, reason: "damage" });
+      record({ type: "stocktake", qtyMilli: -250 });
+
+      const result = setOnHand(5000);
+      expect(result.movement).toMatchObject({
+        type: "adjustment",
+        qtyMilli: -2250,
+        reason: "correction",
+      });
+      expect(service.onHand(productId)).toBe(5000);
+      expect(auditRows()).toHaveLength(1);
+      expect(auditRows()[0]).toMatchObject({
+        actorUserId: actorId,
+        details: { onHandBeforeMilli: 7250, onHandAfterMilli: 5000 },
+      });
+    });
+
+    it("uses an adjustment when movements net to zero", () => {
+      record({ type: "return", qtyMilli: 1000 });
+      record({ type: "sale", qtyMilli: -1000 });
+      expect(setOnHand(500).movement).toMatchObject({ type: "adjustment", qtyMilli: 500 });
+    });
+
+    it("writes nothing when the target equals on-hand", () => {
+      record({ type: "return", qtyMilli: 1000 });
+      expect(setOnHand(1000)).toEqual({ movement: null, onHandMilli: 1000 });
+      expect(movementRows()).toHaveLength(1);
+      expect(auditRows()).toEqual([]);
+      expect(setOnHand(0, addProduct().id)).toMatchObject({ movement: null });
+    });
+
+    it("refuses a fractional target and an unknown product", () => {
+      expect(() => setOnHand(1.5)).toThrow();
+      expect(() => setOnHand(1000, uuidv7())).toThrow("Product not found");
+      expect(movementRows()).toEqual([]);
+    });
+  });
+
   describe("append-only", () => {
     it("exposes no update or delete path", () => {
-      expect(Object.keys(service)).toEqual(["record", "onHand", "onHandMany", "history"]);
+      expect(Object.keys(service)).toEqual([
+        "record",
+        "setOnHand",
+        "onHand",
+        "onHandMany",
+        "history",
+      ]);
       for (const name of Object.keys(stockModule)) {
         expect(name).not.toMatch(/update|delete|remove/i);
       }

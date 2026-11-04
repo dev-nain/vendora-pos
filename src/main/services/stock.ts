@@ -64,6 +64,13 @@ export const recordMovementInputSchema = z
   });
 export type RecordMovementInput = z.input<typeof recordMovementInputSchema>;
 
+export const setOnHandInputSchema = z.strictObject({
+  productId: z.uuid(),
+  onHandMilli: z.int(),
+  actorUserId: z.uuid(),
+});
+export type SetOnHandInput = z.input<typeof setOnHandInputSchema>;
+
 export const stockHistoryInputSchema = z.strictObject({
   productId: z.uuid(),
   limit: z.int().min(1).max(200).default(50),
@@ -202,6 +209,31 @@ export function createStockService({ database, audit, now = () => new Date() }: 
   return {
     record(tx: Tx, input: RecordMovementInput): StockMovement {
       return insertMovement(tx, recordMovementInputSchema.parse(input));
+    },
+
+    setOnHand(
+      tx: Tx,
+      input: SetOnHandInput,
+    ): { movement: StockMovement | null; onHandMilli: number } {
+      const { productId, onHandMilli, actorUserId } = setOnHandInputSchema.parse(input);
+      const current = onHandOf(tx, productId);
+      const diff = onHandMilli - current;
+      if (diff === 0) return { movement: null, onHandMilli: current };
+
+      const hasMovements =
+        tx
+          .select({ id: stockMovements.id })
+          .from(stockMovements)
+          .where(eq(stockMovements.productId, productId))
+          .limit(1)
+          .get() !== undefined;
+      const movement = insertMovement(
+        tx,
+        hasMovements
+          ? { productId, type: "adjustment", qtyMilli: diff, reason: "correction", actorUserId }
+          : { productId, type: "opening", qtyMilli: diff, actorUserId },
+      );
+      return { movement, onHandMilli };
     },
 
     onHand(productId: string, executor: Executor = database.db): number {
