@@ -22,6 +22,8 @@ export const auditActions = [
   "product_archive",
   "product_restore",
   "product_delete",
+  "shift_open",
+  "cash_move_delete",
 ] as const;
 export type AuditAction = (typeof auditActions)[number];
 
