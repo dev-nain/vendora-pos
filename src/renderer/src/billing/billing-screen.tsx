@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -21,28 +22,36 @@ import { isTypingTarget } from "../products/product-list";
 import type { Hint } from "../shell/hint-bar";
 import { BillActions } from "./bill-actions";
 import { isWeighedLine } from "./bill-format";
+import { BillDiscountDialog } from "./bill-discount-dialog";
 import { BillLines, type LineEditing } from "./bill-lines";
 import { BillTotals } from "./bill-totals";
 import { discountInputText, parseDiscountInput, toggleDiscountKind } from "./discount-input";
+import { MiscItemDialog } from "./misc-item-dialog";
 import { moveSelection, selectAfter, selectAfterDelete } from "./line-selection";
 import { backspace, freshField, typeKey, type NumpadMode } from "./numpad-entry";
 import { Numpad } from "./numpad";
 import { ProductGrid, type ProductGridHandle } from "./product-grid";
+import { QuantityConfirmDialog } from "./quantity-confirm-dialog";
+import { quantityGuardMessage } from "./quantity-guard";
+import { createBurstDetector } from "./scan-burst";
 import { notFoundMessage } from "./scan-input";
 import { createScanQueue, type ScanOutcome, type ScanQueue } from "./scan-queue";
 import { ScanField, useDebouncedValue } from "./scan-field";
 import { playScanError, playScanOk } from "./scan-sounds";
+import { WeightDialog, type WeighedProduct } from "./weight-dialog";
 
 const SEARCH_DEBOUNCE_MS = 150;
 const NOTICE_MS = 4000;
 
-const idleHints: Hint[] = [
+const idleHints = (miscEnabled: boolean): Hint[] => [
   ["F2", "Search"],
   ["F3", "Qty"],
   ["F4", "Discount"],
+  ["Shift+F4", "Bill discount"],
   ["F5", "Price"],
   ["F12", "Pay"],
   ["Del", "Delete line"],
+  ...(miscEnabled ? ([["Ctrl+M", "Misc item"]] as Hint[]) : []),
   ["Ctrl+L", "Switch user"],
 ];
 
@@ -66,6 +75,17 @@ interface View {
 
 type Editing = { mode: NumpadMode } & Omit<LineEditing, "mode">;
 
+type Prompt =
+  | { kind: "weight"; product: WeighedProduct; initialText: string; fromScan: boolean }
+  | { kind: "confirm-qty"; message: string; onConfirm: () => void; onCancel: () => void }
+  | { kind: "bill-discount" }
+  | { kind: "misc" };
+
+function restoreField(field: HTMLInputElement, value: string) {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(field, value);
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 interface BillingScreenProps {
   active: boolean;
   onSessionEnded: () => void;
@@ -82,6 +102,8 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
   const [searchText, setSearchText] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [hasResults, setHasResults] = useState(false);
+  const [prompt, setPrompt] = useState<Prompt | null>(null);
+  const [miscEnabled, setMiscEnabled] = useState(false);
   const query = useDebouncedValue(searchText, SEARCH_DEBOUNCE_MS);
 
   const scanRef = useRef<HTMLInputElement | null>(null);
@@ -148,6 +170,13 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
   }, [fail]);
 
   useEffect(() => {
+    window.vendora.settings
+      .getMiscItemEnabled()
+      .then(({ enabled }) => setMiscEnabled(enabled))
+      .catch(fail);
+  }, [fail]);
+
+  useEffect(() => {
     queue.current = createScanQueue((code) => processScan.current(code));
   }, []);
 
@@ -159,6 +188,14 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
         if (result.ok) {
           applyBill(result.bill);
           playScanOk();
+        } else if (result.reason === "needs-weight" && result.product.unit !== "piece") {
+          setPrompt({
+            kind: "weight",
+            product: { ...result.product, unit: result.product.unit },
+            initialText: "",
+            fromScan: true,
+          });
+          return "pause";
         } else if (result.reason === "product-not-found") {
           showNotice(notFoundMessage(code));
           playScanError();
@@ -173,8 +210,28 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
     };
   }, [applyBill, clearNotice, showNotice, fail]);
 
+  const closePrompt = useCallback(() => {
+    setPrompt(null);
+    focusScan();
+  }, [focusScan]);
+
   const addFromGrid = useCallback(
     (item: ProductSearchItem) => {
+      if (item.unit !== "piece") {
+        setPrompt({
+          kind: "weight",
+          product: {
+            id: item.id,
+            name: item.nameEn,
+            nameUr: item.nameUr,
+            unit: item.unit,
+            unitPricePaisa: item.salePricePaisa,
+          },
+          initialText: "",
+          fromScan: false,
+        });
+        return;
+      }
       window.vendora.checkout
         .addProduct({ productId: item.id })
         .then((result) => {
@@ -185,6 +242,49 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
     },
     [applyResult, fail, focusScan],
   );
+
+  const addWeighed = useCallback(
+    async (product: WeighedProduct, qtyMilli: number, fromScan: boolean) => {
+      try {
+        const result = await window.vendora.checkout.addProduct({
+          productId: product.id,
+          qtyMilli,
+        });
+        if (applyResult(result) && fromScan) playScanOk();
+        else if (!result.ok && fromScan) playScanError();
+      } catch (cause) {
+        fail(cause);
+      }
+      closePrompt();
+    },
+    [applyResult, closePrompt, fail],
+  );
+
+  const submitWeight = (product: WeighedProduct, qtyMilli: number, fromScan: boolean) => {
+    const message = quantityGuardMessage({
+      name: product.name,
+      unit: product.unit,
+      packQtyMilli: 1000,
+      qtyMilli,
+      unitPricePaisa: product.unitPricePaisa,
+    });
+    if (message === null) {
+      void addWeighed(product, qtyMilli, fromScan);
+      return;
+    }
+    setPrompt({
+      kind: "confirm-qty",
+      message,
+      onConfirm: () => void addWeighed(product, qtyMilli, fromScan),
+      onCancel: () =>
+        setPrompt({
+          kind: "weight",
+          product,
+          initialText: quantityInputText(qtyMilli, product.unit),
+          fromScan,
+        }),
+    });
+  };
 
   const closeEditing = useCallback(() => {
     setEditing(null);
@@ -238,8 +338,29 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
     }
   }, [view, selectedLine, focusScan, showNotice, fail]);
 
-  const commit = useCallback(async () => {
-    if (!editing || !selectedLine || committing.current) return;
+  const submitChange = useCallback(
+    async (lineId: string, change: Omit<UpdateLineInput, "lineId">) => {
+      if (committing.current) return;
+      committing.current = true;
+      try {
+        const result = await window.vendora.checkout.updateLine({ lineId, ...change });
+        if (result.ok) {
+          applyBill(result.bill);
+          closeEditing();
+        } else {
+          setEditing((current) => current && { ...current, error: result.message });
+        }
+      } catch (cause) {
+        fail(cause);
+      } finally {
+        committing.current = false;
+      }
+    },
+    [applyBill, closeEditing, fail],
+  );
+
+  const commit = useCallback(() => {
+    if (!editing || !selectedLine) return;
     const line = selectedLine;
     const reject = (error: string) => setEditing((current) => current && { ...current, error });
     let change: Omit<UpdateLineInput, "lineId">;
@@ -250,6 +371,25 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
         return;
       }
       change = { qtyMilli: parsed.milli };
+      const message = quantityGuardMessage({
+        name: line.name,
+        unit: line.unit,
+        packQtyMilli: line.packQtyMilli,
+        qtyMilli: parsed.milli,
+        unitPricePaisa: line.unitPricePaisa,
+      });
+      if (message !== null) {
+        setPrompt({
+          kind: "confirm-qty",
+          message,
+          onConfirm: () => {
+            setPrompt(null);
+            void submitChange(line.id, change);
+          },
+          onCancel: () => setPrompt(null),
+        });
+        return;
+      }
     } else if (editing.mode === "price") {
       const parsed = parseRupees(editing.field.text);
       if (!parsed.ok) {
@@ -265,22 +405,8 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
       }
       change = { discount: parsed.discount };
     }
-
-    committing.current = true;
-    try {
-      const result = await window.vendora.checkout.updateLine({ lineId: line.id, ...change });
-      if (result.ok) {
-        applyBill(result.bill);
-        closeEditing();
-      } else {
-        reject(result.message);
-      }
-    } catch (cause) {
-      fail(cause);
-    } finally {
-      committing.current = false;
-    }
-  }, [editing, selectedLine, applyBill, closeEditing, fail]);
+    void submitChange(line.id, change);
+  }, [editing, selectedLine, submitChange]);
 
   const pressBackspace = useCallback(() => {
     if (!editing) return;
@@ -293,7 +419,7 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
     if (!editing) return;
     if (event.key === "Enter") {
       event.preventDefault();
-      void commit();
+      commit();
     } else if (event.key === "Escape") {
       event.preventDefault();
       closeEditing();
@@ -324,6 +450,18 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
     setView((prev) => ({ ...prev, selectedId: lineId }));
   };
 
+  const openBillDiscount = () => {
+    if (!view.bill || view.bill.lines.length === 0) return;
+    setEditing(null);
+    setPrompt({ kind: "bill-discount" });
+  };
+
+  const openMisc = () => {
+    if (!miscEnabled) return;
+    setEditing(null);
+    setPrompt({ kind: "misc" });
+  };
+
   const moveLine = (step: 1 | -1) =>
     setView((prev) => ({
       ...prev,
@@ -332,7 +470,7 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
 
   useEffect(() => {
     keyHandler.current = (event) => {
-      if (event.defaultPrevented) return;
+      if (event.defaultPrevented || prompt !== null) return;
       const target = event.target as HTMLElement | null;
       const inScanField = target?.id === "scan-field";
       const plainTarget = !isTypingTarget(target) || (inScanField && searchText === "");
@@ -346,11 +484,19 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
       } else if (event.key === "F3") {
         event.preventDefault();
         openEditing("qty");
-      } else if (event.key === "F4" && !event.shiftKey) {
+      } else if (event.key === "F4" && event.shiftKey) {
+        event.preventDefault();
+        openBillDiscount();
+      } else if (event.key === "F4") {
         event.preventDefault();
         openEditing("discount");
       } else if (event.key === "F5") {
         openEditing("price");
+      }
+      if (event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === "m") {
+        event.preventDefault();
+        openMisc();
+        return;
       }
       if (event.ctrlKey || event.altKey || event.metaKey || editing) return;
 
@@ -377,11 +523,40 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
     return () => window.removeEventListener("keydown", listener);
   }, [active]);
 
+  const promptOpen = prompt !== null;
+  const editingOpen = editing !== null;
+
+  useEffect(() => {
+    if (promptOpen || editingOpen) queue.current?.pause();
+    else queue.current?.resume();
+  }, [promptOpen, editingOpen]);
+
+  useEffect(() => {
+    if (!active || (!promptOpen && !editingOpen)) return;
+    const detector = createBurstDetector();
+    let snapshot: { field: HTMLInputElement; value: string } | null = null;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const result = detector.feed(event.key, event.timeStamp);
+      const field = document.activeElement;
+      if (result.startedBurst && field instanceof HTMLInputElement) {
+        snapshot = { field, value: field.value };
+      }
+      if (result.scan === null) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (snapshot) restoreField(snapshot.field, snapshot.value);
+      queue.current?.enqueue(result.scan);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [active, promptOpen, editingOpen]);
+
+  const idle = useMemo(() => idleHints(miscEnabled), [miscEnabled]);
   const hints = editing
     ? editing.mode === "discount"
       ? discountEditingHints
       : editingHints
-    : idleHints;
+    : idle;
 
   useEffect(() => {
     onHintsChange(hints);
@@ -411,11 +586,16 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
             disabled={selectedLine === null}
             onKey={pressKey}
             onBackspace={pressBackspace}
-            onEnter={() => void commit()}
+            onEnter={commit}
             onMode={(mode) => openEditing(mode)}
           />
           <div className="min-w-0 flex-1">
-            <BillActions />
+            <BillActions
+              hasLines={lines.length > 0}
+              miscEnabled={miscEnabled}
+              onBillDiscount={openBillDiscount}
+              onMisc={openMisc}
+            />
           </div>
         </div>
       </section>
@@ -439,6 +619,45 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
           onSessionEnded={onSessionEnded}
         />
       </section>
+      {prompt?.kind === "weight" ? (
+        <WeightDialog
+          product={prompt.product}
+          initialText={prompt.initialText}
+          returnFocus={scanRef}
+          onSubmit={(qtyMilli) => submitWeight(prompt.product, qtyMilli, prompt.fromScan)}
+          onCancel={closePrompt}
+        />
+      ) : null}
+      {prompt?.kind === "confirm-qty" ? (
+        <QuantityConfirmDialog
+          message={prompt.message}
+          onConfirm={prompt.onConfirm}
+          onCancel={prompt.onCancel}
+        />
+      ) : null}
+      {prompt?.kind === "bill-discount" && view.bill ? (
+        <BillDiscountDialog
+          bill={view.bill}
+          returnFocus={scanRef}
+          onApplied={(bill) => {
+            applyBill(bill);
+            closePrompt();
+          }}
+          onCancel={closePrompt}
+          onSessionEnded={onSessionEnded}
+        />
+      ) : null}
+      {prompt?.kind === "misc" ? (
+        <MiscItemDialog
+          returnFocus={scanRef}
+          onAdded={(bill) => {
+            applyBill(bill);
+            closePrompt();
+          }}
+          onCancel={closePrompt}
+          onSessionEnded={onSessionEnded}
+        />
+      ) : null}
     </div>
   );
 }
