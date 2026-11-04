@@ -15,6 +15,7 @@ import {
   type UpdateLineInput,
 } from "@shared/checkout";
 import type { ProductSearchItem } from "@shared/products";
+import type { HeldBillSummary } from "@shared/shifts";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { parseRupees, rupeeInputText } from "../lib/money";
 import { parseQuantityMilli, quantityInputText } from "../lib/quantity";
@@ -25,6 +26,8 @@ import { isWeighedLine } from "./bill-format";
 import { BillDiscountDialog } from "./bill-discount-dialog";
 import { BillLines, type LineEditing } from "./bill-lines";
 import { BillTotals } from "./bill-totals";
+import { DiscardBillDialog } from "./discard-bill-dialog";
+import { HeldBillsDialog } from "./held-bills-dialog";
 import { discountInputText, parseDiscountInput, toggleDiscountKind } from "./discount-input";
 import { MiscItemDialog } from "./misc-item-dialog";
 import { moveSelection, selectAfter, selectAfterDelete } from "./line-selection";
@@ -49,8 +52,11 @@ const idleHints = (miscEnabled: boolean): Hint[] => [
   ["F4", "Discount"],
   ["Shift+F4", "Bill discount"],
   ["F5", "Price"],
+  ["F10", "Hold"],
+  ["F11", "Held bills"],
   ["F12", "Pay"],
   ["Del", "Delete line"],
+  ["Ctrl+Del", "Discard"],
   ...(miscEnabled ? ([["Ctrl+M", "Misc item"]] as Hint[]) : []),
   ["Ctrl+L", "Switch user"],
 ];
@@ -79,7 +85,10 @@ type Prompt =
   | { kind: "weight"; product: WeighedProduct; initialText: string; fromScan: boolean }
   | { kind: "confirm-qty"; message: string; onConfirm: () => void; onCancel: () => void }
   | { kind: "bill-discount" }
-  | { kind: "misc" };
+  | { kind: "misc" }
+  | { kind: "held" }
+  | { kind: "discard-bill" }
+  | { kind: "discard-held"; bill: HeldBillSummary };
 
 function restoreField(field: HTMLInputElement, value: string) {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(field, value);
@@ -104,6 +113,7 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
   const [hasResults, setHasResults] = useState(false);
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [miscEnabled, setMiscEnabled] = useState(false);
+  const [heldCount, setHeldCount] = useState(0);
   const query = useDebouncedValue(searchText, SEARCH_DEBOUNCE_MS);
 
   const scanRef = useRef<HTMLInputElement | null>(null);
@@ -168,6 +178,15 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
       .then(({ bill }) => setView({ bill, selectedId: bill?.lines.at(-1)?.id ?? null }))
       .catch(fail);
   }, [fail]);
+
+  const refreshHeld = useCallback(() => {
+    window.vendora.checkout
+      .listHeld()
+      .then((bills) => setHeldCount(bills.length))
+      .catch(fail);
+  }, [fail]);
+
+  useEffect(refreshHeld, [refreshHeld]);
 
   useEffect(() => {
     window.vendora.settings
@@ -450,6 +469,35 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
     setView((prev) => ({ ...prev, selectedId: lineId }));
   };
 
+  const holdBill = async () => {
+    const { bill } = view;
+    if (!bill || bill.lines.length === 0) return;
+    try {
+      const result = await window.vendora.checkout.hold({ draftId: bill.id });
+      if (result.ok) {
+        setView({ bill: null, selectedId: null });
+        setEditing(null);
+        refreshHeld();
+      } else {
+        showNotice(result.message);
+      }
+    } catch (cause) {
+      fail(cause);
+    }
+    focusScan();
+  };
+
+  const openHeld = () => {
+    setEditing(null);
+    setPrompt({ kind: "held" });
+  };
+
+  const openDiscard = () => {
+    if (!view.bill || view.bill.lines.length === 0) return;
+    setEditing(null);
+    setPrompt({ kind: "discard-bill" });
+  };
+
   const openBillDiscount = () => {
     if (!view.bill || view.bill.lines.length === 0) return;
     setEditing(null);
@@ -490,8 +538,17 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
       } else if (event.key === "F4") {
         event.preventDefault();
         openEditing("discount");
+      } else if (event.key === "F10") {
+        void holdBill();
+      } else if (event.key === "F11") {
+        openHeld();
       } else if (event.key === "F5") {
         openEditing("price");
+      }
+      if (event.ctrlKey && !event.altKey && !event.metaKey && event.key === "Delete") {
+        event.preventDefault();
+        openDiscard();
+        return;
       }
       if (event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === "m") {
         event.preventDefault();
@@ -593,8 +650,12 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
             <BillActions
               hasLines={lines.length > 0}
               miscEnabled={miscEnabled}
+              heldCount={heldCount}
               onBillDiscount={openBillDiscount}
+              onHold={() => void holdBill()}
+              onHeldBills={openHeld}
               onMisc={openMisc}
+              onDiscard={openDiscard}
             />
           </div>
         </div>
@@ -644,6 +705,47 @@ export function BillingScreen({ active, onSessionEnded, onHintsChange }: Billing
             closePrompt();
           }}
           onCancel={closePrompt}
+          onSessionEnded={onSessionEnded}
+        />
+      ) : null}
+      {prompt?.kind === "held" ? (
+        <HeldBillsDialog
+          returnFocus={scanRef}
+          onResumed={(bill) => {
+            setView({ bill, selectedId: bill.lines.at(-1)?.id ?? null });
+            refreshHeld();
+            closePrompt();
+          }}
+          onDiscard={(bill) => setPrompt({ kind: "discard-held", bill })}
+          onClose={closePrompt}
+          onSessionEnded={onSessionEnded}
+        />
+      ) : null}
+      {prompt?.kind === "discard-bill" && view.bill ? (
+        <DiscardBillDialog
+          draftId={view.bill.id}
+          totalPaisa={view.bill.totals.totalPaisa}
+          held={false}
+          returnFocus={scanRef}
+          onDiscarded={() => {
+            setView({ bill: null, selectedId: null });
+            closePrompt();
+          }}
+          onCancel={closePrompt}
+          onSessionEnded={onSessionEnded}
+        />
+      ) : null}
+      {prompt?.kind === "discard-held" ? (
+        <DiscardBillDialog
+          draftId={prompt.bill.id}
+          totalPaisa={prompt.bill.totalPaisa}
+          held
+          returnFocus={scanRef}
+          onDiscarded={() => {
+            refreshHeld();
+            setPrompt({ kind: "held" });
+          }}
+          onCancel={() => setPrompt({ kind: "held" })}
           onSessionEnded={onSessionEnded}
         />
       ) : null}
