@@ -27,8 +27,22 @@ import type {
   Denomination,
   OpenShiftResult,
   ShiftReportResult,
+  HeldBillSummary,
   ShiftState,
 } from "./shifts";
+import type {
+  ActionResult,
+  AddMiscInput,
+  AddProductInput,
+  BillResult,
+  CompleteSaleInput,
+  CompleteSaleResult,
+  CurrentBill,
+  HoldInput,
+  ScanInput,
+  SetBillDiscountInput,
+  UpdateLineInput,
+} from "./checkout";
 import type {
   BarcodeLookup,
   BulkUpdateProductsInput,
@@ -114,6 +128,18 @@ export const ipcChannels = {
   shiftsReport: "shifts:report",
   shiftsListDenominations: "shifts:list-denominations",
   shiftsClose: "shifts:close",
+  checkoutCurrent: "checkout:current",
+  checkoutScan: "checkout:scan",
+  checkoutAddProduct: "checkout:add-product",
+  checkoutAddMisc: "checkout:add-misc",
+  checkoutUpdateLine: "checkout:update-line",
+  checkoutDeleteLine: "checkout:delete-line",
+  checkoutSetBillDiscount: "checkout:set-bill-discount",
+  checkoutHold: "checkout:hold",
+  checkoutResume: "checkout:resume",
+  checkoutListHeld: "checkout:list-held",
+  checkoutDiscard: "checkout:discard",
+  checkoutComplete: "checkout:complete",
 } as const;
 
 export const ipcErrorMessages = {
@@ -182,5 +208,19 @@ export interface VendoraApi {
     report: (id: string) => Promise<ShiftReportResult>;
     listDenominations: () => Promise<Denomination[]>;
     close: (input: CloseShiftInput) => Promise<CloseShiftResult>;
+  };
+  checkout: {
+    current: () => Promise<CurrentBill>;
+    scan: (input: ScanInput) => Promise<BillResult>;
+    addProduct: (input: AddProductInput) => Promise<BillResult>;
+    addMisc: (input: AddMiscInput) => Promise<BillResult>;
+    updateLine: (input: UpdateLineInput) => Promise<BillResult>;
+    deleteLine: (lineId: string) => Promise<BillResult>;
+    setBillDiscount: (input: SetBillDiscountInput) => Promise<BillResult>;
+    hold: (input: HoldInput) => Promise<ActionResult>;
+    resume: (draftId: string) => Promise<BillResult>;
+    listHeld: () => Promise<HeldBillSummary[]>;
+    discard: (draftId: string) => Promise<ActionResult>;
+    complete: (input: CompleteSaleInput) => Promise<CompleteSaleResult>;
   };
 }

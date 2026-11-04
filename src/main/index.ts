@@ -7,11 +7,14 @@ import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
 import { createAuthService } from "./services/auth";
+import { createBillDraftsService } from "./services/bill-drafts";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createCategoriesService } from "./services/categories";
+import { createSalesService } from "./services/sales";
 import { createSettingsService } from "./services/settings";
 import { createShiftsService } from "./services/shifts";
 import { createProductsService } from "./services/products";
+import { createStockService } from "./services/stock";
 import { createTaxCategoriesService } from "./services/tax-categories";
 import { createUsersService } from "./services/users";
 import { createSessionStore } from "./auth/session";
@@ -39,7 +42,15 @@ void app.whenReady().then(async () => {
   const sessions = createSessionStore();
   const auth = createAuthService({ database, audit, sessions });
   const settings = createSettingsService({ database, audit, sessions });
-  const shifts = createShiftsService({ database, audit, sessions, heldBills: () => [] });
+  const stock = createStockService({ database, audit });
+  const billDrafts = createBillDraftsService({ database, audit, sessions });
+  const sales = createSalesService({ database, audit, sessions, stock });
+  const shifts = createShiftsService({
+    database,
+    audit,
+    sessions,
+    heldBills: billDrafts.heldBillsFor,
+  });
   const users = createUsersService({ database, audit, sessions });
   const products = createProductsService({ database, audit, sessions });
   const categories = createCategoriesService({ database, audit, sessions });
@@ -62,9 +73,11 @@ void app.whenReady().then(async () => {
   });
   registerIpcHandlers({
     auth,
+    billDrafts,
     catalogExport,
     categories,
     products,
+    sales,
     settings,
     shifts,
     taxCategories,

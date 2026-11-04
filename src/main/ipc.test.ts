@@ -13,7 +13,10 @@ import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createProductsService, type ProductsService } from "./services/products";
+import { createCheckoutKit, type CheckoutKit } from "./services/checkout-test-kit";
+import { createSalesService, type SalesService } from "./services/sales";
 import { createShiftsService, type ShiftsService } from "./services/shifts";
+import { createStockService } from "./services/stock";
 
 const handlers = vi.hoisted(
   () => new Map<string, (event: unknown, ...args: unknown[]) => unknown>(),
@@ -117,9 +120,11 @@ describe("products ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      billDrafts: stub,
       catalogExport,
       categories: stub,
       products: service,
+      sales: stub,
       settings: stub,
       shifts: stub,
       taxCategories: stub,
@@ -328,9 +333,11 @@ describe("shifts ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      billDrafts: stub,
       catalogExport: stub,
       categories: stub,
       products: stub,
+      sales: stub,
       settings: stub,
       shifts: service,
       taxCategories: stub,
@@ -416,5 +423,145 @@ describe("shifts ipc", () => {
 
     expect(closed).toMatchObject({ ok: true, report: { kind: "z", variancePaisa: 0 } });
     expect(await invoke("shifts:state")).toEqual({ status: "closed", suggestedFloatPaisa: 5000 });
+  });
+});
+
+describe("checkout ipc", () => {
+  let kit: CheckoutKit;
+  let sales: SalesService;
+
+  beforeEach(() => {
+    handlers.clear();
+    kit = createCheckoutKit();
+    sales = createSalesService({
+      database: kit.database,
+      audit: kit.audit,
+      sessions: kit.sessions,
+      stock: createStockService({ database: kit.database, audit: kit.audit }),
+    });
+    const stub = {} as never;
+    registerIpcHandlers({
+      auth: stub,
+      billDrafts: kit.billDrafts,
+      catalogExport: stub,
+      categories: stub,
+      products: stub,
+      sales,
+      settings: stub,
+      shifts: kit.shifts,
+      taxCategories: stub,
+      users: stub,
+    });
+  });
+
+  afterEach(() => kit.close());
+
+  const channelsWithInput: [string, unknown][] = [
+    ["checkout:scan", { barcode: "1" }],
+    ["checkout:add-product", { productId: unknownId }],
+    ["checkout:add-misc", { name: "x", pricePaisa: 100 }],
+    ["checkout:update-line", { lineId: unknownId, qtyMilli: 1000 }],
+    ["checkout:delete-line", { lineId: unknownId }],
+    ["checkout:set-bill-discount", { draftId: unknownId, discount: null }],
+    ["checkout:hold", { draftId: unknownId }],
+    ["checkout:resume", { draftId: unknownId }],
+    ["checkout:discard", { draftId: unknownId }],
+    ["checkout:complete", { draftId: unknownId, payments: [{ method: "cash", amountPaisa: 100 }] }],
+  ];
+
+  it.each([
+    ["checkout:current", undefined],
+    ["checkout:list-held", undefined],
+    ...channelsWithInput,
+  ])("rejects %s with no session", async (channel, input) => {
+    await expect(invoke(channel, input)).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
+  });
+
+  it.each([
+    ["checkout:scan", { barcode: "" }],
+    ["checkout:scan", { barcode: "1", extra: 1 }],
+    ["checkout:add-product", { productId: "not-a-uuid" }],
+    ["checkout:add-product", { productId: unknownId, qtyMilli: 0 }],
+    ["checkout:add-misc", { name: "", pricePaisa: 100 }],
+    ["checkout:add-misc", { name: "x", pricePaisa: 1.5 }],
+    ["checkout:update-line", { lineId: unknownId }],
+    ["checkout:update-line", { lineId: unknownId, discount: { kind: "percent", bps: 10001 } }],
+    ["checkout:delete-line", { lineId: "nope" }],
+    ["checkout:set-bill-discount", { draftId: unknownId, discount: { kind: "amount" } }],
+    ["checkout:hold", { draftId: unknownId, label: "" }],
+    ["checkout:resume", { draftId: "nope" }],
+    ["checkout:discard", {}],
+    ["checkout:complete", { draftId: unknownId, payments: [{ method: "cash", amountPaisa: 1.5 }] }],
+    [
+      "checkout:complete",
+      { draftId: unknownId, payments: [{ method: "cash", amountPaisa: 100, reference: "x" }] },
+    ],
+    [
+      "checkout:complete",
+      { draftId: unknownId, payments: [{ method: "cheque", amountPaisa: 100 }] },
+    ],
+  ])("rejects invalid input on %s before the service runs", async (channel, input) => {
+    kit.signIn("cashier");
+    const spies = (Object.keys(kit.billDrafts) as (keyof typeof kit.billDrafts)[]).map((name) =>
+      vi.spyOn(kit.billDrafts, name),
+    );
+    const complete = vi.spyOn(sales, "complete");
+
+    await expect(invoke(channel, input)).rejects.toThrow();
+
+    for (const spy of [...spies, complete]) expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("builds a bill, completes it and parses every result", async () => {
+    kit.signIn("cashier");
+    kit.openShift(5000);
+    kit.setMiscEnabled(true);
+
+    const added = (await invoke("checkout:add-misc", { name: "Loose tea", pricePaisa: 45000 })) as {
+      ok: true;
+      bill: { id: string };
+    };
+    expect(added).toMatchObject({ ok: true, bill: { totals: { totalPaisa: 45000 } } });
+    expect(await invoke("checkout:current")).toMatchObject({ bill: { id: added.bill.id } });
+
+    const discounted = await invoke("checkout:set-bill-discount", {
+      draftId: added.bill.id,
+      discount: { kind: "percent", bps: 1000 },
+    });
+    expect(discounted).toMatchObject({ ok: true, bill: { totals: { totalPaisa: 40500 } } });
+
+    expect(
+      await invoke("checkout:complete", {
+        draftId: added.bill.id,
+        payments: [{ method: "cash", amountPaisa: 50000 }],
+      }),
+    ).toMatchObject({ ok: true, sale: { invoiceNo: "T1-000001", changePaisa: 9500 } });
+    expect(
+      await invoke("checkout:complete", {
+        draftId: added.bill.id,
+        payments: [{ method: "cash", amountPaisa: 50000 }],
+      }),
+    ).toMatchObject({ ok: true, sale: { replayed: true } });
+  });
+
+  it("holds a bill and lists it", async () => {
+    kit.signIn("cashier");
+    kit.openShift();
+    kit.setMiscEnabled(true);
+    const added = (await invoke("checkout:add-misc", { name: "Sugar", pricePaisa: 16000 })) as {
+      bill: { id: string };
+    };
+
+    expect(await invoke("checkout:hold", { draftId: added.bill.id, label: "Mr Khan" })).toEqual({
+      ok: true,
+    });
+    expect(await invoke("checkout:list-held")).toEqual([
+      expect.objectContaining({ label: "Mr Khan", totalPaisa: 16000 }),
+    ]);
+    expect(await invoke("shifts:state")).toMatchObject({
+      heldBills: [expect.objectContaining({ label: "Mr Khan" })],
+    });
   });
 });
