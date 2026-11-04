@@ -50,6 +50,33 @@ Electron, electron-vite, React 19, TypeScript (strict), Tailwind v4, shadcn on B
 - Tests run under Electron's Node (`ELECTRON_RUN_AS_NODE`), so `better-sqlite3` is built once for Electron.
 - Fonts (Plus Jakarta Sans, JetBrains Mono, Noto Nastaliq Urdu) are bundled; nothing loads from the network.
 
+## Billing screen
+
+This answers design challenge 1. The layout follows Odoo POS `ProductScreen`: the bill is on the left, search and products are on the right, so the cashier's eyes stay on the lines and the total while the scanner works.
+
+- **Layout.** The left 45% holds the bill lines, the totals, the numpad and the actions. The right holds one scan/search field and a product grid with category chips. The shift strip stays on top and the title bar shows the user. There is no printer indicator until printing exists.
+- **Total.** The grand total is 56 px (`--font-size-1400`) with tabular figures and is the largest text on screen.
+- **Shortcuts.** Every action shows its keycap on its button and in the hint bar. F6 to F9 keep their keycaps on the strip buttons only, because the whole set would overflow the hint bar at 1366 px.
+
+| Key            | Action                                                     |
+| -------------- | ---------------------------------------------------------- |
+| F2             | Scan or search field                                       |
+| F3 / F4 / F5   | Quantity, line discount, price of the selected line        |
+| Shift+F4       | Bill discount                                              |
+| F10 / F11      | Hold the bill and start a new one / held bills             |
+| F12            | Pay (disabled until the payment step)                      |
+| Ctrl+M         | Misc item, only when the setting is on                     |
+| Up / Down, Del | Select a line, delete the selected line without asking     |
+| Ctrl+Del       | Discard the bill after a confirmation that names the total |
+| Esc            | Cancel the current field or prompt                         |
+
+- **Number entry.** F3, F4 or F5 opens an inline field on the selected line with its text selected. Enter saves, Esc reverts, and focus returns to the scan field. The on-screen numpad edits the same field and has an Enter key so a touch-only counter can commit. In the quantity field, Backspace on an empty field sets `0`, and a second Backspace removes the line. The line discount defaults to %, and Tab switches it to Rs.
+- **Scanning.** Enter sends the field text to the barcode lookup. Scans are handled one at a time, in order, with an ok or error sound. A scan that arrives while a prompt is open is queued and never typed into the prompt: a burst of 4 or more characters with gaps of 30 ms or less followed by Enter counts as a scan. Esc on a prompt drops only that item.
+- **Interruptions.** A loose kg or litre barcode, or a kg/litre tile, opens a weight prompt with a live total. A price-embedded scale label sets its own quantity and is read-only. A pack barcode adds a pack line (`2 × Pack (24 pcs) at Rs 3,400`). An unknown barcode shows an inline message under the field, plays the error sound, clears after 4 s or on the next scan, and never blocks the next scan.
+- **Mistyped quantity.** Typed quantities of 100 or more (pieces and packs) or 25 or more (kg and litres) ask for confirmation with a message that names the total, for example `Set quantity to 100 × Lux Soap (Rs 15,000)?`. Scan increments never ask, so a normal sale is not slowed.
+- **Held bills.** F10 holds the bill and starts a new one. F11 lists held-at, cashier, item count, total and the first item names. Enter resumes, and resuming holds the current bill. The last open bill and every held bill come back after a restart. Bills have no names. Discarding from the list asks first and is audited.
+- **Payment.** Payment is a separate step (VEN-38). Pay is visible and disabled here.
+
 ## Not included yet
 
 Code signing, auto-update, and product tables. Each arrives with its own change.
