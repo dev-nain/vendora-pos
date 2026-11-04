@@ -25,6 +25,7 @@ export const stores = sqliteTable(
     scaleWeightPrefix: text("scale_weight_prefix").notNull().default("21"),
     scalePricePrefix: text("scale_price_prefix").notNull().default("22"),
     miscItemEnabled: integer("misc_item_enabled", { mode: "boolean" }).notNull().default(false),
+    shiftVarianceWarnPaisa: integer("shift_variance_warn_paisa").notNull().default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -216,7 +217,6 @@ export const productBarcodes = sqliteTable(
     index("product_barcodes_product_id_idx").on(t.productId),
   ],
 );
-
 export const stockMovementTypes = [
   "opening",
   "sale",
@@ -272,6 +272,129 @@ export const stockMovements = sqliteTable(
   ],
 );
 
+export const cashDenominations = sqliteTable(
+  "cash_denominations",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    valuePaisa: integer("value_paisa").notNull(),
+    kind: text("kind", { enum: ["note", "coin"] }).notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    check("cash_denominations_value_paisa_check", sql`${t.valuePaisa} > 0`),
+    check("cash_denominations_kind_check", sql`${t.kind} IN ('note', 'coin')`),
+    uniqueIndex("cash_denominations_store_id_value_paisa_unique")
+      .on(t.storeId, t.valuePaisa)
+      .where(sql`${t.deletedAt} IS NULL`),
+  ],
+);
+
+export const shifts = sqliteTable(
+  "shifts",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    openedBy: text("opened_by")
+      .notNull()
+      .references(() => users.id),
+    openedAt: integer("opened_at", { mode: "timestamp_ms" }).notNull(),
+    openingFloatPaisa: integer("opening_float_paisa").notNull(),
+    closedBy: text("closed_by").references(() => users.id),
+    closedAt: integer("closed_at", { mode: "timestamp_ms" }),
+    countedCashPaisa: integer("counted_cash_paisa"),
+    expectedCashPaisa: integer("expected_cash_paisa"),
+    variancePaisa: integer("variance_paisa"),
+    note: text("note"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("shifts_opening_float_paisa_check", sql`${t.openingFloatPaisa} >= 0`),
+    check(
+      "shifts_counted_cash_paisa_check",
+      sql`${t.countedCashPaisa} IS NULL OR ${t.countedCashPaisa} >= 0`,
+    ),
+    check("shifts_closed_pair_check", sql`(${t.closedAt} IS NULL) = (${t.closedBy} IS NULL)`),
+    uniqueIndex("shifts_terminal_open_unique")
+      .on(t.terminalId)
+      .where(sql`${t.closedAt} IS NULL`),
+    index("shifts_terminal_id_closed_at_idx").on(t.terminalId, t.closedAt),
+  ],
+);
+
+export const shiftCashMoves = sqliteTable(
+  "shift_cash_moves",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    shiftId: text("shift_id")
+      .notNull()
+      .references(() => shifts.id),
+    kind: text("kind", { enum: ["in", "out"] }).notNull(),
+    amountPaisa: integer("amount_paisa").notNull(),
+    reason: text("reason").notNull(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    deletedBy: text("deleted_by").references(() => users.id),
+  },
+  (t) => [
+    check("shift_cash_moves_kind_check", sql`${t.kind} IN ('in', 'out')`),
+    check("shift_cash_moves_amount_paisa_check", sql`${t.amountPaisa} > 0`),
+    check(
+      "shift_cash_moves_deleted_pair_check",
+      sql`(${t.deletedAt} IS NULL) = (${t.deletedBy} IS NULL)`,
+    ),
+    index("shift_cash_moves_shift_id_idx").on(t.shiftId),
+  ],
+);
+
+export const shiftCashCounts = sqliteTable(
+  "shift_cash_counts",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    shiftId: text("shift_id")
+      .notNull()
+      .references(() => shifts.id),
+    denominationId: text("denomination_id")
+      .notNull()
+      .references(() => cashDenominations.id),
+    valuePaisa: integer("value_paisa").notNull(),
+    count: integer("count").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("shift_cash_counts_value_paisa_check", sql`${t.valuePaisa} > 0`),
+    check("shift_cash_counts_count_check", sql`${t.count} > 0`),
+    index("shift_cash_counts_shift_id_idx").on(t.shiftId),
+  ],
+);
+
 export const schema = {
   stores,
   terminals,
@@ -282,4 +405,8 @@ export const schema = {
   products,
   productBarcodes,
   stockMovements,
+  cashDenominations,
+  shifts,
+  shiftCashMoves,
+  shiftCashCounts,
 };

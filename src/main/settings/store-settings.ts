@@ -22,3 +22,13 @@ export function getMiscItemEnabled(database: VendoraDatabase, storeId: string): 
   if (!row) throw new Error("Store not found");
   return row.enabled;
 }
+
+export function getShiftVarianceWarnPaisa(database: VendoraDatabase, storeId: string): number {
+  const row = database.db
+    .select({ warnPaisa: stores.shiftVarianceWarnPaisa })
+    .from(stores)
+    .where(eq(stores.id, storeId))
+    .get();
+  if (!row) throw new Error("Store not found");
+  return row.warnPaisa;
+}

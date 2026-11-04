@@ -1,7 +1,14 @@
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { VendoraDatabase } from "./client";
 import { normalizeSearchText } from "../services/search-text";
-import { categories, products, stores, taxCategories, terminals } from "./schema";
+import {
+  cashDenominations,
+  categories,
+  products,
+  stores,
+  taxCategories,
+  terminals,
+} from "./schema";
 
 type Tx = Parameters<Parameters<VendoraDatabase["db"]["transaction"]>[0]>[0];
 
@@ -98,6 +105,32 @@ function seedMiscItem(tx: Tx, storeId: string): void {
     .run();
 }
 
+const defaultDenominations = [
+  { valuePaisa: 500000, kind: "note" },
+  { valuePaisa: 100000, kind: "note" },
+  { valuePaisa: 50000, kind: "note" },
+  { valuePaisa: 10000, kind: "note" },
+  { valuePaisa: 5000, kind: "note" },
+  { valuePaisa: 2000, kind: "note" },
+  { valuePaisa: 1000, kind: "note" },
+  { valuePaisa: 500, kind: "coin" },
+  { valuePaisa: 200, kind: "coin" },
+  { valuePaisa: 100, kind: "coin" },
+] as const;
+
+// Any existing row, deleted or not, means the list was set up already; later edits stick.
+function seedCashDenominations(tx: Tx, storeId: string): void {
+  const exists = tx
+    .select({ id: cashDenominations.id })
+    .from(cashDenominations)
+    .where(eq(cashDenominations.storeId, storeId))
+    .get();
+  if (exists) return;
+  tx.insert(cashDenominations)
+    .values(defaultDenominations.map((denomination) => ({ storeId, ...denomination })))
+    .run();
+}
+
 export function seedStoreAndTerminal(database: VendoraDatabase): void {
   database.db.transaction((tx) => {
     const store = tx.select().from(stores).orderBy(asc(stores.id)).limit(1).get();
@@ -109,5 +142,6 @@ export function seedStoreAndTerminal(database: VendoraDatabase): void {
 
     seedCatalogDefaults(tx, storeId);
     seedMiscItem(tx, storeId);
+    seedCashDenominations(tx, storeId);
   });
 }

@@ -4,8 +4,16 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase, type VendoraDatabase } from "./client";
 import { runMigrations } from "./migrate";
-import { eq } from "drizzle-orm";
-import { categories, productBarcodes, products, stores, taxCategories, terminals } from "./schema";
+import { desc, eq } from "drizzle-orm";
+import {
+  cashDenominations,
+  categories,
+  productBarcodes,
+  products,
+  stores,
+  taxCategories,
+  terminals,
+} from "./schema";
 import { seedStoreAndTerminal } from "./seed";
 
 describe("seedStoreAndTerminal", () => {
@@ -25,6 +33,9 @@ describe("seedStoreAndTerminal", () => {
     database.sqlite.close();
     rmSync(dir, { recursive: true, force: true });
   });
+
+  const denominationRows = () =>
+    database.db.select().from(cashDenominations).orderBy(desc(cashDenominations.valuePaisa)).all();
 
   const systemProducts = () =>
     database.db.select().from(products).where(eq(products.isSystem, true)).all();
@@ -236,5 +247,45 @@ describe("seedStoreAndTerminal", () => {
     expect(cats).toHaveLength(1);
     expect(tax).toHaveLength(2);
     expect([...cats, ...tax].every((row) => row.isSystem)).toBe(true);
+  });
+
+  describe("cash denominations", () => {
+    it("seeds the ten notes and coins in paisa", () => {
+      seedStoreAndTerminal(database);
+
+      expect(denominationRows().map((row) => [row.valuePaisa, row.kind])).toEqual([
+        [500000, "note"],
+        [100000, "note"],
+        [50000, "note"],
+        [10000, "note"],
+        [5000, "note"],
+        [2000, "note"],
+        [1000, "note"],
+        [500, "coin"],
+        [200, "coin"],
+        [100, "coin"],
+      ]);
+    });
+
+    it("leaves ten rows when seeding twice", () => {
+      seedStoreAndTerminal(database);
+      seedStoreAndTerminal(database);
+
+      expect(denominationRows()).toHaveLength(10);
+    });
+
+    it("adds none after one is soft-deleted", () => {
+      seedStoreAndTerminal(database);
+      database.db
+        .update(cashDenominations)
+        .set({ deletedAt: new Date() })
+        .where(eq(cashDenominations.valuePaisa, 100))
+        .run();
+
+      seedStoreAndTerminal(database);
+
+      expect(denominationRows()).toHaveLength(10);
+      expect(denominationRows().filter((row) => row.deletedAt === null)).toHaveLength(9);
+    });
   });
 });

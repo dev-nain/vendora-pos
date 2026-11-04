@@ -5,6 +5,7 @@ import { cn } from "@renderer/lib/utils";
 import { CategoriesScreen } from "../categories/categories-screen";
 import { ProductsScreen } from "../products/products-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
+import { ShiftVarianceSetting } from "../settings/shift-variance-setting";
 import { UsersScreen } from "../users/users-screen";
 import { backOfficeEntries, type BackOfficePage } from "./back-office-nav";
 
@@ -82,6 +83,7 @@ export function BackOffice({ currentUserId, onSessionEnded }: BackOfficeProps) {
               Settings
             </h1>
             <MiscItemSetting />
+            <ShiftVarianceSetting />
           </div>
         ) : null}
       </section>
