@@ -31,10 +31,11 @@ const moveFocus = (event: KeyboardEvent<HTMLElement>) => {
 interface BackOfficeProps {
   currentUserId: string;
   onSessionEnded: () => void;
+  focusPrinter?: boolean;
 }
 
-export function BackOffice({ currentUserId, onSessionEnded }: BackOfficeProps) {
-  const [page, setPage] = useState<BackOfficePage>("products");
+export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: BackOfficeProps) {
+  const [page, setPage] = useState<BackOfficePage>(focusPrinter ? "settings" : "products");
 
   return (
     <div
@@ -86,7 +87,7 @@ export function BackOffice({ currentUserId, onSessionEnded }: BackOfficeProps) {
             </h1>
             <MiscItemSetting />
             <ShiftVarianceSetting />
-            <PrinterSetting />
+            <PrinterSetting focusOnReady={focusPrinter === true} />
             <ReceiptSetting />
           </div>
         ) : null}

@@ -102,7 +102,7 @@ function WarningLine({ children, role }: { children: ReactNode; role?: "alert" }
   );
 }
 
-export function PrinterSetting() {
+export function PrinterSetting({ focusOnReady }: { focusOnReady?: boolean }) {
   const [state, setState] = useState<LoadState>({ name: "loading" });
   const [form, setForm] = useState<PrinterForm | null>(null);
   const [errors, setErrors] = useState<PrinterFormErrors>({});
@@ -136,6 +136,13 @@ export function PrinterSetting() {
     setState({ name: "loading" });
     load();
   };
+
+  const ready = state.name === "ready";
+  useEffect(() => {
+    if (!focusOnReady || !ready) return;
+    document.getElementById("printer-heading")?.scrollIntoView({ block: "start" });
+    document.querySelector<HTMLElement>("#printer-card input[type=radio]:checked")?.focus();
+  }, [focusOnReady, ready]);
 
   const change = (patch: Partial<PrinterForm>) => {
     setForm((current) => current && { ...current, ...patch });

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { PrinterStatus } from "@shared/receipt";
 import type { AddCashMoveInput, ShiftReport, ShiftState } from "@shared/shifts";
 import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
@@ -43,6 +44,7 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
   const [mode, setMode] = useState<Mode>({ name: "main" });
   const [billingHints, setBillingHints] = useState<Hint[]>(baseHints);
   const [billingStep, setBillingStep] = useState<BillingStep>("products");
+  const [printerStatus, setPrinterStatus] = useState<PrinterStatus | null>(null);
   const strip = useRef<HTMLDivElement | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
 
@@ -63,6 +65,21 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
   }, [onSessionEnded]);
 
   useEffect(load, [load]);
+
+  const refreshPrinter = useCallback(() => {
+    window.vendora.printer
+      .status()
+      .then(setPrinterStatus)
+      .catch((cause: unknown) => {
+        if (isSessionError(cause)) onSessionEnded();
+      });
+  }, [onSessionEnded]);
+
+  useEffect(refreshPrinter, [refreshPrinter]);
+
+  useEffect(() => {
+    if (billingStep === "products") refreshPrinter();
+  }, [billingStep, refreshPrinter]);
 
   const shiftOpen = state?.status === "open";
 
@@ -189,6 +206,8 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
               ref={strip}
               openedAt={state.shift.openedAt}
               openedBy={state.shift.openedBy}
+              printerStatus={printerStatus}
+              onOpenPrinterSettings={onOpenPrinterSettings}
               onCashIn={(opener) => openDialog({ kind: "cash-move", moveKind: "in" }, opener)}
               onCashOut={(opener) => openDialog({ kind: "cash-move", moveKind: "out" }, opener)}
               onXReport={(opener) => openDialog({ kind: "x-report" }, opener)}
@@ -200,7 +219,7 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
             onSessionEnded={onSessionEnded}
             onHintsChange={setBillingHints}
             onStepChange={setBillingStep}
-            onPrinterChanged={() => undefined}
+            onPrinterChanged={refreshPrinter}
             onOpenPrinterSettings={onOpenPrinterSettings}
           />
         </>

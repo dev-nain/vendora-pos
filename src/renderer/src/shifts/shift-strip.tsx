@@ -4,12 +4,16 @@ import type { Ref } from "react";
 import { Badge } from "@renderer/components/ui/badge";
 import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
+import type { PrinterStatus } from "@shared/receipt";
 import { formatTime } from "../lib/date-time";
+import { PrinterStatusItem } from "./printer-status";
 
 interface ShiftStripProps {
   ref?: Ref<HTMLDivElement>;
   openedAt: string;
   openedBy: string;
+  printerStatus: PrinterStatus | null;
+  onOpenPrinterSettings: () => void;
   onCashIn: (opener: HTMLElement | null) => void;
   onCashOut: (opener: HTMLElement | null) => void;
   onXReport: (opener: HTMLElement | null) => void;
@@ -20,6 +24,8 @@ export function ShiftStrip({
   ref,
   openedAt,
   openedBy,
+  printerStatus,
+  onOpenPrinterSettings,
   onCashIn,
   onCashOut,
   onXReport,
@@ -57,6 +63,7 @@ export function ShiftStrip({
           Close shift
           <Kbd>F9</Kbd>
         </Button>
+        <PrinterStatusItem status={printerStatus} onOpen={onOpenPrinterSettings} />
       </div>
     </div>
   );
