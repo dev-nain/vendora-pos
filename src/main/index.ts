@@ -100,8 +100,8 @@ void app.whenReady().then(async () => {
     taxCategories,
     users,
   });
-  const mainWindow = createMainWindow();
-  mainWindow.once("show", () => void renderWindow.warm().catch(() => undefined));
+  void renderWindow.warm().catch(() => undefined);
+  createMainWindow();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
