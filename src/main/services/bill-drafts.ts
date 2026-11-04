@@ -292,6 +292,8 @@ function findSellable(tx: DbExecutor, storeId: string, productId: string) {
   return tx
     .select({
       id: products.id,
+      nameEn: products.nameEn,
+      nameUr: products.nameUr,
       unit: products.unit,
       salePricePaisa: products.salePricePaisa,
       isSystem: products.isSystem,
@@ -420,6 +422,24 @@ export function createBillDraftsService({
       const code = input.barcode.trim();
 
       if (found.source === "barcode") {
+        if (
+          product.unit !== "piece" &&
+          found.packQtyMilli === WHOLE_UNIT_MILLI &&
+          found.packPricePaisa === null
+        ) {
+          return {
+            ok: false,
+            reason: "needs-weight",
+            message: checkoutMessages.needsWeight,
+            product: {
+              id: product.id,
+              name: product.nameEn,
+              nameUr: product.nameUr,
+              unit: product.unit,
+              unitPricePaisa: product.salePricePaisa,
+            },
+          } as const;
+        }
         const unitPricePaisa =
           found.packPricePaisa ??
           divRoundHalfUp(

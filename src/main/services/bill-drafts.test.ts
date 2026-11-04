@@ -264,6 +264,49 @@ describe("bill drafts", () => {
     });
   });
 
+  describe("loose weighed items", () => {
+    let rice: { id: string };
+
+    beforeEach(() => {
+      kit.openShift();
+      rice = kit.addProduct({
+        nameEn: "Rice",
+        nameUr: "چاول",
+        searchText: "rice",
+        unit: "kg",
+        salePricePaisa: 85000,
+      });
+      kit.addBarcode(rice.id, "8961014000035");
+    });
+
+    it("asks for the weight of a plain kg barcode and adds nothing", () => {
+      expect(service().scan({ barcode: "8961014000035" })).toEqual({
+        ok: false,
+        reason: "needs-weight",
+        message: "Enter the weight.",
+        product: {
+          id: rice.id,
+          name: "Rice",
+          nameUr: "چاول",
+          unit: "kg",
+          unitPricePaisa: 85000,
+        },
+      });
+      expect(service().current()).toEqual({ bill: null });
+    });
+
+    it("adds a fixed-size kg pack straight away", () => {
+      kit.addBarcode(rice.id, "8961014000042", { packQtyMilli: 5000, salePricePaisa: 400000 });
+      const bill = okBill(service().scan({ barcode: "8961014000042" }));
+      expect(bill.lines[0]).toMatchObject({ qtyMilli: 1000, packQtyMilli: 5000 });
+    });
+
+    it("adds the weight the cashier typed", () => {
+      const bill = okBill(service().addProduct({ productId: rice.id, qtyMilli: 412 }));
+      expect(bill.lines[0]).toMatchObject({ qtyMilli: 412, grossPaisa: 35020 });
+    });
+  });
+
   describe("scale labels", () => {
     beforeEach(() => {
       kit.openShift();

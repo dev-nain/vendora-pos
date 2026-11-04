@@ -25,6 +25,7 @@ export const checkoutMessages = {
   underpaid: "Payment is short.",
   cashNotRounded: "Cash is taken in the rounding unit. Adjust the cash amount.",
   refundCashOnly: "Refunds without a receipt are paid in cash.",
+  needsWeight: "Enter the weight.",
   refundAmount: "Pay the refund in one cash amount equal to the total.",
 } as const;
 
@@ -159,6 +160,19 @@ export const billSchema = z.strictObject({
   }),
 });
 
+const needsWeightSchema = z.strictObject({
+  ok: z.literal(false),
+  reason: z.literal("needs-weight"),
+  message: z.string(),
+  product: z.strictObject({
+    id: z.string(),
+    name: z.string(),
+    nameUr: z.string().nullable(),
+    unit: z.enum(productUnits),
+    unitPricePaisa: z.int(),
+  }),
+});
+
 const noOpenShiftSchema = refusal("no-open-shift");
 const notFoundSchema = refusal("not-found");
 const emptyBillSchema = refusal("empty-bill");
@@ -173,6 +187,7 @@ export const billResultSchema = z.union([
   refusal("return-discount"),
   refusal("no-price"),
   refusal("misc-disabled"),
+  needsWeightSchema,
   emptyBillSchema,
 ]);
 
