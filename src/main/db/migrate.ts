@@ -59,6 +59,16 @@ export function runMigrations(
   if (!journal.entries.some((entry) => entry.when > applied)) return "up-to-date";
 
   if (hasUserTables(database)) backupBeforeMigrate(database, backupDir);
-  migrate(database.db, { migrationsFolder });
+  // drizzle runs migrations in a transaction, where PRAGMA foreign_keys is ignored.
+  database.sqlite.pragma("foreign_keys = OFF");
+  try {
+    migrate(database.db, { migrationsFolder });
+    const broken = database.sqlite.pragma("foreign_key_check") as unknown[];
+    if (broken.length > 0) {
+      throw new Error("Migration left broken references. Restore the pre-migrate backup.");
+    }
+  } finally {
+    database.sqlite.pragma("foreign_keys = ON");
+  }
   return "migrated";
 }
