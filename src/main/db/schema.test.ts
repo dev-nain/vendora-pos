@@ -869,7 +869,7 @@ describe("shift schema", () => {
   });
 
   it("adds the column without rebuilding the stores table", () => {
-    const sqlText = readFileSync(join(migrationsFolder, "0010_shifts.sql"), "utf8");
+    const sqlText = readFileSync(join(migrationsFolder, "0009_shifts.sql"), "utf8");
     expect(sqlText).not.toContain("__new_stores");
     expect(sqlText).toContain("ALTER TABLE `stores` ADD `shift_variance_warn_paisa`");
   });
@@ -1048,7 +1048,7 @@ describe("stock movements migration on an existing database", () => {
       const journal = JSON.parse(
         readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
       ) as { entries: { tag: string }[] };
-      journal.entries = journal.entries.slice(0, 9);
+      journal.entries = journal.entries.slice(0, 10);
       writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
       for (const entry of journal.entries) {
         copyFileSync(

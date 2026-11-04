@@ -68,15 +68,15 @@
     {
       "idx": 9,
       "version": "6",
-      "when": 1793794021765,
-      "tag": "0009_stock_movements",
+      "when": 1793788730470,
+      "tag": "0009_shifts",
       "breakpoints": true
     },
     {
       "idx": 10,
       "version": "6",
-      "when": 1793798187773,
-      "tag": "0010_shifts",
+      "when": 1793794021765,
+      "tag": "0010_stock_movements",
       "breakpoints": true
     }
   ]
