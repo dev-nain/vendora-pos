@@ -7,11 +7,15 @@ import type { Hint } from "../shell/hint-bar";
 import { CashMoveDialog } from "./cash-move-dialog";
 import { OpenShiftScreen } from "./open-shift-screen";
 import { ShiftStrip } from "./shift-strip";
+import { XReportDialog } from "./x-report-dialog";
 
 const baseHints: Hint[] = [["Ctrl+L", "Switch user"]];
-const openHints: Hint[] = [["F6", "Cash in"], ["F7", "Cash out"], ...baseHints];
+const openHints: Hint[] = [["F6", "Cash in"], ["F7", "Cash out"], ["F8", "X-report"], ...baseHints];
 
-type Dialog = { kind: "cash-move"; moveKind: AddCashMoveInput["kind"] } | null;
+type Dialog =
+  | { kind: "cash-move"; moveKind: AddCashMoveInput["kind"] }
+  | { kind: "x-report" }
+  | null;
 
 interface SellAreaProps {
   onSessionEnded: () => void;
@@ -67,6 +71,9 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
       } else if (event.key === "F7") {
         event.preventDefault();
         openDialog({ kind: "cash-move", moveKind: "out" }, null);
+      } else if (event.key === "F8") {
+        event.preventDefault();
+        openDialog({ kind: "x-report" }, null);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -110,6 +117,7 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
             openedBy={state.shift.openedBy}
             onCashIn={(opener) => openDialog({ kind: "cash-move", moveKind: "in" }, opener)}
             onCashOut={(opener) => openDialog({ kind: "cash-move", moveKind: "out" }, opener)}
+            onXReport={(opener) => openDialog({ kind: "x-report" }, opener)}
           />
           <div className="grid flex-1 place-items-center text-secondary">
             <p className="m-0">Checkout isn't set up yet.</p>
@@ -124,6 +132,17 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
             if (!open) setDialog(null);
           }}
           onSaved={load}
+          onSessionEnded={onSessionEnded}
+        />
+      ) : null}
+      {dialog?.kind === "x-report" && state?.status === "open" ? (
+        <XReportDialog
+          report={state.report}
+          returnFocus={returnFocus}
+          onOpenChange={(open) => {
+            if (!open) setDialog(null);
+          }}
+          onChanged={load}
           onSessionEnded={onSessionEnded}
         />
       ) : null}
