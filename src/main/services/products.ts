@@ -19,7 +19,7 @@ import {
   type UpdateProductResult,
   type updateProductInputSchema,
 } from "../../shared/products";
-import { requireSessionPermission, requireUnlockedSession } from "../auth/guard";
+import { requireSession, requireSessionPermission } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { categories, productBarcodes, products, taxCategories } from "../db/schema";
@@ -234,19 +234,19 @@ export function createProductsService({
 
   return {
     search(input: ProductSearchInput): ProductSearchResult {
-      const session = requireUnlockedSession(sessions);
+      const session = requireSession(sessions);
       return searchProducts(database, session.storeId, input);
     },
 
     get(input: ProductIdInput): GetProductResult {
-      const session = requireUnlockedSession(sessions);
+      const session = requireSession(sessions);
       const product = getProduct(database, session.storeId, input.id);
       if (!product) return refuse("not-found", productMessages.notFound);
       return { ok: true, product };
     },
 
     lookupBarcode(input: BarcodeLookupInput): BarcodeLookup | null {
-      const session = requireUnlockedSession(sessions);
+      const session = requireSession(sessions);
       return lookupBarcode(database, session.storeId, input.barcode);
     },
 

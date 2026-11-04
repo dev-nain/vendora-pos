@@ -8,7 +8,7 @@ import {
   renameCategoryInputSchema,
   categoryMessages,
 } from "../../shared/categories";
-import { ForbiddenError, SessionLockedError, UnauthenticatedError } from "../auth/errors";
+import { ForbiddenError, UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
@@ -145,11 +145,8 @@ describe("createCategoriesService", () => {
     expect(service.list()[2]).toMatchObject({ isSystem: true });
   });
 
-  it("requires an unlocked session to list", () => {
+  it("requires a session to list", () => {
     expect(() => service.list()).toThrow(UnauthenticatedError);
-    signIn("cashier");
-    sessions.lock();
-    expect(() => service.list()).toThrow(SessionLockedError);
   });
 
   it("rejects duplicate names case-insensitively", () => {

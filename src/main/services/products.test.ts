@@ -11,7 +11,7 @@ import {
   type CreateProductInput,
   type CreateProductResult,
 } from "../../shared/products";
-import { ForbiddenError, SessionLockedError, UnauthenticatedError } from "../auth/errors";
+import { ForbiddenError, UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
@@ -198,13 +198,6 @@ describe("createProductsService", () => {
       expect(() => create()).toThrow(ForbiddenError);
       expect(tables()).toEqual({ products: [], barcodes: [], audit: [] });
     });
-
-    it("refuses a locked session", () => {
-      signIn("manager");
-      sessions.lock();
-      expect(() => create()).toThrow(SessionLockedError);
-      expect(tables().products).toHaveLength(0);
-    });
   });
 
   describe("reads", () => {
@@ -272,7 +265,7 @@ describe("createProductsService", () => {
       });
     });
 
-    it("refuses every read while locked or signed out", () => {
+    it("refuses every read while signed out", () => {
       signIn("manager");
       const product = created();
       const reads = [
@@ -280,8 +273,6 @@ describe("createProductsService", () => {
         () => service.get({ id: product.id }),
         () => service.lookupBarcode({ barcode: "B1" }),
       ];
-      sessions.lock();
-      for (const read of reads) expect(read).toThrow(SessionLockedError);
       sessions.end();
       for (const read of reads) expect(read).toThrow(UnauthenticatedError);
     });
@@ -637,13 +628,6 @@ describe("createProductsService", () => {
     it("requires a session", () => {
       expect(() => service.miscItem()).toThrow(UnauthenticatedError);
     });
-
-    it("refuses a locked session", () => {
-      signIn("cashier");
-      sessions.lock();
-
-      expect(() => service.miscItem()).toThrow(SessionLockedError);
-    });
   });
 
   describe("archive, restore and delete", () => {
@@ -655,15 +639,6 @@ describe("createProductsService", () => {
       signIn("cashier");
       const before = tables();
       expect(() => service[m]({ id: product.id })).toThrow(ForbiddenError);
-      expect(tables()).toEqual(before);
-    });
-
-    it("refuses a locked session", () => {
-      signIn("manager");
-      const product = created();
-      sessions.lock();
-      const before = tables();
-      expect(() => service.archive({ id: product.id })).toThrow(SessionLockedError);
       expect(tables()).toEqual(before);
     });
 
@@ -1076,7 +1051,7 @@ describe("createProductsService", () => {
       expect(tables().barcodes.map((b) => b.salePricePaisa)).toEqual([11000]);
     });
 
-    it("allows manager and owner, denies cashier and a locked session", () => {
+    it("allows manager and owner, denies cashier", () => {
       const change = { kind: "set-price", salePricePaisa: 1 } as const;
       signIn("manager");
       const a = priced(1000);
@@ -1089,11 +1064,6 @@ describe("createProductsService", () => {
       sessions.end();
       signIn("cashier");
       expect(() => service.bulkUpdate({ productIds: [a.id], change })).toThrow(ForbiddenError);
-
-      sessions.end();
-      signIn("manager");
-      sessions.lock();
-      expect(() => service.bulkUpdate({ productIds: [a.id], change })).toThrow(SessionLockedError);
     });
 
     it("rolls every product back when an audit write fails midway", () => {

@@ -126,7 +126,6 @@ describe("products ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
-      autoLock: stub,
       catalogExport,
       categories: stub,
       products: service,
@@ -290,14 +289,6 @@ describe("products ipc", () => {
 
   describe("session state", () => {
     const search = { query: "", limit: 5, offset: 0 };
-
-    it("rejects reads while locked", async () => {
-      signIn("cashier");
-      sessions.lock();
-      await expect(invoke("products:search", search)).rejects.toThrow(
-        new Error(ipcErrorMessages.locked),
-      );
-    });
 
     it("rejects reads with no session", async () => {
       await expect(invoke("products:search", search)).rejects.toThrow(

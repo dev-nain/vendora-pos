@@ -12,12 +12,7 @@ import type {
   DeleteCategoryResult,
   RenameCategoryResult,
 } from "./categories";
-import type {
-  AutoLockSetting,
-  MiscItemSetting,
-  ScalePrefixesInput,
-  ScalePrefixesSetting,
-} from "./settings";
+import type { MiscItemSetting, ScalePrefixesInput, ScalePrefixesSetting } from "./settings";
 import type {
   BarcodeLookup,
   BulkUpdateProductsInput,
@@ -61,13 +56,8 @@ export const ipcChannels = {
   authLogin: "auth:login",
   authSwitchByPin: "auth:switch-by-pin",
   authLogout: "auth:logout",
-  authLock: "auth:lock",
-  authLocked: "auth:locked",
   authCurrent: "auth:current",
   authListLoginUsers: "auth:list-login-users",
-  activityReport: "activity:report",
-  settingsGetAutoLock: "settings:get-auto-lock",
-  settingsSetAutoLock: "settings:set-auto-lock",
   settingsSetScalePrefixes: "settings:set-scale-prefixes",
   settingsGetMiscItemEnabled: "settings:get-misc-item-enabled",
   settingsSetMiscItemEnabled: "settings:set-misc-item-enabled",
@@ -103,7 +93,6 @@ export const ipcChannels = {
 
 export const ipcErrorMessages = {
   unauthenticated: "Log in to continue.",
-  locked: "Vendora is locked. Unlock to continue.",
   forbidden: "You don't have permission to do this. Ask the owner or a manager.",
 } as const;
 
@@ -115,19 +104,12 @@ export interface VendoraApi {
     login: (username: string, password: string) => Promise<AuthResult>;
     switchByPin: (userId: string, pin: string) => Promise<AuthResult>;
     logout: () => Promise<void>;
-    lock: () => Promise<void>;
-    onLocked: (listener: () => void) => () => void;
     current: () => Promise<SessionState | null>;
     listLoginUsers: () => Promise<LoginUser[]>;
     needsOwnerSetup: () => Promise<boolean>;
     createOwner: (input: CreateOwnerInput) => Promise<CreateOwnerResult>;
   };
-  activity: {
-    report: () => void;
-  };
   settings: {
-    getAutoLock: () => Promise<AutoLockSetting>;
-    setAutoLock: (minutes: number | null) => Promise<AutoLockSetting>;
     setScalePrefixes: (input: ScalePrefixesInput) => Promise<ScalePrefixesSetting>;
     getMiscItemEnabled: () => Promise<MiscItemSetting>;
     setMiscItemEnabled: (enabled: boolean) => Promise<MiscItemSetting>;

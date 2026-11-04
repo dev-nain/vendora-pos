@@ -14,12 +14,7 @@ import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
 import { stores } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
-import {
-  getAutoLockMinutes,
-  getCashierDiscountLimitBps,
-  getMiscItemEnabled,
-  getScalePrefixes,
-} from "./store-settings";
+import { getCashierDiscountLimitBps, getMiscItemEnabled, getScalePrefixes } from "./store-settings";
 
 const migrationsFolder = join(process.cwd(), "drizzle");
 
@@ -70,30 +65,6 @@ describe("store settings", () => {
     expect(() => database.db.update(stores).set({ cashierDiscountLimitBps: bps }).run()).toThrow();
   });
 
-  it("defaults auto-lock to 5 minutes and allows Off", () => {
-    runMigrations(database, { migrationsFolder, backupDir });
-    seedStoreAndTerminal(database);
-
-    expect(getAutoLockMinutes(database, storeId())).toBe(5);
-    database.db.update(stores).set({ autoLockMinutes: null }).run();
-    expect(getAutoLockMinutes(database, storeId())).toBeNull();
-    database.db.update(stores).set({ autoLockMinutes: 60 }).run();
-    expect(getAutoLockMinutes(database, storeId())).toBe(60);
-  });
-
-  it("throws for an unknown store when reading auto-lock", () => {
-    runMigrations(database, { migrationsFolder, backupDir });
-
-    expect(() => getAutoLockMinutes(database, "missing")).toThrow("Store not found");
-  });
-
-  it.each([0, 61])("rejects auto-lock of %i at the database level", (minutes) => {
-    runMigrations(database, { migrationsFolder, backupDir });
-    seedStoreAndTerminal(database);
-
-    expect(() => database.db.update(stores).set({ autoLockMinutes: minutes }).run()).toThrow();
-  });
-
   it("reads the scale prefixes with defaults 21 and 22", () => {
     runMigrations(database, { migrationsFolder, backupDir });
     seedStoreAndTerminal(database);
@@ -125,9 +96,8 @@ describe("store settings", () => {
     expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
   });
 
-  it("keeps existing rows and gives the store 5 when migrating from 0001", () => {
+  it("keeps existing rows when migrating from 0001", () => {
     seedAndMigrate(2);
-    expect(getAutoLockMinutes(database, "s1")).toBe(5);
     for (const table of ["terminals", "users", "audit_log"]) {
       expect(database.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get()).toEqual({ n: 1 });
     }

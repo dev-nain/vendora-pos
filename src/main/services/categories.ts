@@ -10,7 +10,7 @@ import {
   type createCategoryInputSchema,
   type renameCategoryInputSchema,
 } from "../../shared/categories";
-import { requireSessionPermission, requireUnlockedSession } from "../auth/guard";
+import { requireSession, requireSessionPermission } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { categories, products } from "../db/schema";
@@ -69,7 +69,7 @@ export function createCategoriesService({
   const { db } = database;
 
   function list(): Category[] {
-    const session = requireUnlockedSession(sessions);
+    const session = requireSession(sessions);
     return db
       .select()
       .from(categories)

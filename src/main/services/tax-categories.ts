@@ -10,7 +10,7 @@ import {
   type taxCategoryIdInputSchema,
   type updateTaxCategoryInputSchema,
 } from "../../shared/tax-categories";
-import { requireSessionPermission, requireUnlockedSession } from "../auth/guard";
+import { requireSession, requireSessionPermission } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { products, taxCategories } from "../db/schema";
@@ -56,7 +56,7 @@ export function createTaxCategoriesService({
   const { db } = database;
 
   function list(): TaxCategory[] {
-    const session = requireUnlockedSession(sessions);
+    const session = requireSession(sessions);
     return db
       .select()
       .from(taxCategories)

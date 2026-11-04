@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 
-import { ipcErrorMessages } from "@shared/ipc";
 import {
   BULK_UPDATE_MAX_IDS,
   type ProductSearchItem,
@@ -289,7 +288,7 @@ export function ProductsScreen({ onSessionEnded }: ProductsScreenProps) {
     } catch (cause) {
       if (isSessionError(cause)) {
         onSessionEnded();
-      } else if (!(cause instanceof Error && cause.message.includes(ipcErrorMessages.locked))) {
+      } else {
         setExportError(exportFailedMessage);
         setStatus(null);
       }

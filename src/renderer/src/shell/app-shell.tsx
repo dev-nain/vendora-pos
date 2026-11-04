@@ -9,19 +9,19 @@ import { TitleBar, type Area } from "./title-bar";
 
 interface AppShellProps {
   user: SafeUser;
-  onLock: () => void;
+  onSwitchUser: () => void;
   onLoggedOut: () => void;
 }
 
 const hintsFor = (area: Area): Hint[] =>
   area === "sell"
-    ? [["Ctrl+L", "Lock"]]
+    ? [["Ctrl+L", "Switch user"]]
     : [
         ["Ctrl+1", "Sell"],
-        ["Ctrl+L", "Lock"],
+        ["Ctrl+L", "Switch user"],
       ];
 
-export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
+export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
   const [error, setError] = useState<string | null>(null);
   const [area, setArea] = useState<Area>("sell");
   const backOfficeOpen = canOpenBackOffice(user.role);
@@ -32,7 +32,7 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
       const key = event.key.toLowerCase();
       if (key === "l") {
         event.preventDefault();
-        onLock();
+        onSwitchUser();
       } else if (key === "1") {
         event.preventDefault();
         setArea("sell");
@@ -43,7 +43,7 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onLock, backOfficeOpen]);
+  }, [onSwitchUser, backOfficeOpen]);
 
   const logOut = async () => {
     try {
@@ -60,7 +60,7 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
         user={user}
         area={area}
         onAreaChange={setArea}
-        onLock={onLock}
+        onSwitchUser={onSwitchUser}
         onLogOut={() => void logOut()}
       />
       {area === "sell" ? (

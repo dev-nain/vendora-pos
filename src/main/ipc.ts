@@ -37,8 +37,6 @@ import {
   updateProductResultSchema,
 } from "@shared/products";
 import {
-  autoLockInputSchema,
-  autoLockSettingSchema,
   miscItemInputSchema,
   miscItemSettingSchema,
   scalePrefixesInputSchema,
@@ -70,7 +68,6 @@ import { toIpcError } from "./ipc-errors";
 import type { AuthService } from "./services/auth";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
-import type { AutoLock } from "./services/auto-lock";
 import type { ProductsService } from "./services/products";
 import type { SettingsService } from "./services/settings";
 import type { TaxCategoriesService } from "./services/tax-categories";
@@ -91,7 +88,6 @@ function handle(
 
 interface IpcServices {
   auth: AuthService;
-  autoLock: AutoLock;
   catalogExport: CatalogExportService;
   categories: CategoriesService;
   settings: SettingsService;
@@ -102,7 +98,6 @@ interface IpcServices {
 
 export function registerIpcHandlers({
   auth,
-  autoLock,
   catalogExport,
   categories,
   products,
@@ -118,17 +113,9 @@ export function registerIpcHandlers({
     authResultSchema.parse(await auth.switchByPin(pinSwitchInputSchema.parse(input))),
   );
   handle(ipcChannels.authLogout, () => auth.logout());
-  handle(ipcChannels.authLock, () => auth.lock());
   handle(ipcChannels.authCurrent, () => sessionStateSchema.nullable().parse(auth.current()));
   handle(ipcChannels.authListLoginUsers, () =>
     z.array(loginUserSchema).parse(auth.listLoginUsers()),
-  );
-  ipcMain.on(ipcChannels.activityReport, () => autoLock.reportActivity());
-  handle(ipcChannels.settingsGetAutoLock, () =>
-    autoLockSettingSchema.parse(settings.getAutoLock()),
-  );
-  handle(ipcChannels.settingsSetAutoLock, (_event, input) =>
-    autoLockSettingSchema.parse(settings.setAutoLock(autoLockInputSchema.parse(input))),
   );
   handle(ipcChannels.settingsSetScalePrefixes, (_event, input) =>
     scalePrefixesSettingSchema.parse(

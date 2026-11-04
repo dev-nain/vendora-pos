@@ -257,25 +257,6 @@ describe("createAuthService", () => {
     });
   });
 
-  describe("lock", () => {
-    it("locks the session, and switchByPin from the locked state unlocks it", async () => {
-      const owner = addUser("owner", "Owner", "owner");
-      await asUser("owner");
-
-      service.lock();
-      expect(sessions.isLocked()).toBe(true);
-
-      const result = await service.switchByPin({ userId: owner.id, pin: PIN });
-
-      expect(result.ok).toBe(true);
-      expect(sessions.isLocked()).toBe(false);
-    });
-
-    it("throws with no session", () => {
-      expect(() => service.lock()).toThrow(UnauthenticatedError);
-    });
-  });
-
   describe("logout", () => {
     it("clears the session and audits once", async () => {
       const owner = addUser("owner", "Owner", "owner");
@@ -299,12 +280,7 @@ describe("createAuthService", () => {
     it("current clears the session once the user is deactivated", async () => {
       const owner = addUser("owner", "Owner", "owner");
       await asUser("owner");
-      expect(service.current()).toEqual({
-        user: expect.objectContaining({ id: owner.id }),
-        locked: false,
-      });
-      service.lock();
-      expect(service.current()?.locked).toBe(true);
+      expect(service.current()).toEqual({ user: expect.objectContaining({ id: owner.id }) });
 
       database.sqlite.prepare("UPDATE users SET is_active = 0 WHERE id = ?").run(owner.id);
 
@@ -396,7 +372,7 @@ describe("createAuthService", () => {
         role: "owner",
       });
       expect(service.needsOwnerSetup()).toBe(false);
-      expect(service.current()).toEqual({ user: result.user, locked: false });
+      expect(service.current()).toEqual({ user: result.user });
 
       const row = userRow(result.user.id);
       expect(row.passwordHash).not.toBe("ab12");

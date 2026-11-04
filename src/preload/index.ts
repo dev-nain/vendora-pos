@@ -6,11 +6,7 @@ import {
   loginUserSchema,
   sessionStateSchema,
 } from "@shared/auth";
-import {
-  autoLockSettingSchema,
-  miscItemSettingSchema,
-  scalePrefixesSettingSchema,
-} from "@shared/settings";
+import { miscItemSettingSchema, scalePrefixesSettingSchema } from "@shared/settings";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 import {
   barcodeLookupSchema,
@@ -60,16 +56,6 @@ const api: VendoraApi = {
     logout: async () => {
       await ipcRenderer.invoke(ipcChannels.authLogout);
     },
-    lock: async () => {
-      await ipcRenderer.invoke(ipcChannels.authLock);
-    },
-    onLocked: (listener) => {
-      const handler = () => listener();
-      ipcRenderer.on(ipcChannels.authLocked, handler);
-      return () => {
-        ipcRenderer.removeListener(ipcChannels.authLocked, handler);
-      };
-    },
     current: async () =>
       sessionStateSchema.nullable().parse(await ipcRenderer.invoke(ipcChannels.authCurrent)),
     listLoginUsers: async () =>
@@ -79,16 +65,7 @@ const api: VendoraApi = {
     createOwner: async (input) =>
       createOwnerResultSchema.parse(await ipcRenderer.invoke(ipcChannels.authCreateOwner, input)),
   },
-  activity: {
-    report: () => ipcRenderer.send(ipcChannels.activityReport),
-  },
   settings: {
-    getAutoLock: async () =>
-      autoLockSettingSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsGetAutoLock)),
-    setAutoLock: async (minutes) =>
-      autoLockSettingSchema.parse(
-        await ipcRenderer.invoke(ipcChannels.settingsSetAutoLock, { minutes }),
-      ),
     setScalePrefixes: async (input) =>
       scalePrefixesSettingSchema.parse(
         await ipcRenderer.invoke(ipcChannels.settingsSetScalePrefixes, input),

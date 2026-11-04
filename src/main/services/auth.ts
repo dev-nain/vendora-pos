@@ -221,11 +221,6 @@ export function createAuthService({ database, audit, sessions, now = () => new D
     sessions.end();
   }
 
-  function lock(): void {
-    requireSession(sessions);
-    sessions.lock();
-  }
-
   function current(): SessionState | null {
     const session = sessions.current();
     if (!session) return null;
@@ -238,7 +233,7 @@ export function createAuthService({ database, audit, sessions, now = () => new D
       sessions.end();
       return null;
     }
-    return { user: toSafeUser(user), locked: sessions.isLocked() };
+    return { user: toSafeUser(user) };
   }
 
   function listLoginUsers(): LoginUser[] {
@@ -255,7 +250,6 @@ export function createAuthService({ database, audit, sessions, now = () => new D
     login,
     switchByPin,
     logout,
-    lock,
     current,
     listLoginUsers,
     needsOwnerSetup,

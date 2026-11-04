@@ -5,7 +5,6 @@ import type { SafeUser } from "@shared/auth";
 import { cn } from "@renderer/lib/utils";
 import { CategoriesScreen } from "../categories/categories-screen";
 import { ProductsScreen } from "../products/products-screen";
-import { AutoLockSetting } from "../settings/auto-lock-setting";
 import { MiscItemSetting } from "../settings/misc-item-setting";
 import { UsersScreen } from "../users/users-screen";
 import { backOfficePages, type BackOfficePage } from "./back-office-nav";
@@ -85,7 +84,6 @@ export function BackOffice({ role, currentUserId, onSessionEnded }: BackOfficePr
             <h1 className="m-0 font-display text-[length:var(--font-size-700)] leading-[36px] font-semibold text-foreground">
               Settings
             </h1>
-            <AutoLockSetting />
             <MiscItemSetting />
           </div>
         ) : null}

@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ForbiddenError, SessionLockedError, UnauthenticatedError } from "../auth/errors";
+import { ForbiddenError, UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { uuidv7 } from "../db/id";
@@ -214,11 +214,8 @@ describe("createCatalogExportService", () => {
     expect(chooseSavePath).not.toHaveBeenCalled();
   });
 
-  it("refuses without a session or when locked", async () => {
+  it("refuses without a session", async () => {
     await expect(service.exportCsv()).rejects.toBeInstanceOf(UnauthenticatedError);
-    signIn("owner");
-    sessions.lock();
-    await expect(service.exportCsv()).rejects.toBeInstanceOf(SessionLockedError);
     expect(chooseSavePath).not.toHaveBeenCalled();
   });
 
@@ -229,13 +226,13 @@ describe("createCatalogExportService", () => {
     expect(existsSync(outPath)).toBe(false);
   });
 
-  it("refuses when the session locks during the dialog", async () => {
+  it("refuses when the session ends during the dialog", async () => {
     signIn("owner");
     chooseSavePath.mockImplementationOnce(async () => {
-      sessions.lock();
+      sessions.end();
       return outPath;
     });
-    await expect(service.exportCsv()).rejects.toBeInstanceOf(SessionLockedError);
+    await expect(service.exportCsv()).rejects.toBeInstanceOf(UnauthenticatedError);
     expect(existsSync(outPath)).toBe(false);
   });
 

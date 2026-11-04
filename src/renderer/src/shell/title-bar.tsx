@@ -1,5 +1,5 @@
 import { Menu } from "@base-ui/react/menu";
-import { LockIcon, LogOutIcon } from "lucide-react";
+import { ArrowLeftRightIcon, LogOutIcon } from "lucide-react";
 import type { KeyboardEvent } from "react";
 
 import type { SafeUser } from "@shared/auth";
@@ -15,7 +15,7 @@ interface TitleBarProps {
   user: SafeUser;
   area: Area;
   onAreaChange: (area: Area) => void;
-  onLock: () => void;
+  onSwitchUser: () => void;
   onLogOut: () => void;
 }
 
@@ -25,7 +25,7 @@ const tabClasses =
 const itemClasses =
   "flex min-h-[var(--height-control-md)] cursor-default items-center gap-200 rounded-100 px-300 text-[length:var(--font-size-350)] text-foreground outline-none select-none data-highlighted:selection-pill";
 
-export function TitleBar({ user, area, onAreaChange, onLock, onLogOut }: TitleBarProps) {
+export function TitleBar({ user, area, onAreaChange, onSwitchUser, onLogOut }: TitleBarProps) {
   const tabs: { area: Area; label: string }[] = [{ area: "sell", label: "Sell" }];
   if (canOpenBackOffice(user.role)) tabs.push({ area: "back-office", label: "Back office" });
 
@@ -85,7 +85,7 @@ export function TitleBar({ user, area, onAreaChange, onLock, onLogOut }: TitleBa
       <Menu.Root>
         <Menu.Trigger
           autoFocus
-          data-lock-trigger
+          data-user-menu-trigger
           className="flex min-h-[var(--height-title-bar)] items-center gap-200 rounded-100 px-200 text-[length:var(--font-size-300)] text-foreground outline-none select-none [-webkit-app-region:no-drag] hover:bg-surface-hover focus-visible:shadow-focus data-popup-open:bg-surface-hover"
         >
           <Avatar name={user.displayName} className="size-6 text-[10px]" />
@@ -95,9 +95,9 @@ export function TitleBar({ user, area, onAreaChange, onLock, onLogOut }: TitleBa
         <Menu.Portal>
           <Menu.Positioner side="bottom" align="end" sideOffset={4} className="z-50 outline-none">
             <Menu.Popup className="min-w-[220px] origin-(--transform-origin) rounded-300 border border-line-card bg-surface-secondary p-100 text-foreground shadow-200 outline-none transition-[opacity,scale] duration-[var(--duration-200)] ease-[var(--ease-out)] data-ending-style:opacity-0 data-starting-style:scale-[var(--scale-enter)] data-starting-style:opacity-0">
-              <Menu.Item className={itemClasses} onClick={onLock}>
-                <LockIcon aria-hidden="true" size={16} strokeWidth={2} />
-                Lock
+              <Menu.Item className={itemClasses} onClick={onSwitchUser}>
+                <ArrowLeftRightIcon aria-hidden="true" size={16} strokeWidth={2} />
+                Switch user
                 <Kbd className="ml-auto">Ctrl+L</Kbd>
               </Menu.Item>
               <Menu.Item className={itemClasses} onClick={onLogOut}>

@@ -1,21 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { Switch } from "@base-ui/react/switch";
-import { ipcErrorMessages } from "@shared/ipc";
 import { Button } from "@renderer/components/ui/button";
 import { FieldError } from "@renderer/components/ui/field";
 import { serviceErrorMessage } from "../auth/messages";
 
 type LoadState = { name: "loading" } | { name: "error" } | { name: "ready"; enabled: boolean };
-
-const refusalMessage = (error: unknown): string => {
-  if (error instanceof Error) {
-    for (const message of [ipcErrorMessages.forbidden, ipcErrorMessages.locked]) {
-      if (error.message.includes(message)) return message;
-    }
-  }
-  return serviceErrorMessage;
-};
 
 export function MiscItemSetting() {
   const [state, setState] = useState<LoadState>({ name: "loading" });
@@ -45,8 +35,8 @@ export function MiscItemSetting() {
       const result = await window.vendora.settings.setMiscItemEnabled(enabled);
       setState({ name: "ready", enabled: result.enabled });
       setSaved(true);
-    } catch (caught) {
-      setError(refusalMessage(caught));
+    } catch {
+      setError(serviceErrorMessage);
     } finally {
       setPending(false);
     }

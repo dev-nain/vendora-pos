@@ -67,7 +67,7 @@ export const authResultSchema = z.union([
   authRefusalSchema,
 ]);
 
-export const sessionStateSchema = z.strictObject({ user: safeUserSchema, locked: z.boolean() });
+export const sessionStateSchema = z.strictObject({ user: safeUserSchema });
 
 export const createOwnerResultSchema = z.union([
   z.strictObject({ ok: z.literal(true), user: safeUserSchema }),
