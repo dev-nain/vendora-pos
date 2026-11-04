@@ -16,16 +16,16 @@ Windows desktop app, installed per store. v1 targets Windows 10 and 11 (64-bit).
 
 ## Process Boundary
 
-- The **main process** owns the database, printing, cash drawer, licensing, backups and permission checks.
+- The **main process** owns the database, printing, cash drawer, licensing, backups and session checks.
 - The **renderer** displays data and calls a narrow, typed IPC API through the preload script. It never touches the database, filesystem or hardware directly.
-- Every IPC input is validated with Zod in main. Permission checks run in main — hiding a button in the UI is not a permission check.
+- Every IPC input is validated with Zod in main, and every data call requires a signed-in session checked in main — hiding a button in the UI is not a check.
 - Electron hardening: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, no remote content loaded into windows.
 
 ## Database
 
 **Must store:**
 
-- Store settings, users (hashed password and PIN), roles
+- Store settings, users (hashed password and PIN)
 - Products, barcodes, pack conversions, categories, suppliers
 - Sales, sale lines, payments, returns, held bills
 - Stock movements, stocktakes
@@ -96,7 +96,7 @@ FBR fiscal integration is deferred, but v1 keeps the data it will need so no mig
 
 - Passwords and PINs hashed with argon2id; PIN lockout after 5 failed attempts.
 - License data stored encrypted at rest (Windows DPAPI).
-- Permission checks enforced in the main process.
+- Every data IPC call requires a signed-in session, enforced in the main process.
 - No telemetry containing business data. Crash reports are opt-in and scrub personal data.
 - Open decision: whole-database encryption (SQLCipher). The store owner has physical access, so the value is mainly against PC theft.
 

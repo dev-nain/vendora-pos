@@ -232,8 +232,8 @@ With `prefers-reduced-motion: reduce`, durations drop to 0 and `--scale-enter` b
 ## Shell
 
 - **Title bar:** 44px, on Mica, draggable. App mark and "Vendora" at 12px, the area tabs, then the user button. Windows draws the native caption buttons over the right edge, so the bar keeps clear padding there.
-- **Tabs:** Sell and Back office (owners and managers), 44px high. The selected tab is semibold with a 16×3px accent pill under its label. `Ctrl+1` and `Ctrl+2` switch.
-- **User button:** a 24px avatar and name. It opens a menu with Lock (`Ctrl+L`) and Log out.
+- **Tabs:** Sell and Back office, 44px high. The selected tab is semibold with a 16×3px accent pill under its label. `Ctrl+1` and `Ctrl+2` switch.
+- **User button:** a 24px avatar and name. It opens a menu with Switch user (`Ctrl+L`) and Log out.
 - **Content layer:** `bg-surface` with an 8px top-left radius and a top and left `border-card` stroke, sitting on Mica.
 - **Hint bar:** 36px, `bg-surface`, 12px `text-secondary`. Keycaps plus a label for each shortcut in the current area. It is plain text.
 - **Selection pill:** selected rows, tiles and nav items get `bg-surface-selected` plus a 3×16px `bg-fill-brand` pill on the left edge. This is how selection avoids relying on colour alone.
@@ -264,7 +264,7 @@ Printed in the printer's monospace font, black only. 48 characters per line on 8
 | "Printer offline — check paper or cable. Sale saved." | "Error: ESC/POS write failed (code -4)." |
 | "Pay", "Hold bill", "Close shift" | "Proceed to payment processing" |
 | "Void sale T1-000231 (Rs 4,770)?" | "Are you sure?" |
-| "Your limit is 5%. A manager can approve with their PIN." | "Invalid operation! You can't do that." |
+| "Too many wrong PINs. Try again in 30 s." | "Invalid operation! You can't do that." |
 
 ## Principles
 
@@ -279,7 +279,7 @@ Printed in the printer's monospace font, black only. 48 characters per line on 8
 ## Key Screens for Design Quality
 
 1. **Billing screen**: where cashiers spend 90% of their time. Scan-to-line speed, readable totals, visible shortcuts.
-2. **PIN login and lock**: a single centred column on Mica with the app mark top-left and the version bottom-left: user tiles, PIN dots and pad.
+2. **PIN login and switch user**: a single centred column on Mica with the app mark top-left and the version bottom-left: user tiles, PIN dots and pad.
 3. **Shift close / Z-report**: where trust is won or lost. Clear expected vs counted, no ambiguity.
 4. **Owner dashboard**: two minutes at the end of the day; the important number must be obvious.
 

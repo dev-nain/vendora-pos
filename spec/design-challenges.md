@@ -38,7 +38,6 @@ For each, document the decisions and reasoning in the README.
 **Questions to consider:**
 
 - What counts as "unusual" activity worth flagging, without crying wolf?
-- Does the dashboard differ for a Manager?
 
 ---
 
