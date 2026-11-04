@@ -89,6 +89,12 @@ export const holdInputSchema = z.strictObject({
   draftId: z.uuid(),
 });
 
+export const ntnSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{7}-?\d$/, "NTN is 7 digits, then 1 digit, like 1234567-8.")
+  .transform((value) => `${value.slice(0, 7)}-${value.slice(-1)}`);
+
 export const buyerSchema = z.strictObject({
   name: z
     .string()
@@ -96,12 +102,7 @@ export const buyerSchema = z.strictObject({
     .min(1, "Name is up to 100 characters.")
     .max(100, "Name is up to 100 characters.")
     .optional(),
-  ntn: z
-    .string()
-    .trim()
-    .regex(/^\d{7}-?\d$/, "NTN is 7 digits, then 1 digit, like 1234567-8.")
-    .transform((value) => `${value.slice(0, 7)}-${value.slice(-1)}`)
-    .optional(),
+  ntn: ntnSchema.optional(),
   cnic: z
     .string()
     .trim()
