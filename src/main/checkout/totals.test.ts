@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Discount } from "../../shared/checkout";
-import {
-  computeBill,
-  divRoundHalfUp,
-  roundToUnit,
-  spreadPaisa,
-  type RoundingSettings,
-  type TenderInput,
-  type TotalsLine,
-} from "./totals";
+import { divRoundHalfUp, type RoundingSettings, type TenderInput } from "../../shared/rounding";
+import { computeBill, spreadPaisa, type TotalsLine } from "./totals";
 
 const off: RoundingSettings = { mode: "off", unitPaisa: 100 };
 
@@ -55,27 +48,6 @@ function bill(
     ...(options.tenders ? { tenders: options.tenders } : {}),
   });
 }
-
-describe("divRoundHalfUp", () => {
-  it("rounds half away from zero", () => {
-    expect(divRoundHalfUp(5n, 10n)).toBe(1);
-    expect(divRoundHalfUp(-5n, 10n)).toBe(-1);
-    expect(divRoundHalfUp(4n, 10n)).toBe(0);
-    expect(divRoundHalfUp(-4n, 10n)).toBe(0);
-  });
-
-  it("throws past the safe integer range", () => {
-    expect(() => divRoundHalfUp(BigInt(Number.MAX_SAFE_INTEGER) + 1n, 1n)).toThrow();
-  });
-});
-
-describe("roundToUnit", () => {
-  it("rounds to the nearest multiple, away from zero on a half", () => {
-    expect(roundToUnit(1050, 100)).toBe(1100);
-    expect(roundToUnit(1049, 100)).toBe(1000);
-    expect(roundToUnit(-1050, 100)).toBe(-1100);
-  });
-});
 
 describe("spreadPaisa", () => {
   it("gives the leftover to the largest remainders, ties to the lower position", () => {
