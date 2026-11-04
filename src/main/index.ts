@@ -10,6 +10,7 @@ import { createAuthService } from "./services/auth";
 import { createBillDraftsService } from "./services/bill-drafts";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createCategoriesService } from "./services/categories";
+import { createReceiptsService } from "./services/receipts";
 import { createSalesService } from "./services/sales";
 import { createSettingsService } from "./services/settings";
 import { createShiftsService } from "./services/shifts";
@@ -18,7 +19,9 @@ import { createStockService } from "./services/stock";
 import { createTaxCategoriesService } from "./services/tax-categories";
 import { createUsersService } from "./services/users";
 import { createSessionStore } from "./auth/session";
+import { createRasteriser } from "./receipts/rasterise";
 import { createRenderWindow } from "./receipts/render-window";
+import { createTransport } from "./hardware/printer-transport";
 import { createMainWindow } from "./window";
 
 let database: VendoraDatabase | null = null;
@@ -72,19 +75,31 @@ void app.whenReady().then(async () => {
       return result.canceled || !result.filePath ? null : result.filePath;
     },
   });
+  const fakePrinterDir = process.env["VENDORA_FAKE_PRINTER"];
+  const renderWindow = createRenderWindow();
+  const receipts = createReceiptsService({
+    database,
+    audit,
+    sessions,
+    shifts,
+    rasterise: createRasteriser(renderWindow, Boolean(fakePrinterDir) && !app.isPackaged),
+    transportFor: (connection) =>
+      createTransport(connection, { fakePrinterDir, isPackaged: app.isPackaged }),
+    ...(app.isPackaged ? {} : { log: (entry) => console.info("print job", entry) }),
+  });
   registerIpcHandlers({
     auth,
     billDrafts,
     catalogExport,
     categories,
     products,
+    receipts,
     sales,
     settings,
     shifts,
     taxCategories,
     users,
   });
-  const renderWindow = createRenderWindow();
   const mainWindow = createMainWindow();
   mainWindow.once("show", () => void renderWindow.warm().catch(() => undefined));
 

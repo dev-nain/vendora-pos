@@ -13,6 +13,13 @@ import type {
   RenameCategoryResult,
 } from "./categories";
 import type {
+  CountPhase,
+  OpenDrawerForCountResult,
+  PrinterStatus,
+  PrintResult,
+  SaleJobResult,
+} from "./receipt";
+import type {
   MiscItemSetting,
   PrinterSettings,
   ReceiptSettings,
@@ -102,6 +109,13 @@ export const ipcChannels = {
   printerGetSettings: "printer:get-settings",
   printerSetSettings: "printer:set-settings",
   printerListWindows: "printer:list-windows",
+  printerStatus: "printer:status",
+  printerTestPrint: "printer:test-print",
+  printerTestDrawer: "printer:test-drawer",
+  printerOpenDrawerForCount: "printer:open-drawer-for-count",
+  receiptsSaleJob: "receipts:sale-job",
+  receiptsPrint: "receipts:print",
+  receiptsPrintShiftReport: "receipts:print-shift-report",
   authNeedsSetup: "auth:needs-setup",
   authCreateFirstUser: "auth:create-first-user",
   usersList: "users:list",
@@ -181,6 +195,15 @@ export interface VendoraApi {
     getSettings: () => Promise<PrinterSettings>;
     setSettings: (input: PrinterSettings) => Promise<PrinterSettings>;
     listWindows: () => Promise<WindowsPrinter[]>;
+    status: () => Promise<PrinterStatus>;
+    testPrint: () => Promise<PrintResult>;
+    testDrawer: () => Promise<PrintResult>;
+    openDrawerForCount: (phase: CountPhase) => Promise<OpenDrawerForCountResult>;
+  };
+  receipts: {
+    saleJob: (saleId: string) => Promise<SaleJobResult>;
+    print: (saleId: string) => Promise<PrintResult>;
+    printShiftReport: (shiftId: string) => Promise<PrintResult>;
   };
   users: {
     list: () => Promise<ManagedUser[]>;

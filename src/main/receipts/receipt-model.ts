@@ -191,3 +191,23 @@ export function buildReceiptModel(snapshot: SaleSnapshot, widthPx: ReceiptWidthP
 
   return { widthPx, metrics: metricsFor(widthPx), blocks };
 }
+
+export function buildTestPrintModel(
+  store: ReceiptSettings,
+  paperWidthMm: 58 | 80,
+  widthPx: ReceiptWidthPx,
+): ReceiptModel {
+  return {
+    widthPx,
+    metrics: metricsFor(widthPx),
+    blocks: [
+      ...headerBlocks(store),
+      rule,
+      text("Test print", { align: "center", size: "title", weight: "bold" }),
+      text(`${paperWidthMm} mm · ${widthPx} px`, { align: "center" }),
+      text("اردو ٹیسٹ پرنٹ", { align: "center", lang: "ur" }),
+      gap(8),
+      barcodeBlock("TEST-0001", widthPx),
+    ],
+  };
+}

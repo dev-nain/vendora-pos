@@ -52,6 +52,15 @@ import {
   updateProductResultSchema,
 } from "@shared/products";
 import {
+  countPhaseInputSchema,
+  openDrawerForCountResultSchema,
+  printerStatusSchema,
+  printResultSchema,
+  printShiftReportInputSchema,
+  saleIdInputSchema,
+  saleJobResultSchema,
+} from "@shared/receipt";
+import {
   miscItemInputSchema,
   miscItemSettingSchema,
   printerSettingsSchema,
@@ -106,6 +115,7 @@ import type { BillDraftsService } from "./services/bill-drafts";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { ProductsService } from "./services/products";
+import type { ReceiptsService } from "./services/receipts";
 import type { SalesService } from "./services/sales";
 import type { SettingsService } from "./services/settings";
 import type { ShiftsService } from "./services/shifts";
@@ -136,6 +146,7 @@ interface IpcServices {
   taxCategories: TaxCategoriesService;
   users: UsersService;
   products: ProductsService;
+  receipts: ReceiptsService;
 }
 
 export function registerIpcHandlers({
@@ -144,6 +155,7 @@ export function registerIpcHandlers({
   catalogExport,
   categories,
   products,
+  receipts,
   sales,
   settings,
   shifts,
@@ -198,6 +210,37 @@ export function registerIpcHandlers({
           isDefault: (options as Record<string, unknown>)["is-default"] === "true",
         })),
       ),
+    ),
+  );
+  handle(ipcChannels.printerStatus, () => printerStatusSchema.parse(receipts.status()));
+  handle(ipcChannels.printerTestPrint, async () =>
+    printResultSchema.parse(await receipts.testPrint()),
+  );
+  handle(ipcChannels.printerTestDrawer, async () =>
+    printResultSchema.parse(await receipts.testDrawer()),
+  );
+  handle(ipcChannels.printerOpenDrawerForCount, async (_event, input) => {
+    const { phase } = countPhaseInputSchema.parse(input);
+    const open = shifts.state().status === "open";
+    if (open !== (phase === "closing")) {
+      return openDrawerForCountResultSchema.parse({
+        ok: false,
+        reason: "wrong-phase",
+        message: "The drawer opens for a count only while that count is on screen.",
+      });
+    }
+    await receipts.openDrawer(phase === "opening" ? "opening_count" : "closing_count");
+    return openDrawerForCountResultSchema.parse({ ok: true });
+  });
+  handle(ipcChannels.receiptsSaleJob, async (_event, input) =>
+    saleJobResultSchema.parse(await receipts.saleJob(saleIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.receiptsPrint, async (_event, input) =>
+    printResultSchema.parse(await receipts.print(saleIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.receiptsPrintShiftReport, async (_event, input) =>
+    printResultSchema.parse(
+      await receipts.printShiftReport(printShiftReportInputSchema.parse(input)),
     ),
   );
   handle(ipcChannels.productsGetMiscItem, () =>
@@ -294,9 +337,12 @@ export function registerIpcHandlers({
   handle(ipcChannels.shiftsOpen, (_event, input) =>
     openShiftResultSchema.parse(shifts.open(openShiftInputSchema.parse(input))),
   );
-  handle(ipcChannels.shiftsAddCashMove, (_event, input) =>
-    addCashMoveResultSchema.parse(shifts.addCashMove(addCashMoveInputSchema.parse(input))),
-  );
+  handle(ipcChannels.shiftsAddCashMove, (_event, input) => {
+    const parsed = addCashMoveInputSchema.parse(input);
+    const result = addCashMoveResultSchema.parse(shifts.addCashMove(parsed));
+    if (result.ok) void receipts.openDrawer(parsed.kind === "in" ? "cash_in" : "cash_out");
+    return result;
+  });
   handle(ipcChannels.shiftsDeleteCashMove, (_event, input) =>
     deleteCashMoveResultSchema.parse(shifts.deleteCashMove(cashMoveIdInputSchema.parse(input))),
   );
@@ -340,7 +386,11 @@ export function registerIpcHandlers({
   handle(ipcChannels.checkoutDiscard, (_event, input) =>
     actionResultSchema.parse(billDrafts.discard(draftIdInputSchema.parse(input))),
   );
-  handle(ipcChannels.checkoutComplete, (_event, input) =>
-    completeSaleResultSchema.parse(sales.complete(completeSaleInputSchema.parse(input))),
-  );
+  handle(ipcChannels.checkoutComplete, (_event, input) => {
+    const result = completeSaleResultSchema.parse(
+      sales.complete(completeSaleInputSchema.parse(input)),
+    );
+    if (result.ok && !result.sale.replayed) receipts.startAfterSale(result.sale.id);
+    return result;
+  });
 }

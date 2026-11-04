@@ -124,6 +124,7 @@ describe("products ipc", () => {
       catalogExport,
       categories: stub,
       products: service,
+      receipts: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
@@ -300,6 +301,7 @@ describe("shifts ipc", () => {
   let database: VendoraDatabase;
   let sessions: SessionStore;
   let service: ShiftsService;
+  let receipts: { openDrawer: ReturnType<typeof vi.fn> };
 
   const signIn = () => {
     const user = database.db
@@ -330,6 +332,7 @@ describe("shifts ipc", () => {
       sessions,
       heldBills: () => [],
     });
+    receipts = { openDrawer: vi.fn() };
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
@@ -337,6 +340,7 @@ describe("shifts ipc", () => {
       catalogExport: stub,
       categories: stub,
       products: stub,
+      receipts: receipts as never,
       sales: stub,
       settings: stub,
       shifts: service,
@@ -408,6 +412,18 @@ describe("shifts ipc", () => {
     );
   });
 
+  it("opens the drawer after a saved cash move and not after a refused one", async () => {
+    signIn();
+    await invoke("shifts:add-cash-move", { kind: "in", amountPaisa: 100, reason: "x" });
+    expect(receipts.openDrawer).not.toHaveBeenCalled();
+
+    await invoke("shifts:open", { openingFloatPaisa: 0 });
+    await invoke("shifts:add-cash-move", { kind: "in", amountPaisa: 100, reason: "float" });
+    await invoke("shifts:add-cash-move", { kind: "out", amountPaisa: 50, reason: "milk" });
+
+    expect(receipts.openDrawer.mock.calls).toEqual([["cash_in"], ["cash_out"]]);
+  });
+
   it("opens then closes by total", async () => {
     signIn();
 
@@ -429,6 +445,7 @@ describe("shifts ipc", () => {
 describe("checkout ipc", () => {
   let kit: CheckoutKit;
   let sales: SalesService;
+  let receipts: { startAfterSale: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     handlers.clear();
@@ -439,6 +456,7 @@ describe("checkout ipc", () => {
       sessions: kit.sessions,
       stock: createStockService({ database: kit.database, audit: kit.audit }),
     });
+    receipts = { startAfterSale: vi.fn() };
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
@@ -446,6 +464,7 @@ describe("checkout ipc", () => {
       catalogExport: stub,
       categories: stub,
       products: stub,
+      receipts: receipts as never,
       sales,
       settings: stub,
       shifts: kit.shifts,
@@ -544,6 +563,20 @@ describe("checkout ipc", () => {
         payments: [{ method: "cash", amountPaisa: 50000 }],
       }),
     ).toMatchObject({ ok: true, sale: { replayed: true } });
+    expect(receipts.startAfterSale).toHaveBeenCalledTimes(1);
+    expect(receipts.startAfterSale).toHaveBeenCalledWith(expect.any(String));
+  });
+
+  it("starts no print when the sale is refused", async () => {
+    kit.signIn("cashier");
+    kit.openShift();
+
+    await invoke("checkout:complete", {
+      draftId: unknownId,
+      payments: [{ method: "cash", amountPaisa: 100 }],
+    });
+
+    expect(receipts.startAfterSale).not.toHaveBeenCalled();
   });
 
   it("holds a bill and lists it", async () => {
