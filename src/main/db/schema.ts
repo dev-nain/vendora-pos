@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { paymentMethods, type PaymentMethod } from "../../shared/checkout";
 import { productUnits, type ProductUnit } from "../../shared/products";
+import { printerKinds, printModes, type PaperWidthMm } from "../../shared/settings";
 import { uuidv7 } from "./id";
 
 export { paymentMethods, productUnits, type PaymentMethod, type ProductUnit };
@@ -69,6 +70,14 @@ export const stores = sqliteTable(
     cashRoundingCashOnly: integer("cash_rounding_cash_only", { mode: "boolean" })
       .notNull()
       .default(true),
+    address: text("address"),
+    phone: text("phone"),
+    ntn: text("ntn"),
+    strn: text("strn"),
+    receiptHeaderEn: text("receipt_header_en"),
+    receiptHeaderUr: text("receipt_header_ur"),
+    receiptFooterEn: text("receipt_footer_en"),
+    receiptFooterUr: text("receipt_footer_ur"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -98,6 +107,12 @@ export const terminals = sqliteTable(
       .references(() => stores.id),
     code: text("code").notNull(),
     fbrPosId: text("fbr_pos_id"),
+    printerKind: text("printer_kind", { enum: printerKinds }).notNull().default("none"),
+    printerName: text("printer_name"),
+    printerHost: text("printer_host"),
+    printerPort: integer("printer_port"),
+    paperWidthMm: integer("paper_width_mm").$type<PaperWidthMm>().notNull().default(80),
+    printMode: text("print_mode", { enum: printModes }).notNull().default("print"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -629,6 +644,7 @@ export const sales = sqliteTable(
     uniqueIndex("sales_id_refunded_sale_id_unique").on(t.id, t.refundedSaleId),
     index("sales_store_id_created_at_idx").on(t.storeId, t.createdAt),
     index("sales_shift_id_idx").on(t.shiftId),
+    index("sales_terminal_id_created_at_idx").on(t.terminalId, t.createdAt),
     index("sales_refunded_sale_id_idx").on(t.refundedSaleId),
   ],
 );

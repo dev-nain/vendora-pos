@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+export const printerKinds = ["none", "windows", "network"] as const;
+export const printModes = ["print", "ask", "off"] as const;
+export type PaperWidthMm = 58 | 80;
+
 export const miscItemInputSchema = z.strictObject({ enabled: z.boolean() });
 
 export const miscItemSettingSchema = z.strictObject({ enabled: z.boolean() });
