@@ -31,6 +31,7 @@ import {
   type CountMode,
 } from "./count-form";
 import { varianceLabel } from "./shift-report-view";
+import { useCountDrawer } from "./use-count-drawer";
 
 interface CloseShiftScreenProps {
   shiftId: string;
@@ -42,6 +43,7 @@ interface CloseShiftScreenProps {
   onClosed: (report: ShiftReport) => void;
   onChanged: () => void;
   onSessionEnded: () => void;
+  onPrinterChanged: () => void;
 }
 
 const figure =
@@ -62,7 +64,9 @@ export function CloseShiftScreen({
   onClosed,
   onChanged,
   onSessionEnded,
+  onPrinterChanged,
 }: CloseShiftScreenProps) {
+  useCountDrawer("closing", onPrinterChanged);
   const [denominations, setDenominations] = useState<Denomination[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [mode, setMode] = useState<CountMode>("denominations");

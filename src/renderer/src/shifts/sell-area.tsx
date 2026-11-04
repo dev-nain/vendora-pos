@@ -180,6 +180,7 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
           suggestedFloatPaisa={state.suggestedFloatPaisa}
           onChanged={load}
           onSessionEnded={onSessionEnded}
+          onPrinterChanged={refreshPrinter}
         />
       ) : mode.name === "closing" ? (
         <CloseShiftScreen
@@ -198,6 +199,7 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
             load();
           }}
           onSessionEnded={onSessionEnded}
+          onPrinterChanged={refreshPrinter}
         />
       ) : (
         <>
@@ -231,7 +233,10 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
           onOpenChange={(open) => {
             if (!open) setDialog(null);
           }}
-          onSaved={load}
+          onSaved={() => {
+            load();
+            refreshPrinter();
+          }}
           onSessionEnded={onSessionEnded}
         />
       ) : null}

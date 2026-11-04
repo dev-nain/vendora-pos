@@ -8,6 +8,7 @@ import { formatRupees, parseRupees, rupeeInputText } from "@renderer/lib/money";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { AdornedInput } from "../products/barcode-rows";
 import { ErrorLine } from "../users/form-parts";
+import { useCountDrawer } from "./use-count-drawer";
 
 const invalidAmount = "Enter an amount like 5000 or 5000.50";
 
@@ -15,13 +16,16 @@ interface OpenShiftScreenProps {
   suggestedFloatPaisa: number;
   onChanged: () => void;
   onSessionEnded: () => void;
+  onPrinterChanged: () => void;
 }
 
 export function OpenShiftScreen({
   suggestedFloatPaisa,
   onChanged,
   onSessionEnded,
+  onPrinterChanged,
 }: OpenShiftScreenProps) {
+  useCountDrawer("opening", onPrinterChanged);
   const [text, setText] = useState(rupeeInputText(suggestedFloatPaisa));
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [serviceError, setServiceError] = useState<string | null>(null);

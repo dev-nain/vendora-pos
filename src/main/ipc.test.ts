@@ -424,6 +424,29 @@ describe("shifts ipc", () => {
     expect(receipts.openDrawer.mock.calls).toEqual([["cash_in"], ["cash_out"]]);
   });
 
+  it("opens the drawer for a count only in the phase that matches the shift", async () => {
+    signIn();
+    const wrongPhase = { ok: false, reason: "wrong-phase", message: expect.any(String) };
+
+    expect(await invoke("printer:open-drawer-for-count", { phase: "closing" })).toMatchObject(
+      wrongPhase,
+    );
+    expect(await invoke("printer:open-drawer-for-count", { phase: "opening" })).toEqual({
+      ok: true,
+    });
+
+    await invoke("shifts:open", { openingFloatPaisa: 0 });
+    expect(await invoke("printer:open-drawer-for-count", { phase: "opening" })).toMatchObject(
+      wrongPhase,
+    );
+    expect(await invoke("printer:open-drawer-for-count", { phase: "closing" })).toEqual({
+      ok: true,
+    });
+
+    expect(receipts.openDrawer.mock.calls).toEqual([["opening_count"], ["closing_count"]]);
+    await expect(invoke("printer:open-drawer-for-count", { phase: "x" })).rejects.toThrow();
+  });
+
   it("opens then closes by total", async () => {
     signIn();
 
