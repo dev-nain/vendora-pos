@@ -11,6 +11,7 @@ import { runMigrations } from "../db/migrate";
 import {
   auditLog,
   cashDenominations,
+  shiftCashCounts,
   shiftCashMoves,
   shifts,
   stores,
@@ -48,6 +49,13 @@ describe("createShiftsService", () => {
     sessions.start({ userId: user.id, storeId: storeId(), loggedInAt: new Date(0) });
     return user;
   };
+
+  const denominationId = (valuePaisa: number) =>
+    database.db
+      .select()
+      .from(cashDenominations)
+      .where(eq(cashDenominations.valuePaisa, valuePaisa))
+      .get()!.id;
 
   const openWith = (float: number) => {
     const result = service.open({ openingFloatPaisa: float });
@@ -145,11 +153,7 @@ describe("createShiftsService", () => {
       expect(service.state()).toEqual({ status: "closed", suggestedFloatPaisa: 0 });
 
       const id = openWith(1000);
-      database.db
-        .update(shifts)
-        .set({ closedAt: new Date(), closedBy: signIn("cashier").id, countedCashPaisa: 7777 })
-        .where(eq(shifts.id, id))
-        .run();
+      service.close({ shiftId: id, count: { method: "total", countedCashPaisa: 7777 } });
 
       expect(service.state()).toEqual({ status: "closed", suggestedFloatPaisa: 7777 });
     });
@@ -330,6 +334,204 @@ describe("createShiftsService", () => {
       expect(list).toHaveLength(9);
       expect(list[0]).toMatchObject({ valuePaisa: 500000, kind: "note" });
       expect(list.at(-1)).toMatchObject({ valuePaisa: 200, kind: "coin" });
+    });
+  });
+
+  describe("close", () => {
+    it("by denomination stores the count lines with value snapshots, the figures and one shift_close row", () => {
+      const user = signIn("cashier");
+      const shiftId = openWith(500000);
+      addMove("in", 50000, "Change from bank");
+      addMove("out", 20000, "Tea");
+
+      const result = service.close({
+        shiftId,
+        count: {
+          method: "denominations",
+          lines: [
+            { denominationId: denominationId(100000), count: 5 },
+            { denominationId: denominationId(10000), count: 2 },
+            { denominationId: denominationId(500), count: 0 },
+          ],
+        },
+        note: "Short a bit",
+      });
+
+      expect(result).toMatchObject({
+        ok: true,
+        report: {
+          kind: "z",
+          expectedCashPaisa: 530000,
+          variancePaisa: -10000,
+          note: "Short a bit",
+          closedBy: "cashier name",
+          count: {
+            method: "denominations",
+            countedCashPaisa: 520000,
+            lines: [
+              { valuePaisa: 100000, count: 5, totalPaisa: 500000 },
+              { valuePaisa: 10000, count: 2, totalPaisa: 20000 },
+            ],
+          },
+        },
+      });
+      const row = database.db.select().from(shifts).get()!;
+      expect(row).toMatchObject({
+        closedBy: user.id,
+        countedCashPaisa: 520000,
+        expectedCashPaisa: 530000,
+        variancePaisa: -10000,
+      });
+      expect(row.closedAt).not.toBeNull();
+      const lines = database.db.select().from(shiftCashCounts).all();
+      expect(lines).toHaveLength(2);
+      expect(lines[0]).toMatchObject({
+        shiftId,
+        storeId: storeId(),
+        terminalId: terminalId(),
+      });
+      const audit = auditRows("shift_close");
+      expect(audit).toHaveLength(1);
+      expect(audit[0]).toMatchObject({ actorUserId: user.id, entityId: shiftId });
+      expect(JSON.parse(audit[0]!.details!)).toEqual({
+        countMethod: "denominations",
+        expectedCashPaisa: 530000,
+        countedCashPaisa: 520000,
+        variancePaisa: -10000,
+      });
+    });
+
+    it("by total stores no count lines", () => {
+      signIn("cashier");
+      const shiftId = openWith(1000);
+
+      const result = service.close({
+        shiftId,
+        count: { method: "total", countedCashPaisa: 1500 },
+      });
+
+      expect(result).toMatchObject({
+        ok: true,
+        report: {
+          count: { method: "total", lines: [], countedCashPaisa: 1500 },
+          variancePaisa: 500,
+          note: null,
+        },
+      });
+      expect(database.db.select().from(shiftCashCounts).all()).toHaveLength(0);
+    });
+
+    it("computes expected cash from the database after a delete", () => {
+      signIn("cashier");
+      const shiftId = openWith(1000);
+      addMove("in", 500, "a");
+      const out = addMove("out", 300, "b");
+      service.deleteCashMove({ id: out });
+
+      service.close({ shiftId, count: { method: "total", countedCashPaisa: 1500 } });
+
+      expect(database.db.select().from(shifts).get()).toMatchObject({
+        expectedCashPaisa: 1500,
+        variancePaisa: 0,
+      });
+    });
+
+    it("refuses an unknown or deleted denomination and writes nothing", () => {
+      signIn("cashier");
+      const shiftId = openWith(0);
+      const deleted = denominationId(100);
+      database.db
+        .update(cashDenominations)
+        .set({ deletedAt: new Date() })
+        .where(eq(cashDenominations.id, deleted))
+        .run();
+
+      for (const id of [deleted, "0190a000-0000-7000-8000-000000000001"]) {
+        expect(
+          service.close({
+            shiftId,
+            count: {
+              method: "denominations",
+              lines: [
+                { denominationId: denominationId(1000), count: 1 },
+                { denominationId: id, count: 1 },
+              ],
+            },
+          }),
+        ).toMatchObject({ ok: false, reason: "unknown-denomination" });
+      }
+      expect(database.db.select().from(shifts).get()!.closedAt).toBeNull();
+      expect(database.db.select().from(shiftCashCounts).all()).toHaveLength(0);
+      expect(auditRows("shift_close")).toHaveLength(0);
+    });
+
+    it("refuses while held bills exist, returning them, and writes nothing", () => {
+      signIn("cashier");
+      const shiftId = openWith(0);
+      held = [{ id: "b1", label: "Bill 1", totalPaisa: 900, heldAt: new Date(0).toISOString() }];
+
+      const result = service.close({
+        shiftId,
+        count: { method: "total", countedCashPaisa: 0 },
+      });
+
+      expect(result).toMatchObject({ ok: false, reason: "held-bills", bills: held });
+      expect(database.db.select().from(shifts).get()!.closedAt).toBeNull();
+      expect(auditRows("shift_close")).toHaveLength(0);
+    });
+
+    it("returns not-open when closing twice", () => {
+      signIn("cashier");
+      const shiftId = openWith(0);
+      const input = { shiftId, count: { method: "total", countedCashPaisa: 0 } } as const;
+      service.close(input);
+
+      expect(service.close(input)).toMatchObject({ ok: false, reason: "not-open" });
+      expect(auditRows("shift_close")).toHaveLength(1);
+    });
+
+    it("refuses to delete a cash move after close", () => {
+      signIn("cashier");
+      const shiftId = openWith(0);
+      const id = addMove("in", 100, "x");
+      service.close({ shiftId, count: { method: "total", countedCashPaisa: 100 } });
+
+      expect(service.deleteCashMove({ id })).toMatchObject({
+        ok: false,
+        reason: "shift-closed",
+      });
+      expect(database.db.select().from(shiftCashMoves).get()!.deletedAt).toBeNull();
+      expect(auditRows("cash_move_delete")).toHaveLength(0);
+    });
+
+    it("builds the Z-report from the stored figures", () => {
+      signIn("cashier");
+      const shiftId = openWith(1000);
+      service.close({ shiftId, count: { method: "total", countedCashPaisa: 900 } });
+      database.sqlite.exec("UPDATE shifts SET expected_cash_paisa = 4242, variance_paisa = -3342");
+
+      expect(service.report({ id: shiftId })).toMatchObject({
+        ok: true,
+        report: { kind: "z", expectedCashPaisa: 4242, variancePaisa: -3342 },
+      });
+    });
+
+    it("lets a new shift open after close", () => {
+      signIn("cashier");
+      const shiftId = openWith(0);
+      service.close({ shiftId, count: { method: "total", countedCashPaisa: 250 } });
+
+      expect(service.state()).toEqual({ status: "closed", suggestedFloatPaisa: 250 });
+      expect(service.open({ openingFloatPaisa: 250 }).ok).toBe(true);
+    });
+
+    it("refuses with no session", () => {
+      expect(() =>
+        service.close({
+          shiftId: "0190a000-0000-7000-8000-000000000001",
+          count: { method: "total", countedCashPaisa: 0 },
+        }),
+      ).toThrow(UnauthenticatedError);
     });
   });
 });

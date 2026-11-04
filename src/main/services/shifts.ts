@@ -1,12 +1,15 @@
-import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import {
   denominationTotalPaisa,
   expectedCashPaisa,
   shiftMessages,
   sumPaisa,
+  variancePaisa,
   type AddCashMoveInput,
   type AddCashMoveResult,
   type CashMove,
+  type CloseShiftInput,
+  type CloseShiftResult,
   type DeleteCashMoveResult,
   type Denomination,
   type HeldBillSummary,
@@ -68,6 +71,14 @@ const shiftClosed = {
   ok: false,
   reason: "shift-closed",
   message: shiftMessages.shiftClosed,
+} as const;
+
+const notOpen = { ok: false, reason: "not-open", message: shiftMessages.notOpen } as const;
+
+const unknownDenomination = {
+  ok: false,
+  reason: "unknown-denomination",
+  message: shiftMessages.unknownDenomination,
 } as const;
 
 export function requireOpenShift(executor: DbExecutor, terminalId: string): ShiftRow {
@@ -380,7 +391,113 @@ export function createShiftsService({
       .all();
   }
 
-  return { state, open, addCashMove, deleteCashMove, report, listDenominations };
+  function close(input: CloseShiftInput): CloseShiftResult {
+    const session = requireSession(sessions);
+    return db.transaction((tx) => {
+      const shift = tx.select().from(shifts).where(eq(shifts.id, input.shiftId)).get();
+      if (!shift || shift.closedAt) return notOpen;
+
+      const bills = heldBills(shift.id);
+      if (bills.length > 0) {
+        return {
+          ok: false,
+          reason: "held-bills",
+          message: shiftMessages.heldBills,
+          bills,
+        };
+      }
+
+      let countedPaisa: number;
+      const countLines: { denominationId: string; valuePaisa: number; count: number }[] = [];
+      if (input.count.method === "denominations") {
+        const ids = input.count.lines.map((line) => line.denominationId);
+        const found =
+          ids.length === 0
+            ? []
+            : tx
+                .select({ id: cashDenominations.id, valuePaisa: cashDenominations.valuePaisa })
+                .from(cashDenominations)
+                .where(
+                  and(
+                    inArray(cashDenominations.id, ids),
+                    eq(cashDenominations.storeId, shift.storeId),
+                    isNull(cashDenominations.deletedAt),
+                  ),
+                )
+                .all();
+        if (found.length !== ids.length) return unknownDenomination;
+        const valueById = new Map(found.map((row) => [row.id, row.valuePaisa]));
+        for (const line of input.count.lines) {
+          if (line.count === 0) continue;
+          countLines.push({
+            denominationId: line.denominationId,
+            valuePaisa: valueById.get(line.denominationId) ?? 0,
+            count: line.count,
+          });
+        }
+        countedPaisa = denominationTotalPaisa(countLines);
+      } else {
+        countedPaisa = input.count.countedCashPaisa;
+      }
+
+      const cashInPaisa = sumPaisa(movesOf(tx, shift.id, "in").map((move) => move.amountPaisa));
+      const cashOutPaisa = sumPaisa(movesOf(tx, shift.id, "out").map((move) => move.amountPaisa));
+      const expectedPaisa = expectedCashPaisa({
+        openingFloatPaisa: shift.openingFloatPaisa,
+        cashInPaisa,
+        cashOutPaisa,
+      });
+      const variance = variancePaisa(countedPaisa, expectedPaisa);
+
+      const closedAt = now();
+      const updated = tx
+        .update(shifts)
+        .set({
+          closedAt,
+          closedBy: session.userId,
+          countedCashPaisa: countedPaisa,
+          expectedCashPaisa: expectedPaisa,
+          variancePaisa: variance,
+          note: input.note ? input.note : null,
+        })
+        .where(and(eq(shifts.id, shift.id), isNull(shifts.closedAt)))
+        .run();
+      if (updated.changes === 0) return notOpen;
+
+      if (countLines.length > 0) {
+        tx.insert(shiftCashCounts)
+          .values(
+            countLines.map((line) => ({
+              storeId: shift.storeId,
+              terminalId: shift.terminalId,
+              shiftId: shift.id,
+              ...line,
+            })),
+          )
+          .run();
+      }
+      audit.record(
+        {
+          action: "shift_close",
+          actorUserId: session.userId,
+          entityType: "shift",
+          entityId: shift.id,
+          details: {
+            countMethod: input.count.method,
+            expectedCashPaisa: expectedPaisa,
+            countedCashPaisa: countedPaisa,
+            variancePaisa: variance,
+          },
+        },
+        tx,
+      );
+
+      const closedShift = tx.select().from(shifts).where(eq(shifts.id, shift.id)).get() ?? shift;
+      return { ok: true, report: buildReport(tx, closedShift, "z") };
+    });
+  }
+
+  return { state, open, addCashMove, deleteCashMove, report, listDenominations, close };
 }
 
 export type ShiftsService = ReturnType<typeof createShiftsService>;
