@@ -1,16 +1,25 @@
 import { CircleCheckIcon } from "lucide-react";
+import type { Ref } from "react";
 
 import { Badge } from "@renderer/components/ui/badge";
+import { Button } from "@renderer/components/ui/button";
+import { Kbd } from "@renderer/components/ui/kbd";
 import { formatTime } from "../lib/date-time";
 
 interface ShiftStripProps {
+  ref?: Ref<HTMLDivElement>;
   openedAt: string;
   openedBy: string;
+  onCashIn: (opener: HTMLElement | null) => void;
+  onCashOut: (opener: HTMLElement | null) => void;
 }
 
-export function ShiftStrip({ openedAt, openedBy }: ShiftStripProps) {
+export function ShiftStrip({ ref, openedAt, openedBy, onCashIn, onCashOut }: ShiftStripProps) {
   return (
-    <div className="flex min-h-[var(--height-row)] items-center justify-between gap-400 border-b border-line px-600">
+    <div
+      ref={ref}
+      className="flex min-h-[var(--height-row)] items-center justify-between gap-400 border-b border-line px-600"
+    >
       <div className="flex items-center gap-200 text-[length:var(--font-size-350)] text-foreground">
         <Badge variant="success">
           <CircleCheckIcon aria-hidden="true" strokeWidth={2} />
@@ -20,6 +29,16 @@ export function ShiftStrip({ openedAt, openedBy }: ShiftStripProps) {
           since {formatTime(openedAt)}
         </span>
         <span>{openedBy}</span>
+      </div>
+      <div className="flex items-center gap-200">
+        <Button variant="secondary" onClick={(event) => onCashIn(event.currentTarget)}>
+          Cash in
+          <Kbd>F6</Kbd>
+        </Button>
+        <Button variant="secondary" onClick={(event) => onCashOut(event.currentTarget)}>
+          Cash out
+          <Kbd>F7</Kbd>
+        </Button>
       </div>
     </div>
   );
