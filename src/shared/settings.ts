@@ -4,6 +4,12 @@ export const miscItemInputSchema = z.strictObject({ enabled: z.boolean() });
 
 export const miscItemSettingSchema = z.strictObject({ enabled: z.boolean() });
 
+const warnPaisaSchema = z.int().min(0).max(100_000_000);
+
+export const shiftVarianceInputSchema = z.strictObject({ warnPaisa: warnPaisaSchema });
+
+export const shiftVarianceSettingSchema = z.strictObject({ warnPaisa: warnPaisaSchema });
+
 export const scalePrefixSchema = z.string().regex(/^\d{2}$/);
 
 const scalePrefixesShape = {
@@ -25,3 +31,5 @@ export type ScalePrefixesInput = z.infer<typeof scalePrefixesInputSchema>;
 export type ScalePrefixesSetting = z.infer<typeof scalePrefixesSettingSchema>;
 export type MiscItemInput = z.infer<typeof miscItemInputSchema>;
 export type MiscItemSetting = z.infer<typeof miscItemSettingSchema>;
+export type ShiftVarianceInput = z.infer<typeof shiftVarianceInputSchema>;
+export type ShiftVarianceSetting = z.infer<typeof shiftVarianceSettingSchema>;

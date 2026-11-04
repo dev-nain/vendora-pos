@@ -4,12 +4,18 @@ import type {
   MiscItemSetting,
   ScalePrefixesInput,
   ScalePrefixesSetting,
+  ShiftVarianceInput,
+  ShiftVarianceSetting,
 } from "../../shared/settings";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { stores } from "../db/schema";
-import { getMiscItemEnabled, getScalePrefixes } from "../settings/store-settings";
+import {
+  getMiscItemEnabled,
+  getScalePrefixes,
+  getShiftVarianceWarnPaisa,
+} from "../settings/store-settings";
 import type { createAuditService } from "./audit";
 
 interface SettingsDeps {
@@ -74,8 +80,38 @@ export function createSettingsService({ database, audit, sessions }: SettingsDep
     return { enabled: input.enabled };
   }
 
+  function getShiftVarianceWarn(): ShiftVarianceSetting {
+    const session = requireSession(sessions);
+    return { warnPaisa: getShiftVarianceWarnPaisa(database, session.storeId) };
+  }
+
+  function setShiftVarianceWarn(input: ShiftVarianceInput): ShiftVarianceSetting {
+    const session = requireSession(sessions);
+    db.transaction((tx) => {
+      const from = getShiftVarianceWarnPaisa(database, session.storeId);
+      if (from === input.warnPaisa) return;
+      tx.update(stores)
+        .set({ shiftVarianceWarnPaisa: input.warnPaisa })
+        .where(eq(stores.id, session.storeId))
+        .run();
+      audit.record(
+        {
+          action: "settings_change",
+          actorUserId: session.userId,
+          entityType: "store",
+          entityId: session.storeId,
+          details: { setting: "shiftVarianceWarnPaisa", from, to: input.warnPaisa },
+        },
+        tx,
+      );
+    });
+    return { warnPaisa: input.warnPaisa };
+  }
+
   return {
     setScalePrefixes,
+    getShiftVarianceWarn,
+    setShiftVarianceWarn,
     getMiscItemEnabled: getMiscItemSetting,
     setMiscItemEnabled,
   };
