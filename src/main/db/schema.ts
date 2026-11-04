@@ -9,10 +9,11 @@ import {
   uniqueIndex,
   type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
+import { paymentMethods, type PaymentMethod } from "../../shared/checkout";
 import { productUnits, type ProductUnit } from "../../shared/products";
 import { uuidv7 } from "./id";
 
-export { productUnits, type ProductUnit };
+export { paymentMethods, productUnits, type PaymentMethod, type ProductUnit };
 
 const id = () => text("id").primaryKey().$defaultFn(uuidv7);
 const createdAt = () =>
@@ -37,9 +38,6 @@ const discountRange = (kind: AnySQLiteColumn, value: AnySQLiteColumn) =>
 
 export const saleTypes = ["sale", "refund"] as const;
 export type SaleType = (typeof saleTypes)[number];
-
-export const paymentMethods = ["cash", "card", "bank_transfer", "jazzcash", "easypaisa"] as const;
-export type PaymentMethod = (typeof paymentMethods)[number];
 
 export const billDraftStates = ["draft", "paid", "cancelled"] as const;
 export type BillDraftState = (typeof billDraftStates)[number];

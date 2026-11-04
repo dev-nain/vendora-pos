@@ -1,6 +1,4 @@
-import type { PaymentMethod } from "../../shared/checkout";
-
-export type Discount = { kind: "amount"; amountPaisa: number } | { kind: "percent"; bps: number };
+import type { Discount, PaymentMethod } from "../../shared/checkout";
 
 export type TotalsLine = {
   id: string;

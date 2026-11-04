@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { refusal } from "./checkout";
 
 export const shiftMessages = {
   alreadyOpen: "A shift is already open on this counter.",
@@ -114,9 +115,6 @@ export const shiftStateSchema = z.discriminatedUnion("status", [
     varianceWarnPaisa: z.int(),
   }),
 ]);
-
-const refusal = <Reason extends string>(reason: Reason) =>
-  z.strictObject({ ok: z.literal(false), reason: z.literal(reason), message: z.string() });
 
 const alreadyOpenSchema = refusal("already-open");
 const noOpenShiftSchema = refusal("no-open-shift");
