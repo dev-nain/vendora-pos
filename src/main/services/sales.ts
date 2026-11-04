@@ -1,16 +1,36 @@
-import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import {
   checkoutMessages,
   type CompleteSaleInput,
   type CompleteSaleResult,
   type PaymentMethod,
 } from "../../shared/checkout";
+import {
+  ordersListLimit,
+  salesMessages,
+  type GetOrderResult,
+  type OrderSummary,
+  type SalesListQuery,
+} from "../../shared/sales";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import { computeBill } from "../checkout/totals";
 import { divRoundHalfUp } from "../../shared/rounding";
 import type { VendoraDatabase } from "../db/client";
-import { takeInvoiceNumber } from "../db/invoice-numbers";
+import { formatInvoiceNo, takeInvoiceNumber } from "../db/invoice-numbers";
 import {
   changeRow,
   paymentRow,
@@ -23,13 +43,16 @@ import {
   billDraftLines,
   billDrafts,
   products,
+  receiptPrints,
   salePayments,
   saleLines,
   sales,
   taxCategories,
+  users,
 } from "../db/schema";
 import { isUniqueViolation } from "../db/sqlite-errors";
 import { currentTerminal, type DbExecutor } from "../db/terminal";
+import { loadSaleSnapshot } from "../receipts/sale-snapshot";
 import { getCheckoutSettings } from "../settings/store-settings";
 import type { createAuditService } from "./audit";
 import { toDiscount, totalsLineOf } from "./bill-drafts";
@@ -89,6 +112,17 @@ function replayOf(tx: DbExecutor, draftId: string): CompleteSaleResult | null {
       replayed: true,
     },
   };
+}
+
+function invoiceMatch(terminalCode: string, text: string): string | null {
+  if (!/^\d+$/.test(text)) return text.toUpperCase();
+  if (text.length > 15) return null;
+  return formatInvoiceNo(terminalCode, Number(text));
+}
+
+function localDayBounds(date: string): { start: Date; end: Date } {
+  const [year = 0, month = 1, day = 1] = date.split("-").map(Number);
+  return { start: new Date(year, month - 1, day), end: new Date(year, month - 1, day + 1) };
 }
 
 export function createSalesService({
@@ -350,7 +384,116 @@ export function createSalesService({
     }
   }
 
-  return { complete };
+  function list(query: SalesListQuery): OrderSummary[] {
+    requireSession(sessions);
+    const terminal = currentTerminal(db);
+    let condition: SQL | undefined;
+    if ("scope" in query) {
+      try {
+        condition = eq(sales.shiftId, requireOpenShift(db, terminal.id).id);
+      } catch (error) {
+        if (error instanceof NoOpenShiftError) return [];
+        throw error;
+      }
+    } else if ("invoiceNo" in query) {
+      const invoiceNo = invoiceMatch(terminal.code, query.invoiceNo);
+      if (invoiceNo === null) return [];
+      condition = eq(sales.invoiceNo, invoiceNo);
+    } else {
+      const { start, end } = localDayBounds(query.date);
+      condition = and(gte(sales.createdAt, start), lt(sales.createdAt, end));
+    }
+
+    const rows = db
+      .select({
+        id: sales.id,
+        invoiceNo: sales.invoiceNo,
+        createdAt: sales.createdAt,
+        cashierName: users.displayName,
+        totalPaisa: sales.totalPaisa,
+        type: sales.type,
+      })
+      .from(sales)
+      .innerJoin(users, eq(users.id, sales.cashierUserId))
+      .where(and(eq(sales.storeId, terminal.storeId), eq(sales.terminalId, terminal.id), condition))
+      .orderBy(desc(sales.createdAt), desc(sales.id))
+      .limit(ordersListLimit)
+      .all();
+    if (rows.length === 0) return [];
+
+    const payments = db
+      .select({ saleId: salePayments.saleId, method: salePayments.method })
+      .from(salePayments)
+      .where(
+        and(
+          inArray(
+            salePayments.saleId,
+            rows.map((row) => row.id),
+          ),
+          eq(salePayments.isChange, false),
+        ),
+      )
+      .orderBy(asc(salePayments.position))
+      .all();
+    const methodsOf = new Map<string, PaymentMethod[]>();
+    for (const { saleId, method } of payments) {
+      const methods = methodsOf.get(saleId) ?? [];
+      if (!methods.includes(method)) methods.push(method);
+      methodsOf.set(saleId, methods);
+    }
+    return rows.map((row) => ({
+      ...row,
+      createdAt: row.createdAt.toISOString(),
+      methods: methodsOf.get(row.id) ?? [],
+    }));
+  }
+
+  function get({ id }: { id: string }): GetOrderResult {
+    requireSession(sessions);
+    const snapshot = loadSaleSnapshot(db, id);
+    if (!snapshot) return { ok: false, reason: "not-found", message: salesMessages.notFound };
+    const printCount =
+      db.select({ n: count() }).from(receiptPrints).where(eq(receiptPrints.saleId, id)).get()?.n ??
+      0;
+    const { sale } = snapshot;
+    return {
+      ok: true,
+      sale: {
+        id: sale.id,
+        invoiceNo: sale.invoiceNo,
+        type: sale.type,
+        createdAt: sale.createdAt.toISOString(),
+        cashierName: snapshot.cashierName,
+        lines: snapshot.lines.map((line) => ({
+          nameEn: line.nameEn,
+          nameUr: line.nameUr,
+          unit: line.unit,
+          qtyMilli: line.qtyMilli,
+          packQtyMilli: line.packQtyMilli,
+          isReturn: line.isReturn,
+          unitPricePaisa: line.unitPricePaisa,
+          discountPaisa: line.discountPaisa,
+          totalPaisa: line.totalPaisa,
+        })),
+        subtotalPaisa: sale.subtotalPaisa,
+        discountPaisa: sale.discountPaisa,
+        taxPaisa: sale.taxPaisa,
+        roundingPaisa: sale.roundingPaisa,
+        totalPaisa: sale.totalPaisa,
+        changePaisa: snapshot.payments
+          .filter((payment) => payment.isChange)
+          .reduce((sum, payment) => sum - payment.amountPaisa, 0),
+        payments: snapshot.payments
+          .filter((payment) => !payment.isChange)
+          .map(({ method, amountPaisa, reference }) => ({ method, amountPaisa, reference })),
+        buyerName: sale.buyerName,
+        buyerNtn: sale.buyerNtn,
+        printCount,
+      },
+    };
+  }
+
+  return { complete, list, get };
 }
 
 export type SalesService = ReturnType<typeof createSalesService>;
