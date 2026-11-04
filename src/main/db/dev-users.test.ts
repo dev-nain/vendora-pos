@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { passwordSchema, pinSchema } from "../../shared/credentials";
-import { createApprovalStore } from "../auth/approvals";
 import { createSessionStore } from "../auth/session";
 import { createAuditService } from "../services/audit";
 import { createAuthService } from "../services/auth";
@@ -32,7 +31,6 @@ describe("seedDevUsers", () => {
       database,
       audit: createAuditService(database),
       sessions,
-      approvals: createApprovalStore({ sessions }),
     });
   });
 
@@ -46,7 +44,7 @@ describe("seedDevUsers", () => {
     const rows = database.db.select().from(users).all();
     expect(rows).toHaveLength(3);
     expect(rows.every((row) => row.isActive && row.deletedAt === null)).toBe(true);
-    expect(rows.map((row) => row.role).toSorted()).toEqual(["cashier", "manager", "owner"]);
+    expect(rows.map((row) => row.username).toSorted()).toEqual(["cashier", "manager", "owner"]);
   });
 
   it("uses credentials that satisfy the shared schemas", () => {
@@ -56,11 +54,11 @@ describe("seedDevUsers", () => {
     }
   });
 
-  it("lets the owner log in and switch by PIN to the manager and cashier", async () => {
+  it("lets the first fixture log in and switch by PIN to the others", async () => {
     const [owner, manager, cashier] = devUsers;
     const login = await auth.login({ username: owner.username, password: owner.password });
     expect(login.ok).toBe(true);
-    expect(auth.current()?.user.role).toBe("owner");
+    expect(auth.current()?.user.username).toBe("owner");
 
     for (const target of [manager, cashier]) {
       const id = auth.listLoginUsers().find((user) => user.displayName === target.displayName)!.id;

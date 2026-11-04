@@ -1,14 +1,10 @@
 import { z } from "zod";
 import { passwordSchema, pinSchema } from "./credentials";
-import { gatedActions } from "./gated-actions";
-
-export const userRoleSchema = z.enum(["owner", "manager", "cashier"]);
 
 export const authMessages = {
   invalidCredentials: "Username or password is incorrect",
   invalidPin: "PIN is incorrect",
-  notAllowedToApprove: "Only a manager or the owner can approve this.",
-  ownerExists: "An Owner account already exists. Log in instead.",
+  accountExists: "An account already exists. Log in instead.",
 } as const;
 
 export const loginInputSchema = z.strictObject({
@@ -16,7 +12,7 @@ export const loginInputSchema = z.strictObject({
   password: z.string().min(1).max(256),
 });
 
-export const createOwnerInputSchema = z.strictObject({
+export const createFirstUserInputSchema = z.strictObject({
   username: z
     .string()
     .trim()
@@ -36,23 +32,15 @@ export const pinSwitchInputSchema = z.strictObject({
   pin: z.string().min(1).max(64),
 });
 
-export const approveInputSchema = z.strictObject({
-  action: z.enum(gatedActions),
-  approverUserId: z.uuid(),
-  pin: z.string().min(1).max(64),
-});
-
 export const safeUserSchema = z.strictObject({
   id: z.string(),
   username: z.string(),
   displayName: z.string(),
-  role: userRoleSchema,
 });
 
 export const loginUserSchema = z.strictObject({
   id: z.string(),
   displayName: z.string(),
-  role: userRoleSchema,
 });
 
 export const authRefusalSchema = z.discriminatedUnion("reason", [
@@ -75,29 +63,13 @@ export const authResultSchema = z.union([
   authRefusalSchema,
 ]);
 
-export const sessionStateSchema = z.strictObject({ user: safeUserSchema, locked: z.boolean() });
+export const sessionStateSchema = z.strictObject({ user: safeUserSchema });
 
-export const approvalRefusalSchema = z.discriminatedUnion("reason", [
-  z.strictObject({ ok: z.literal(false), reason: z.literal("invalid-pin"), message: z.string() }),
-  z.strictObject({
-    ok: z.literal(false),
-    reason: z.literal("pin-locked"),
-    message: z.string(),
-    retryAfterMs: z.number().int().positive(),
-  }),
-  z.strictObject({ ok: z.literal(false), reason: z.literal("not-allowed"), message: z.string() }),
-]);
-
-export const approvalResultSchema = z.union([
-  z.strictObject({ ok: z.literal(true), token: z.string().min(1).max(128) }),
-  approvalRefusalSchema,
-]);
-
-export const createOwnerResultSchema = z.union([
+export const createFirstUserResultSchema = z.union([
   z.strictObject({ ok: z.literal(true), user: safeUserSchema }),
   z.strictObject({
     ok: z.literal(false),
-    reason: z.literal("owner-exists"),
+    reason: z.literal("account-exists"),
     message: z.string(),
   }),
 ]);
@@ -106,6 +78,5 @@ export type SafeUser = z.infer<typeof safeUserSchema>;
 export type SessionState = z.infer<typeof sessionStateSchema>;
 export type LoginUser = z.infer<typeof loginUserSchema>;
 export type AuthResult = z.infer<typeof authResultSchema>;
-export type ApprovalResult = z.infer<typeof approvalResultSchema>;
-export type CreateOwnerInput = z.input<typeof createOwnerInputSchema>;
-export type CreateOwnerResult = z.infer<typeof createOwnerResultSchema>;
+export type CreateFirstUserInput = z.input<typeof createFirstUserInputSchema>;
+export type CreateFirstUserResult = z.infer<typeof createFirstUserResultSchema>;

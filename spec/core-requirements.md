@@ -17,7 +17,7 @@ A new store goes from install to first sale without outside help.
 **Acceptance criteria:**
 
 - First-run wizard: store name, address, phone, NTN/STRN (optional), receipt header and footer (English and Urdu), logo
-- Create the Owner account (username + password, plus a 4–6 digit PIN for quick login)
+- Create your account (username + password, plus a 4–6 digit PIN for quick login)
 - Tax defaults: standard sales tax rate (configurable), and whether prices are tax-inclusive or tax-exclusive (store-wide)
 - Hardware setup: choose receipt printer, paper width (58/80 mm), test print, cash drawer kick test, scanner test field
 - Catalog import from a CSV/Excel template (name, barcode, category, unit, cost, sale price, MRP, tax category, opening stock)
@@ -39,27 +39,16 @@ Vendora is sold per store; a license must not get in the way of billing.
 
 ---
 
-## 3. Users, Roles & Permissions
+## 3. Users & Login
 
-Staff log in fast, and sensitive actions always record who approved them.
+Staff log in fast, and every sale and audit entry records who did it.
 
 **Acceptance criteria:**
 
-- Three fixed roles: **Owner**, **Manager**, **Cashier**
-- Login by username + password; quick switch by PIN at the counter; auto-lock after a configurable idle time
-- Gated actions ask for a Manager/Owner PIN inline instead of forcing a logout: discount above the cashier limit, price override, void a completed sale, return without receipt, open drawer without a sale, stock adjustment, cost-price change
-- Every override records the approver
+- Several named users; every signed-in user can use the whole app (no roles in v1)
+- Login by username + password; quick switch by PIN at the counter (Switch user, `Ctrl+L`)
 - PIN locks after 5 failed attempts
-
-| Action | Cashier | Manager | Owner |
-|--------|:-:|:-:|:-:|
-| Sell, hold/resume, reprint | ✓ | ✓ | ✓ |
-| Discount within limit (default 5%) | ✓ | ✓ | ✓ |
-| Return with receipt | ✓ | ✓ | ✓ |
-| Gated actions above | PIN | ✓ | ✓ |
-| Products, purchasing, stock | – | ✓ | ✓ |
-| Reports | own shift | ✓ | ✓ |
-| Users, settings, license, backup restore | – | – | ✓ |
+- Users are deactivated, not deleted; at least one user always stays active
 
 ---
 
@@ -89,7 +78,7 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 - Scanner input always lands in the current bill; focus returns to the scan field after every action
 - Every main action (search, quantity, discount, hold, pay, return) has a keyboard shortcut; mouse and touch also work
 - Scanning adds a line or increments its quantity; quantity is editable; weighed items take weight from a scale barcode or prompt for it
-- Line discount and bill discount (amount or %), capped by the role's limit
+- Line discount and bill discount (amount or %)
 - **Hold / resume** multiple bills; held bills survive an app restart
 - Payment methods: cash, card (manual record + reference), bank transfer / mobile wallet (JazzCash, Easypaisa — manual reference), and **split** across methods
 - Cash payment shows change due; quick-tender buttons (exact, 500, 1000, 5000)
@@ -121,7 +110,7 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 - Select lines and partial quantities; can't return more than was sold (including earlier returns)
 - Refund to the original method or cash; **exchange** = return + new sale in one flow
 - Each returned line goes back to sellable stock or to "damaged" (not sellable)
-- Return without a receipt needs a Manager PIN and uses the current price
+- Return without a receipt uses the current price
 - A credit note receipt prints for every return
 
 ---
@@ -131,7 +120,7 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 **Acceptance criteria:**
 
 - Stock on hand per product, derived from an append-only **stock movement ledger** (sale, return, receipt, adjustment, stocktake, damage)
-- Stock adjustments require a reason (damage, expiry, theft, correction); Manager or Owner only
+- Stock adjustments require a reason (damage, expiry, theft, correction)
 - **Stocktake:** start a count (full or by category), enter counted quantities with the scanner, review variance and its value, post all adjustments in one step
 - Low-stock threshold per product, a **low-stock list**, and a badge on the dashboard
 - Negative stock is allowed (a sale is never blocked) and listed in a negative-stock report
@@ -189,7 +178,7 @@ The database lives on one PC. Losing it means losing the business's records.
 
 - Automatic backup daily and at every shift close, kept 30 days
 - Second copy to a user-chosen folder (USB drive or a synced folder such as Google Drive); onboarding asks for it
-- Manual "Backup now"; **Restore** is Owner-only, checks integrity, and takes a backup of the current data first
+- Manual "Backup now"; **Restore** checks integrity and takes a backup of the current data first
 - Writes survive a power cut; the app checks database integrity at startup and tells the user exactly what to do if something is wrong
 - Optional password-protected backups
 
@@ -199,8 +188,8 @@ The database lives on one PC. Losing it means losing the business's records.
 
 **Acceptance criteria:**
 
-- Append-only log of: login/logout, overrides (with approver), voids, returns, price and cost changes, stock adjustments, drawer opens without a sale, settings changes, backup/restore
-- Owner can filter by user, action and date
+- Append-only log of: login/logout, voids, returns, price and cost changes, stock adjustments, drawer opens without a sale, settings changes, backup/restore
+- Filter by user, action and date
 - Entries can't be edited or deleted from the app
 
 ---

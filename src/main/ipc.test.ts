@@ -7,15 +7,7 @@ import { createProductInputSchema } from "@shared/products";
 import { createSessionStore, type SessionStore } from "./auth/session";
 import { openDatabase, type VendoraDatabase } from "./db/client";
 import { runMigrations } from "./db/migrate";
-import {
-  auditLog,
-  categories,
-  products,
-  stores,
-  taxCategories,
-  users,
-  type UserRole,
-} from "./db/schema";
+import { auditLog, categories, products, stores, taxCategories, users } from "./db/schema";
 import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
@@ -53,13 +45,12 @@ describe("products ipc", () => {
   let categoryId: string;
   let taxCategoryId: string;
 
-  const signIn = (role: UserRole) => {
+  const signIn = (name: string) => {
     const user = database.db
       .insert(users)
       .values({
-        username: `${role}-${Math.random().toString(36).slice(2, 8)}`,
-        displayName: role,
-        role,
+        username: `${name}-${Math.random().toString(36).slice(2, 8)}`,
+        displayName: name,
         passwordHash: "x",
         pinHash: "x",
       })
@@ -67,7 +58,6 @@ describe("products ipc", () => {
       .get();
     sessions.start({
       userId: user.id,
-      role,
       storeId: database.db.select().from(stores).get()!.id,
       loggedInAt: new Date(0),
     });
@@ -126,7 +116,6 @@ describe("products ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
-      autoLock: stub,
       catalogExport,
       categories: stub,
       products: service,
@@ -168,10 +157,10 @@ describe("products ipc", () => {
     });
   });
 
-  describe("cashier", () => {
-    it("is forbidden on every write and nothing changes", async () => {
+  describe("signed out", () => {
+    it("is refused on every write and nothing changes", async () => {
       const product = seedProduct();
-      signIn("cashier");
+      sessions.end();
       const before = counts();
       const writes: [string, unknown][] = [
         ["products:create", draft({ barcodes: [] })],
@@ -180,9 +169,12 @@ describe("products ipc", () => {
         ["products:restore", { id: product.id }],
         ["products:delete", { id: product.id }],
         ["products:bulk-update", { productIds: [product.id], change: bulkPrice }],
+        ["products:export-csv", undefined],
       ];
       for (const [channel, input] of writes) {
-        await expect(invoke(channel, input)).rejects.toThrow(new Error(ipcErrorMessages.forbidden));
+        await expect(invoke(channel, input)).rejects.toThrow(
+          new Error(ipcErrorMessages.unauthenticated),
+        );
       }
       expect(counts()).toEqual(before);
     });
@@ -228,12 +220,9 @@ describe("products ipc", () => {
       expect(await invoke("products:export-csv")).toEqual({ status: "cancelled" });
     });
 
-    it("is forbidden for a cashier", async () => {
+    it("saves for a cashier", async () => {
       signIn("cashier");
-      await expect(invoke("products:export-csv")).rejects.toThrow(
-        new Error(ipcErrorMessages.forbidden),
-      );
-      expect(existsSync(join(dir, "catalog.csv"))).toBe(false);
+      expect(await invoke("products:export-csv")).toMatchObject({ status: "saved" });
     });
   });
 
@@ -290,14 +279,6 @@ describe("products ipc", () => {
 
   describe("session state", () => {
     const search = { query: "", limit: 5, offset: 0 };
-
-    it("rejects reads while locked", async () => {
-      signIn("cashier");
-      sessions.lock();
-      await expect(invoke("products:search", search)).rejects.toThrow(
-        new Error(ipcErrorMessages.locked),
-      );
-    });
 
     it("rejects reads with no session", async () => {
       await expect(invoke("products:search", search)).rejects.toThrow(

@@ -1,6 +1,6 @@
-import { createOwnerInputSchema } from "../../../shared/auth";
+import { createFirstUserInputSchema } from "../../../shared/auth";
 
-export interface OwnerFormValues {
+export interface FirstUserFormValues {
   username: string;
   displayName: string;
   password: string;
@@ -9,10 +9,10 @@ export interface OwnerFormValues {
   confirmPin: string;
 }
 
-export type OwnerFormField = keyof OwnerFormValues;
-export type OwnerFormErrors = Partial<Record<OwnerFormField, string>>;
+export type FirstUserFormField = keyof FirstUserFormValues;
+export type FirstUserFormErrors = Partial<Record<FirstUserFormField, string>>;
 
-const { shape } = createOwnerInputSchema;
+const { shape } = createFirstUserInputSchema;
 
 function firstMessage(result: {
   success: boolean;
@@ -21,8 +21,8 @@ function firstMessage(result: {
   return result.success ? undefined : result.error?.issues[0]?.message;
 }
 
-export function validateOwnerForm(values: OwnerFormValues): OwnerFormErrors {
-  const checks: [OwnerFormField, string | undefined][] = [
+export function validateFirstUserForm(values: FirstUserFormValues): FirstUserFormErrors {
+  const checks: [FirstUserFormField, string | undefined][] = [
     ["username", firstMessage(shape.username.safeParse(values.username))],
     ["displayName", firstMessage(shape.displayName.safeParse(values.displayName))],
     ["password", firstMessage(shape.password.safeParse(values.password))],
@@ -33,7 +33,7 @@ export function validateOwnerForm(values: OwnerFormValues): OwnerFormErrors {
     ["pin", firstMessage(shape.pin.safeParse(values.pin))],
     ["confirmPin", values.confirmPin === values.pin ? undefined : "PINs don't match"],
   ];
-  const errors: OwnerFormErrors = {};
+  const errors: FirstUserFormErrors = {};
   for (const [field, message] of checks) if (message) errors[field] = message;
   return errors;
 }

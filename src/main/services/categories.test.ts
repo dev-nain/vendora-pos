@@ -8,19 +8,11 @@ import {
   renameCategoryInputSchema,
   categoryMessages,
 } from "../../shared/categories";
-import { ForbiddenError, SessionLockedError, UnauthenticatedError } from "../auth/errors";
+import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
-import {
-  auditLog,
-  categories,
-  products,
-  stores,
-  taxCategories,
-  users,
-  type UserRole,
-} from "../db/schema";
+import { auditLog, categories, products, stores, taxCategories, users } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import { createAuditService } from "./audit";
 import { createCategoriesService } from "./categories";
@@ -56,13 +48,13 @@ describe("createCategoriesService", () => {
   const categoryRows = () => database.db.select().from(categories).all();
   const generalId = () => categoryRows().find((c) => c.isSystem)!.id;
 
-  const signIn = (role: UserRole) => {
+  const signIn = (name: string) => {
     const user = database.db
       .insert(users)
-      .values({ username: role, displayName: role, role, passwordHash: "p", pinHash: "q" })
+      .values({ username: name, displayName: name, passwordHash: "p", pinHash: "q" })
       .returning()
       .get();
-    sessions.start({ userId: user.id, role, storeId: storeId(), loggedInAt: new Date(0) });
+    sessions.start({ userId: user.id, storeId: storeId(), loggedInAt: new Date(0) });
     return user;
   };
 
@@ -106,34 +98,36 @@ describe("createCategoriesService", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("denies a cashier on create, rename and remove and writes nothing", () => {
-    signIn("cashier");
+  it("refuses create, rename and remove with no session and writes nothing", () => {
     const id = generalId();
 
-    expect(() => service.create({ name: "Snacks" })).toThrow(ForbiddenError);
-    expect(() => service.rename({ id, name: "Misc" })).toThrow(ForbiddenError);
-    expect(() => service.remove({ id })).toThrow(ForbiddenError);
+    expect(() => service.create({ name: "Snacks" })).toThrow(UnauthenticatedError);
+    expect(() => service.rename({ id, name: "Misc" })).toThrow(UnauthenticatedError);
+    expect(() => service.remove({ id })).toThrow(UnauthenticatedError);
 
     expect(categoryRows().map((c) => c.name)).toEqual(["General"]);
     expect(auditRows()).toHaveLength(0);
   });
 
-  it.each(["manager", "owner"] as const)("lets a %s create, rename and remove", (role) => {
-    const user = signIn(role);
+  it.each(["cashier", "manager", "owner"] as const)(
+    "lets a %s create, rename and remove",
+    (name) => {
+      const user = signIn(name);
 
-    const created = service.create({ name: "Snacks" });
-    expect(created).toMatchObject({ ok: true, category: { name: "Snacks", isSystem: false } });
-    const id = created.ok ? created.category.id : "";
-    expect(service.rename({ id, name: "Chips" })).toMatchObject({
-      ok: true,
-      category: { name: "Chips" },
-    });
-    expect(service.remove({ id })).toEqual({ ok: true });
+      const created = service.create({ name: "Snacks" });
+      expect(created).toMatchObject({ ok: true, category: { name: "Snacks", isSystem: false } });
+      const id = created.ok ? created.category.id : "";
+      expect(service.rename({ id, name: "Chips" })).toMatchObject({
+        ok: true,
+        category: { name: "Chips" },
+      });
+      expect(service.remove({ id })).toEqual({ ok: true });
 
-    expect(auditRows().map((r) => r.actorUserId)).toEqual([user.id, user.id, user.id]);
-  });
+      expect(auditRows().map((r) => r.actorUserId)).toEqual([user.id, user.id, user.id]);
+    },
+  );
 
-  it("lists live categories for any role, sorted by name", () => {
+  it("lists live categories for any user, sorted by name", () => {
     signIn("owner");
     service.create({ name: "banana" });
     const apple = service.create({ name: "Apple" });
@@ -145,11 +139,8 @@ describe("createCategoriesService", () => {
     expect(service.list()[2]).toMatchObject({ isSystem: true });
   });
 
-  it("requires an unlocked session to list", () => {
+  it("requires a session to list", () => {
     expect(() => service.list()).toThrow(UnauthenticatedError);
-    signIn("cashier");
-    sessions.lock();
-    expect(() => service.list()).toThrow(SessionLockedError);
   });
 
   it("rejects duplicate names case-insensitively", () => {

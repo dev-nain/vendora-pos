@@ -10,7 +10,7 @@ import {
   type taxCategoryIdInputSchema,
   type updateTaxCategoryInputSchema,
 } from "../../shared/tax-categories";
-import { requireSessionPermission, requireUnlockedSession } from "../auth/guard";
+import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { products, taxCategories } from "../db/schema";
@@ -56,7 +56,7 @@ export function createTaxCategoriesService({
   const { db } = database;
 
   function list(): TaxCategory[] {
-    const session = requireUnlockedSession(sessions);
+    const session = requireSession(sessions);
     return db
       .select()
       .from(taxCategories)
@@ -67,7 +67,7 @@ export function createTaxCategoriesService({
   }
 
   function create(input: CreateInput): CreateTaxCategoryResult {
-    const session = requireSessionPermission(sessions, "settings.manage");
+    const session = requireSession(sessions);
     try {
       return db.transaction((tx): CreateTaxCategoryResult => {
         const existing = tx
@@ -107,7 +107,7 @@ export function createTaxCategoriesService({
   }
 
   function update(input: UpdateInput): UpdateTaxCategoryResult {
-    const session = requireSessionPermission(sessions, "settings.manage");
+    const session = requireSession(sessions);
     try {
       return db.transaction((tx): UpdateTaxCategoryResult => {
         const target = tx
@@ -178,7 +178,7 @@ export function createTaxCategoriesService({
   }
 
   function remove(input: IdInput): DeleteTaxCategoryResult {
-    const session = requireSessionPermission(sessions, "settings.manage");
+    const session = requireSession(sessions);
     return db.transaction((tx): DeleteTaxCategoryResult => {
       const target = tx
         .select()

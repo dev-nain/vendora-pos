@@ -12,7 +12,7 @@ import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { cn } from "@renderer/lib/utils";
 import { formatCooldown } from "./cooldown";
-import { isUnauthenticatedError, serviceErrorMessage } from "./messages";
+import { isSessionError, serviceErrorMessage } from "./messages";
 import { appendDigit, digitFromKey, PIN_MIN_LENGTH, sanitizePin } from "./pin-entry";
 import type { PinCooldown } from "./use-pin-cooldown";
 
@@ -73,7 +73,7 @@ export function PinPad({
         cooldown.start(userId, result.retryAfterMs);
       } else setError(result.message);
     } catch (caught) {
-      if (isUnauthenticatedError(caught)) {
+      if (isSessionError(caught)) {
         onUnauthenticated();
         return;
       }

@@ -3,28 +3,26 @@ import { useEffect, useState } from "react";
 import type { SafeUser } from "@shared/auth";
 import { serviceErrorMessage } from "../auth/messages";
 import { BackOffice } from "./back-office";
-import { canOpenBackOffice } from "./back-office-nav";
 import { HintBar, type Hint } from "./hint-bar";
 import { TitleBar, type Area } from "./title-bar";
 
 interface AppShellProps {
   user: SafeUser;
-  onLock: () => void;
+  onSwitchUser: () => void;
   onLoggedOut: () => void;
 }
 
 const hintsFor = (area: Area): Hint[] =>
   area === "sell"
-    ? [["Ctrl+L", "Lock"]]
+    ? [["Ctrl+L", "Switch user"]]
     : [
         ["Ctrl+1", "Sell"],
-        ["Ctrl+L", "Lock"],
+        ["Ctrl+L", "Switch user"],
       ];
 
-export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
+export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
   const [error, setError] = useState<string | null>(null);
   const [area, setArea] = useState<Area>("sell");
-  const backOfficeOpen = canOpenBackOffice(user.role);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -32,18 +30,18 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
       const key = event.key.toLowerCase();
       if (key === "l") {
         event.preventDefault();
-        onLock();
+        onSwitchUser();
       } else if (key === "1") {
         event.preventDefault();
         setArea("sell");
-      } else if (key === "2" && backOfficeOpen) {
+      } else if (key === "2") {
         event.preventDefault();
         setArea("back-office");
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onLock, backOfficeOpen]);
+  }, [onSwitchUser]);
 
   const logOut = async () => {
     try {
@@ -60,7 +58,7 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
         user={user}
         area={area}
         onAreaChange={setArea}
-        onLock={onLock}
+        onSwitchUser={onSwitchUser}
         onLogOut={() => void logOut()}
       />
       {area === "sell" ? (
@@ -73,7 +71,7 @@ export function AppShell({ user, onLock, onLoggedOut }: AppShellProps) {
           <p className="m-0">Checkout isn't set up yet.</p>
         </main>
       ) : (
-        <BackOffice role={user.role} currentUserId={user.id} onSessionEnded={onLoggedOut} />
+        <BackOffice currentUserId={user.id} onSessionEnded={onLoggedOut} />
       )}
       <HintBar hints={hintsFor(area)} error={error} />
     </div>

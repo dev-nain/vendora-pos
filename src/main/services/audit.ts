@@ -6,7 +6,6 @@ import { auditLog, terminals } from "../db/schema";
 export const auditActions = [
   "login",
   "logout",
-  "override",
   "void",
   "return",
   "price_change",
@@ -52,31 +51,25 @@ function findForbiddenKeyPath(
   return null;
 }
 
-export const auditRecordInputSchema = z
-  .strictObject({
-    action: z.enum(auditActions),
-    actorUserId: z.uuid(),
-    approverUserId: z.uuid().optional(),
-    entityType: z.string().min(1).max(64).optional(),
-    entityId: z.string().min(1).max(64).optional(),
-    details: z
-      .record(z.string(), z.json())
-      .superRefine((details, ctx) => {
-        const keyPath = findForbiddenKeyPath(details, []);
-        if (keyPath) {
-          ctx.addIssue({
-            code: "custom",
-            path: keyPath,
-            message: "Audit details must not contain secrets",
-          });
-        }
-      })
-      .optional(),
-  })
-  .refine((input) => input.action !== "override" || input.approverUserId !== undefined, {
-    path: ["approverUserId"],
-    message: "An override needs an approver",
-  });
+export const auditRecordInputSchema = z.strictObject({
+  action: z.enum(auditActions),
+  actorUserId: z.uuid(),
+  entityType: z.string().min(1).max(64).optional(),
+  entityId: z.string().min(1).max(64).optional(),
+  details: z
+    .record(z.string(), z.json())
+    .superRefine((details, ctx) => {
+      const keyPath = findForbiddenKeyPath(details, []);
+      if (keyPath) {
+        ctx.addIssue({
+          code: "custom",
+          path: keyPath,
+          message: "Audit details must not contain secrets",
+        });
+      }
+    })
+    .optional(),
+});
 export type AuditRecordInput = z.input<typeof auditRecordInputSchema>;
 
 type AuditExecutor =
@@ -102,7 +95,6 @@ export function createAuditService(database: VendoraDatabase) {
           storeId: terminal.storeId,
           terminalId: terminal.id,
           actorUserId: parsed.actorUserId,
-          approverUserId: parsed.approverUserId ?? null,
           action: parsed.action,
           entityType: parsed.entityType ?? null,
           entityId: parsed.entityId ?? null,

@@ -22,15 +22,13 @@ import {
   taxCategories,
   users,
   type ProductUnit,
-  type UserRole,
 } from "./schema";
 
 const migrationsFolder = join(process.cwd(), "drizzle");
 
-const newUser = (username: string, role: UserRole = "owner") => ({
+const newUser = (username: string) => ({
   username,
   displayName: "Name",
-  role,
   passwordHash: "hash",
   pinHash: "hash",
 });
@@ -92,12 +90,6 @@ describe("auth schema migration", () => {
     migrate();
     database.db.insert(users).values(newUser("owner")).run();
     expect(() => database.db.insert(users).values(newUser("Owner")).run()).toThrow();
-  });
-
-  it("rejects an unknown role at the database level", () => {
-    migrate();
-    const invalid = newUser("a", "admin" as UserRole);
-    expect(() => database.db.insert(users).values(invalid).run()).toThrow();
   });
 
   it("uses no SQLite-only constructs", () => {
@@ -567,6 +559,255 @@ describe("scale prefix settings", () => {
           .prepare("SELECT name, scale_weight_prefix AS w, scale_price_prefix AS p FROM stores")
           .all(),
       ).toEqual([{ name: "Existing", w: "21", p: "22" }]);
+    } finally {
+      database.sqlite.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+const columnsOf = (database: VendoraDatabase, table: string) =>
+  database.sqlite
+    .prepare(`SELECT name FROM pragma_table_info('${table}')`)
+    .all()
+    .map((row) => (row as { name: string }).name);
+
+const tableSql = (database: VendoraDatabase, table: string) =>
+  (
+    database.sqlite
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get(table) as { sql: string }
+  ).sql;
+
+const indexNames = (database: VendoraDatabase, table: string) =>
+  database.sqlite
+    .prepare(`SELECT name FROM pragma_index_list('${table}')`)
+    .all()
+    .map((row) => (row as { name: string }).name);
+
+describe("remove roles and lock migration on an existing database", () => {
+  it("keeps every row and constraint while dropping roles, the discount limit, auto-lock and the approver", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vendora-upgrade-"));
+    const database = openDatabase(join(dir, "vendora.db"));
+    try {
+      const oldFolder = join(dir, "old-migrations");
+      mkdirSync(join(oldFolder, "meta"), { recursive: true });
+      const journal = JSON.parse(
+        readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+      ) as { entries: { tag: string }[] };
+      journal.entries = journal.entries.slice(0, 8);
+      writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
+      for (const entry of journal.entries) {
+        copyFileSync(
+          join(migrationsFolder, `${entry.tag}.sql`),
+          join(oldFolder, `${entry.tag}.sql`),
+        );
+      }
+
+      const backupDir = join(dir, "backups");
+      runMigrations(database, { migrationsFolder: oldFolder, backupDir });
+      expect(database.sqlite.pragma("foreign_keys", { simple: true })).toBe(1);
+
+      database.sqlite.exec(`
+        INSERT INTO stores (id, name, cashier_discount_limit_bps, auto_lock_minutes, standard_tax_rate_bps, scale_weight_prefix, scale_price_prefix, misc_item_enabled, created_at, updated_at)
+          VALUES ('s1', 'Old', 900, 10, 1500, '02', '29', 1, 11, 12);
+        INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 2);
+        INSERT INTO categories (id, store_id, name, created_at, updated_at) VALUES ('c1', 's1', 'Tea', 1, 2);
+        INSERT INTO tax_categories (id, store_id, name, rate_bps, created_at, updated_at) VALUES ('x1', 's1', 'Reduced', 500, 1, 2);
+        INSERT INTO products (id, store_id, name_en, search_text, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, created_at, updated_at)
+          VALUES ('p1', 's1', 'Tapal', 'tapal', 'c1', 'x1', 'piece', 100, 150, 1, 2);
+        INSERT INTO product_barcodes (id, store_id, product_id, barcode, created_at, updated_at) VALUES ('b1', 's1', 'p1', '123', 1, 2);
+        INSERT INTO users (id, username, display_name, role, password_hash, pin_hash, failed_pin_attempts, pin_retry_after, is_active, deleted_at, created_at, updated_at)
+          VALUES ('u1', 'Owner', 'Imran', 'owner', 'p1', 'q1', 0, NULL, 1, NULL, 1, 2),
+                 ('u2', 'manager', 'Sana', 'manager', 'p2', 'q2', 3, 99, 1, NULL, 3, 4),
+                 ('u3', 'cashier', 'Bilal', 'cashier', 'p3', 'q3', 0, NULL, 0, NULL, 5, 6);
+        INSERT INTO audit_log (id, store_id, terminal_id, actor_user_id, approver_user_id, action, entity_type, entity_id, details, created_at) VALUES
+          ('a1', 's1', 't1', 'u1', NULL, 'login', NULL, NULL, '{"method":"password"}', 1),
+          ('a2', 's1', 't1', 'u2', 'u1', 'override', 'sale', 'z', '{"role":"manager"}', 2),
+          ('a3', 's1', 't1', 'u3', NULL, 'logout', NULL, NULL, NULL, 3);
+      `);
+
+      expect(runMigrations(database, { migrationsFolder, backupDir })).toBe("migrated");
+
+      expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
+      expect(database.sqlite.pragma("foreign_keys", { simple: true })).toBe(1);
+      expect(database.sqlite.pragma("foreign_key_check")).toEqual([]);
+
+      expect(columnsOf(database, "stores")).toEqual([
+        "id",
+        "name",
+        "standard_tax_rate_bps",
+        "scale_weight_prefix",
+        "scale_price_prefix",
+        "misc_item_enabled",
+        "created_at",
+        "updated_at",
+      ]);
+      expect(columnsOf(database, "users")).not.toContain("role");
+      expect(columnsOf(database, "audit_log")).not.toContain("approver_user_id");
+
+      expect(database.sqlite.prepare("SELECT * FROM stores").all()).toEqual([
+        {
+          id: "s1",
+          name: "Old",
+          standard_tax_rate_bps: 1500,
+          scale_weight_prefix: "02",
+          scale_price_prefix: "29",
+          misc_item_enabled: 1,
+          created_at: 11,
+          updated_at: 12,
+        },
+      ]);
+      expect(database.sqlite.prepare("SELECT * FROM users ORDER BY id").all()).toEqual([
+        {
+          id: "u1",
+          username: "Owner",
+          display_name: "Imran",
+          password_hash: "p1",
+          pin_hash: "q1",
+          failed_pin_attempts: 0,
+          pin_retry_after: null,
+          is_active: 1,
+          deleted_at: null,
+          created_at: 1,
+          updated_at: 2,
+        },
+        {
+          id: "u2",
+          username: "manager",
+          display_name: "Sana",
+          password_hash: "p2",
+          pin_hash: "q2",
+          failed_pin_attempts: 3,
+          pin_retry_after: 99,
+          is_active: 1,
+          deleted_at: null,
+          created_at: 3,
+          updated_at: 4,
+        },
+        {
+          id: "u3",
+          username: "cashier",
+          display_name: "Bilal",
+          password_hash: "p3",
+          pin_hash: "q3",
+          failed_pin_attempts: 0,
+          pin_retry_after: null,
+          is_active: 0,
+          deleted_at: null,
+          created_at: 5,
+          updated_at: 6,
+        },
+      ]);
+      expect(database.sqlite.prepare("SELECT * FROM audit_log ORDER BY id").all()).toEqual([
+        {
+          id: "a1",
+          store_id: "s1",
+          terminal_id: "t1",
+          actor_user_id: "u1",
+          action: "login",
+          entity_type: null,
+          entity_id: null,
+          details: '{"method":"password"}',
+          created_at: 1,
+        },
+        {
+          id: "a2",
+          store_id: "s1",
+          terminal_id: "t1",
+          actor_user_id: "u2",
+          action: "override",
+          entity_type: "sale",
+          entity_id: "z",
+          details: '{"role":"manager"}',
+          created_at: 2,
+        },
+        {
+          id: "a3",
+          store_id: "s1",
+          terminal_id: "t1",
+          actor_user_id: "u3",
+          action: "logout",
+          entity_type: null,
+          entity_id: null,
+          details: null,
+          created_at: 3,
+        },
+      ]);
+      for (const [table, count] of [
+        ["terminals", 1],
+        ["categories", 1],
+        ["tax_categories", 1],
+        ["products", 1],
+        ["product_barcodes", 1],
+      ] as const) {
+        expect(database.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get()).toEqual({
+          n: count,
+        });
+      }
+
+      expect(() =>
+        database.sqlite.exec(
+          "INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at) VALUES ('u4', 'MANAGER', 'Dup', 'p', 'q', 1, 2)",
+        ),
+      ).toThrow();
+
+      database.sqlite.exec(
+        "INSERT INTO stores (id, created_at, updated_at) VALUES ('s2', 1, 2); INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at) VALUES ('u5', 'fresh', 'Fresh', 'p', 'q', 1, 2)",
+      );
+      expect(
+        database.sqlite
+          .prepare(
+            "SELECT standard_tax_rate_bps AS rate, scale_weight_prefix AS w, scale_price_prefix AS p, misc_item_enabled AS misc FROM stores WHERE id = 's2'",
+          )
+          .get(),
+      ).toEqual({ rate: 1800, w: "21", p: "22", misc: 0 });
+      expect(
+        database.sqlite
+          .prepare(
+            "SELECT is_active AS active, failed_pin_attempts AS failed FROM users WHERE id = 'u5'",
+          )
+          .get(),
+      ).toEqual({ active: 1, failed: 0 });
+
+      const storesSql = tableSql(database, "stores");
+      for (const name of [
+        "stores_standard_tax_rate_bps_check",
+        "stores_scale_weight_prefix_check",
+        "stores_scale_price_prefix_check",
+      ]) {
+        expect(storesSql).toContain(name);
+      }
+      expect(() =>
+        database.sqlite.exec("UPDATE stores SET standard_tax_rate_bps = 10001"),
+      ).toThrow();
+      expect(() => database.sqlite.exec("UPDATE stores SET scale_weight_prefix = '2'")).toThrow();
+      expect(() => database.sqlite.exec("UPDATE stores SET scale_price_prefix = '2a'")).toThrow();
+      expect(() => database.sqlite.exec("UPDATE tax_categories SET rate_bps = 10001")).toThrow();
+
+      expect(indexNames(database, "users")).toContain("users_username_lower_unique");
+      expect(indexNames(database, "audit_log")).toEqual(
+        expect.arrayContaining([
+          "audit_log_created_at_idx",
+          "audit_log_actor_created_at_idx",
+          "audit_log_action_created_at_idx",
+        ]),
+      );
+      expect(
+        database.sqlite
+          .prepare("SELECT \"table\" AS t FROM pragma_foreign_key_list('audit_log') ORDER BY 1")
+          .all(),
+      ).toEqual([{ t: "stores" }, { t: "terminals" }, { t: "users" }]);
+      expect(
+        database.sqlite
+          .prepare("SELECT \"table\" AS t FROM pragma_foreign_key_list('terminals')")
+          .all(),
+      ).toEqual([{ t: "stores" }]);
+      expect(
+        database.sqlite
+          .prepare("SELECT \"table\" AS t FROM pragma_foreign_key_list('products') ORDER BY 1")
+          .all(),
+      ).toEqual([{ t: "categories" }, { t: "stores" }, { t: "tax_categories" }]);
     } finally {
       database.sqlite.close();
       rmSync(dir, { recursive: true, force: true });

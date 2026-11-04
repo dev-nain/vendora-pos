@@ -10,7 +10,7 @@ import {
   type createCategoryInputSchema,
   type renameCategoryInputSchema,
 } from "../../shared/categories";
-import { requireSessionPermission, requireUnlockedSession } from "../auth/guard";
+import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { categories, products } from "../db/schema";
@@ -69,7 +69,7 @@ export function createCategoriesService({
   const { db } = database;
 
   function list(): Category[] {
-    const session = requireUnlockedSession(sessions);
+    const session = requireSession(sessions);
     return db
       .select()
       .from(categories)
@@ -80,7 +80,7 @@ export function createCategoriesService({
   }
 
   function create(input: CreateInput): CreateCategoryResult {
-    const session = requireSessionPermission(sessions, "products.manage");
+    const session = requireSession(sessions);
     try {
       return db.transaction((tx): CreateCategoryResult => {
         const existing = tx
@@ -120,7 +120,7 @@ export function createCategoriesService({
   }
 
   function rename(input: RenameInput): RenameCategoryResult {
-    const session = requireSessionPermission(sessions, "products.manage");
+    const session = requireSession(sessions);
     try {
       return db.transaction((tx): RenameCategoryResult => {
         const target = tx
@@ -176,7 +176,7 @@ export function createCategoriesService({
   }
 
   function remove(input: IdInput): DeleteCategoryResult {
-    const session = requireSessionPermission(sessions, "products.manage");
+    const session = requireSession(sessions);
     return db.transaction((tx): DeleteCategoryResult => {
       const target = tx
         .select()

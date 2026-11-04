@@ -2,22 +2,17 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
 import {
   authMessages,
-  type ApprovalResult,
-  type approveInputSchema,
   type AuthResult,
-  type CreateOwnerResult,
-  type createOwnerInputSchema,
+  type CreateFirstUserResult,
+  type createFirstUserInputSchema,
   type LoginUser,
   type loginInputSchema,
   type pinSwitchInputSchema,
   type SafeUser,
   type SessionState,
 } from "../../shared/auth";
-import { gatedActionDecision } from "../../shared/gated-actions";
-import type { ApprovalStore } from "../auth/approvals";
 import { attemptPin, type PinLockState } from "../auth/pin-lockout";
 import { hashCredential, verifyCredential } from "../auth/credentials";
-import { SessionLockedError } from "../auth/errors";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
@@ -25,15 +20,13 @@ import { terminals, users } from "../db/schema";
 import type { createAuditService } from "./audit";
 
 type LoginInput = z.output<typeof loginInputSchema>;
-type CreateOwnerInput = z.output<typeof createOwnerInputSchema>;
+type CreateFirstUserInput = z.output<typeof createFirstUserInputSchema>;
 type PinSwitchInput = z.output<typeof pinSwitchInputSchema>;
-type ApproveInput = z.output<typeof approveInputSchema>;
 
 interface AuthDeps {
   database: VendoraDatabase;
   audit: ReturnType<typeof createAuditService>;
   sessions: SessionStore;
-  approvals: ApprovalStore;
   now?: () => Date;
 }
 
@@ -43,13 +36,11 @@ const toSafeUser = (row: typeof users.$inferSelect): SafeUser => ({
   id: row.id,
   username: row.username,
   displayName: row.displayName,
-  role: row.role,
 });
 
-const toLoginUser = (row: Pick<typeof users.$inferSelect, "id" | "displayName" | "role">) => ({
+const toLoginUser = (row: Pick<typeof users.$inferSelect, "id" | "displayName">) => ({
   id: row.id,
   displayName: row.displayName,
-  role: row.role,
 });
 
 const invalidCredentials: AuthResult = {
@@ -64,22 +55,10 @@ const invalidPin: AuthResult = {
   message: authMessages.invalidPin,
 };
 
-const invalidApproverPin: ApprovalResult = {
-  ok: false,
-  reason: "invalid-pin",
-  message: authMessages.invalidPin,
-};
-
 let dummyHash: Promise<string> | null = null;
 const getDummyHash = () => (dummyHash ??= hashCredential("vendora-dummy-credential"));
 
-export function createAuthService({
-  database,
-  audit,
-  sessions,
-  approvals,
-  now = () => new Date(),
-}: AuthDeps) {
+export function createAuthService({ database, audit, sessions, now = () => new Date() }: AuthDeps) {
   const { db } = database;
 
   function storeId(): string {
@@ -125,8 +104,7 @@ export function createAuthService({
     db.transaction((tx) => {
       audit.record({ action: "login", actorUserId: user.id, details: { method: "password" } }, tx);
     });
-    approvals.clear();
-    sessions.start({ userId: user.id, role: user.role, storeId: store, loggedInAt });
+    sessions.start({ userId: user.id, storeId: store, loggedInAt });
     return { ok: true, user: toSafeUser(user) };
   }
 
@@ -176,24 +154,23 @@ export function createAuthService({
           retryAfterMs: retryAt.getTime() - at.getTime(),
         };
       }
-      approvals.clear();
-      sessions.start({ userId: user.id, role: user.role, storeId: storeId(), loggedInAt: at });
+      sessions.start({ userId: user.id, storeId: storeId(), loggedInAt: at });
       return { ok: true, user: toSafeUser(user) };
     });
   }
 
-  function needsOwnerSetup(): boolean {
+  function needsSetup(): boolean {
     return db.select({ id: users.id }).from(users).limit(1).get() === undefined;
   }
 
-  const ownerExists: CreateOwnerResult = {
+  const accountExists: CreateFirstUserResult = {
     ok: false,
-    reason: "owner-exists",
-    message: authMessages.ownerExists,
+    reason: "account-exists",
+    message: authMessages.accountExists,
   };
 
-  async function createOwner(input: CreateOwnerInput): Promise<CreateOwnerResult> {
-    if (!needsOwnerSetup()) return ownerExists;
+  async function createFirstUser(input: CreateFirstUserInput): Promise<CreateFirstUserResult> {
+    if (!needsSetup()) return accountExists;
 
     const [passwordHash, pinHash] = await Promise.all([
       hashCredential(input.password),
@@ -203,12 +180,11 @@ export function createAuthService({
     const loggedInAt = now();
     const row = db.transaction((tx) => {
       if (tx.select({ id: users.id }).from(users).limit(1).get()) return null;
-      const owner = tx
+      const created = tx
         .insert(users)
         .values({
           username: input.username,
           displayName: input.displayName,
-          role: "owner",
           passwordHash,
           pinHash,
         })
@@ -217,19 +193,22 @@ export function createAuthService({
       audit.record(
         {
           action: "user_create",
-          actorUserId: owner.id,
+          actorUserId: created.id,
           entityType: "user",
-          entityId: owner.id,
-          details: { username: owner.username, role: "owner" },
+          entityId: created.id,
+          details: { username: created.username },
         },
         tx,
       );
-      audit.record({ action: "login", actorUserId: owner.id, details: { method: "password" } }, tx);
-      return owner;
+      audit.record(
+        { action: "login", actorUserId: created.id, details: { method: "password" } },
+        tx,
+      );
+      return created;
     });
-    if (!row) return ownerExists;
+    if (!row) return accountExists;
 
-    sessions.start({ userId: row.id, role: "owner", storeId: storeId(), loggedInAt });
+    sessions.start({ userId: row.id, storeId: storeId(), loggedInAt });
     return { ok: true, user: toSafeUser(row) };
   }
 
@@ -239,63 +218,7 @@ export function createAuthService({
     db.transaction((tx) => {
       audit.record({ action: "logout", actorUserId: session.userId }, tx);
     });
-    approvals.clear();
     sessions.end();
-  }
-
-  function lock(): void {
-    requireSession(sessions);
-    sessions.lock();
-  }
-
-  function approve(input: ApproveInput): Promise<ApprovalResult> {
-    return serialisePin(async () => {
-      const session = requireSession(sessions);
-      if (sessions.isLocked()) throw new SessionLockedError();
-      const approver = db
-        .select()
-        .from(users)
-        .where(and(eq(users.id, input.approverUserId), isActiveUser))
-        .get();
-      if (!approver) return invalidApproverPin;
-      if (gatedActionDecision(approver.role, input.action) !== "allowed") {
-        return { ok: false, reason: "not-allowed", message: authMessages.notAllowedToApprove };
-      }
-
-      const at = now();
-      const attempt = await attemptPin(approver, approver.pinHash, input.pin, at);
-      if (attempt.outcome === "locked") {
-        return {
-          ok: false,
-          reason: "pin-locked",
-          message: authMessages.invalidPin,
-          retryAfterMs: attempt.retryAfterMs,
-        };
-      }
-
-      db.transaction((tx) => {
-        savePinState(tx, approver.id, attempt.state);
-      });
-
-      if (attempt.outcome === "wrong") {
-        const retryAt = attempt.state.pinRetryAfter;
-        if (!retryAt) return invalidApproverPin;
-        return {
-          ok: false,
-          reason: "pin-locked",
-          message: authMessages.invalidPin,
-          retryAfterMs: retryAt.getTime() - at.getTime(),
-        };
-      }
-      return {
-        ok: true,
-        token: approvals.issueApproval({
-          action: input.action,
-          requestedByUserId: session.userId,
-          approverUserId: approver.id,
-        }),
-      };
-    });
   }
 
   function current(): SessionState | null {
@@ -310,12 +233,12 @@ export function createAuthService({
       sessions.end();
       return null;
     }
-    return { user: toSafeUser(user), locked: sessions.isLocked() };
+    return { user: toSafeUser(user) };
   }
 
   function listLoginUsers(): LoginUser[] {
     return db
-      .select({ id: users.id, displayName: users.displayName, role: users.role })
+      .select({ id: users.id, displayName: users.displayName })
       .from(users)
       .where(isActiveUser)
       .orderBy(asc(users.displayName))
@@ -326,13 +249,11 @@ export function createAuthService({
   return {
     login,
     switchByPin,
-    approve,
     logout,
-    lock,
     current,
     listLoginUsers,
-    needsOwnerSetup,
-    createOwner,
+    needsSetup,
+    createFirstUser,
   };
 }
 

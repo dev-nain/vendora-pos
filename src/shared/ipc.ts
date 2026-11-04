@@ -1,9 +1,8 @@
 import { z } from "zod";
 import type {
-  ApprovalResult,
   AuthResult,
-  CreateOwnerInput,
-  CreateOwnerResult,
+  CreateFirstUserInput,
+  CreateFirstUserResult,
   LoginUser,
   SessionState,
 } from "./auth";
@@ -13,13 +12,7 @@ import type {
   DeleteCategoryResult,
   RenameCategoryResult,
 } from "./categories";
-import type { GatedAction } from "./gated-actions";
-import type {
-  AutoLockSetting,
-  MiscItemSetting,
-  ScalePrefixesInput,
-  ScalePrefixesSetting,
-} from "./settings";
+import type { MiscItemSetting, ScalePrefixesInput, ScalePrefixesSetting } from "./settings";
 import type {
   BarcodeLookup,
   BulkUpdateProductsInput,
@@ -62,20 +55,14 @@ export const ipcChannels = {
   appGetInfo: "app:get-info",
   authLogin: "auth:login",
   authSwitchByPin: "auth:switch-by-pin",
-  authApprove: "auth:approve",
   authLogout: "auth:logout",
-  authLock: "auth:lock",
-  authLocked: "auth:locked",
   authCurrent: "auth:current",
   authListLoginUsers: "auth:list-login-users",
-  activityReport: "activity:report",
-  settingsGetAutoLock: "settings:get-auto-lock",
-  settingsSetAutoLock: "settings:set-auto-lock",
   settingsSetScalePrefixes: "settings:set-scale-prefixes",
   settingsGetMiscItemEnabled: "settings:get-misc-item-enabled",
   settingsSetMiscItemEnabled: "settings:set-misc-item-enabled",
-  authNeedsOwnerSetup: "auth:needs-owner-setup",
-  authCreateOwner: "auth:create-owner",
+  authNeedsSetup: "auth:needs-setup",
+  authCreateFirstUser: "auth:create-first-user",
   usersList: "users:list",
   usersCreate: "users:create",
   usersUpdate: "users:update",
@@ -106,9 +93,6 @@ export const ipcChannels = {
 
 export const ipcErrorMessages = {
   unauthenticated: "Log in to continue.",
-  locked: "Vendora is locked. Unlock to continue.",
-  forbidden: "You don't have permission to do this. Ask the owner or a manager.",
-  approvalInvalid: "Approval expired or was already used. Ask for approval again.",
 } as const;
 
 export interface VendoraApi {
@@ -118,21 +102,13 @@ export interface VendoraApi {
   auth: {
     login: (username: string, password: string) => Promise<AuthResult>;
     switchByPin: (userId: string, pin: string) => Promise<AuthResult>;
-    approve: (action: GatedAction, approverUserId: string, pin: string) => Promise<ApprovalResult>;
     logout: () => Promise<void>;
-    lock: () => Promise<void>;
-    onLocked: (listener: () => void) => () => void;
     current: () => Promise<SessionState | null>;
     listLoginUsers: () => Promise<LoginUser[]>;
-    needsOwnerSetup: () => Promise<boolean>;
-    createOwner: (input: CreateOwnerInput) => Promise<CreateOwnerResult>;
-  };
-  activity: {
-    report: () => void;
+    needsSetup: () => Promise<boolean>;
+    createFirstUser: (input: CreateFirstUserInput) => Promise<CreateFirstUserResult>;
   };
   settings: {
-    getAutoLock: () => Promise<AutoLockSetting>;
-    setAutoLock: (minutes: number | null) => Promise<AutoLockSetting>;
     setScalePrefixes: (input: ScalePrefixesInput) => Promise<ScalePrefixesSetting>;
     getMiscItemEnabled: () => Promise<MiscItemSetting>;
     setMiscItemEnabled: (enabled: boolean) => Promise<MiscItemSetting>;

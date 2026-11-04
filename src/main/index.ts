@@ -1,6 +1,5 @@
 import { join } from "node:path";
 import { app, BrowserWindow, dialog } from "electron";
-import { ipcChannels } from "@shared/ipc";
 import { openDatabase, type VendoraDatabase } from "./db/client";
 import { seedDevUsers } from "./db/dev-users";
 import { runMigrations } from "./db/migrate";
@@ -8,15 +7,12 @@ import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
 import { createAuthService } from "./services/auth";
-import { createAutoLock } from "./services/auto-lock";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createCategoriesService } from "./services/categories";
 import { createSettingsService } from "./services/settings";
-import { getAutoLockMinutes } from "./settings/store-settings";
 import { createProductsService } from "./services/products";
 import { createTaxCategoriesService } from "./services/tax-categories";
 import { createUsersService } from "./services/users";
-import { createApprovalStore } from "./auth/approvals";
 import { createSessionStore } from "./auth/session";
 import { createMainWindow } from "./window";
 
@@ -40,26 +36,9 @@ void app.whenReady().then(async () => {
   if (!app.isPackaged && process.env.VENDORA_DEV_USERS === "1") await seedDevUsers(database);
   const audit = createAuditService(database);
   const sessions = createSessionStore();
-  const approvals = createApprovalStore({ sessions });
-  const db = database;
-  const autoLock = createAutoLock({
-    sessions,
-    readMinutes: (storeId) => getAutoLockMinutes(db, storeId),
-  });
-  const auth = createAuthService({ database, audit, sessions, approvals });
-  const settings = createSettingsService({
-    database,
-    audit,
-    sessions,
-    onAutoLockChanged: autoLock.refresh,
-  });
-  sessions.onChange((event) => {
-    if (event.type !== "locked") return;
-    for (const window of BrowserWindow.getAllWindows()) {
-      window.webContents.send(ipcChannels.authLocked);
-    }
-  });
-  const users = createUsersService({ database, audit, sessions, approvals });
+  const auth = createAuthService({ database, audit, sessions });
+  const settings = createSettingsService({ database, audit, sessions });
+  const users = createUsersService({ database, audit, sessions });
   const products = createProductsService({ database, audit, sessions });
   const categories = createCategoriesService({ database, audit, sessions });
   const taxCategories = createTaxCategoriesService({ database, audit, sessions });
@@ -81,7 +60,6 @@ void app.whenReady().then(async () => {
   });
   registerIpcHandlers({
     auth,
-    autoLock,
     catalogExport,
     categories,
     products,

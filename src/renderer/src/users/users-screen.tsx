@@ -14,7 +14,6 @@ import {
 } from "@renderer/components/ui/table";
 import { Avatar } from "../auth/avatar";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
-import { roleLabel } from "../auth/role-label";
 import { CreateUserDialog } from "./create-user-dialog";
 import { DeactivateUserDialog } from "./deactivate-user-dialog";
 import { EditUserDialog } from "./edit-user-dialog";
@@ -119,7 +118,6 @@ export function UsersScreen({ currentUserId, onSessionEnded }: UsersScreenProps)
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -143,7 +141,6 @@ export function UsersScreen({ currentUserId, onSessionEnded }: UsersScreenProps)
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>{roleLabel(user.role)}</TableCell>
                 <TableCell>
                   <StatusBadges user={user} />
                 </TableCell>
@@ -199,7 +196,6 @@ export function UsersScreen({ currentUserId, onSessionEnded }: UsersScreenProps)
         <EditUserDialog
           user={dialog.user}
           open={dialog.open}
-          isCurrentUser={dialog.user.id === currentUserId}
           onOpenChange={setOpen}
           onSaved={refresh}
           onSessionEnded={onSessionEnded}

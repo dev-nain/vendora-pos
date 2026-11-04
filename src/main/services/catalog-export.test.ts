@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ForbiddenError, SessionLockedError, UnauthenticatedError } from "../auth/errors";
+import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { uuidv7 } from "../db/id";
@@ -36,19 +36,18 @@ describe("createCatalogExportService", () => {
   let chooseSavePath: ReturnType<typeof vi.fn<(name: string) => Promise<string | null>>>;
   let service: ReturnType<typeof createCatalogExportService>;
 
-  const signIn = (role: "owner" | "manager" | "cashier") => {
+  const signIn = (name: string) => {
     const user = database.db
       .insert(users)
       .values({
-        username: `${role}-${Math.random().toString(36).slice(2, 8)}`,
-        displayName: role,
-        role,
+        username: `${name}-${Math.random().toString(36).slice(2, 8)}`,
+        displayName: name,
         passwordHash: "x",
         pinHash: "x",
       })
       .returning()
       .get();
-    sessions.start({ userId: user.id, role, storeId, loggedInAt: new Date() });
+    sessions.start({ userId: user.id, storeId, loggedInAt: new Date() });
   };
 
   const addProduct = (overrides: Partial<typeof products.$inferInsert> & { nameEn: string }) => {
@@ -198,27 +197,18 @@ describe("createCatalogExportService", () => {
     expect(lines[1]!.startsWith('"Rice, ""Super""",ٹپال دانے دار,')).toBe(true);
   });
 
-  it("saves for owner and manager with a dated default name", async () => {
+  it("saves for any signed-in user with a dated default name", async () => {
     signIn("owner");
     expect(await service.exportCsv()).toEqual({ status: "saved", path: outPath });
     expect(chooseSavePath).toHaveBeenCalledWith("vendora-catalog-2026-01-01.csv");
     rmSync(outPath);
     sessions.end();
-    signIn("manager");
+    signIn("cashier");
     expect(await service.exportCsv()).toEqual({ status: "saved", path: outPath });
   });
 
-  it("refuses a cashier before the dialog opens", async () => {
-    signIn("cashier");
-    await expect(service.exportCsv()).rejects.toBeInstanceOf(ForbiddenError);
-    expect(chooseSavePath).not.toHaveBeenCalled();
-  });
-
-  it("refuses without a session or when locked", async () => {
+  it("refuses without a session", async () => {
     await expect(service.exportCsv()).rejects.toBeInstanceOf(UnauthenticatedError);
-    signIn("owner");
-    sessions.lock();
-    await expect(service.exportCsv()).rejects.toBeInstanceOf(SessionLockedError);
     expect(chooseSavePath).not.toHaveBeenCalled();
   });
 
@@ -229,13 +219,13 @@ describe("createCatalogExportService", () => {
     expect(existsSync(outPath)).toBe(false);
   });
 
-  it("refuses when the session locks during the dialog", async () => {
+  it("refuses when the session ends during the dialog", async () => {
     signIn("owner");
     chooseSavePath.mockImplementationOnce(async () => {
-      sessions.lock();
+      sessions.end();
       return outPath;
     });
-    await expect(service.exportCsv()).rejects.toBeInstanceOf(SessionLockedError);
+    await expect(service.exportCsv()).rejects.toBeInstanceOf(UnauthenticatedError);
     expect(existsSync(outPath)).toBe(false);
   });
 

@@ -11,7 +11,7 @@ import {
   type CreateProductInput,
   type CreateProductResult,
 } from "../../shared/products";
-import { ForbiddenError, SessionLockedError, UnauthenticatedError } from "../auth/errors";
+import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
@@ -46,13 +46,12 @@ describe("createProductsService", () => {
 
   const t0 = new Date("2026-01-01T10:00:00.000Z");
 
-  const signIn = (role: "owner" | "manager" | "cashier") => {
+  const signIn = (name: string) => {
     const user = database.db
       .insert(users)
       .values({
-        username: `${role}-${Math.random().toString(36).slice(2, 8)}`,
-        displayName: role,
-        role,
+        username: `${name}-${Math.random().toString(36).slice(2, 8)}`,
+        displayName: name,
         passwordHash: "x",
         pinHash: "x",
       })
@@ -60,7 +59,6 @@ describe("createProductsService", () => {
       .get();
     sessions.start({
       userId: user.id,
-      role,
       storeId: database.db.select().from(stores).get()!.id,
       loggedInAt: t0,
     });
@@ -192,18 +190,10 @@ describe("createProductsService", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  describe("permissions", () => {
-    it("refuses a cashier and writes nothing", () => {
-      signIn("cashier");
-      expect(() => create()).toThrow(ForbiddenError);
+  describe("session", () => {
+    it("refuses with no session and writes nothing", () => {
+      expect(() => create()).toThrow(UnauthenticatedError);
       expect(tables()).toEqual({ products: [], barcodes: [], audit: [] });
-    });
-
-    it("refuses a locked session", () => {
-      signIn("manager");
-      sessions.lock();
-      expect(() => create()).toThrow(SessionLockedError);
-      expect(tables().products).toHaveLength(0);
     });
   });
 
@@ -272,7 +262,7 @@ describe("createProductsService", () => {
       });
     });
 
-    it("refuses every read while locked or signed out", () => {
+    it("refuses every read while signed out", () => {
       signIn("manager");
       const product = created();
       const reads = [
@@ -280,8 +270,6 @@ describe("createProductsService", () => {
         () => service.get({ id: product.id }),
         () => service.lookupBarcode({ barcode: "B1" }),
       ];
-      sessions.lock();
-      for (const read of reads) expect(read).toThrow(SessionLockedError);
       sessions.end();
       for (const read of reads) expect(read).toThrow(UnauthenticatedError);
     });
@@ -398,12 +386,12 @@ describe("createProductsService", () => {
   });
 
   describe("update", () => {
-    it("refuses a cashier and writes nothing", () => {
+    it("refuses with no session and writes nothing", () => {
       signIn("manager");
       const product = created();
-      signIn("cashier");
+      sessions.end();
       expect(() => update(product.id, { salePricePaisa: 120000, mrpPaisa: null })).toThrow(
-        ForbiddenError,
+        UnauthenticatedError,
       );
       expect(tables().audit).toHaveLength(0);
       expect(tables().products[0]!.salePricePaisa).toBe(105000);
@@ -535,8 +523,8 @@ describe("createProductsService", () => {
 
     it.each(["owner", "manager"] as const)(
       "refuses %s editing the misc item and writes nothing",
-      (role) => {
-        signIn(role);
+      (name) => {
+        signIn(name);
         const misc = database.db.select().from(products).where(eq(products.isSystem, true)).get()!;
         const before = database.db.select().from(products).all();
         const auditBefore = database.db.select().from(auditLog).all();
@@ -637,35 +625,22 @@ describe("createProductsService", () => {
     it("requires a session", () => {
       expect(() => service.miscItem()).toThrow(UnauthenticatedError);
     });
-
-    it("refuses a locked session", () => {
-      signIn("cashier");
-      sessions.lock();
-
-      expect(() => service.miscItem()).toThrow(SessionLockedError);
-    });
   });
 
   describe("archive, restore and delete", () => {
     const t1 = new Date("2026-01-02T10:00:00.000Z");
 
-    it.each(["archive", "restore"] as const)("refuses a cashier on %s and writes nothing", (m) => {
-      signIn("manager");
-      const product = created();
-      signIn("cashier");
-      const before = tables();
-      expect(() => service[m]({ id: product.id })).toThrow(ForbiddenError);
-      expect(tables()).toEqual(before);
-    });
-
-    it("refuses a locked session", () => {
-      signIn("manager");
-      const product = created();
-      sessions.lock();
-      const before = tables();
-      expect(() => service.archive({ id: product.id })).toThrow(SessionLockedError);
-      expect(tables()).toEqual(before);
-    });
+    it.each(["archive", "restore"] as const)(
+      "refuses %s with no session and writes nothing",
+      (m) => {
+        signIn("manager");
+        const product = created();
+        sessions.end();
+        const before = tables();
+        expect(() => service[m]({ id: product.id })).toThrow(UnauthenticatedError);
+        expect(tables()).toEqual(before);
+      },
+    );
 
     it("lets an owner archive", () => {
       signIn("manager");
@@ -751,7 +726,6 @@ describe("createProductsService", () => {
       expect(auditRows("product_archive")).toEqual([
         expect.objectContaining({
           actorUserId: user.id,
-          approverUserId: null,
           entityType: "product",
           entityId: product.id,
           details: { nameEn: "Tapal Danedar 950g" },
@@ -776,12 +750,12 @@ describe("createProductsService", () => {
       expect(productRow(product.id).isActive).toBe(true);
     });
 
-    it("refuses a cashier on delete and writes nothing", () => {
+    it("refuses delete with no session and writes nothing", () => {
       signIn("manager");
       const product = created({ barcodes: [barcode("D0")] });
-      signIn("cashier");
+      sessions.end();
       const before = tables();
-      expect(() => service.delete({ id: product.id })).toThrow(ForbiddenError);
+      expect(() => service.delete({ id: product.id })).toThrow(UnauthenticatedError);
       expect(tables()).toEqual(before);
     });
 
@@ -882,7 +856,6 @@ describe("createProductsService", () => {
       expect(auditRows("product_delete")).toEqual([
         expect.objectContaining({
           actorUserId: user.id,
-          approverUserId: null,
           entityType: "product",
           entityId: product.id,
           details: { nameEn: "Tapal Danedar 950g", barcodes: ["A1", "B2"] },
@@ -1076,7 +1049,7 @@ describe("createProductsService", () => {
       expect(tables().barcodes.map((b) => b.salePricePaisa)).toEqual([11000]);
     });
 
-    it("allows manager and owner, denies cashier and a locked session", () => {
+    it("allows every signed-in user, refuses with no session", () => {
       const change = { kind: "set-price", salePricePaisa: 1 } as const;
       signIn("manager");
       const a = priced(1000);
@@ -1088,12 +1061,12 @@ describe("createProductsService", () => {
 
       sessions.end();
       signIn("cashier");
-      expect(() => service.bulkUpdate({ productIds: [a.id], change })).toThrow(ForbiddenError);
+      expect(service.bulkUpdate({ productIds: [a.id], change })).toMatchObject({ ok: true });
 
       sessions.end();
-      signIn("manager");
-      sessions.lock();
-      expect(() => service.bulkUpdate({ productIds: [a.id], change })).toThrow(SessionLockedError);
+      expect(() => service.bulkUpdate({ productIds: [a.id], change })).toThrow(
+        UnauthenticatedError,
+      );
     });
 
     it("rolls every product back when an audit write fails midway", () => {

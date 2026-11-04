@@ -8,20 +8,20 @@ import { Input } from "@renderer/components/ui/input";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { serviceErrorMessage } from "./messages";
 import {
-  validateOwnerForm,
-  type OwnerFormErrors,
-  type OwnerFormField,
-  type OwnerFormValues,
-} from "./owner-form";
+  validateFirstUserForm,
+  type FirstUserFormErrors,
+  type FirstUserFormField,
+  type FirstUserFormValues,
+} from "./first-user-form";
 import { sanitizePin } from "./pin-entry";
 import { PaneHeading, AuthLayout } from "./split-layout";
 
-interface CreateOwnerScreenProps {
+interface CreateFirstUserScreenProps {
   onCreated: (user: SafeUser) => void;
-  onOwnerExists: () => void;
+  onAccountExists: () => void;
 }
 
-const emptyValues: OwnerFormValues = {
+const emptyValues: FirstUserFormValues = {
   username: "",
   displayName: "",
   password: "",
@@ -30,7 +30,7 @@ const emptyValues: OwnerFormValues = {
   confirmPin: "",
 };
 
-const fieldOrder: OwnerFormField[] = [
+const fieldOrder: FirstUserFormField[] = [
   "username",
   "displayName",
   "password",
@@ -39,25 +39,25 @@ const fieldOrder: OwnerFormField[] = [
   "confirmPin",
 ];
 
-export function CreateOwnerScreen({ onCreated, onOwnerExists }: CreateOwnerScreenProps) {
-  const [values, setValues] = useState<OwnerFormValues>(emptyValues);
-  const [errors, setErrors] = useState<OwnerFormErrors>({});
+export function CreateFirstUserScreen({ onCreated, onAccountExists }: CreateFirstUserScreenProps) {
+  const [values, setValues] = useState<FirstUserFormValues>(emptyValues);
+  const [errors, setErrors] = useState<FirstUserFormErrors>({});
   const [serviceError, setServiceError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const refs = useRef<Partial<Record<OwnerFormField, HTMLInputElement | null>>>({});
+  const refs = useRef<Partial<Record<FirstUserFormField, HTMLInputElement | null>>>({});
 
-  const focus = (field: OwnerFormField) => {
+  const focus = (field: FirstUserFormField) => {
     requestAnimationFrame(() => refs.current[field]?.focus());
   };
 
-  const set = (field: OwnerFormField, value: string) =>
+  const set = (field: FirstUserFormField, value: string) =>
     setValues((current) => ({ ...current, [field]: value }));
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (pending) return;
 
-    const found = validateOwnerForm(values);
+    const found = validateFirstUserForm(values);
     const invalid = fieldOrder.find((field) => found[field]);
     if (invalid) {
       setErrors(found);
@@ -88,7 +88,7 @@ export function CreateOwnerScreen({ onCreated, onOwnerExists }: CreateOwnerScree
       confirmPin: "",
     }));
     try {
-      const result = await window.vendora.auth.createOwner({
+      const result = await window.vendora.auth.createFirstUser({
         username,
         displayName,
         password,
@@ -98,7 +98,7 @@ export function CreateOwnerScreen({ onCreated, onOwnerExists }: CreateOwnerScree
         onCreated(result.user);
         return;
       }
-      onOwnerExists();
+      onAccountExists();
       return;
     } catch {
       setServiceError(serviceErrorMessage);
@@ -108,7 +108,7 @@ export function CreateOwnerScreen({ onCreated, onOwnerExists }: CreateOwnerScree
   };
 
   const field = (
-    name: OwnerFormField,
+    name: FirstUserFormField,
     label: string,
     inputProps: React.ComponentProps<typeof Input>,
   ) => (
@@ -128,8 +128,8 @@ export function CreateOwnerScreen({ onCreated, onOwnerExists }: CreateOwnerScree
   return (
     <AuthLayout>
       <PaneHeading
-        title="Create the Owner account"
-        description="The Owner can do everything in Vendora. You'll use these details to log in."
+        title="Create your account"
+        description="You'll use these details to log in. Add staff later in Back office."
       />
       <section className="w-[640px] max-w-full rounded-300 border border-line-card bg-surface-secondary p-600">
         <form
@@ -183,7 +183,7 @@ export function CreateOwnerScreen({ onCreated, onOwnerExists }: CreateOwnerScree
               </p>
             ) : null}
             <Button type="submit" size="lg" disabled={pending} className="w-full">
-              {pending ? "Creating account…" : "Create Owner account"}
+              {pending ? "Creating account…" : "Create your account"}
               {pending ? null : <Kbd>Enter</Kbd>}
             </Button>
           </div>
