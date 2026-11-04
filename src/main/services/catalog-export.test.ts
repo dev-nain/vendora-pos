@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ForbiddenError, UnauthenticatedError } from "../auth/errors";
+import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { uuidv7 } from "../db/id";
@@ -198,20 +198,14 @@ describe("createCatalogExportService", () => {
     expect(lines[1]!.startsWith('"Rice, ""Super""",ٹپال دانے دار,')).toBe(true);
   });
 
-  it("saves for owner and manager with a dated default name", async () => {
+  it("saves for any signed-in user with a dated default name", async () => {
     signIn("owner");
     expect(await service.exportCsv()).toEqual({ status: "saved", path: outPath });
     expect(chooseSavePath).toHaveBeenCalledWith("vendora-catalog-2026-01-01.csv");
     rmSync(outPath);
     sessions.end();
-    signIn("manager");
-    expect(await service.exportCsv()).toEqual({ status: "saved", path: outPath });
-  });
-
-  it("refuses a cashier before the dialog opens", async () => {
     signIn("cashier");
-    await expect(service.exportCsv()).rejects.toBeInstanceOf(ForbiddenError);
-    expect(chooseSavePath).not.toHaveBeenCalled();
+    expect(await service.exportCsv()).toEqual({ status: "saved", path: outPath });
   });
 
   it("refuses without a session", async () => {

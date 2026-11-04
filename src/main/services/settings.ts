@@ -5,7 +5,7 @@ import type {
   ScalePrefixesInput,
   ScalePrefixesSetting,
 } from "../../shared/settings";
-import { requireSessionPermission } from "../auth/guard";
+import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { stores } from "../db/schema";
@@ -22,7 +22,7 @@ export function createSettingsService({ database, audit, sessions }: SettingsDep
   const { db } = database;
 
   function setScalePrefixes(input: ScalePrefixesInput): ScalePrefixesSetting {
-    const session = requireSessionPermission(sessions, "settings.manage");
+    const session = requireSession(sessions);
     db.transaction((tx) => {
       const from = getScalePrefixes(database, session.storeId);
       if (from.weightPrefix === input.weightPrefix && from.pricePrefix === input.pricePrefix) {
@@ -47,12 +47,12 @@ export function createSettingsService({ database, audit, sessions }: SettingsDep
   }
 
   function getMiscItemSetting(): MiscItemSetting {
-    const session = requireSessionPermission(sessions, "settings.manage");
+    const session = requireSession(sessions);
     return { enabled: getMiscItemEnabled(database, session.storeId) };
   }
 
   function setMiscItemEnabled(input: MiscItemInput): MiscItemSetting {
-    const session = requireSessionPermission(sessions, "settings.manage");
+    const session = requireSession(sessions);
     db.transaction((tx) => {
       const from = getMiscItemEnabled(database, session.storeId);
       if (from === input.enabled) return;

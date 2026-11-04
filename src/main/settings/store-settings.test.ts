@@ -1,12 +1,4 @@
-import {
-  cpSync,
-  existsSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -14,7 +6,7 @@ import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
 import { stores } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
-import { getCashierDiscountLimitBps, getMiscItemEnabled, getScalePrefixes } from "./store-settings";
+import { getMiscItemEnabled, getScalePrefixes } from "./store-settings";
 
 const migrationsFolder = join(process.cwd(), "drizzle");
 
@@ -35,35 +27,6 @@ describe("store settings", () => {
   });
 
   const storeId = () => database.db.select().from(stores).get()?.id ?? "";
-
-  it("defaults the cashier discount limit to 500 bps on a seeded store", () => {
-    runMigrations(database, { migrationsFolder, backupDir });
-    seedStoreAndTerminal(database);
-
-    expect(getCashierDiscountLimitBps(database, storeId())).toBe(500);
-    expect(existsSync(backupDir)).toBe(false);
-  });
-
-  it("reads an updated limit", () => {
-    runMigrations(database, { migrationsFolder, backupDir });
-    seedStoreAndTerminal(database);
-    database.db.update(stores).set({ cashierDiscountLimitBps: 1000 }).run();
-
-    expect(getCashierDiscountLimitBps(database, storeId())).toBe(1000);
-  });
-
-  it("throws for an unknown store", () => {
-    runMigrations(database, { migrationsFolder, backupDir });
-
-    expect(() => getCashierDiscountLimitBps(database, "missing")).toThrow("Store not found");
-  });
-
-  it.each([-1, 10001])("rejects a limit of %i at the database level", (bps) => {
-    runMigrations(database, { migrationsFolder, backupDir });
-    seedStoreAndTerminal(database);
-
-    expect(() => database.db.update(stores).set({ cashierDiscountLimitBps: bps }).run()).toThrow();
-  });
 
   it("reads the scale prefixes with defaults 21 and 22", () => {
     runMigrations(database, { migrationsFolder, backupDir });

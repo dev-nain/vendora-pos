@@ -1,7 +1,6 @@
 import { PlusIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
-import type { SafeUser } from "@shared/auth";
 import type { Category } from "@shared/categories";
 import type { TaxCategory } from "@shared/tax-categories";
 import { Badge } from "@renderer/components/ui/badge";
@@ -30,7 +29,6 @@ type DialogState =
   | null;
 
 interface CategoriesScreenProps {
-  role: SafeUser["role"];
   onSessionEnded: () => void;
 }
 
@@ -51,7 +49,7 @@ function EmptyRow({ colSpan, children }: { colSpan: number; children: string }) 
   );
 }
 
-export function CategoriesScreen({ role, onSessionEnded }: CategoriesScreenProps) {
+export function CategoriesScreen({ onSessionEnded }: CategoriesScreenProps) {
   const [categories, setCategories] = useState<Category[] | null>(null);
   const [taxCategories, setTaxCategories] = useState<TaxCategory[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,8 +81,8 @@ export function CategoriesScreen({ role, onSessionEnded }: CategoriesScreenProps
 
   useEffect(refresh, [refresh]);
 
-  const canAddCategory = categoryActions(role, { isSystem: false }).add;
-  const canAddTaxCategory = taxCategoryActions(role, { isSystem: false }).add;
+  const canAddCategory = categoryActions({ isSystem: false }).add;
+  const canAddTaxCategory = taxCategoryActions({ isSystem: false }).add;
   const showTaxActions = canAddTaxCategory;
   const loaded = categories !== null && taxCategories !== null;
 
@@ -132,7 +130,7 @@ export function CategoriesScreen({ role, onSessionEnded }: CategoriesScreenProps
                   <EmptyRow colSpan={2}>No categories yet.</EmptyRow>
                 ) : null}
                 {categories.map((category) => {
-                  const actions = categoryActions(role, category);
+                  const actions = categoryActions(category);
                   return (
                     <TableRow key={category.id}>
                       <TableCell>
@@ -203,7 +201,7 @@ export function CategoriesScreen({ role, onSessionEnded }: CategoriesScreenProps
                   <EmptyRow colSpan={showTaxActions ? 3 : 2}>No tax categories yet.</EmptyRow>
                 ) : null}
                 {taxCategories.map((taxCategory) => {
-                  const actions = taxCategoryActions(role, taxCategory);
+                  const actions = taxCategoryActions(taxCategory);
                   return (
                     <TableRow key={taxCategory.id}>
                       <TableCell>

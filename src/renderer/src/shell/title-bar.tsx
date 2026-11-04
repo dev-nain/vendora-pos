@@ -7,7 +7,6 @@ import { Brand } from "@renderer/components/brand";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { Avatar } from "../auth/avatar";
 import { roleLabel } from "../auth/role-label";
-import { canOpenBackOffice } from "./back-office-nav";
 
 export type Area = "sell" | "back-office";
 
@@ -22,13 +21,15 @@ interface TitleBarProps {
 const tabClasses =
   "relative min-h-[var(--height-title-bar)] rounded-100 px-300 text-[length:var(--font-size-350)] text-secondary outline-none select-none [-webkit-app-region:no-drag] hover:bg-surface-hover hover:text-foreground focus-visible:shadow-focus aria-selected:font-semibold aria-selected:text-foreground aria-selected:after:absolute aria-selected:after:bottom-[2px] aria-selected:after:left-1/2 aria-selected:after:h-[3px] aria-selected:after:w-4 aria-selected:after:-translate-x-1/2 aria-selected:after:rounded-full aria-selected:after:bg-fill-brand aria-selected:after:content-['']";
 
+const tabs: { area: Area; label: string }[] = [
+  { area: "sell", label: "Sell" },
+  { area: "back-office", label: "Back office" },
+];
+
 const itemClasses =
   "flex min-h-[var(--height-control-md)] cursor-default items-center gap-200 rounded-100 px-300 text-[length:var(--font-size-350)] text-foreground outline-none select-none data-highlighted:selection-pill";
 
 export function TitleBar({ user, area, onAreaChange, onSwitchUser, onLogOut }: TitleBarProps) {
-  const tabs: { area: Area; label: string }[] = [{ area: "sell", label: "Sell" }];
-  if (canOpenBackOffice(user.role)) tabs.push({ area: "back-office", label: "Back office" });
-
   const moveTab = (event: KeyboardEvent<HTMLDivElement>) => {
     const elements = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')];
     const current = elements.indexOf(document.activeElement as HTMLElement);

@@ -3,16 +3,6 @@ import type { VendoraDatabase } from "../db/client";
 import type { ScaleBarcodeConfig } from "../hardware/scale-barcode";
 import { stores } from "../db/schema";
 
-export function getCashierDiscountLimitBps(database: VendoraDatabase, storeId: string): number {
-  const row = database.db
-    .select({ limit: stores.cashierDiscountLimitBps })
-    .from(stores)
-    .where(eq(stores.id, storeId))
-    .get();
-  if (!row) throw new Error("Store not found");
-  return row.limit;
-}
-
 export function getScalePrefixes(database: VendoraDatabase, storeId: string): ScaleBarcodeConfig {
   const row = database.db
     .select({ weightPrefix: stores.scaleWeightPrefix, pricePrefix: stores.scalePricePrefix })

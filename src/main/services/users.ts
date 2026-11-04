@@ -14,7 +14,7 @@ import {
   type userIdInputSchema,
 } from "../../shared/users";
 import { hashCredential } from "../auth/credentials";
-import { requireSessionPermission } from "../auth/guard";
+import { requireSession } from "../auth/guard";
 import { pinLockStatus, recordPinSuccess } from "../auth/pin-lockout";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
@@ -79,7 +79,7 @@ export function createUsersService({
   }
 
   function list(): ManagedUser[] {
-    requireSessionPermission(sessions, "users.manage");
+    requireSession(sessions);
     return db
       .select()
       .from(users)
@@ -93,7 +93,7 @@ export function createUsersService({
   }
 
   async function create(input: CreateInput): Promise<CreateUserResult> {
-    const owner = requireSessionPermission(sessions, "users.manage");
+    const owner = requireSession(sessions);
     const [passwordHash, pinHash] = await Promise.all([
       hashCredential(input.password),
       hashCredential(input.pin),
@@ -138,7 +138,7 @@ export function createUsersService({
   }
 
   function update(input: UpdateInput): UpdateUserResult {
-    const owner = requireSessionPermission(sessions, "users.manage");
+    const owner = requireSession(sessions);
     const result = db.transaction((tx): UpdateUserResult => {
       const target = tx.select().from(users).where(eq(users.id, input.id)).get();
       if (!target) return notFound;
@@ -178,7 +178,7 @@ export function createUsersService({
   }
 
   async function resetPassword(input: ResetPasswordInput): Promise<UserActionResult> {
-    const owner = requireSessionPermission(sessions, "users.manage");
+    const owner = requireSession(sessions);
     const passwordHash = await hashCredential(input.password);
     return db.transaction((tx): UserActionResult => {
       const target = tx.select({ id: users.id }).from(users).where(eq(users.id, input.id)).get();
@@ -199,7 +199,7 @@ export function createUsersService({
   }
 
   async function resetPin(input: ResetPinInput): Promise<UserActionResult> {
-    const owner = requireSessionPermission(sessions, "users.manage");
+    const owner = requireSession(sessions);
     const pinHash = await hashCredential(input.pin);
     return db.transaction((tx): UserActionResult => {
       const target = tx.select({ id: users.id }).from(users).where(eq(users.id, input.id)).get();
@@ -223,7 +223,7 @@ export function createUsersService({
   }
 
   function deactivate(input: UserIdInput): DeactivateUserResult {
-    const owner = requireSessionPermission(sessions, "users.manage");
+    const owner = requireSession(sessions);
     const result = db.transaction((tx): DeactivateUserResult => {
       const target = tx.select().from(users).where(eq(users.id, input.id)).get();
       if (!target) return notFound;
@@ -256,7 +256,7 @@ export function createUsersService({
   }
 
   function reactivate(input: UserIdInput): UserActionResult {
-    const owner = requireSessionPermission(sessions, "users.manage");
+    const owner = requireSession(sessions);
     return db.transaction((tx): UserActionResult => {
       const target = tx.select().from(users).where(eq(users.id, input.id)).get();
       if (!target) return notFound;

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "re
 import type { LoginUser, SafeUser } from "@shared/auth";
 import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
-import { isUnauthenticatedError } from "./messages";
+import { isSessionError } from "./messages";
 import { PinPad } from "./pin-pad";
 import { PaneHeading, AuthLayout } from "./split-layout";
 import { UserTile } from "./user-tile";
@@ -35,7 +35,7 @@ export function PinSwitchScreen({
       .listLoginUsers()
       .then((users) => setUsersState({ name: "ready", users }))
       .catch((caught: unknown) => {
-        if (isUnauthenticatedError(caught)) onUnauthenticated();
+        if (isSessionError(caught)) onUnauthenticated();
         else setUsersState({ name: "error" });
       });
   }, [onUnauthenticated]);

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { userRoleSchema } from "../../shared/auth";
 import { userRoles, type UserRole } from "../db/schema";
-import { ForbiddenError, UnauthenticatedError } from "./errors";
-import { requireSession, requireSessionPermission } from "./guard";
+import { UnauthenticatedError } from "./errors";
+import { requireSession } from "./guard";
 import { createSessionStore, type Session } from "./session";
 
 const sessionFor = (role: UserRole): Session => ({
@@ -45,28 +45,5 @@ describe("requireSession", () => {
     sessions.start(session);
 
     expect(requireSession(sessions)).toBe(session);
-  });
-});
-
-describe("requireSessionPermission", () => {
-  it("throws UnauthenticatedError with no session", () => {
-    expect(() => requireSessionPermission(createSessionStore(), "sale.sell")).toThrow(
-      UnauthenticatedError,
-    );
-  });
-
-  it("throws ForbiddenError for a cashier on users.manage", () => {
-    const sessions = createSessionStore();
-    sessions.start(sessionFor("cashier"));
-
-    expect(() => requireSessionPermission(sessions, "users.manage")).toThrow(ForbiddenError);
-  });
-
-  it("returns the session for an owner", () => {
-    const sessions = createSessionStore();
-    const session = sessionFor("owner");
-    sessions.start(session);
-
-    expect(requireSessionPermission(sessions, "users.manage")).toBe(session);
   });
 });

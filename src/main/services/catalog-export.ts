@@ -1,7 +1,7 @@
 import { open, rm } from "node:fs/promises";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { CatalogExportResult } from "../../shared/products";
-import { requireSessionPermission } from "../auth/guard";
+import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { categories, productBarcodes, products, taxCategories } from "../db/schema";
@@ -95,10 +95,10 @@ export function createCatalogExportService({
 }: CatalogExportDeps) {
   return {
     async exportCsv(): Promise<CatalogExportResult> {
-      requireSessionPermission(sessions, "products.manage");
+      requireSession(sessions);
       const path = await chooseSavePath(`vendora-catalog-${localDate(now())}.csv`);
       if (path === null) return { status: "cancelled" };
-      const session = requireSessionPermission(sessions, "products.manage");
+      const session = requireSession(sessions);
       await writeCatalogCsv(database, session.storeId, path);
       return { status: "saved", path };
     },

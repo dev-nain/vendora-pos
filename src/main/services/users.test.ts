@@ -5,7 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { authMessages } from "../../shared/auth";
 import { userMessages } from "../../shared/users";
 import { hashCredential, verifyCredential } from "../auth/credentials";
-import { ForbiddenError, UnauthenticatedError } from "../auth/errors";
+import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
@@ -104,22 +104,7 @@ describe("createUsersService", () => {
     () => service.reactivate({ id }),
   ];
 
-  describe("permissions", () => {
-    it.each(["manager", "cashier"] as const)("refuses a %s", async (role) => {
-      const target = addUser("target", "Target", "cashier");
-      const actor = addUser("actor", "Actor", role);
-      signInAs(actor);
-      const before = userRow(target.id);
-
-      for (const call of calls(target.id)) {
-        await expect(Promise.resolve().then(call)).rejects.toBeInstanceOf(ForbiddenError);
-      }
-
-      expect(auditRows()).toHaveLength(0);
-      expect(userRow(target.id)).toEqual(before);
-      expect(database.db.select().from(users).all()).toHaveLength(2);
-    });
-
+  describe("session", () => {
     it("refuses a signed-out call", async () => {
       const target = addUser("target", "Target", "cashier");
 

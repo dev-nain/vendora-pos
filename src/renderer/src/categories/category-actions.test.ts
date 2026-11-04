@@ -8,18 +8,8 @@ const custom = { isSystem: false };
 const system = { isSystem: true };
 
 describe("taxCategoryActions", () => {
-  it("shows a manager no tax-category actions", () => {
-    for (const row of [system, system, custom]) {
-      expect(taxCategoryActions("manager", row)).toMatchObject({
-        add: false,
-        edit: false,
-        remove: false,
-      });
-    }
-  });
-
-  it("lets the owner edit but not delete or re-rate a system row", () => {
-    expect(taxCategoryActions("owner", system)).toEqual({
+  it("lets everyone edit but not delete or re-rate a system row", () => {
+    expect(taxCategoryActions(system)).toEqual({
       add: true,
       edit: true,
       remove: false,
@@ -27,40 +17,23 @@ describe("taxCategoryActions", () => {
     });
   });
 
-  it("lets the owner do everything on a custom row", () => {
-    expect(taxCategoryActions("owner", custom)).toEqual({
+  it("allows everything on a custom row", () => {
+    expect(taxCategoryActions(custom)).toEqual({
       add: true,
       edit: true,
       remove: true,
       canEditRate: true,
     });
   });
-
-  it("gives a cashier nothing", () => {
-    expect(taxCategoryActions("cashier", custom)).toMatchObject({
-      add: false,
-      edit: false,
-      remove: false,
-    });
-  });
 });
 
 describe("categoryActions", () => {
-  it("lets a manager rename and delete a custom category", () => {
-    expect(categoryActions("manager", custom)).toEqual({ add: true, rename: true, remove: true });
+  it("allows rename and delete on a custom category", () => {
+    expect(categoryActions(custom)).toEqual({ add: true, rename: true, remove: true });
   });
 
-  it("keeps the system category undeletable", () => {
-    expect(categoryActions("manager", system).remove).toBe(false);
-    expect(categoryActions("owner", system).rename).toBe(true);
-  });
-
-  it("gives a cashier nothing", () => {
-    expect(categoryActions("cashier", custom)).toEqual({
-      add: false,
-      rename: false,
-      remove: false,
-    });
+  it("keeps the system category undeletable but renamable", () => {
+    expect(categoryActions(system)).toEqual({ add: true, rename: true, remove: false });
   });
 });
 

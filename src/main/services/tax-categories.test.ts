@@ -9,7 +9,7 @@ import {
   taxCategoryMessages,
   updateTaxCategoryInputSchema,
 } from "../../shared/tax-categories";
-import { ForbiddenError, UnauthenticatedError } from "../auth/errors";
+import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
@@ -110,13 +110,12 @@ describe("createTaxCategoriesService", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it.each(["cashier", "manager"] as const)("denies a %s on every mutation", (role) => {
-    signIn(role);
+  it("refuses every mutation with no session", () => {
     const id = standardId();
 
-    expect(() => service.create({ name: "Reduced", rateBps: 500 })).toThrow(ForbiddenError);
-    expect(() => service.update({ id, name: "GST", rateBps: null })).toThrow(ForbiddenError);
-    expect(() => service.remove({ id })).toThrow(ForbiddenError);
+    expect(() => service.create({ name: "Reduced", rateBps: 500 })).toThrow(UnauthenticatedError);
+    expect(() => service.update({ id, name: "GST", rateBps: null })).toThrow(UnauthenticatedError);
+    expect(() => service.remove({ id })).toThrow(UnauthenticatedError);
 
     expect(
       rows()
@@ -126,23 +125,26 @@ describe("createTaxCategoriesService", () => {
     expect(auditRows()).toHaveLength(0);
   });
 
-  it("lets the owner create, update and remove", () => {
-    const owner = signIn("owner");
+  it.each(["owner", "manager", "cashier"] as const)(
+    "lets a %s create, update and remove",
+    (role) => {
+      const owner = signIn(role);
 
-    const created = service.create({ name: "Reduced", rateBps: 500 });
-    expect(created).toMatchObject({
-      ok: true,
-      taxCategory: { name: "Reduced", rateBps: 500, isSystem: false },
-    });
-    const id = created.ok ? created.taxCategory.id : "";
-    expect(service.update({ id, name: "Low", rateBps: 300 })).toMatchObject({
-      ok: true,
-      taxCategory: { name: "Low", rateBps: 300 },
-    });
-    expect(service.remove({ id })).toEqual({ ok: true });
+      const created = service.create({ name: "Reduced", rateBps: 500 });
+      expect(created).toMatchObject({
+        ok: true,
+        taxCategory: { name: "Reduced", rateBps: 500, isSystem: false },
+      });
+      const id = created.ok ? created.taxCategory.id : "";
+      expect(service.update({ id, name: "Low", rateBps: 300 })).toMatchObject({
+        ok: true,
+        taxCategory: { name: "Low", rateBps: 300 },
+      });
+      expect(service.remove({ id })).toEqual({ ok: true });
 
-    expect(auditRows().map((r) => r.actorUserId)).toEqual([owner.id, owner.id, owner.id]);
-  });
+      expect(auditRows().map((r) => r.actorUserId)).toEqual([owner.id, owner.id, owner.id]);
+    },
+  );
 
   it("lists live rows for any role, sorted by name", () => {
     signIn("owner");

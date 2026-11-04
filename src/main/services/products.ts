@@ -19,7 +19,7 @@ import {
   type UpdateProductResult,
   type updateProductInputSchema,
 } from "../../shared/products";
-import { requireSession, requireSessionPermission } from "../auth/guard";
+import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { categories, productBarcodes, products, taxCategories } from "../db/schema";
@@ -200,7 +200,7 @@ export function createProductsService({
   const { db } = database;
 
   const setActive = (input: ProductIdInput, isActive: boolean): ProductStatusResult => {
-    const session = requireSessionPermission(sessions, "products.manage");
+    const session = requireSession(sessions);
 
     return db.transaction((tx) => {
       const current = findProduct(tx, session.storeId, input.id);
@@ -255,7 +255,7 @@ export function createProductsService({
     restore: (input: ProductIdInput): ProductStatusResult => setActive(input, true),
 
     delete(input: ProductIdInput): DeleteProductResult {
-      const session = requireSessionPermission(sessions, "products.manage");
+      const session = requireSession(sessions);
 
       return db.transaction((tx) => {
         const current = findProduct(tx, session.storeId, input.id);
@@ -289,7 +289,7 @@ export function createProductsService({
     },
 
     bulkUpdate(input: BulkUpdateInput): BulkUpdateProductsResult {
-      const session = requireSessionPermission(sessions, "products.manage");
+      const session = requireSession(sessions);
 
       return db.transaction((tx) => {
         const rows = new Map(
@@ -396,12 +396,12 @@ export function createProductsService({
     },
 
     miscItem(): Product | null {
-      const session = requireSessionPermission(sessions, "sale.sell");
+      const session = requireSession(sessions);
       return getMiscItem(database, session.storeId);
     },
 
     create(input: CreateInput): CreateProductResult {
-      const session = requireSessionPermission(sessions, "products.manage");
+      const session = requireSession(sessions);
 
       return db.transaction((tx) => {
         const refusal =
@@ -453,7 +453,7 @@ export function createProductsService({
     },
 
     update(input: UpdateInput): UpdateProductResult {
-      const session = requireSessionPermission(sessions, "products.manage");
+      const session = requireSession(sessions);
 
       return db.transaction((tx) => {
         const current = tx

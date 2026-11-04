@@ -167,10 +167,10 @@ describe("products ipc", () => {
     });
   });
 
-  describe("cashier", () => {
-    it("is forbidden on every write and nothing changes", async () => {
+  describe("signed out", () => {
+    it("is refused on every write and nothing changes", async () => {
       const product = seedProduct();
-      signIn("cashier");
+      sessions.end();
       const before = counts();
       const writes: [string, unknown][] = [
         ["products:create", draft({ barcodes: [] })],
@@ -179,9 +179,12 @@ describe("products ipc", () => {
         ["products:restore", { id: product.id }],
         ["products:delete", { id: product.id }],
         ["products:bulk-update", { productIds: [product.id], change: bulkPrice }],
+        ["products:export-csv", undefined],
       ];
       for (const [channel, input] of writes) {
-        await expect(invoke(channel, input)).rejects.toThrow(new Error(ipcErrorMessages.forbidden));
+        await expect(invoke(channel, input)).rejects.toThrow(
+          new Error(ipcErrorMessages.unauthenticated),
+        );
       }
       expect(counts()).toEqual(before);
     });
@@ -227,12 +230,9 @@ describe("products ipc", () => {
       expect(await invoke("products:export-csv")).toEqual({ status: "cancelled" });
     });
 
-    it("is forbidden for a cashier", async () => {
+    it("saves for a cashier", async () => {
       signIn("cashier");
-      await expect(invoke("products:export-csv")).rejects.toThrow(
-        new Error(ipcErrorMessages.forbidden),
-      );
-      expect(existsSync(join(dir, "catalog.csv"))).toBe(false);
+      expect(await invoke("products:export-csv")).toMatchObject({ status: "saved" });
     });
   });
 

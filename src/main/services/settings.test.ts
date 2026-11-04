@@ -8,7 +8,7 @@ import {
   scalePrefixesInputSchema,
   scalePrefixesSettingSchema,
 } from "../../shared/settings";
-import { ForbiddenError, UnauthenticatedError } from "../auth/errors";
+import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
@@ -131,11 +131,18 @@ describe("createSettingsService", () => {
       expect(auditRows()).toHaveLength(0);
     });
 
-    it.each(["manager", "cashier"] as const)("refuses a %s on get and set", (role) => {
+    it.each(["manager", "cashier"] as const)("lets a %s get and set", (role) => {
       signIn(role);
 
-      expect(() => service.getMiscItemEnabled()).toThrow(ForbiddenError);
-      expect(() => service.setMiscItemEnabled({ enabled: true })).toThrow(ForbiddenError);
+      expect(service.getMiscItemEnabled()).toEqual({ enabled: false });
+      expect(service.setMiscItemEnabled({ enabled: true })).toEqual({ enabled: true });
+      expect(getMiscItemEnabled(database, storeId())).toBe(true);
+      expect(auditRows()).toHaveLength(1);
+    });
+
+    it("refuses with no session", () => {
+      expect(() => service.getMiscItemEnabled()).toThrow(UnauthenticatedError);
+      expect(() => service.setMiscItemEnabled({ enabled: true })).toThrow(UnauthenticatedError);
       expect(getMiscItemEnabled(database, storeId())).toBe(false);
       expect(auditRows()).toHaveLength(0);
     });
@@ -175,15 +182,12 @@ describe("createSettingsService", () => {
       expect(auditRows()).toHaveLength(0);
     });
 
-    it.each(["manager", "cashier"] as const)("refuses a %s", (role) => {
+    it.each(["manager", "cashier"] as const)("lets a %s save", (role) => {
       signIn(role);
 
-      expect(() => service.setScalePrefixes(input)).toThrow(ForbiddenError);
-      expect(getScalePrefixes(database, storeId())).toEqual({
-        weightPrefix: "21",
-        pricePrefix: "22",
-      });
-      expect(auditRows()).toHaveLength(0);
+      expect(service.setScalePrefixes(input)).toEqual(input);
+      expect(getScalePrefixes(database, storeId())).toEqual(input);
+      expect(auditRows()).toHaveLength(1);
     });
 
     it("refuses with no session", () => {
