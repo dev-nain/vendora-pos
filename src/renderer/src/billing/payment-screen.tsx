@@ -1,15 +1,20 @@
-import { ArrowLeftIcon, CheckIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckIcon, CircleAlertIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  checkoutMessages,
   paymentMethodLabels,
   paymentMethods,
   type Bill,
+  type CompletedSale,
   type PaymentMethod,
 } from "@shared/checkout";
 import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { cn } from "@renderer/lib/utils";
+import { isSessionError, serviceErrorMessage } from "../auth/messages";
+import { formatRupees } from "../lib/money";
+import { LargePaymentDialog } from "./large-payment-dialog";
 import { Numpad } from "./numpad";
 import { amountInputId, PaymentLineList, referenceInputId } from "./payment-line-list";
 import {
@@ -21,13 +26,17 @@ import {
   selectOrAdd,
   setAmountText,
   setReference,
+  toCompletePayload,
   typeAmount,
+  validationIssue,
   type PaymentDraft,
   type TenderKind,
 } from "./payment-lines";
 import { PaymentHero, PaymentTotals } from "./payment-summary";
 import { createBurstDetector } from "./scan-burst";
 import { playScanError } from "./scan-sounds";
+
+const NOTICE_MS = 4000;
 
 const methodKeys: Record<string, PaymentMethod> = {
   F2: "cash",
@@ -66,6 +75,8 @@ interface PaymentScreenProps {
   active: boolean;
   onDraftChange: (draft: PaymentDraft) => void;
   onBack: () => void;
+  onCompleted: (sale: CompletedSale) => void;
+  onSessionEnded: () => void;
 }
 
 const cashButtonId = "pay-method-cash";
@@ -78,7 +89,20 @@ function restoreField(field: HTMLInputElement, value: string) {
 const isTextField = (target: EventTarget | null): target is HTMLInputElement =>
   target instanceof HTMLInputElement;
 
-export function PaymentScreen({ bill, draft, active, onDraftChange, onBack }: PaymentScreenProps) {
+export function PaymentScreen({
+  bill,
+  draft,
+  active,
+  onDraftChange,
+  onBack,
+  onCompleted,
+  onSessionEnded,
+}: PaymentScreenProps) {
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState<{ paidPaisa: number; totalPaisa: number } | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const locked = useRef(false);
   const [focusRequest, setFocusRequest] = useState<{ target: FocusTarget; n: number } | null>(null);
   const keyHandler = useRef<(event: KeyboardEvent) => void>(() => {});
 
@@ -107,7 +131,71 @@ export function PaymentScreen({ bill, draft, active, onDraftChange, onBack }: Pa
     );
   }, [focusOn]);
 
-  const change = onDraftChange;
+  const showNotice = useCallback((text: string) => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    setNotice(text);
+    noticeTimer.current = setTimeout(() => setNotice(null), NOTICE_MS);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    },
+    [],
+  );
+
+  const change = (next: PaymentDraft) => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    setNotice(null);
+    onDraftChange(next);
+  };
+
+  const validate = async (confirmed = false) => {
+    if (locked.current) return;
+    locked.current = true;
+    setBusy(true);
+    try {
+      const issue = validationIssue(bill, draft);
+      if (issue?.kind === "underpaid") {
+        showNotice(`${formatRupees(issue.remainingPaisa)} left to pay`);
+        return;
+      }
+      if (issue?.kind === "cash-not-rounded") {
+        showNotice(checkoutMessages.cashNotRounded);
+        focusOn({ kind: "amount", method: "cash" });
+        return;
+      }
+      if (issue?.kind === "bad-amount") {
+        showNotice("Enter the amount in rupees, like 500 or 500.50.");
+        focusOn({ kind: "amount", method: issue.method });
+        return;
+      }
+      if (issue?.kind === "too-large" && !confirmed) {
+        setConfirm({ paidPaisa: issue.paidPaisa, totalPaisa: issue.totalPaisa });
+        return;
+      }
+      const result = await window.vendora.checkout.complete(toCompletePayload(draft, undefined));
+      if (result.ok) onCompleted(result.sale);
+      else if (result.reason === "underpaid") {
+        showNotice(`${formatRupees(result.duePaisa)} left to pay`);
+      } else showNotice(result.message);
+    } catch (cause) {
+      if (isSessionError(cause)) onSessionEnded();
+      else showNotice(serviceErrorMessage);
+    } finally {
+      locked.current = false;
+      setBusy(false);
+    }
+  };
+
+  const closeConfirm = () => {
+    setConfirm(null);
+    focusOn(
+      draft.selected
+        ? { kind: "amount", method: draft.selected }
+        : { kind: "amount", method: "cash" },
+    );
+  };
 
   const addMethod = (method: PaymentMethod) => {
     const existed = draft.lines.some((line) => line.method === method);
@@ -137,7 +225,7 @@ export function PaymentScreen({ bill, draft, active, onDraftChange, onBack }: Pa
 
   useEffect(() => {
     keyHandler.current = (event) => {
-      if (event.defaultPrevented) return;
+      if (event.defaultPrevented || confirm !== null) return;
       const target = event.target as HTMLElement | null;
       const inReference = target?.id.startsWith("pay-reference-") ?? false;
       const inBuyer = target?.id.startsWith("buyer-") ?? false;
@@ -153,6 +241,14 @@ export function PaymentScreen({ bill, draft, active, onDraftChange, onBack }: Pa
         tender(kind);
       } else if (event.key === "F11" || event.key === "F12") {
         event.preventDefault();
+      } else if (event.key === "Enter") {
+        if (target instanceof HTMLButtonElement) return;
+        event.preventDefault();
+        if (inReference && summary.remainingPaisa > 0 && draft.selected) {
+          focusOn({ kind: "amount", method: draft.selected });
+        } else {
+          void validate();
+        }
       } else if (event.key === "Escape") {
         event.preventDefault();
         onBack();
@@ -194,6 +290,7 @@ export function PaymentScreen({ bill, draft, active, onDraftChange, onBack }: Pa
   }, [active]);
 
   const hasSelection = draft.selected !== null;
+  const issue = validationIssue(bill, draft);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -259,10 +356,10 @@ export function PaymentScreen({ bill, draft, active, onDraftChange, onBack }: Pa
             lines={draft.lines}
             selected={draft.selected}
             onSelect={(method) => {
-              if (draft.selected !== method) change({ ...draft, selected: method });
+              if (draft.selected !== method) onDraftChange({ ...draft, selected: method });
             }}
             onActivate={(method) => {
-              if (draft.selected !== method) change({ ...draft, selected: method });
+              if (draft.selected !== method) onDraftChange({ ...draft, selected: method });
               focusOn({ kind: "amount", method });
             }}
             onAmountChange={(method, text) => change(setAmountText(draft, method, text))}
@@ -275,6 +372,12 @@ export function PaymentScreen({ bill, draft, active, onDraftChange, onBack }: Pa
               );
             }}
           />
+          {notice ? (
+            <p role="alert" className="m-0 flex items-center gap-200 text-critical">
+              <CircleAlertIcon aria-hidden="true" size={16} strokeWidth={2} className="shrink-0" />
+              {notice}
+            </p>
+          ) : null}
         </section>
         <section aria-label="Totals and keypad" className="flex min-h-0 flex-col gap-400 p-400">
           <PaymentTotals bill={bill} summary={summary} />
@@ -282,14 +385,31 @@ export function PaymentScreen({ bill, draft, active, onDraftChange, onBack }: Pa
             disabled={!hasSelection}
             onKey={(key) => change(typeAmount(draft, key))}
             onBackspace={() => change(backspaceAmount(draft))}
-            onEnter={() => {}}
+            onEnter={() => void validate()}
           />
-          <Button size="lg" disabled={true} className="mt-auto w-full">
+          <Button
+            size="lg"
+            disabled={issue?.kind === "underpaid" || busy}
+            aria-busy={busy}
+            className="mt-auto w-full"
+            onClick={() => void validate()}
+          >
             Validate
             <Kbd>Enter</Kbd>
           </Button>
         </section>
       </div>
+      {confirm ? (
+        <LargePaymentDialog
+          paidPaisa={confirm.paidPaisa}
+          totalPaisa={confirm.totalPaisa}
+          onConfirm={() => {
+            setConfirm(null);
+            void validate(true);
+          }}
+          onCancel={closeConfirm}
+        />
+      ) : null}
     </div>
   );
 }

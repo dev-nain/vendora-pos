@@ -266,3 +266,4 @@ export type BillResult = z.infer<typeof billResultSchema>;
 export type CurrentBill = z.infer<typeof currentBillSchema>;
 export type ActionResult = z.infer<typeof actionResultSchema>;
 export type CompleteSaleResult = z.infer<typeof completeSaleResultSchema>;
+export type CompletedSale = Extract<CompleteSaleResult, { ok: true }>["sale"];
