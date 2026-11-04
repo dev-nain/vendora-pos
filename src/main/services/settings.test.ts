@@ -7,6 +7,7 @@ import {
   miscItemSettingSchema,
   scalePrefixesInputSchema,
   scalePrefixesSettingSchema,
+  shiftVarianceInputSchema,
 } from "../../shared/settings";
 import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
@@ -14,7 +15,11 @@ import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
 import { auditLog, stores, users } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
-import { getMiscItemEnabled, getScalePrefixes } from "../settings/store-settings";
+import {
+  getMiscItemEnabled,
+  getScalePrefixes,
+  getShiftVarianceWarnPaisa,
+} from "../settings/store-settings";
 import { createAuditService } from "./audit";
 import { createSettingsService } from "./settings";
 
@@ -55,6 +60,20 @@ describe("scale prefix schemas", () => {
     { weightPrefix: "21", pricePrefix: "22", extra: 1 },
   ])("rejects %j", (value) => {
     expect(scalePrefixesInputSchema.safeParse(value).success).toBe(false);
+  });
+});
+
+describe("shift variance schema", () => {
+  it.each([0, 15000, 100_000_000])("accepts %s", (warnPaisa) => {
+    expect(shiftVarianceInputSchema.safeParse({ warnPaisa }).success).toBe(true);
+  });
+
+  it.each([-1, 1.5, 100_000_001, "5", null])("rejects %s", (warnPaisa) => {
+    expect(shiftVarianceInputSchema.safeParse({ warnPaisa }).success).toBe(false);
+  });
+
+  it("rejects extra keys", () => {
+    expect(shiftVarianceInputSchema.safeParse({ warnPaisa: 0, extra: 1 }).success).toBe(false);
   });
 });
 
@@ -144,6 +163,49 @@ describe("createSettingsService", () => {
       expect(() => service.setMiscItemEnabled({ enabled: true })).toThrow(UnauthenticatedError);
       expect(getMiscItemEnabled(database, storeId())).toBe(false);
       expect(auditRows()).toHaveLength(0);
+    });
+  });
+
+  describe("shift variance warning", () => {
+    it("reads 0 by default", () => {
+      signIn("cashier");
+
+      expect(service.getShiftVarianceWarn()).toEqual({ warnPaisa: 0 });
+    });
+
+    it("sets it and writes one settings_change row with from and to", () => {
+      const user = signIn("cashier");
+
+      expect(service.setShiftVarianceWarn({ warnPaisa: 15000 })).toEqual({ warnPaisa: 15000 });
+
+      expect(getShiftVarianceWarnPaisa(database, storeId())).toBe(15000);
+      const rows = auditRows();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        action: "settings_change",
+        actorUserId: user.id,
+        entityType: "store",
+        entityId: storeId(),
+      });
+      expect(JSON.parse(rows[0]!.details!)).toEqual({
+        setting: "shiftVarianceWarnPaisa",
+        from: 0,
+        to: 15000,
+      });
+    });
+
+    it("writes nothing when unchanged", () => {
+      signIn("cashier");
+
+      service.setShiftVarianceWarn({ warnPaisa: 0 });
+
+      expect(auditRows()).toHaveLength(0);
+    });
+
+    it("refuses with no session", () => {
+      expect(() => service.getShiftVarianceWarn()).toThrow(UnauthenticatedError);
+      expect(() => service.setShiftVarianceWarn({ warnPaisa: 5 })).toThrow(UnauthenticatedError);
+      expect(getShiftVarianceWarnPaisa(database, storeId())).toBe(0);
     });
   });
 

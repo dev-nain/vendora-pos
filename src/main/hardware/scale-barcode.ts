@@ -25,3 +25,8 @@ export function parseScaleBarcode(code: string, config: ScaleBarcodeConfig): Sca
   if (prefix === config.pricePrefix) return { itemCode, kind: "price", pricePaisa: value * 100 };
   return null;
 }
+
+export function scaleLabelPricePaisa(code: string): number {
+  if (!/^\d{13}$/.test(code)) throw new Error("Not a scale label");
+  return Number(code.slice(7, 12)) * 100;
+}

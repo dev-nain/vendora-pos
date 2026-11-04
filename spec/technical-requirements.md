@@ -69,7 +69,9 @@ FBR fiscal integration is deferred, but v1 keeps the data it will need so no mig
 - Products have an optional PCT/HS code and a tax category.
 - Sale lines snapshot the tax rate and the computed tax.
 - Each terminal has its own invoice sequence (FBR requires one POS ID per counter).
-- Returns reference the original sale and line.
+- Returns reference the original sale and line when the return has a receipt.
+- Products have a Third Schedule flag (`is_third_schedule`, default off). Sale lines snapshot it and the MRP, because Third Schedule items are taxed on the printed retail price.
+- Each terminal has an optional FBR POS ID (`fbr_pos_id`).
 
 ## Hardware
 

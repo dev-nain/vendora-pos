@@ -77,12 +77,27 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 
 - Scanner input always lands in the current bill; focus returns to the scan field after every action
 - Every main action (search, quantity, discount, hold, pay, return) has a keyboard shortcut; mouse and touch also work
+- Every bill is saved as a draft from its first line
 - Scanning adds a line or increments its quantity; quantity is editable; weighed items take weight from a scale barcode or prompt for it
-- Line discount and bill discount (amount or %)
+- A scan merges into a matching line (same product, price, discount and pack); weighed, misc, manual-price and return lines never merge
+- A price-embedded scale label on a kg or litre item sets the quantity from the label price, and the line total equals the label
+- Line discount and bill discount (amount or %); discounts are capped at 100%; the bill discount is spread over the lines to the paisa
 - **Hold / resume** multiple bills; held bills survive an app restart
-- Payment methods: cash, card (manual record + reference), bank transfer / mobile wallet (JazzCash, Easypaisa — manual reference), and **split** across methods
-- Cash payment shows change due; quick-tender buttons (exact, 500, 1000, 5000)
+- An unknown barcode shows an inline message and never blocks the next scan
+- Scans are queued one at a time with ok/error sounds
+- Typed quantities ≥ 100 (pieces/packs) or ≥ 25 (kg/L) ask to confirm
+- Held bills list cashier, items and total; the last open bill returns after a restart
+- Payment is a separate step after the bill (F12 / Pay); Esc returns to the bill unchanged, and nothing is saved until Validate
+- Payment methods are fixed: cash, card (manual record + reference), bank transfer, JazzCash and Easypaisa (manual reference), each its own method, and **split** across them with one line per method
+- Cash payment shows change due; quick-tender buttons (exact, 500, 1000, 5000): the first note press replaces the cash amount and later presses add to it
+- Overpaying by card, bank transfer or wallet returns the excess as cash change; references are optional
+- Validate is blocked while the bill is underpaid and shows what is left to pay; paying more than 1,000 times the total asks to confirm; a double press makes one sale
+- Optional buyer details (name, phone, NTN, CNIC) are validated and stored on the sale only
+- A receipt screen follows Validate with the invoice number, total, paid and change; Enter or a scan starts the next bill
+- Payment shortcuts: F2–F6 methods, F7 exact, F8–F10 500 / 1000 / 5000, F11 buyer details, Del remove line, Enter validate, Esc back
 - Totals show subtotal, discount, sales tax, rounding (configurable, shown as its own line) and grand total
+- Tax is computed and rounded half-up per line
+- Cash rounding is applied to every bill or only to the cash share, per a store setting
 - Completing a sale is **atomic**: sale, lines, payments and stock movements are all saved or none are
 - Cash drawer opens on cash payment; the receipt prints automatically (setting: print / ask / don't print)
 - A printer or network failure never blocks a sale — it degrades with a visible warning
@@ -111,6 +126,7 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 - Refund to the original method or cash; **exchange** = return + new sale in one flow
 - Each returned line goes back to sellable stock or to "damaged" (not sellable)
 - Return without a receipt uses the current price
+- One bill can mix sale and return lines (exchange). A return without a receipt is refunded in cash.
 - A credit note receipt prints for every return
 
 ---
@@ -146,10 +162,10 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 
 **Acceptance criteria:**
 
-- Cashier **opens a shift** with an opening float; sales require an open shift
-- Cash in / cash out (e.g. petty expenses) with a reason
-- **Close shift** with a **blind cash count** — the cashier enters counted cash by denomination before seeing the expected amount — then shows the variance
-- X-report (mid-shift) and Z-report (at close): sales by payment method, returns, discounts, voids, overrides, cash movements, variance; printable on the receipt printer
+- Cashier **opens a shift** with an opening float, pre-filled from the last count and editable; one open shift per terminal; sales require an open shift
+- Cash in / cash out (e.g. petty expenses) with a reason; deletable while the shift is open (audit-logged) and fixed after close
+- **Close shift**: count cash by denomination or as a total; expected cash per payment method is shown while counting (the count is not blind); expected cash = opening float + cash in − cash out + cash payments, including change given and cash refunds, and non-cash methods show their expected totals; the variance warns above a store setting; a shift can't close while bills are on hold
+- X-report (mid-shift) and Z-report (at close): sales by payment method, taxes, discounts (count and amount), refunds, cash in/out, expected vs counted and variance, deleted lines and discarded bills; no overrides; printable on the receipt printer
 - Day close summarizes all shifts of the day
 
 ---

@@ -6,7 +6,27 @@ import {
   loginUserSchema,
   sessionStateSchema,
 } from "@shared/auth";
-import { miscItemSettingSchema, scalePrefixesSettingSchema } from "@shared/settings";
+import {
+  miscItemSettingSchema,
+  scalePrefixesSettingSchema,
+  shiftVarianceSettingSchema,
+} from "@shared/settings";
+import {
+  actionResultSchema,
+  billResultSchema,
+  completeSaleResultSchema,
+  currentBillSchema,
+} from "@shared/checkout";
+import {
+  addCashMoveResultSchema,
+  closeShiftResultSchema,
+  deleteCashMoveResultSchema,
+  denominationSchema,
+  heldBillSummarySchema,
+  openShiftResultSchema,
+  shiftReportResultSchema,
+  shiftStateSchema,
+} from "@shared/shifts";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 import {
   barcodeLookupSchema,
@@ -76,6 +96,14 @@ const api: VendoraApi = {
     setMiscItemEnabled: async (enabled) =>
       miscItemSettingSchema.parse(
         await ipcRenderer.invoke(ipcChannels.settingsSetMiscItemEnabled, { enabled }),
+      ),
+    getShiftVarianceWarn: async () =>
+      shiftVarianceSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsGetShiftVarianceWarn),
+      ),
+    setShiftVarianceWarn: async (warnPaisa) =>
+      shiftVarianceSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsSetShiftVarianceWarn, { warnPaisa }),
       ),
   },
   users: {
@@ -163,6 +191,53 @@ const api: VendoraApi = {
       deleteTaxCategoryResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.taxCategoriesDelete, { id }),
       ),
+  },
+  shifts: {
+    state: async () => shiftStateSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsState)),
+    open: async (openingFloatPaisa) =>
+      openShiftResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.shiftsOpen, { openingFloatPaisa }),
+      ),
+    addCashMove: async (input) =>
+      addCashMoveResultSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsAddCashMove, input)),
+    deleteCashMove: async (id) =>
+      deleteCashMoveResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.shiftsDeleteCashMove, { id }),
+      ),
+    report: async (id) =>
+      shiftReportResultSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsReport, { id })),
+    listDenominations: async () =>
+      z
+        .array(denominationSchema)
+        .parse(await ipcRenderer.invoke(ipcChannels.shiftsListDenominations)),
+    close: async (input) =>
+      closeShiftResultSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsClose, input)),
+  },
+  checkout: {
+    current: async () =>
+      currentBillSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutCurrent)),
+    scan: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutScan, input)),
+    addProduct: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutAddProduct, input)),
+    addMisc: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutAddMisc, input)),
+    updateLine: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutUpdateLine, input)),
+    deleteLine: async (lineId) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutDeleteLine, { lineId })),
+    setBillDiscount: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutSetBillDiscount, input)),
+    hold: async (input) =>
+      actionResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutHold, input)),
+    resume: async (draftId) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutResume, { draftId })),
+    listHeld: async () =>
+      z.array(heldBillSummarySchema).parse(await ipcRenderer.invoke(ipcChannels.checkoutListHeld)),
+    discard: async (draftId) =>
+      actionResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutDiscard, { draftId })),
+    complete: async (input) =>
+      completeSaleResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutComplete, input)),
   },
 };
 

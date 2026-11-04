@@ -12,7 +12,37 @@ import type {
   DeleteCategoryResult,
   RenameCategoryResult,
 } from "./categories";
-import type { MiscItemSetting, ScalePrefixesInput, ScalePrefixesSetting } from "./settings";
+import type {
+  MiscItemSetting,
+  ScalePrefixesInput,
+  ScalePrefixesSetting,
+  ShiftVarianceSetting,
+} from "./settings";
+import type {
+  AddCashMoveInput,
+  AddCashMoveResult,
+  CloseShiftInput,
+  CloseShiftResult,
+  DeleteCashMoveResult,
+  Denomination,
+  OpenShiftResult,
+  ShiftReportResult,
+  HeldBillSummary,
+  ShiftState,
+} from "./shifts";
+import type {
+  ActionResult,
+  AddMiscInput,
+  AddProductInput,
+  BillResult,
+  CompleteSaleInput,
+  CompleteSaleResult,
+  CurrentBill,
+  HoldInput,
+  ScanInput,
+  SetBillDiscountInput,
+  UpdateLineInput,
+} from "./checkout";
 import type {
   BarcodeLookup,
   BulkUpdateProductsInput,
@@ -61,6 +91,8 @@ export const ipcChannels = {
   settingsSetScalePrefixes: "settings:set-scale-prefixes",
   settingsGetMiscItemEnabled: "settings:get-misc-item-enabled",
   settingsSetMiscItemEnabled: "settings:set-misc-item-enabled",
+  settingsGetShiftVarianceWarn: "settings:get-shift-variance-warn",
+  settingsSetShiftVarianceWarn: "settings:set-shift-variance-warn",
   authNeedsSetup: "auth:needs-setup",
   authCreateFirstUser: "auth:create-first-user",
   usersList: "users:list",
@@ -89,6 +121,25 @@ export const ipcChannels = {
   taxCategoriesCreate: "tax-categories:create",
   taxCategoriesUpdate: "tax-categories:update",
   taxCategoriesDelete: "tax-categories:delete",
+  shiftsState: "shifts:state",
+  shiftsOpen: "shifts:open",
+  shiftsAddCashMove: "shifts:add-cash-move",
+  shiftsDeleteCashMove: "shifts:delete-cash-move",
+  shiftsReport: "shifts:report",
+  shiftsListDenominations: "shifts:list-denominations",
+  shiftsClose: "shifts:close",
+  checkoutCurrent: "checkout:current",
+  checkoutScan: "checkout:scan",
+  checkoutAddProduct: "checkout:add-product",
+  checkoutAddMisc: "checkout:add-misc",
+  checkoutUpdateLine: "checkout:update-line",
+  checkoutDeleteLine: "checkout:delete-line",
+  checkoutSetBillDiscount: "checkout:set-bill-discount",
+  checkoutHold: "checkout:hold",
+  checkoutResume: "checkout:resume",
+  checkoutListHeld: "checkout:list-held",
+  checkoutDiscard: "checkout:discard",
+  checkoutComplete: "checkout:complete",
 } as const;
 
 export const ipcErrorMessages = {
@@ -112,6 +163,8 @@ export interface VendoraApi {
     setScalePrefixes: (input: ScalePrefixesInput) => Promise<ScalePrefixesSetting>;
     getMiscItemEnabled: () => Promise<MiscItemSetting>;
     setMiscItemEnabled: (enabled: boolean) => Promise<MiscItemSetting>;
+    getShiftVarianceWarn: () => Promise<ShiftVarianceSetting>;
+    setShiftVarianceWarn: (warnPaisa: number) => Promise<ShiftVarianceSetting>;
   };
   users: {
     list: () => Promise<ManagedUser[]>;
@@ -146,5 +199,28 @@ export interface VendoraApi {
     create: (input: CreateTaxCategoryInput) => Promise<CreateTaxCategoryResult>;
     update: (input: UpdateTaxCategoryInput) => Promise<UpdateTaxCategoryResult>;
     remove: (id: string) => Promise<DeleteTaxCategoryResult>;
+  };
+  shifts: {
+    state: () => Promise<ShiftState>;
+    open: (openingFloatPaisa: number) => Promise<OpenShiftResult>;
+    addCashMove: (input: AddCashMoveInput) => Promise<AddCashMoveResult>;
+    deleteCashMove: (id: string) => Promise<DeleteCashMoveResult>;
+    report: (id: string) => Promise<ShiftReportResult>;
+    listDenominations: () => Promise<Denomination[]>;
+    close: (input: CloseShiftInput) => Promise<CloseShiftResult>;
+  };
+  checkout: {
+    current: () => Promise<CurrentBill>;
+    scan: (input: ScanInput) => Promise<BillResult>;
+    addProduct: (input: AddProductInput) => Promise<BillResult>;
+    addMisc: (input: AddMiscInput) => Promise<BillResult>;
+    updateLine: (input: UpdateLineInput) => Promise<BillResult>;
+    deleteLine: (lineId: string) => Promise<BillResult>;
+    setBillDiscount: (input: SetBillDiscountInput) => Promise<BillResult>;
+    hold: (input: HoldInput) => Promise<ActionResult>;
+    resume: (draftId: string) => Promise<BillResult>;
+    listHeld: () => Promise<HeldBillSummary[]>;
+    discard: (draftId: string) => Promise<ActionResult>;
+    complete: (input: CompleteSaleInput) => Promise<CompleteSaleResult>;
   };
 }

@@ -8,6 +8,8 @@ For each, document the decisions and reasoning in the README.
 
 ## 1. Billing Screen Layout
 
+Answered — see README, Billing screen.
+
 **The problem:** The cashier lives on this screen for 10 hours a day, under time pressure, often with a queue. It must work by keyboard and scanner alone, on a 1366×768 screen, and on touch-screen counters.
 
 **Design this:**

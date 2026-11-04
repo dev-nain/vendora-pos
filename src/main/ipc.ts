@@ -17,6 +17,21 @@ import {
   renameCategoryInputSchema,
   renameCategoryResultSchema,
 } from "@shared/categories";
+import {
+  actionResultSchema,
+  addMiscInputSchema,
+  addProductInputSchema,
+  billResultSchema,
+  completeSaleInputSchema,
+  completeSaleResultSchema,
+  currentBillSchema,
+  draftIdInputSchema,
+  holdInputSchema,
+  lineIdInputSchema,
+  scanInputSchema,
+  setBillDiscountInputSchema,
+  updateLineInputSchema,
+} from "@shared/checkout";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
 import {
   barcodeLookupInputSchema,
@@ -41,7 +56,24 @@ import {
   miscItemSettingSchema,
   scalePrefixesInputSchema,
   scalePrefixesSettingSchema,
+  shiftVarianceInputSchema,
+  shiftVarianceSettingSchema,
 } from "@shared/settings";
+import {
+  addCashMoveInputSchema,
+  addCashMoveResultSchema,
+  cashMoveIdInputSchema,
+  closeShiftInputSchema,
+  closeShiftResultSchema,
+  deleteCashMoveResultSchema,
+  denominationSchema,
+  heldBillSummarySchema,
+  openShiftInputSchema,
+  openShiftResultSchema,
+  shiftIdInputSchema,
+  shiftReportResultSchema,
+  shiftStateSchema,
+} from "@shared/shifts";
 import {
   createTaxCategoryInputSchema,
   createTaxCategoryResultSchema,
@@ -66,10 +98,13 @@ import {
 import { z } from "zod";
 import { toIpcError } from "./ipc-errors";
 import type { AuthService } from "./services/auth";
+import type { BillDraftsService } from "./services/bill-drafts";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { ProductsService } from "./services/products";
+import type { SalesService } from "./services/sales";
 import type { SettingsService } from "./services/settings";
+import type { ShiftsService } from "./services/shifts";
 import type { TaxCategoriesService } from "./services/tax-categories";
 import type { UsersService } from "./services/users";
 
@@ -88,9 +123,12 @@ function handle(
 
 interface IpcServices {
   auth: AuthService;
+  billDrafts: BillDraftsService;
   catalogExport: CatalogExportService;
   categories: CategoriesService;
+  sales: SalesService;
   settings: SettingsService;
+  shifts: ShiftsService;
   taxCategories: TaxCategoriesService;
   users: UsersService;
   products: ProductsService;
@@ -98,10 +136,13 @@ interface IpcServices {
 
 export function registerIpcHandlers({
   auth,
+  billDrafts,
   catalogExport,
   categories,
   products,
+  sales,
   settings,
+  shifts,
   taxCategories,
   users,
 }: IpcServices): void {
@@ -127,6 +168,14 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.settingsSetMiscItemEnabled, (_event, input) =>
     miscItemSettingSchema.parse(settings.setMiscItemEnabled(miscItemInputSchema.parse(input))),
+  );
+  handle(ipcChannels.settingsGetShiftVarianceWarn, () =>
+    shiftVarianceSettingSchema.parse(settings.getShiftVarianceWarn()),
+  );
+  handle(ipcChannels.settingsSetShiftVarianceWarn, (_event, input) =>
+    shiftVarianceSettingSchema.parse(
+      settings.setShiftVarianceWarn(shiftVarianceInputSchema.parse(input)),
+    ),
   );
   handle(ipcChannels.productsGetMiscItem, () =>
     productSchema.nullable().parse(products.miscItem()),
@@ -217,5 +266,58 @@ export function registerIpcHandlers({
     deleteTaxCategoryResultSchema.parse(
       taxCategories.remove(taxCategoryIdInputSchema.parse(input)),
     ),
+  );
+  handle(ipcChannels.shiftsState, () => shiftStateSchema.parse(shifts.state()));
+  handle(ipcChannels.shiftsOpen, (_event, input) =>
+    openShiftResultSchema.parse(shifts.open(openShiftInputSchema.parse(input))),
+  );
+  handle(ipcChannels.shiftsAddCashMove, (_event, input) =>
+    addCashMoveResultSchema.parse(shifts.addCashMove(addCashMoveInputSchema.parse(input))),
+  );
+  handle(ipcChannels.shiftsDeleteCashMove, (_event, input) =>
+    deleteCashMoveResultSchema.parse(shifts.deleteCashMove(cashMoveIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.shiftsReport, (_event, input) =>
+    shiftReportResultSchema.parse(shifts.report(shiftIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.shiftsListDenominations, () =>
+    z.array(denominationSchema).parse(shifts.listDenominations()),
+  );
+  handle(ipcChannels.shiftsClose, (_event, input) =>
+    closeShiftResultSchema.parse(shifts.close(closeShiftInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutCurrent, () => currentBillSchema.parse(billDrafts.current()));
+  handle(ipcChannels.checkoutScan, (_event, input) =>
+    billResultSchema.parse(billDrafts.scan(scanInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutAddProduct, (_event, input) =>
+    billResultSchema.parse(billDrafts.addProduct(addProductInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutAddMisc, (_event, input) =>
+    billResultSchema.parse(billDrafts.addMisc(addMiscInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutUpdateLine, (_event, input) =>
+    billResultSchema.parse(billDrafts.updateLine(updateLineInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutDeleteLine, (_event, input) =>
+    billResultSchema.parse(billDrafts.deleteLine(lineIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutSetBillDiscount, (_event, input) =>
+    billResultSchema.parse(billDrafts.setBillDiscount(setBillDiscountInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutHold, (_event, input) =>
+    actionResultSchema.parse(billDrafts.hold(holdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutResume, (_event, input) =>
+    billResultSchema.parse(billDrafts.resume(draftIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutListHeld, () =>
+    z.array(heldBillSummarySchema).parse(billDrafts.listHeld()),
+  );
+  handle(ipcChannels.checkoutDiscard, (_event, input) =>
+    actionResultSchema.parse(billDrafts.discard(draftIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutComplete, (_event, input) =>
+    completeSaleResultSchema.parse(sales.complete(completeSaleInputSchema.parse(input))),
   );
 }

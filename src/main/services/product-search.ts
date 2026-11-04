@@ -1,6 +1,6 @@
 import { and, asc, count, eq, getTableName, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { VendoraDatabase } from "../db/client";
-import { productBarcodes, products } from "../db/schema";
+import { productBarcodes, products, stockMovements } from "../db/schema";
 import {
   PRODUCT_SEARCH_MAX_LIMIT,
   type ProductSearchInput,
@@ -79,6 +79,7 @@ export function searchProducts(
         string | null
       >`(SELECT ${productBarcodes.barcode} FROM ${productBarcodes} WHERE ${productBarcodes.productId} = ${outerProductId} AND ${productBarcodes.deletedAt} IS NULL ORDER BY (${productBarcodes.packQtyMilli} = 1000) DESC, ${productBarcodes.createdAt}, ${productBarcodes.id} LIMIT 1)`,
       extraBarcodeCount: sql<number>`max((SELECT count(*) FROM ${productBarcodes} WHERE ${productBarcodes.productId} = ${outerProductId} AND ${productBarcodes.deletedAt} IS NULL) - 1, 0)`,
+      onHandMilli: sql<number>`coalesce((SELECT sum(${stockMovements.qtyMilli}) FROM ${stockMovements} WHERE ${stockMovements.productId} = ${outerProductId}), 0)`,
     })
     .from(products)
     .where(where)
