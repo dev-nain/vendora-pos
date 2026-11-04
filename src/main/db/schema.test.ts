@@ -814,3 +814,165 @@ describe("remove roles and lock migration on an existing database", () => {
     }
   });
 });
+
+describe("stock movement schema", () => {
+  let dir: string;
+  let database: VendoraDatabase;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vendora-stock-schema-"));
+    database = openDatabase(join(dir, "vendora.db"));
+    runMigrations(database, { migrationsFolder, backupDir: join(dir, "backups") });
+    database.sqlite.exec(`
+      INSERT INTO stores (id, created_at, updated_at) VALUES ('s1', 1, 2);
+      INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 2);
+      INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at) VALUES ('u1', 'owner', 'Owner', 'p', 'q', 1, 2);
+      INSERT INTO categories (id, store_id, name, created_at, updated_at) VALUES ('c1', 's1', 'Tea', 1, 2);
+      INSERT INTO tax_categories (id, store_id, name, rate_bps, created_at, updated_at) VALUES ('x1', 's1', 'Standard', 1800, 1, 2);
+      INSERT INTO products (id, store_id, name_en, search_text, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, created_at, updated_at)
+        VALUES ('p1', 's1', 'Tapal', 'tapal', 'c1', 'x1', 'piece', 100, 150, 1, 2);
+    `);
+  });
+
+  afterEach(() => {
+    database.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const insert = (
+    overrides: Partial<{
+      type: string;
+      qty: number;
+      cost: number;
+      reason: string | null;
+      sourceType: string | null;
+      sourceId: string | null;
+    }> = {},
+  ) => {
+    const row = {
+      type: "receipt",
+      qty: 1000,
+      cost: 100,
+      reason: null,
+      sourceType: null,
+      sourceId: null,
+      ...overrides,
+    };
+    database.sqlite
+      .prepare(
+        "INSERT INTO stock_movements (id, store_id, terminal_id, product_id, type, qty_milli, unit_cost_paisa, source_type, source_id, reason, actor_user_id, created_at) VALUES (?, 's1', 't1', 'p1', ?, ?, ?, ?, ?, ?, 'u1', 1)",
+      )
+      .run(
+        `m${Math.random()}`,
+        row.type,
+        row.qty,
+        row.cost,
+        row.sourceType,
+        row.sourceId,
+        row.reason,
+      );
+  };
+
+  const plan = (query: string) =>
+    (database.sqlite.prepare(`EXPLAIN QUERY PLAN ${query}`).all("p1") as { detail: string }[])
+      .map((row) => row.detail)
+      .join(" ");
+
+  it("accepts valid movements", () => {
+    insert();
+    insert({ type: "sale", qty: -500 });
+    insert({ type: "adjustment", qty: -500, reason: "theft" });
+    insert({ type: "damage", qty: -500, reason: "damage" });
+    insert({ sourceType: "sale_line", sourceId: "l1" });
+    expect(database.sqlite.prepare("SELECT count(*) AS n FROM stock_movements").get()).toEqual({
+      n: 5,
+    });
+  });
+
+  it("requires a reason on adjustments and refuses one on other types", () => {
+    expect(() => insert({ type: "adjustment", qty: -1, reason: null })).toThrow();
+    expect(() => insert({ type: "damage", qty: -1, reason: null })).toThrow();
+    expect(() => insert({ type: "adjustment", qty: -1, reason: "lost" })).toThrow();
+    expect(() => insert({ type: "sale", qty: -1, reason: "damage" })).toThrow();
+  });
+
+  it("refuses zero quantity, negative cost, an unpaired source and an unknown type", () => {
+    expect(() => insert({ qty: 0 })).toThrow();
+    expect(() => insert({ cost: -1 })).toThrow();
+    expect(() => insert({ sourceType: "sale_line", sourceId: null })).toThrow();
+    expect(() => insert({ sourceType: null, sourceId: "l1" })).toThrow();
+    expect(() => insert({ type: "transfer" })).toThrow();
+  });
+
+  it("uses the product indexes for on-hand and history queries", () => {
+    expect(plan("SELECT SUM(qty_milli) FROM stock_movements WHERE product_id = ?")).toContain(
+      "stock_movements_product_id",
+    );
+    expect(
+      plan(
+        "SELECT * FROM stock_movements WHERE product_id = ? ORDER BY created_at DESC, id DESC LIMIT 50",
+      ),
+    ).toContain("stock_movements_product_id");
+  });
+});
+
+describe("stock movements migration on an existing database", () => {
+  it("adds an empty ledger and keeps existing rows", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vendora-upgrade-"));
+    const database = openDatabase(join(dir, "vendora.db"));
+    try {
+      const oldFolder = join(dir, "old-migrations");
+      mkdirSync(join(oldFolder, "meta"), { recursive: true });
+      const journal = JSON.parse(
+        readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+      ) as { entries: { tag: string }[] };
+      journal.entries = journal.entries.slice(0, 9);
+      writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
+      for (const entry of journal.entries) {
+        copyFileSync(
+          join(migrationsFolder, `${entry.tag}.sql`),
+          join(oldFolder, `${entry.tag}.sql`),
+        );
+      }
+
+      const backupDir = join(dir, "backups");
+      runMigrations(database, { migrationsFolder: oldFolder, backupDir });
+      database.sqlite.exec(`
+        INSERT INTO stores (id, created_at, updated_at) VALUES ('s1', 1, 2);
+        INSERT INTO categories (id, store_id, name, created_at, updated_at) VALUES ('c1', 's1', 'Tea', 1, 2);
+        INSERT INTO tax_categories (id, store_id, name, rate_bps, created_at, updated_at) VALUES ('x1', 's1', 'Standard', 1800, 1, 2);
+        INSERT INTO products (id, store_id, name_en, search_text, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, created_at, updated_at)
+          VALUES ('p1', 's1', 'Tapal', 'tapal', 'c1', 'x1', 'piece', 100, 150, 1, 2);
+        INSERT INTO product_barcodes (id, store_id, product_id, barcode, created_at, updated_at) VALUES ('b1', 's1', 'p1', '123', 1, 2);
+        INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at) VALUES ('u1', 'owner', 'Owner', 'p', 'q', 1, 2);
+      `);
+      const snapshot = () => ({
+        products: database.sqlite.prepare("SELECT * FROM products").all(),
+        barcodes: database.sqlite.prepare("SELECT * FROM product_barcodes").all(),
+        users: database.sqlite.prepare("SELECT * FROM users").all(),
+      });
+      const before = snapshot();
+
+      expect(runMigrations(database, { migrationsFolder, backupDir })).toBe("migrated");
+
+      expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
+      expect(snapshot()).toEqual(before);
+      expect(database.sqlite.pragma("foreign_key_check")).toEqual([]);
+      expect(database.sqlite.prepare("SELECT count(*) AS n FROM stock_movements").get()).toEqual({
+        n: 0,
+      });
+      const indexes = database.sqlite
+        .prepare(
+          "SELECT name FROM pragma_index_list('stock_movements') WHERE origin = 'c' ORDER BY name",
+        )
+        .all();
+      expect(indexes).toEqual([
+        { name: "stock_movements_product_id_created_at_idx" },
+        { name: "stock_movements_product_id_idx" },
+      ]);
+    } finally {
+      database.sqlite.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
