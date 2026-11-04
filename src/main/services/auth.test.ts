@@ -5,7 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   authMessages,
   authResultSchema,
-  createOwnerInputSchema,
+  createFirstUserInputSchema,
   loginUserSchema,
   sessionStateSchema,
   type AuthResult,
@@ -352,17 +352,17 @@ describe("createAuthService", () => {
   });
 
   describe("owner setup", () => {
-    const ownerInput = createOwnerInputSchema.parse({
+    const ownerInput = createFirstUserInputSchema.parse({
       username: " owner1 ",
       displayName: " Imran ",
       password: "ab12",
       pin: "1234",
     });
 
-    it("creates the Owner, starts a session and audits it", async () => {
-      expect(service.needsOwnerSetup()).toBe(true);
+    it("creates the first user, starts a session and audits it", async () => {
+      expect(service.needsSetup()).toBe(true);
 
-      const result = await service.createOwner(ownerInput);
+      const result = await service.createFirstUser(ownerInput);
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -371,7 +371,7 @@ describe("createAuthService", () => {
         displayName: "Imran",
         role: "owner",
       });
-      expect(service.needsOwnerSetup()).toBe(false);
+      expect(service.needsSetup()).toBe(false);
       expect(service.current()).toEqual({ user: result.user });
 
       const row = userRow(result.user.id);
@@ -392,7 +392,7 @@ describe("createAuthService", () => {
     });
 
     it("writes one user_create and one login row on creation", async () => {
-      await service.createOwner(ownerInput);
+      await service.createFirstUser(ownerInput);
       expect(
         auditRows()
           .map((r) => r.action)
@@ -400,16 +400,16 @@ describe("createAuthService", () => {
       ).toEqual(["login", "user_create"]);
     });
 
-    it("refuses a second Owner without writing or switching the session", async () => {
-      const first = await service.createOwner(ownerInput);
+    it("refuses a second account without writing or switching the session", async () => {
+      const first = await service.createFirstUser(ownerInput);
       const auditCount = auditRows().length;
 
-      const second = await service.createOwner({ ...ownerInput, username: "other" });
+      const second = await service.createFirstUser({ ...ownerInput, username: "other" });
 
       expect(second).toEqual({
         ok: false,
-        reason: "owner-exists",
-        message: authMessages.ownerExists,
+        reason: "account-exists",
+        message: authMessages.accountExists,
       });
       expect(database.db.select().from(users).all()).toHaveLength(1);
       expect(auditRows()).toHaveLength(auditCount);
@@ -419,8 +419,8 @@ describe("createAuthService", () => {
     it("counts inactive and soft-deleted users as existing", async () => {
       addUser("gone", "Gone", "cashier", { isActive: false, deletedAt: t0 });
 
-      expect(service.needsOwnerSetup()).toBe(false);
-      const result = await service.createOwner(ownerInput);
+      expect(service.needsSetup()).toBe(false);
+      const result = await service.createFirstUser(ownerInput);
       expect(result.ok).toBe(false);
       expect(sessions.current()).toBeNull();
       expect(auditRows()).toHaveLength(0);
@@ -428,12 +428,12 @@ describe("createAuthService", () => {
 
     it("lets exactly one of two concurrent calls win", async () => {
       const results = await Promise.all([
-        service.createOwner(ownerInput),
-        service.createOwner({ ...ownerInput, username: "other" }),
+        service.createFirstUser(ownerInput),
+        service.createFirstUser({ ...ownerInput, username: "other" }),
       ]);
 
       expect(results.filter((r) => r.ok)).toHaveLength(1);
-      expect(results.filter((r) => !r.ok && r.reason === "owner-exists")).toHaveLength(1);
+      expect(results.filter((r) => !r.ok && r.reason === "account-exists")).toHaveLength(1);
       expect(database.db.select().from(users).all()).toHaveLength(1);
     });
   });

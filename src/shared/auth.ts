@@ -6,7 +6,7 @@ export const userRoleSchema = z.enum(["owner", "manager", "cashier"]);
 export const authMessages = {
   invalidCredentials: "Username or password is incorrect",
   invalidPin: "PIN is incorrect",
-  ownerExists: "An Owner account already exists. Log in instead.",
+  accountExists: "An account already exists. Log in instead.",
 } as const;
 
 export const loginInputSchema = z.strictObject({
@@ -14,7 +14,7 @@ export const loginInputSchema = z.strictObject({
   password: z.string().min(1).max(256),
 });
 
-export const createOwnerInputSchema = z.strictObject({
+export const createFirstUserInputSchema = z.strictObject({
   username: z
     .string()
     .trim()
@@ -69,11 +69,11 @@ export const authResultSchema = z.union([
 
 export const sessionStateSchema = z.strictObject({ user: safeUserSchema });
 
-export const createOwnerResultSchema = z.union([
+export const createFirstUserResultSchema = z.union([
   z.strictObject({ ok: z.literal(true), user: safeUserSchema }),
   z.strictObject({
     ok: z.literal(false),
-    reason: z.literal("owner-exists"),
+    reason: z.literal("account-exists"),
     message: z.string(),
   }),
 ]);
@@ -82,5 +82,5 @@ export type SafeUser = z.infer<typeof safeUserSchema>;
 export type SessionState = z.infer<typeof sessionStateSchema>;
 export type LoginUser = z.infer<typeof loginUserSchema>;
 export type AuthResult = z.infer<typeof authResultSchema>;
-export type CreateOwnerInput = z.input<typeof createOwnerInputSchema>;
-export type CreateOwnerResult = z.infer<typeof createOwnerResultSchema>;
+export type CreateFirstUserInput = z.input<typeof createFirstUserInputSchema>;
+export type CreateFirstUserResult = z.infer<typeof createFirstUserResultSchema>;

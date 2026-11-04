@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { validateOwnerForm, type OwnerFormValues } from "./owner-form";
+import { validateFirstUserForm, type FirstUserFormValues } from "./first-user-form";
 
-const valid: OwnerFormValues = {
+const valid: FirstUserFormValues = {
   username: "owner1",
   displayName: "Imran Qureshi",
   password: "ab12",
@@ -10,14 +10,14 @@ const valid: OwnerFormValues = {
   confirmPin: "1234",
 };
 
-describe("validateOwnerForm", () => {
+describe("validateFirstUserForm", () => {
   it("returns no errors for valid values", () => {
-    expect(validateOwnerForm(valid)).toEqual({});
+    expect(validateFirstUserForm(valid)).toEqual({});
   });
 
   it("reports each empty field", () => {
     expect(
-      validateOwnerForm({
+      validateFirstUserForm({
         username: " ",
         displayName: "",
         password: "",
@@ -34,7 +34,9 @@ describe("validateOwnerForm", () => {
   });
 
   it("reports mismatched confirms", () => {
-    expect(validateOwnerForm({ ...valid, confirmPassword: "ab13", confirmPin: "1235" })).toEqual({
+    expect(
+      validateFirstUserForm({ ...valid, confirmPassword: "ab13", confirmPin: "1235" }),
+    ).toEqual({
       confirmPassword: "Passwords don't match",
       confirmPin: "PINs don't match",
     });
@@ -42,7 +44,7 @@ describe("validateOwnerForm", () => {
 
   it("reports out-of-range password and PIN", () => {
     expect(
-      validateOwnerForm({
+      validateFirstUserForm({
         ...valid,
         password: "abcdef",
         confirmPassword: "abcdef",
@@ -56,7 +58,7 @@ describe("validateOwnerForm", () => {
   });
 
   it("returns errors in field tab order", () => {
-    const errors = validateOwnerForm({
+    const errors = validateFirstUserForm({
       username: "",
       displayName: "",
       password: "ab",

@@ -1,8 +1,8 @@
 import { app, ipcMain, type IpcMainInvokeEvent } from "electron";
 import {
   authResultSchema,
-  createOwnerInputSchema,
-  createOwnerResultSchema,
+  createFirstUserInputSchema,
+  createFirstUserResultSchema,
   loginInputSchema,
   loginUserSchema,
   pinSwitchInputSchema,
@@ -131,9 +131,11 @@ export function registerIpcHandlers({
   handle(ipcChannels.productsGetMiscItem, () =>
     productSchema.nullable().parse(products.miscItem()),
   );
-  handle(ipcChannels.authNeedsOwnerSetup, () => z.boolean().parse(auth.needsOwnerSetup()));
-  handle(ipcChannels.authCreateOwner, async (_event, input) =>
-    createOwnerResultSchema.parse(await auth.createOwner(createOwnerInputSchema.parse(input))),
+  handle(ipcChannels.authNeedsSetup, () => z.boolean().parse(auth.needsSetup()));
+  handle(ipcChannels.authCreateFirstUser, async (_event, input) =>
+    createFirstUserResultSchema.parse(
+      await auth.createFirstUser(createFirstUserInputSchema.parse(input)),
+    ),
   );
   handle(ipcChannels.usersList, () => z.array(managedUserSchema).parse(users.list()));
   handle(ipcChannels.usersCreate, async (_event, input) =>

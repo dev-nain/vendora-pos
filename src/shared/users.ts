@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createOwnerInputSchema, userRoleSchema } from "./auth";
+import { createFirstUserInputSchema, userRoleSchema } from "./auth";
 import { passwordSchema, pinSchema } from "./credentials";
 
 export const userMessages = {
@@ -8,7 +8,7 @@ export const userMessages = {
   notFound: "That user no longer exists. Refresh the list.",
 } as const;
 
-const { username, displayName } = createOwnerInputSchema.shape;
+const { username, displayName } = createFirstUserInputSchema.shape;
 
 export const createUserInputSchema = z.strictObject({
   username,

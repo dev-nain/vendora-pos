@@ -2,7 +2,7 @@ import { Activity, useCallback, useEffect, useRef, useState } from "react";
 
 import type { SafeUser } from "@shared/auth";
 import { AppShell } from "./shell/app-shell";
-import { CreateOwnerScreen } from "./auth/create-owner-screen";
+import { CreateFirstUserScreen } from "./auth/create-first-user-screen";
 import { LoginScreen } from "./auth/login-screen";
 import { PinSwitchScreen } from "./auth/pin-switch-screen";
 
@@ -21,7 +21,7 @@ export function App() {
       .current()
       .then(async (state) => {
         if (state) return setView({ name: "signed-in", user: state.user, switching: false });
-        const needsSetup = await window.vendora.auth.needsOwnerSetup();
+        const needsSetup = await window.vendora.auth.needsSetup();
         setView(needsSetup ? { name: "setup" } : { name: "login" });
       })
       .catch(() => setView({ name: "login" }));
@@ -67,7 +67,7 @@ export function App() {
     case "starting":
       return <div className="min-h-screen bg-page" />;
     case "setup":
-      return <CreateOwnerScreen onCreated={signedIn} onOwnerExists={toLogin} />;
+      return <CreateFirstUserScreen onCreated={signedIn} onAccountExists={toLogin} />;
     case "login":
       return <LoginScreen onLoggedIn={signedIn} />;
     case "signed-in":

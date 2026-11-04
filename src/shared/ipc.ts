@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type {
   AuthResult,
-  CreateOwnerInput,
-  CreateOwnerResult,
+  CreateFirstUserInput,
+  CreateFirstUserResult,
   LoginUser,
   SessionState,
 } from "./auth";
@@ -61,8 +61,8 @@ export const ipcChannels = {
   settingsSetScalePrefixes: "settings:set-scale-prefixes",
   settingsGetMiscItemEnabled: "settings:get-misc-item-enabled",
   settingsSetMiscItemEnabled: "settings:set-misc-item-enabled",
-  authNeedsOwnerSetup: "auth:needs-owner-setup",
-  authCreateOwner: "auth:create-owner",
+  authNeedsSetup: "auth:needs-setup",
+  authCreateFirstUser: "auth:create-first-user",
   usersList: "users:list",
   usersCreate: "users:create",
   usersUpdate: "users:update",
@@ -105,8 +105,8 @@ export interface VendoraApi {
     logout: () => Promise<void>;
     current: () => Promise<SessionState | null>;
     listLoginUsers: () => Promise<LoginUser[]>;
-    needsOwnerSetup: () => Promise<boolean>;
-    createOwner: (input: CreateOwnerInput) => Promise<CreateOwnerResult>;
+    needsSetup: () => Promise<boolean>;
+    createFirstUser: (input: CreateFirstUserInput) => Promise<CreateFirstUserResult>;
   };
   settings: {
     setScalePrefixes: (input: ScalePrefixesInput) => Promise<ScalePrefixesSetting>;

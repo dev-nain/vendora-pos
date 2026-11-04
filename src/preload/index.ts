@@ -2,7 +2,7 @@ import { z } from "zod";
 import { contextBridge, ipcRenderer } from "electron";
 import {
   authResultSchema,
-  createOwnerResultSchema,
+  createFirstUserResultSchema,
   loginUserSchema,
   sessionStateSchema,
 } from "@shared/auth";
@@ -60,10 +60,11 @@ const api: VendoraApi = {
       sessionStateSchema.nullable().parse(await ipcRenderer.invoke(ipcChannels.authCurrent)),
     listLoginUsers: async () =>
       z.array(loginUserSchema).parse(await ipcRenderer.invoke(ipcChannels.authListLoginUsers)),
-    needsOwnerSetup: async () =>
-      z.boolean().parse(await ipcRenderer.invoke(ipcChannels.authNeedsOwnerSetup)),
-    createOwner: async (input) =>
-      createOwnerResultSchema.parse(await ipcRenderer.invoke(ipcChannels.authCreateOwner, input)),
+    needsSetup: async () => z.boolean().parse(await ipcRenderer.invoke(ipcChannels.authNeedsSetup)),
+    createFirstUser: async (input) =>
+      createFirstUserResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.authCreateFirstUser, input),
+      ),
   },
   settings: {
     setScalePrefixes: async (input) =>

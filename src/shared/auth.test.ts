@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   authMessages,
   authResultSchema,
-  createOwnerInputSchema,
-  createOwnerResultSchema,
+  createFirstUserInputSchema,
+  createFirstUserResultSchema,
   loginInputSchema,
   loginUserSchema,
   pinSwitchInputSchema,
@@ -70,9 +70,9 @@ describe("authResultSchema", () => {
   });
 });
 
-describe("createOwnerInputSchema", () => {
+describe("createFirstUserInputSchema", () => {
   const valid = { username: "owner1", displayName: "Imran", password: "ab12", pin: "1234" };
-  const parse = (patch: object) => createOwnerInputSchema.safeParse({ ...valid, ...patch });
+  const parse = (patch: object) => createFirstUserInputSchema.safeParse({ ...valid, ...patch });
 
   it("trims the username and display name", () => {
     const result = parse({ username: "  owner1 ", displayName: " Imran Qureshi " });
@@ -109,12 +109,13 @@ describe("createOwnerInputSchema", () => {
   });
 });
 
-describe("createOwnerResultSchema", () => {
+describe("createFirstUserResultSchema", () => {
   it("rejects a user carrying a hash", () => {
     const user = { id: uuid, username: "u", displayName: "U", role: "owner" };
-    expect(createOwnerResultSchema.safeParse({ ok: true, user }).success).toBe(true);
+    expect(createFirstUserResultSchema.safeParse({ ok: true, user }).success).toBe(true);
     expect(
-      createOwnerResultSchema.safeParse({ ok: true, user: { ...user, passwordHash: "x" } }).success,
+      createFirstUserResultSchema.safeParse({ ok: true, user: { ...user, passwordHash: "x" } })
+        .success,
     ).toBe(false);
   });
 });

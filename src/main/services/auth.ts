@@ -3,8 +3,8 @@ import type { z } from "zod";
 import {
   authMessages,
   type AuthResult,
-  type CreateOwnerResult,
-  type createOwnerInputSchema,
+  type CreateFirstUserResult,
+  type createFirstUserInputSchema,
   type LoginUser,
   type loginInputSchema,
   type pinSwitchInputSchema,
@@ -20,7 +20,7 @@ import { terminals, users } from "../db/schema";
 import type { createAuditService } from "./audit";
 
 type LoginInput = z.output<typeof loginInputSchema>;
-type CreateOwnerInput = z.output<typeof createOwnerInputSchema>;
+type CreateFirstUserInput = z.output<typeof createFirstUserInputSchema>;
 type PinSwitchInput = z.output<typeof pinSwitchInputSchema>;
 
 interface AuthDeps {
@@ -161,18 +161,18 @@ export function createAuthService({ database, audit, sessions, now = () => new D
     });
   }
 
-  function needsOwnerSetup(): boolean {
+  function needsSetup(): boolean {
     return db.select({ id: users.id }).from(users).limit(1).get() === undefined;
   }
 
-  const ownerExists: CreateOwnerResult = {
+  const accountExists: CreateFirstUserResult = {
     ok: false,
-    reason: "owner-exists",
-    message: authMessages.ownerExists,
+    reason: "account-exists",
+    message: authMessages.accountExists,
   };
 
-  async function createOwner(input: CreateOwnerInput): Promise<CreateOwnerResult> {
-    if (!needsOwnerSetup()) return ownerExists;
+  async function createFirstUser(input: CreateFirstUserInput): Promise<CreateFirstUserResult> {
+    if (!needsSetup()) return accountExists;
 
     const [passwordHash, pinHash] = await Promise.all([
       hashCredential(input.password),
@@ -206,7 +206,7 @@ export function createAuthService({ database, audit, sessions, now = () => new D
       audit.record({ action: "login", actorUserId: owner.id, details: { method: "password" } }, tx);
       return owner;
     });
-    if (!row) return ownerExists;
+    if (!row) return accountExists;
 
     sessions.start({ userId: row.id, role: "owner", storeId: storeId(), loggedInAt });
     return { ok: true, user: toSafeUser(row) };
@@ -252,8 +252,8 @@ export function createAuthService({ database, audit, sessions, now = () => new D
     logout,
     current,
     listLoginUsers,
-    needsOwnerSetup,
-    createOwner,
+    needsSetup,
+    createFirstUser,
   };
 }
 
