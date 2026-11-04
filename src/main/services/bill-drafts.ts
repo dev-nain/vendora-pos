@@ -17,7 +17,7 @@ import {
 import type { HeldBillSummary } from "../../shared/shifts";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
-import { computeBill, divRoundHalfUp } from "../checkout/totals";
+import { computeBill, divRoundHalfUp, type TotalsLine } from "../checkout/totals";
 import type { VendoraDatabase } from "../db/client";
 import { billDraftLines, billDrafts, products, taxCategories } from "../db/schema";
 import { resolveTaxRateBps } from "../db/sale-rows";
@@ -62,7 +62,24 @@ const emptyBill = refuse("empty-bill", checkoutMessages.emptyBill);
 
 const WHOLE_UNIT_MILLI = 1000;
 
-function toDiscount(kind: "amount" | "percent" | null, value: number | null): Discount | null {
+export function totalsLineOf(line: LineRow, taxRateBps: number): TotalsLine {
+  return {
+    id: line.id,
+    position: line.position,
+    isReturn: line.isReturn,
+    qtyMilli: line.qtyMilli,
+    unitPricePaisa: line.unitPricePaisa,
+    fixedGrossPaisa:
+      line.scaleSource === "price" && line.barcode ? scaleLabelPricePaisa(line.barcode) : null,
+    discount: toDiscount(line.lineDiscountKind, line.lineDiscountValue),
+    taxRateBps,
+  };
+}
+
+export function toDiscount(
+  kind: "amount" | "percent" | null,
+  value: number | null,
+): Discount | null {
   if (kind === null || value === null) return null;
   return kind === "amount" ? { kind, amountPaisa: value } : { kind, bps: value };
 }
@@ -111,17 +128,7 @@ function toBill(tx: DbExecutor, draft: DraftRow): Bill {
       ? settings.rounding
       : { ...settings.rounding, mode: "off" as const };
   const computed = computeBill({
-    lines: rows.map(({ line, categoryRateBps }) => ({
-      id: line.id,
-      position: line.position,
-      isReturn: line.isReturn,
-      qtyMilli: line.qtyMilli,
-      unitPricePaisa: line.unitPricePaisa,
-      fixedGrossPaisa:
-        line.scaleSource === "price" && line.barcode ? scaleLabelPricePaisa(line.barcode) : null,
-      discount: toDiscount(line.lineDiscountKind, line.lineDiscountValue),
-      taxRateBps: rateOf(categoryRateBps),
-    })),
+    lines: rows.map(({ line, categoryRateBps }) => totalsLineOf(line, rateOf(categoryRateBps))),
     billDiscount: toDiscount(draft.billDiscountKind, draft.billDiscountValue),
     pricesIncludeTax: settings.pricesIncludeTax,
     rounding,
