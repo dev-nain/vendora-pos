@@ -13,6 +13,7 @@ interface ShiftStripProps {
   onCashIn: (opener: HTMLElement | null) => void;
   onCashOut: (opener: HTMLElement | null) => void;
   onXReport: (opener: HTMLElement | null) => void;
+  onCloseShift: () => void;
 }
 
 export function ShiftStrip({
@@ -22,6 +23,7 @@ export function ShiftStrip({
   onCashIn,
   onCashOut,
   onXReport,
+  onCloseShift,
 }: ShiftStripProps) {
   return (
     <div
@@ -50,6 +52,10 @@ export function ShiftStrip({
         <Button variant="secondary" onClick={(event) => onXReport(event.currentTarget)}>
           X-report
           <Kbd>F8</Kbd>
+        </Button>
+        <Button variant="secondary" onClick={onCloseShift}>
+          Close shift
+          <Kbd>F9</Kbd>
         </Button>
       </div>
     </div>

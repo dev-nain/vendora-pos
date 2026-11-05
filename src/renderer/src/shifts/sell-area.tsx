@@ -1,16 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { AddCashMoveInput, ShiftState } from "@shared/shifts";
+import type { AddCashMoveInput, ShiftReport, ShiftState } from "@shared/shifts";
 import { Button } from "@renderer/components/ui/button";
+import { Kbd } from "@renderer/components/ui/kbd";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import type { Hint } from "../shell/hint-bar";
 import { CashMoveDialog } from "./cash-move-dialog";
+import { CloseShiftScreen } from "./close-shift-screen";
 import { OpenShiftScreen } from "./open-shift-screen";
+import { ShiftReportView } from "./shift-report-view";
 import { ShiftStrip } from "./shift-strip";
 import { XReportDialog } from "./x-report-dialog";
 
 const baseHints: Hint[] = [["Ctrl+L", "Switch user"]];
-const openHints: Hint[] = [["F6", "Cash in"], ["F7", "Cash out"], ["F8", "X-report"], ...baseHints];
+const closingHints: Hint[] = [["Ctrl+Enter", "Close shift"], ["Esc", "Cancel"], ...baseHints];
+const reportHints: Hint[] = [["Enter", "Done"], ...baseHints];
+const openHints: Hint[] = [
+  ["F6", "Cash in"],
+  ["F7", "Cash out"],
+  ["F8", "X-report"],
+  ["F9", "Close shift"],
+  ...baseHints,
+];
+
+type Mode =
+  | { name: "main" }
+  | { name: "closing" }
+  | { name: "z-report"; report: ShiftReport; warnPaisa: number };
 
 type Dialog =
   | { kind: "cash-move"; moveKind: AddCashMoveInput["kind"] }
@@ -29,6 +45,7 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
   const [state, setState] = useState<ShiftState | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [mode, setMode] = useState<Mode>({ name: "main" });
   const strip = useRef<HTMLDivElement | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
 
@@ -53,8 +70,16 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
   const shiftOpen = state?.status === "open";
 
   useEffect(() => {
-    onHintsChange(shiftOpen ? openHints : baseHints);
-  }, [onHintsChange, shiftOpen]);
+    onHintsChange(
+      mode.name === "closing"
+        ? closingHints
+        : mode.name === "z-report"
+          ? reportHints
+          : shiftOpen
+            ? openHints
+            : baseHints,
+    );
+  }, [onHintsChange, shiftOpen, mode.name]);
 
   const openDialog = useCallback((next: NonNullable<Dialog>, opener: HTMLElement | null) => {
     returnFocus.current = opener ?? strip.current?.querySelector("button") ?? null;
@@ -62,7 +87,7 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
   }, []);
 
   useEffect(() => {
-    if (!shiftOpen || dialog) return;
+    if (!shiftOpen || dialog || mode.name !== "main") return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.altKey || event.metaKey) return;
       if (event.key === "F6") {
@@ -74,11 +99,14 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
       } else if (event.key === "F8") {
         event.preventDefault();
         openDialog({ kind: "x-report" }, null);
+      } else if (event.key === "F9") {
+        event.preventDefault();
+        setMode({ name: "closing" });
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [shiftOpen, dialog, openDialog]);
+  }, [shiftOpen, dialog, mode.name, openDialog]);
 
   const retry = () => {
     setLoadFailed(false);
@@ -87,7 +115,33 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
 
   return (
     <main id="panel-sell" role="tabpanel" aria-labelledby="tab-sell" className={layerClasses}>
-      {state === null ? (
+      {mode.name === "z-report" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto p-800">
+          <div className="mx-auto grid max-w-[720px] gap-500">
+            <ShiftReportView
+              title={
+                <h1 className="m-0 font-display text-[length:var(--font-size-700)] leading-[36px] font-semibold text-foreground">
+                  Z-report
+                </h1>
+              }
+              report={mode.report}
+              varianceWarnPaisa={mode.warnPaisa}
+            />
+            <div className="flex justify-end">
+              <Button
+                autoFocus
+                onClick={() => {
+                  setMode({ name: "main" });
+                  load();
+                }}
+              >
+                Done
+                <Kbd>Enter</Kbd>
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : state === null ? (
         <div className="grid flex-1 place-items-center">
           {loadFailed ? (
             <div className="grid justify-items-center gap-200">
@@ -109,6 +163,24 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
           onChanged={load}
           onSessionEnded={onSessionEnded}
         />
+      ) : mode.name === "closing" ? (
+        <CloseShiftScreen
+          shiftId={state.shift.id}
+          expectedPaisa={state.report.expectedCashPaisa}
+          expectedLabel={state.report.expectedByMethod[0]?.label ?? "Cash"}
+          heldBills={state.heldBills}
+          varianceWarnPaisa={state.varianceWarnPaisa}
+          onCancel={() => setMode({ name: "main" })}
+          onClosed={(report) => {
+            setMode({ name: "z-report", report, warnPaisa: state.varianceWarnPaisa });
+            load();
+          }}
+          onChanged={() => {
+            setMode({ name: "main" });
+            load();
+          }}
+          onSessionEnded={onSessionEnded}
+        />
       ) : (
         <>
           <ShiftStrip
@@ -118,6 +190,7 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
             onCashIn={(opener) => openDialog({ kind: "cash-move", moveKind: "in" }, opener)}
             onCashOut={(opener) => openDialog({ kind: "cash-move", moveKind: "out" }, opener)}
             onXReport={(opener) => openDialog({ kind: "x-report" }, opener)}
+            onCloseShift={() => setMode({ name: "closing" })}
           />
           <div className="grid flex-1 place-items-center text-secondary">
             <p className="m-0">Checkout isn't set up yet.</p>

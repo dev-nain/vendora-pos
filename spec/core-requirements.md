@@ -146,10 +146,10 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 
 **Acceptance criteria:**
 
-- Cashier **opens a shift** with an opening float; sales require an open shift
-- Cash in / cash out (e.g. petty expenses) with a reason
-- **Close shift** with a **blind cash count** — the cashier enters counted cash by denomination before seeing the expected amount — then shows the variance
-- X-report (mid-shift) and Z-report (at close): sales by payment method, returns, discounts, voids, overrides, cash movements, variance; printable on the receipt printer
+- Cashier **opens a shift** with an opening float, pre-filled from the last count and editable; one open shift per terminal; sales require an open shift
+- Cash in / cash out (e.g. petty expenses) with a reason; deletable while the shift is open (audit-logged) and fixed after close
+- **Close shift**: count cash by denomination or as a total; expected cash per payment method is shown while counting (the count is not blind); the variance warns above a store setting; a shift can't close while bills are on hold
+- X-report (mid-shift) and Z-report (at close): sales by payment method, taxes, discounts (count and amount), refunds, cash in/out, expected vs counted and variance, deleted lines and discarded bills; no overrides; printable on the receipt printer
 - Day close summarizes all shifts of the day
 
 ---
