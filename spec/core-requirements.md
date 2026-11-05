@@ -83,6 +83,10 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 - A price-embedded scale label on a kg or litre item sets the quantity from the label price, and the line total equals the label
 - Line discount and bill discount (amount or %); discounts are capped at 100%; the bill discount is spread over the lines to the paisa
 - **Hold / resume** multiple bills; held bills survive an app restart
+- An unknown barcode shows an inline message and never blocks the next scan
+- Scans are queued one at a time with ok/error sounds
+- Typed quantities ≥ 100 (pieces/packs) or ≥ 25 (kg/L) ask to confirm
+- Held bills list cashier, items and total; the last open bill returns after a restart
 - Payment methods: cash, card (manual record + reference), bank transfer / mobile wallet (JazzCash, Easypaisa — manual reference), and **split** across methods
 - Cash payment shows change due; quick-tender buttons (exact, 500, 1000, 5000)
 - Overpaying by card, bank transfer or wallet returns the excess as cash change; references are optional
