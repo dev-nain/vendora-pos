@@ -1,5 +1,8 @@
 import { resolve } from "node:path";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
+
+const benchmarks = "src/**/*-benchmark.test.ts";
+const bench = process.env.VENDORA_BENCH === "1";
 
 export default defineConfig({
   resolve: {
@@ -11,6 +14,9 @@ export default defineConfig({
   esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: bench ? [benchmarks] : ["src/**/*.test.ts"],
+    exclude: bench ? configDefaults.exclude : [...configDefaults.exclude, benchmarks],
+    // Timing tests run alone so other test files don't compete for the CPU.
+    fileParallelism: !bench,
   },
 });
