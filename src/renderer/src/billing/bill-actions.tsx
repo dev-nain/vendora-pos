@@ -4,6 +4,7 @@ import { Kbd } from "@renderer/components/ui/kbd";
 
 interface BillActionsProps {
   hasLines: boolean;
+  canPay: boolean;
   miscEnabled: boolean;
   heldCount: number;
   onBillDiscount: () => void;
@@ -11,10 +12,12 @@ interface BillActionsProps {
   onHeldBills: () => void;
   onMisc: () => void;
   onDiscard: () => void;
+  onPay: () => void;
 }
 
 export function BillActions({
   hasLines,
+  canPay,
   miscEnabled,
   heldCount,
   onBillDiscount,
@@ -22,6 +25,7 @@ export function BillActions({
   onHeldBills,
   onMisc,
   onDiscard,
+  onPay,
 }: BillActionsProps) {
   return (
     <div className="grid content-end gap-200">
@@ -53,18 +57,10 @@ export function BillActions({
         Discard
         <Kbd>Ctrl+Del</Kbd>
       </Button>
-      <div className="grid gap-100">
-        <Button size="lg" disabled aria-describedby="pay-caption" className="w-full">
-          Pay
-          <Kbd>F12</Kbd>
-        </Button>
-        <p
-          id="pay-caption"
-          className="m-0 text-center text-[length:var(--font-size-300)] text-tertiary"
-        >
-          Payment isn't set up yet
-        </p>
-      </div>
+      <Button size="lg" disabled={!canPay} className="w-full" onClick={onPay}>
+        Pay
+        <Kbd>F12</Kbd>
+      </Button>
     </div>
   );
 }

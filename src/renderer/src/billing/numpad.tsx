@@ -7,12 +7,12 @@ import { cn } from "@renderer/lib/utils";
 import type { NumpadMode } from "./numpad-entry";
 
 interface NumpadProps {
-  mode: NumpadMode | null;
+  mode?: NumpadMode | null;
   disabled: boolean;
   onKey: (key: string) => void;
   onBackspace: () => void;
   onEnter: () => void;
-  onMode: (mode: NumpadMode) => void;
+  onMode?: (mode: NumpadMode) => void;
 }
 
 const keyClasses =
@@ -81,7 +81,14 @@ function ModeKey({
   );
 }
 
-export function Numpad({ mode, disabled, onKey, onBackspace, onEnter, onMode }: NumpadProps) {
+export function Numpad({
+  mode = null,
+  disabled,
+  onKey,
+  onBackspace,
+  onEnter,
+  onMode,
+}: NumpadProps) {
   const digit = (key: string) => (
     <Key key={key} disabled={disabled} onPress={() => onKey(key)}>
       {key}
@@ -89,9 +96,42 @@ export function Numpad({ mode, disabled, onKey, onBackspace, onEnter, onMode }: 
   );
   const modeKey = (index: number) => {
     const entry = modeKeys[index];
-    if (!entry) return null;
+    if (!entry || !onMode) return null;
     return <ModeKey {...entry} active={mode === entry.mode} disabled={disabled} onMode={onMode} />;
   };
+  const backspaceKey = (
+    <Key
+      label="Backspace"
+      disabled={disabled}
+      onPress={onBackspace}
+      className={onMode ? "" : "row-span-2"}
+    >
+      <DeleteIcon aria-hidden="true" size={18} strokeWidth={2} />
+    </Key>
+  );
+  const enterKey = (
+    <Key label="Enter" disabled={disabled} onPress={onEnter} className={onMode ? "" : "row-span-2"}>
+      <CornerDownLeftIcon aria-hidden="true" size={18} strokeWidth={2} />
+    </Key>
+  );
+  if (!onMode) {
+    return (
+      <div
+        role="group"
+        aria-label="Numpad"
+        className="grid grid-cols-[repeat(3,52px)_96px] gap-200"
+      >
+        {["7", "8", "9"].map(digit)}
+        {backspaceKey}
+        {["4", "5", "6"].map(digit)}
+        {["1", "2", "3"].map(digit)}
+        {enterKey}
+        {digit(".")}
+        {digit("0")}
+        <span aria-hidden="true" />
+      </div>
+    );
+  }
   return (
     <div role="group" aria-label="Numpad" className="grid grid-cols-[repeat(3,52px)_96px] gap-200">
       {["7", "8", "9"].map(digit)}
@@ -102,12 +142,8 @@ export function Numpad({ mode, disabled, onKey, onBackspace, onEnter, onMode }: 
       {modeKey(2)}
       {digit(".")}
       {digit("0")}
-      <Key label="Backspace" disabled={disabled} onPress={onBackspace}>
-        <DeleteIcon aria-hidden="true" size={18} strokeWidth={2} />
-      </Key>
-      <Key label="Enter" disabled={disabled} onPress={onEnter}>
-        <CornerDownLeftIcon aria-hidden="true" size={18} strokeWidth={2} />
-      </Key>
+      {backspaceKey}
+      {enterKey}
     </div>
   );
 }
