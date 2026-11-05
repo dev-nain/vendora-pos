@@ -79,7 +79,7 @@ This answers design challenge 1. The layout follows Odoo POS `ProductScreen`: th
 
 ## Payment step
 
-F12 or the Pay button opens a separate payment step, as in Odoo POS `PaymentScreen`. Esc returns to the bill unchanged, and the payment lines and buyer details stay in memory until Validate. Nothing is saved before that. Pay is off for an empty bill and for a bill with a negative total (refunds come later).
+F12 or the Pay button opens a separate payment step, as in Odoo POS `PaymentScreen`. Esc returns to the bill unchanged, and the payment lines and buyer details stay in memory until Validate. Nothing is saved before that. Pay is off for an empty bill. A bill with a negative total opens the refund step (see Returns and exchanges).
 
 - **Methods.** Cash, Card, Bank transfer, JazzCash and Easypaisa, fixed. There is one line per method, and pressing a method again selects its line. A new line's amount is what is left to pay. The reference on card, bank and wallet lines is optional, and adding one focuses it.
 - **Change.** Any method can overpay. The excess is stored as a cash change row, and the screen shows `Change` instead of `Left to pay`.
@@ -104,6 +104,29 @@ F12 or the Pay button opens a separate payment step, as in Odoo POS `PaymentScre
 
 The shift strip is hidden on the payment and receipt screens, and F6 to F9 do not reach it there.
 
+## Returns and exchanges
+
+Follows Odoo POS `TicketScreen` refunds. Find the sale on Orders, pick lines, press Refund, and the lines land on the current bill as negative lines. Scan new items into the same bill for an exchange, then pay or refund on the payment step.
+
+- **One sale per bill.** Lines from a second sale are refused: "You can only return items from one sale per bill." There is no time limit, and sales from a closed shift can be returned. The refund counts toward the open shift.
+- **Return picker.** Orders, Ctrl+R. Each line shows Sold, Refunded, Left and a Return box (kg and L take 3 decimals, pieces and packs whole units). "N on this bill" shows what is already on the current bill. Return lines of a sale can't be returned again. The quantity limit is checked again when the bill completes, so two held bills can't both return the last unit.
+- **Amounts.** Taken from the original line's snapshot and split by quantity in integer paisa; the last return gets exactly the remainder. The original's rounding isn't refunded. The linked line carries the original name, price, cost, tax rate and pack. The average cost isn't touched.
+- **Return without a receipt.** Ctrl+R on a bill line flips it to a negative line at the current price (and back). It takes no discount and is refunded in cash only. Ctrl+R on a line from a receipt is refused. The window does not reload on Ctrl+R in dev.
+- **Back to shelf or Damaged.** Every return line has a toggle (Ctrl+D on the selected line). Back to shelf writes a `return` movement. Damaged writes a `return` and a `damage` movement together, so on-hand is unchanged. Misc items have no stock and no toggle.
+- **Refund methods.** Cash, plus the non-cash methods the original sale used. Each is capped at the smallest of what it took minus what was already refunded to it, the refund owed on the linked lines, and the net refund. The rest is cash. An amount over the cap shows an inline error with the cap and Validate stays off. The amounts must add up to the refund exactly. Cash follows the rounding unit. Net above zero is a normal payment, and net zero completes with no payment row and no drawer kick.
+- **Credit note.** Every bill with return lines prints "Credit note" (or "Exchange" when it nets to zero or more) with "Original invoice", negative quantities and its own invoice barcode, whatever the print mode. A failure shows Retry and never blocks the return. The receipt screen reads "Refund saved" with one Refund figure.
+- **Audit.** Each return writes a `return` entry (counts, ids, amounts and refund by method). Returns without a receipt also write `return_without_receipt`.
+- **Shifts.** Cash refunds lower expected cash, and refunds to other methods lower their expected totals. The X and Z reports count the return lines under Refunds.
+
+| Key                | Action                                       |
+| ------------------ | -------------------------------------------- |
+| Ctrl+R (Orders)    | Open the return picker for the selected sale |
+| Up / Down (picker) | Move between Return boxes                    |
+| Enter (picker)     | Refund: add the lines to the bill            |
+| Esc (picker)       | Back to Orders                               |
+| Ctrl+R (bill)      | Flip the selected line to a return, and back |
+| Ctrl+D (bill)      | Back to shelf or Damaged on a return line    |
+
 ## Receipts and printing
 
 Target printers: Xprinter XP-58, Xprinter XP-80, Epson TM-T82 and Black Copper BC-85. The whole receipt is drawn as an image in a hidden, sandboxed window (so Urdu shapes correctly), dithered to 1 bit and sent as ESC/POS raster, 384 px wide on 58 mm and 576 px on 80 mm.
@@ -122,10 +145,11 @@ Target printers: Xprinter XP-58, Xprinter XP-80, Epson TM-T82 and Black Copper B
 | Scan         | A scanned receipt barcode searches that invoice      |
 | Up / Down    | Select a sale                                        |
 | Ctrl+P       | Reprint the selected sale                            |
+| Ctrl+R       | Return items from the selected sale                  |
 | Esc          | Back to the bill, unchanged                          |
 
 Ctrl+P also prints or retries on the receipt screen and prints the X-report and Z-report.
 
 ## Not included yet
 
-Code signing, auto-update, and product tables. Each arrives with its own change.
+Code signing, auto-update, product tables, and purchase returns to suppliers. Each arrives with its own change.

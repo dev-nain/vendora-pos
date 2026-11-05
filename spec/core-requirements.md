@@ -76,7 +76,7 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 **Acceptance criteria:**
 
 - Scanner input always lands in the current bill; focus returns to the scan field after every action
-- Every main action (search, quantity, discount, hold, pay, return) has a keyboard shortcut; mouse and touch also work
+- Every main action (search, quantity, discount, hold, pay, return) has a keyboard shortcut (return is Ctrl+R); mouse and touch also work
 - Every bill is saved as a draft from its first line
 - Scanning adds a line or increments its quantity; quantity is editable; weighed items take weight from a scale barcode or prompt for it
 - A scan merges into a matching line (same product, price, discount and pack); weighed, misc, manual-price and return lines never merge
@@ -100,6 +100,7 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 - Cash rounding is applied to every bill or only to the cash share, per a store setting
 - Completing a sale is **atomic**: sale, lines, payments and stock movements are all saved or none are
 - The sale commits first. Then the cash drawer opens when the sale has a cash payment row, which covers cash tendered, cash change and cash refunds. Then the receipt prints, and nothing waits on the print. The print mode is a terminal setting: print, ask first (Enter prints, Esc skips) or don't print; the Print button is always there
+- A bill with return lines always prints its credit note or exchange receipt, whatever the print mode
 - A printer or network failure never blocks a sale — it degrades with a visible warning and a Retry button, and the sale, its payments and its stock movements stay saved
 
 ---
@@ -112,7 +113,7 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 - Receipt shows: store header (name, address, phone, NTN and STRN if set, English and Urdu header text), invoice number, date/time, cashier, buyer name and NTN if entered, lines (name, Urdu name, qty × price, tax rate, discount), subtotal, discount, sales tax, rounding, total, a tax summary by rate, payments with references, change, a Code 128 barcode of the invoice number (for returns), and the English and Urdu footer
 - The whole receipt is rendered as one image and printed as raster at 384 px (58 mm) or 576 px (80 mm), so Urdu prints correctly (printer fonts lack Urdu)
 - Any past receipt can be reprinted from the Orders screen (Ctrl+O): find it in the current shift, by invoice number (typed or scanned, digits only works) or by day. A reprint is rebuilt from the sale with the current store header and is not marked as a duplicate; every successful print is counted ("Printed N times")
-- Print modes per terminal: print the receipt, ask first, or don't print. With no printer set up the sale completes and the receipt screen and the shift strip say "No printer set up"
+- Print modes per terminal: print the receipt, ask first, or don't print. They do not apply to a bill with return lines: its credit note ("Credit note", or "Exchange" when the bill nets to zero or more) always prints, with the original invoice number and negative quantities. With no printer set up the sale completes and the receipt screen and the shift strip say "No printer set up"
 - The A4 invoice PDF for business customers is deferred to its own ticket
 
 ---
@@ -122,13 +123,16 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 **Acceptance criteria:**
 
 - Void a line or cancel the bill **before payment** without approval (audit-logged)
-- **Return after sale:** find the sale by scanning the receipt barcode, typing the invoice number, or searching by date
-- Select lines and partial quantities; can't return more than was sold (including earlier returns)
-- Refund to the original method or cash; **exchange** = return + new sale in one flow
-- Each returned line goes back to sellable stock or to "damaged" (not sellable)
-- Return without a receipt uses the current price
-- One bill can mix sale and return lines (exchange). A return without a receipt is refunded in cash.
-- A credit note receipt prints for every return
+- **Return after sale:** find the sale on the Orders screen by scanning the receipt barcode, typing the invoice number, or searching by date. There is no time limit and no Manager PIN. Ctrl+R opens the return picker, which shows Sold, Refunded and Left for each line. Return lines of a sale can't be returned again
+- Select lines and partial quantities (weighed lines in kg or L to 3 decimals); can't return more than was sold, counting earlier returns and lines already on the bill. This is checked again when the bill completes
+- Refund adds the picked lines to the current bill as negative lines. Scan new items into the same bill for an **exchange**. One bill returns items from one sale only
+- Return amounts come from the original sale's snapshot (price, discount share, tax rate, cost), split by quantity to the paisa; the last return takes the remainder. The refund has its own invoice number and points to the original
+- Refund methods: cash, or the non-cash methods the original sale used. Each non-cash method is capped at the smallest of what it took minus what was already refunded to it, the refund owed on the receipt lines, and the net refund; the rest is cash. A net of zero completes with no payment
+- Each returned line goes back to sellable stock ("Back to shelf") or to "Damaged" (not sellable), changeable with Ctrl+D until Validate; misc items have no stock
+- **Return without a receipt:** Ctrl+R flips a bill line to a negative line at the current price; it is refunded in cash only, and the audit log records it as a return without a receipt
+- One bill can mix sale and return lines (exchange)
+- A credit note receipt prints for every return, whatever the print mode
+- Every return is audit-logged
 
 ---
 
@@ -165,7 +169,7 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 
 - Cashier **opens a shift** with an opening float, pre-filled from the last count and editable; one open shift per terminal; sales require an open shift
 - Cash in / cash out (e.g. petty expenses) with a reason; deletable while the shift is open (audit-logged) and fixed after close
-- **Close shift**: count cash by denomination or as a total; expected cash per payment method is shown while counting (the count is not blind); expected cash = opening float + cash in − cash out + cash payments, including change given and cash refunds, and non-cash methods show their expected totals; the variance warns above a store setting; a shift can't close while bills are on hold
+- **Close shift**: count cash by denomination or as a total; expected cash per payment method is shown while counting (the count is not blind); expected cash = opening float + cash in − cash out + cash payments, including change given and cash refunds, and non-cash methods show their expected totals, lowered by refunds paid to that method; the variance warns above a store setting; a shift can't close while bills are on hold
 - X-report (mid-shift) and Z-report (at close): sales by payment method, taxes, discounts (count and amount), refunds, cash in/out, expected vs counted and variance, deleted lines and discarded bills; no overrides; printable on the receipt printer with a Print button on the X-report and the Z-report (nothing prints automatically)
 - The cash drawer also opens on cash in, cash out, and when the opening and closing counts begin; each of these opens is audit-logged as a drawer open without a sale, with its reason
 - Day close summarizes all shifts of the day

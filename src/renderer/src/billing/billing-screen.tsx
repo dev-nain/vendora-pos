@@ -34,7 +34,7 @@ import { MiscItemDialog } from "./misc-item-dialog";
 import { moveSelection, selectAfter, selectAfterDelete } from "./line-selection";
 import { backspace, freshField, typeKey, type NumpadMode } from "./numpad-entry";
 import { Numpad } from "./numpad";
-import { newPaymentDraft, type PaymentDraft } from "./payment-lines";
+import { newPaymentDraft, refundMode, type PaymentDraft } from "./payment-lines";
 import { PaymentScreen } from "./payment-screen";
 import { ReceiptScreen } from "./receipt-screen";
 import { ProductGrid, type ProductGridHandle } from "./product-grid";
@@ -64,6 +64,16 @@ const idleHints = (miscEnabled: boolean, returnSelected: boolean): Hint[] => [
   ...(miscEnabled ? ([["Ctrl+M", "Misc item"]] as Hint[]) : []),
   ["Ctrl+R", "Return item"],
   ...(returnSelected ? ([["Ctrl+D", "Damaged"]] as Hint[]) : []),
+  ["Ctrl+L", "Switch user"],
+];
+
+const refundHints: Hint[] = [
+  ["F2–F6", "Method"],
+  ["F7", "Exact"],
+  ["F11", "Buyer details"],
+  ["Del", "Remove line"],
+  ["Enter", "Validate"],
+  ["Esc", "Back"],
   ["Ctrl+L", "Switch user"],
 ];
 
@@ -728,7 +738,9 @@ export function BillingScreen({
         ? receiptAskHints
         : receiptHints
       : step === "payment"
-        ? paymentHints
+        ? view.bill && refundMode(view.bill)
+          ? refundHints
+          : paymentHints
         : editing
           ? editing.mode === "discount"
             ? discountEditingHints

@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   amountPaisa,
   backspaceAmount,
+  methodCapPaisa,
   moveSelected,
   newPaymentDraft,
+  offeredMethods,
   paymentSummary,
   quickTender,
+  refundMode,
   removeSelected,
   selectOrAdd,
   setAmountText,
@@ -284,5 +287,151 @@ describe("toCompletePayload", () => {
     expect(toCompletePayload(draft, undefined)).toEqual({ draftId: "d1", payments: [] });
     expect(toCompletePayload(draft, { name: "Mr Khan" }).buyer).toEqual({ name: "Mr Khan" });
     expect(bill.totals.totalPaisa).toBe(0);
+  });
+});
+
+const refundBill = (
+  preTotalPaisa: number,
+  refund: Bill["refund"],
+  cashRounding: Bill["cashRounding"] = { mode: "off", unitPaisa: 100 },
+  roundingPaisa = 0,
+): Bill => ({ ...billOf(preTotalPaisa, cashRounding, roundingPaisa), refund });
+
+const original = (cardPaisa: number, linkedRefundPaisa: number): Bill["refund"] => ({
+  saleId: "s1",
+  invoiceNo: "T1-000001",
+  linkedRefundPaisa,
+  methods: [{ method: "card", availablePaisa: cardPaisa }],
+});
+
+const cardLines = (bill: Bill) => withLines(bill, [["card", "0"]]).lines;
+
+const withLines = (bill: Bill, amounts: [string, string][]): PaymentDraft => {
+  let draft = newPaymentDraft(bill.id);
+  for (const [method, text] of amounts) {
+    draft = selectOrAdd(draft, bill, method as never);
+    draft = setAmountText(draft, method as never, text);
+  }
+  return draft;
+};
+
+describe("refund mode", () => {
+  it("is on only when the bill total is negative", () => {
+    expect(refundMode(refundBill(-5000, null))).toBe(true);
+    expect(refundMode(refundBill(0, null))).toBe(false);
+    expect(refundMode(refundBill(5000, null))).toBe(false);
+  });
+
+  it("offers cash plus the original non-cash methods that still have room", () => {
+    const bill = refundBill(-7000, original(5000, 5000));
+    expect(offeredMethods(bill)).toEqual(["cash", "card"]);
+    expect(offeredMethods(refundBill(-7000, original(0, 5000)))).toEqual(["cash"]);
+    expect(offeredMethods(refundBill(-7000, null))).toEqual(["cash"]);
+    expect(offeredMethods(refundBill(7000, null))).toHaveLength(5);
+  });
+
+  it("caps a method at the smallest of what it took, the linked refund and the net refund", () => {
+    const bill = refundBill(-70000, original(50000, 50000));
+    expect(methodCapPaisa(bill, "card", cardLines(bill))).toBe(50000);
+    const small = refundBill(-70000, original(30000, 50000));
+    expect(methodCapPaisa(small, "card", cardLines(small))).toBe(30000);
+    const linkedSmall = refundBill(-70000, original(90000, 20000));
+    expect(methodCapPaisa(linkedSmall, "card", cardLines(linkedSmall))).toBe(20000);
+    const netSmall = refundBill(-10000, original(90000, 50000));
+    expect(methodCapPaisa(netSmall, "card", cardLines(netSmall))).toBe(10000);
+  });
+
+  it("suggests card at its cap and the rest in cash", () => {
+    const bill = refundBill(-70000, original(50000, 50000));
+    let draft = selectOrAdd(newPaymentDraft(bill.id), bill, "card");
+    expect(amountOf(draft, "card")).toBe(50000);
+    draft = selectOrAdd(draft, bill, "cash");
+    expect(amountOf(draft, "cash")).toBe(20000);
+    expect(validationIssue(bill, draft)).toBeNull();
+  });
+
+  it("reads a mixed bill of a card return with a receipt and a cash return without one", () => {
+    const bill = refundBill(-70000, original(50000, 50000));
+    const draft = withLines(bill, [
+      ["card", "500"],
+      ["cash", "200"],
+    ]);
+    expect(paymentSummary(bill, draft.lines)).toMatchObject({
+      refundMode: true,
+      totalPaisa: -70000,
+      paidPaisa: 70000,
+      remainingPaisa: 0,
+      overPaisa: 0,
+      changePaisa: 0,
+    });
+    expect(validationIssue(bill, draft)).toBeNull();
+  });
+
+  it("flags a card amount above its cap, under-refunding and over-refunding", () => {
+    const bill = refundBill(-70000, original(50000, 50000));
+    expect(
+      validationIssue(
+        bill,
+        withLines(bill, [
+          ["card", "600"],
+          ["cash", "100"],
+        ]),
+      ),
+    ).toEqual({
+      kind: "over-cap",
+      method: "card",
+      capPaisa: 50000,
+    });
+    expect(validationIssue(bill, withLines(bill, [["cash", "600"]]))).toEqual({
+      kind: "under-refunded",
+      remainingPaisa: 10000,
+    });
+    expect(validationIssue(bill, withLines(bill, [["cash", "800"]]))).toEqual({
+      kind: "over-refunded",
+      overPaisa: 10000,
+      duePaisa: 70000,
+    });
+  });
+
+  it("pays a net-negative exchange in cash only when no method is left", () => {
+    const bill = refundBill(-38000, original(0, 50000));
+    expect(offeredMethods(bill)).toEqual(["cash"]);
+    const draft = selectOrAdd(newPaymentDraft(bill.id), bill, "cash");
+    expect(amountOf(draft, "cash")).toBe(38000);
+    expect(validationIssue(bill, draft)).toBeNull();
+  });
+
+  it("refunds a receipt-less bill in cash only", () => {
+    const bill = refundBill(-15000, null);
+    expect(offeredMethods(bill)).toEqual(["cash"]);
+    expect(methodCapPaisa(bill, "card", [])).toBe(0);
+  });
+
+  it("rounds the cash refund and keeps the unit rule", () => {
+    const bill = refundBill(-15050, null, cashOnly);
+    const draft = selectOrAdd(newPaymentDraft(bill.id), bill, "cash");
+    expect(amountOf(draft, "cash")).toBe(15000);
+    expect(paymentSummary(bill, draft.lines)).toMatchObject({
+      totalPaisa: -15000,
+      remainingPaisa: 0,
+    });
+    expect(validationIssue(bill, withLines(bill, [["cash", "150.50"]]))).toEqual({
+      kind: "cash-not-rounded",
+    });
+  });
+
+  it("supports only the exact quick tender and never flags a large refund", () => {
+    const bill = refundBill(-15000, null);
+    const base = newPaymentDraft(bill.id);
+    expect(quickTender(base, bill, 50000)).toBe(base);
+    expect(amountOf(quickTender(base, bill, "exact"), "cash")).toBe(15000);
+  });
+
+  it("sends refund amounts as positive payments", () => {
+    const bill = refundBill(-15000, null);
+    const draft = withLines(bill, [["cash", "150"]]);
+    expect(toCompletePayload(draft, undefined).payments).toEqual([
+      { method: "cash", amountPaisa: 15000 },
+    ]);
   });
 });

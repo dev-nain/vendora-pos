@@ -160,18 +160,24 @@ export function ReceiptScreen({
               className="text-[var(--color-icon-success)]"
             />
             <h1 className="m-0 text-[length:var(--font-size-700)] font-semibold text-foreground">
-              Sale saved
+              {sale.type === "refund" ? "Refund saved" : "Sale saved"}
             </h1>
           </div>
           <p className="m-0 text-[length:var(--font-size-450)] text-secondary tabular-nums">
             Invoice {sale.invoiceNo}
           </p>
         </div>
-        <dl className="m-0 grid grid-cols-3 gap-600">
-          <Figure label="Total" paisa={sale.totalPaisa} />
-          <Figure label="Paid" paisa={sale.totalPaisa + sale.changePaisa} />
-          <Figure label="Change" paisa={sale.changePaisa} />
-        </dl>
+        {sale.type === "refund" ? (
+          <dl className="m-0 grid grid-cols-3 gap-600">
+            <Figure label="Refund" paisa={-sale.totalPaisa} />
+          </dl>
+        ) : (
+          <dl className="m-0 grid grid-cols-3 gap-600">
+            <Figure label="Total" paisa={sale.totalPaisa} />
+            <Figure label="Paid" paisa={sale.totalPaisa + sale.changePaisa} />
+            <Figure label="Change" paisa={sale.changePaisa} />
+          </dl>
+        )}
         {printing ? (
           <p role="status" className="m-0 text-[length:var(--font-size-350)] text-secondary">
             Printing…
