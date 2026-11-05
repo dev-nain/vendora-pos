@@ -217,6 +217,60 @@ export const productBarcodes = sqliteTable(
     index("product_barcodes_product_id_idx").on(t.productId),
   ],
 );
+export const stockMovementTypes = [
+  "opening",
+  "sale",
+  "return",
+  "receipt",
+  "adjustment",
+  "stocktake",
+  "damage",
+] as const;
+export type StockMovementType = (typeof stockMovementTypes)[number];
+
+export const stockMovementReasons = ["damage", "expiry", "theft", "correction"] as const;
+export type StockMovementReason = (typeof stockMovementReasons)[number];
+
+export const stockMovements = sqliteTable(
+  "stock_movements",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id),
+    type: text("type", { enum: stockMovementTypes }).notNull(),
+    qtyMilli: integer("qty_milli").notNull(),
+    unitCostPaisa: integer("unit_cost_paisa").notNull(),
+    sourceType: text("source_type"),
+    sourceId: text("source_id"),
+    reason: text("reason", { enum: stockMovementReasons }),
+    actorUserId: text("actor_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check(
+      "stock_movements_type_check",
+      sql`${t.type} IN ('opening', 'sale', 'return', 'receipt', 'adjustment', 'stocktake', 'damage')`,
+    ),
+    check(
+      "stock_movements_reason_check",
+      sql`(${t.type} IN ('adjustment', 'damage') AND ${t.reason} IS NOT NULL AND ${t.reason} IN ('damage', 'expiry', 'theft', 'correction')) OR (${t.type} NOT IN ('adjustment', 'damage') AND ${t.reason} IS NULL)`,
+    ),
+    check("stock_movements_qty_milli_check", sql`${t.qtyMilli} <> 0`),
+    check("stock_movements_unit_cost_paisa_check", sql`${t.unitCostPaisa} >= 0`),
+    check("stock_movements_source_check", sql`(${t.sourceType} IS NULL) = (${t.sourceId} IS NULL)`),
+    index("stock_movements_product_id_idx").on(t.productId),
+    index("stock_movements_product_id_created_at_idx").on(t.productId, t.createdAt),
+  ],
+);
 
 export const cashDenominations = sqliteTable(
   "cash_denominations",
@@ -350,6 +404,7 @@ export const schema = {
   taxCategories,
   products,
   productBarcodes,
+  stockMovements,
   cashDenominations,
   shifts,
   shiftCashMoves,
