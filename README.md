@@ -27,6 +27,7 @@ pnpm dev
 | `pnpm lint`                         | oxlint                                                        |
 | `pnpm format` / `pnpm format:check` | oxfmt                                                         |
 | `pnpm test`                         | Vitest, run under Electron's Node so native modules match     |
+| `pnpm test:bench`                   | Timing tests against the spec targets, one file at a time     |
 | `pnpm db:generate`                  | Generates a drizzle migration into `drizzle/` from the schema |
 
 ## Layout
