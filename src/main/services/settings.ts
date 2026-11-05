@@ -1,15 +1,28 @@
+import { isDeepStrictEqual } from "node:util";
 import { eq } from "drizzle-orm";
 import type {
   MiscItemInput,
   MiscItemSetting,
+  PrinterSettings,
+  ReceiptSettings,
   ScalePrefixesInput,
   ScalePrefixesSetting,
+  ShiftVarianceInput,
+  ShiftVarianceSetting,
+  WindowsPrinter,
 } from "../../shared/settings";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
-import { stores } from "../db/schema";
-import { getMiscItemEnabled, getScalePrefixes } from "../settings/store-settings";
+import { stores, terminals } from "../db/schema";
+import { currentTerminal } from "../db/terminal";
+import {
+  getMiscItemEnabled,
+  getPrinterSettings,
+  getReceiptSettings,
+  getScalePrefixes,
+  getShiftVarianceWarnPaisa,
+} from "../settings/store-settings";
 import type { createAuditService } from "./audit";
 
 interface SettingsDeps {
@@ -74,8 +87,125 @@ export function createSettingsService({ database, audit, sessions }: SettingsDep
     return { enabled: input.enabled };
   }
 
+  function getShiftVarianceWarn(): ShiftVarianceSetting {
+    const session = requireSession(sessions);
+    return { warnPaisa: getShiftVarianceWarnPaisa(database, session.storeId) };
+  }
+
+  function setShiftVarianceWarn(input: ShiftVarianceInput): ShiftVarianceSetting {
+    const session = requireSession(sessions);
+    db.transaction((tx) => {
+      const from = getShiftVarianceWarnPaisa(database, session.storeId);
+      if (from === input.warnPaisa) return;
+      tx.update(stores)
+        .set({ shiftVarianceWarnPaisa: input.warnPaisa })
+        .where(eq(stores.id, session.storeId))
+        .run();
+      audit.record(
+        {
+          action: "settings_change",
+          actorUserId: session.userId,
+          entityType: "store",
+          entityId: session.storeId,
+          details: { setting: "shiftVarianceWarnPaisa", from, to: input.warnPaisa },
+        },
+        tx,
+      );
+    });
+    return { warnPaisa: input.warnPaisa };
+  }
+
+  function getReceipt(): ReceiptSettings {
+    const session = requireSession(sessions);
+    return getReceiptSettings(db, session.storeId);
+  }
+
+  function setReceipt(to: ReceiptSettings): ReceiptSettings {
+    const session = requireSession(sessions);
+    db.transaction((tx) => {
+      const from = getReceiptSettings(tx, session.storeId);
+      if (isDeepStrictEqual(from, to)) return;
+      tx.update(stores)
+        .set({
+          name: to.name,
+          address: to.address,
+          phone: to.phone,
+          ntn: to.ntn,
+          strn: to.strn,
+          receiptHeaderEn: to.headerEn,
+          receiptHeaderUr: to.headerUr,
+          receiptFooterEn: to.footerEn,
+          receiptFooterUr: to.footerUr,
+        })
+        .where(eq(stores.id, session.storeId))
+        .run();
+      audit.record(
+        {
+          action: "settings_change",
+          actorUserId: session.userId,
+          entityType: "store",
+          entityId: session.storeId,
+          details: { setting: "receipt", from, to },
+        },
+        tx,
+      );
+    });
+    return getReceiptSettings(db, session.storeId);
+  }
+
+  function getPrinter(): PrinterSettings {
+    requireSession(sessions);
+    return getPrinterSettings(db, currentTerminal(db).id);
+  }
+
+  function setPrinter(to: PrinterSettings): PrinterSettings {
+    const session = requireSession(sessions);
+    db.transaction((tx) => {
+      const terminal = currentTerminal(tx);
+      const from = getPrinterSettings(tx, terminal.id);
+      if (isDeepStrictEqual(from, to)) return;
+      const { connection } = to;
+      tx.update(terminals)
+        .set({
+          printerKind: connection.kind,
+          printerName: connection.kind === "windows" ? connection.name : null,
+          printerHost: connection.kind === "network" ? connection.host : null,
+          printerPort: connection.kind === "network" ? connection.port : null,
+          paperWidthMm: to.paperWidthMm,
+          printMode: to.printMode,
+        })
+        .where(eq(terminals.id, terminal.id))
+        .run();
+      audit.record(
+        {
+          action: "settings_change",
+          actorUserId: session.userId,
+          entityType: "terminal",
+          entityId: terminal.id,
+          details: { setting: "printer", from, to },
+        },
+        tx,
+      );
+    });
+    return getPrinterSettings(db, currentTerminal(db).id);
+  }
+
+  async function listWindowsPrinters(
+    fetchPrinters: () => Promise<WindowsPrinter[]>,
+  ): Promise<WindowsPrinter[]> {
+    requireSession(sessions);
+    return process.platform === "win32" ? fetchPrinters() : [];
+  }
+
   return {
+    listWindowsPrinters,
+    getReceipt,
+    setReceipt,
+    getPrinter,
+    setPrinter,
     setScalePrefixes,
+    getShiftVarianceWarn,
+    setShiftVarianceWarn,
     getMiscItemEnabled: getMiscItemSetting,
     setMiscItemEnabled,
   };

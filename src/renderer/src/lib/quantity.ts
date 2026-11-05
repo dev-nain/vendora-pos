@@ -25,3 +25,5 @@ export function quantityInputText(milli: number, unit: ProductUnit): string {
     .replace(/0+$/, "");
   return fraction ? `${whole}.${fraction}` : String(whole);
 }
+
+export { formatQuantity } from "@shared/quantity";

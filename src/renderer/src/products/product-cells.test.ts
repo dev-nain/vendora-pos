@@ -15,6 +15,7 @@ const item: ProductSearchItem = {
   isActive: true,
   primaryBarcode: "8964000123459",
   extraBarcodeCount: 2,
+  onHandMilli: 0,
 };
 
 describe("BarcodeCell", () => {

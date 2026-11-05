@@ -6,8 +6,38 @@ import {
   loginUserSchema,
   sessionStateSchema,
 } from "@shared/auth";
-import { miscItemSettingSchema, scalePrefixesSettingSchema } from "@shared/settings";
+import {
+  openDrawerForCountResultSchema,
+  printerStatusSchema,
+  printResultSchema,
+  saleJobResultSchema,
+} from "@shared/receipt";
+import {
+  miscItemSettingSchema,
+  printerSettingsSchema,
+  receiptSettingsSchema,
+  scalePrefixesSettingSchema,
+  shiftVarianceSettingSchema,
+  windowsPrintersSchema,
+} from "@shared/settings";
+import {
+  actionResultSchema,
+  billResultSchema,
+  completeSaleResultSchema,
+  currentBillSchema,
+} from "@shared/checkout";
+import {
+  addCashMoveResultSchema,
+  closeShiftResultSchema,
+  deleteCashMoveResultSchema,
+  denominationSchema,
+  heldBillSummarySchema,
+  openShiftResultSchema,
+  shiftReportResultSchema,
+  shiftStateSchema,
+} from "@shared/shifts";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
+import { getOrderResultSchema, orderListSchema } from "@shared/sales";
 import {
   barcodeLookupSchema,
   bulkUpdateProductsResultSchema,
@@ -76,6 +106,46 @@ const api: VendoraApi = {
     setMiscItemEnabled: async (enabled) =>
       miscItemSettingSchema.parse(
         await ipcRenderer.invoke(ipcChannels.settingsSetMiscItemEnabled, { enabled }),
+      ),
+    getShiftVarianceWarn: async () =>
+      shiftVarianceSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsGetShiftVarianceWarn),
+      ),
+    setShiftVarianceWarn: async (warnPaisa) =>
+      shiftVarianceSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsSetShiftVarianceWarn, { warnPaisa }),
+      ),
+    getReceipt: async () =>
+      receiptSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsGetReceipt)),
+    setReceipt: async (input) =>
+      receiptSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsSetReceipt, input)),
+  },
+  printer: {
+    getSettings: async () =>
+      printerSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.printerGetSettings)),
+    setSettings: async (input) =>
+      printerSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.printerSetSettings, input)),
+    listWindows: async () =>
+      windowsPrintersSchema.parse(await ipcRenderer.invoke(ipcChannels.printerListWindows)),
+    status: async () =>
+      printerStatusSchema.parse(await ipcRenderer.invoke(ipcChannels.printerStatus)),
+    testPrint: async () =>
+      printResultSchema.parse(await ipcRenderer.invoke(ipcChannels.printerTestPrint)),
+    testDrawer: async () =>
+      printResultSchema.parse(await ipcRenderer.invoke(ipcChannels.printerTestDrawer)),
+    openDrawerForCount: async (phase) =>
+      openDrawerForCountResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.printerOpenDrawerForCount, { phase }),
+      ),
+  },
+  receipts: {
+    saleJob: async (saleId) =>
+      saleJobResultSchema.parse(await ipcRenderer.invoke(ipcChannels.receiptsSaleJob, { saleId })),
+    print: async (saleId) =>
+      printResultSchema.parse(await ipcRenderer.invoke(ipcChannels.receiptsPrint, { saleId })),
+    printShiftReport: async (shiftId) =>
+      printResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.receiptsPrintShiftReport, { shiftId }),
       ),
   },
   users: {
@@ -163,6 +233,59 @@ const api: VendoraApi = {
       deleteTaxCategoryResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.taxCategoriesDelete, { id }),
       ),
+  },
+  shifts: {
+    state: async () => shiftStateSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsState)),
+    open: async (openingFloatPaisa) =>
+      openShiftResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.shiftsOpen, { openingFloatPaisa }),
+      ),
+    addCashMove: async (input) =>
+      addCashMoveResultSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsAddCashMove, input)),
+    deleteCashMove: async (id) =>
+      deleteCashMoveResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.shiftsDeleteCashMove, { id }),
+      ),
+    report: async (id) =>
+      shiftReportResultSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsReport, { id })),
+    listDenominations: async () =>
+      z
+        .array(denominationSchema)
+        .parse(await ipcRenderer.invoke(ipcChannels.shiftsListDenominations)),
+    close: async (input) =>
+      closeShiftResultSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsClose, input)),
+  },
+  checkout: {
+    current: async () =>
+      currentBillSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutCurrent)),
+    scan: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutScan, input)),
+    addProduct: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutAddProduct, input)),
+    addMisc: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutAddMisc, input)),
+    updateLine: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutUpdateLine, input)),
+    deleteLine: async (lineId) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutDeleteLine, { lineId })),
+    setBillDiscount: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutSetBillDiscount, input)),
+    hold: async (input) =>
+      actionResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutHold, input)),
+    resume: async (draftId) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutResume, { draftId })),
+    listHeld: async () =>
+      z.array(heldBillSummarySchema).parse(await ipcRenderer.invoke(ipcChannels.checkoutListHeld)),
+    discard: async (draftId) =>
+      actionResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutDiscard, { draftId })),
+    complete: async (input) =>
+      completeSaleResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutComplete, input)),
+  },
+  sales: {
+    list: async (query) =>
+      orderListSchema.parse(await ipcRenderer.invoke(ipcChannels.salesList, query)),
+    get: async (id) =>
+      getOrderResultSchema.parse(await ipcRenderer.invoke(ipcChannels.salesGet, { id })),
   },
 };
 

@@ -50,6 +50,81 @@ Electron, electron-vite, React 19, TypeScript (strict), Tailwind v4, shadcn on B
 - Tests run under Electron's Node (`ELECTRON_RUN_AS_NODE`), so `better-sqlite3` is built once for Electron.
 - Fonts (Plus Jakarta Sans, JetBrains Mono, Noto Nastaliq Urdu) are bundled; nothing loads from the network.
 
+## Billing screen
+
+This answers design challenge 1. The layout follows Odoo POS `ProductScreen`: the bill is on the left, search and products are on the right, so the cashier's eyes stay on the lines and the total while the scanner works.
+
+- **Layout.** The left 45% holds the bill lines, the totals, the numpad and the actions. The right holds one scan/search field and a product grid with category chips. The shift strip stays on top and the title bar shows the user. A printer item appears at the right end of the strip only when something needs attention: "No printer set up" when none is configured, or "Printer error" after a failed print or drawer kick. Click it, or press Enter on it, to open Settings at the printer card. The next successful print clears it. It never shows in the title bar.
+- **Total.** The grand total is 56 px (`--font-size-1400`) with tabular figures and is the largest text on screen.
+- **Shortcuts.** Every action shows its keycap on its button and in the hint bar. F6 to F9 keep their keycaps on the strip buttons only, because the whole set would overflow the hint bar at 1366 px.
+
+| Key            | Action                                                     |
+| -------------- | ---------------------------------------------------------- |
+| F2             | Scan or search field                                       |
+| F3 / F4 / F5   | Quantity, line discount, price of the selected line        |
+| Shift+F4       | Bill discount                                              |
+| F10 / F11      | Hold the bill and start a new one / held bills             |
+| F12            | Pay (opens the payment step)                               |
+| Ctrl+M         | Misc item, only when the setting is on                     |
+| Up / Down, Del | Select a line, delete the selected line without asking     |
+| Ctrl+Del       | Discard the bill after a confirmation that names the total |
+| Esc            | Cancel the current field or prompt                         |
+
+- **Number entry.** F3, F4 or F5 opens an inline field on the selected line with its text selected. Enter saves, Esc reverts, and focus returns to the scan field. The on-screen numpad edits the same field and has an Enter key so a touch-only counter can commit. In the quantity field, Backspace on an empty field sets `0`, and a second Backspace removes the line. The line discount defaults to %, and Tab switches it to Rs.
+- **Scanning.** Enter sends the field text to the barcode lookup. Scans are handled one at a time, in order, with an ok or error sound. A scan that arrives while a prompt is open is queued and never typed into the prompt: a burst of 4 or more characters with gaps of 30 ms or less followed by Enter counts as a scan. Esc on a prompt drops only that item.
+- **Interruptions.** A loose kg or litre barcode, or a kg/litre tile, opens a weight prompt with a live total. A price-embedded scale label sets its own quantity and is read-only. A pack barcode adds a pack line (`2 × Pack (24 pcs) at Rs 3,400`). An unknown barcode shows an inline message under the field, plays the error sound, clears after 4 s or on the next scan, and never blocks the next scan.
+- **Mistyped quantity.** Typed quantities of 100 or more (pieces and packs) or 25 or more (kg and litres) ask for confirmation with a message that names the total, for example `Set quantity to 100 × Lux Soap (Rs 15,000)?`. Scan increments never ask, so a normal sale is not slowed.
+- **Held bills.** F10 holds the bill and starts a new one. F11 lists held-at, cashier, item count, total and the first item names. Enter resumes, and resuming holds the current bill. The last open bill and every held bill come back after a restart. Bills have no names. Discarding from the list asks first and is audited.
+
+## Payment step
+
+F12 or the Pay button opens a separate payment step, as in Odoo POS `PaymentScreen`. Esc returns to the bill unchanged, and the payment lines and buyer details stay in memory until Validate. Nothing is saved before that. Pay is off for an empty bill and for a bill with a negative total (refunds come later).
+
+- **Methods.** Cash, Card, Bank transfer, JazzCash and Easypaisa, fixed. There is one line per method, and pressing a method again selects its line. A new line's amount is what is left to pay. The reference on card, bank and wallet lines is optional, and adding one focuses it.
+- **Change.** Any method can overpay. The excess is stored as a cash change row, and the screen shows `Change` instead of `Left to pay`.
+- **Quick tender.** Exact sets cash to the cash still due. The first 500, 1,000 or 5,000 press replaces the cash amount and later presses add to it. Typing an amount or adding a line starts a fresh run.
+- **Rounding.** A Rounding row shows whenever it isn't zero. Under cash-only rounding it updates live with the lines. The default cash amount is rounded to the unit, and Validate refuses a cash amount that is not a multiple of it.
+- **Validate.** Disabled while the bill is underpaid, and Enter shows `Rs N left to pay`. A zero-total bill validates with no lines. Paying more than 1,000 times the total asks for confirmation first. A double press makes one sale, because Validate is locked while it runs and main replays by draft.
+- **Buyer details.** Optional and collapsed by default. Name is up to 100 characters. NTN is `1234567-8`, CNIC is `12345-1234567-1` (dashes optional, stored dashed), and phone is `03xxxxxxxxx` or `+923xxxxxxxxx`. Main checks the same formats. Values are kept on the sale only.
+- **Scans.** A scanner burst on the payment screen is ignored with the error sound and never validates.
+- **Receipt screen.** After Validate, "Sale saved" shows the invoice number with Total, Paid and Change. Enter, or a scan, starts the next bill, and the scan adds its item. The receipt prints after the sale is saved and the drawer has opened for any cash. "Printing…" shows while it runs. A failed print shows "Receipt didn't print" with Retry (Ctrl+P), and a missing printer shows "No printer set up" with a link to the settings. In ask mode a prompt shows first: Enter prints, Esc skips. A Print button (Ctrl+P) is always next to New bill.
+
+| Key           | Action                                              |
+| ------------- | --------------------------------------------------- |
+| F2 to F6      | Cash, Card, Bank transfer, JazzCash, Easypaisa      |
+| F7            | Exact amount for cash                               |
+| F8 / F9 / F10 | Cash 500 / 1,000 / 5,000                            |
+| F11           | Buyer details                                       |
+| Up / Down     | Select a payment line                               |
+| Del           | Remove the selected line                            |
+| Digits        | Replace the selected amount                         |
+| Enter         | Validate (in a reference field: back to the amount) |
+| Esc           | Back to the bill                                    |
+
+The shift strip is hidden on the payment and receipt screens, and F6 to F9 do not reach it there.
+
+## Receipts and printing
+
+Target printers: Xprinter XP-58, Xprinter XP-80, Epson TM-T82 and Black Copper BC-85. The whole receipt is drawn as an image in a hidden, sandboxed window (so Urdu shapes correctly), dithered to 1 bit and sent as ESC/POS raster, 384 px wide on 58 mm and 576 px on 80 mm.
+
+- **Connections.** A printer installed in Windows, sent raw through the spooler, or a network printer on TCP 9100. There is no USB driver layer. The Windows path calls `winspool.drv` through `koffi`, and checks the printer and its own job so an unplugged printer fails with Retry instead of queueing a duplicate.
+- **Why koffi.** Node and Electron have no raw-spool API: `webContents.print` goes through the GDI driver and cannot send raster or a drawer kick. The native print addons (`printer`, `@thiagoelg/node-printer`) are unmaintained and need node-gyp for each Electron version, and starting PowerShell for each job costs about 1 s, which breaks the 1.5 s target. koffi ships prebuilt binaries and needs no build step. It loads only on Windows, when the first Windows job is sent.
+- **Settings.** Back office, Settings, "Receipt printer": connection, paper width, print mode, Test print and Test drawer. "Receipt": store name, address, phone, NTN, STRN and the English and Urdu header and footer.
+- **Drawer.** It opens for any sale with a cash payment row (tendered, change or refund), on cash in and cash out, and when the opening and closing counts begin. Every open without a sale is audit-logged with its reason. There is no free "open drawer" button.
+- **Fake printer.** Run `VENDORA_FAKE_PRINTER=/tmp/vendora-prints pnpm dev` (or set the variable first on Windows). Each job writes `<time>-<n>-<kind>.bin` and `.png` to that folder, and each drawer kick adds a line to `drawer.log`. The variable is ignored in a packaged build.
+- **Reprints.** Orders (Ctrl+O) lists the current shift. Reprints are rebuilt from the saved sale with the current header, are counted, and are not marked as duplicates.
+
+| Key (Orders) | Action                                               |
+| ------------ | ---------------------------------------------------- |
+| Ctrl+O       | Open Orders from the bill                            |
+| Enter        | Search the invoice number (digits only works: `231`) |
+| Scan         | A scanned receipt barcode searches that invoice      |
+| Up / Down    | Select a sale                                        |
+| Ctrl+P       | Reprint the selected sale                            |
+| Esc          | Back to the bill, unchanged                          |
+
+Ctrl+P also prints or retries on the receipt screen and prints the X-report and Z-report.
+
 ## Not included yet
 
 Code signing, auto-update, and product tables. Each arrives with its own change.

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type { SafeUser } from "@shared/auth";
 import { serviceErrorMessage } from "../auth/messages";
+import { SellArea } from "../shifts/sell-area";
 import { BackOffice } from "./back-office";
 import { HintBar, type Hint } from "./hint-bar";
 import { TitleBar, type Area } from "./title-bar";
@@ -12,17 +13,26 @@ interface AppShellProps {
   onLoggedOut: () => void;
 }
 
-const hintsFor = (area: Area): Hint[] =>
-  area === "sell"
-    ? [["Ctrl+L", "Switch user"]]
-    : [
-        ["Ctrl+1", "Sell"],
-        ["Ctrl+L", "Switch user"],
-      ];
+const backOfficeHints: Hint[] = [
+  ["Ctrl+1", "Sell"],
+  ["Ctrl+L", "Switch user"],
+];
 
 export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
   const [error, setError] = useState<string | null>(null);
-  const [area, setArea] = useState<Area>("sell");
+  const [area, setAreaState] = useState<Area>("sell");
+  const [printerFocus, setPrinterFocus] = useState(false);
+  const [sellHints, setSellHints] = useState<Hint[]>([["Ctrl+L", "Switch user"]]);
+
+  const setArea = useCallback((next: Area) => {
+    setPrinterFocus(false);
+    setAreaState(next);
+  }, []);
+
+  const openPrinterSettings = useCallback(() => {
+    setPrinterFocus(true);
+    setAreaState("back-office");
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -41,7 +51,7 @@ export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onSwitchUser]);
+  }, [onSwitchUser, setArea]);
 
   const logOut = async () => {
     try {
@@ -62,18 +72,19 @@ export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
         onLogOut={() => void logOut()}
       />
       {area === "sell" ? (
-        <main
-          id="panel-sell"
-          role="tabpanel"
-          aria-labelledby="tab-sell"
-          className="grid min-h-0 place-items-center rounded-tl-300 border-t border-l border-line-card bg-surface text-secondary"
-        >
-          <p className="m-0">Checkout isn't set up yet.</p>
-        </main>
+        <SellArea
+          onSessionEnded={onLoggedOut}
+          onHintsChange={setSellHints}
+          onOpenPrinterSettings={openPrinterSettings}
+        />
       ) : (
-        <BackOffice currentUserId={user.id} onSessionEnded={onLoggedOut} />
+        <BackOffice
+          currentUserId={user.id}
+          onSessionEnded={onLoggedOut}
+          focusPrinter={printerFocus}
+        />
       )}
-      <HintBar hints={hintsFor(area)} error={error} />
+      <HintBar hints={area === "sell" ? sellHints : backOfficeHints} error={error} />
     </div>
   );
 }

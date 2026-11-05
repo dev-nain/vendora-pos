@@ -255,7 +255,7 @@ An icon never stands alone on an action. It has a visible label, or an accessibl
 
 ### Receipts
 
-Printed in the printer's monospace font, black only. 48 characters per line on 80mm, 32 on 58mm. Urdu lines print as an image. Footer: `Vendora`
+Rasterised as one image, 576 px wide on 80 mm paper and 384 px on 58 mm, and printed black only. Latin text is Segoe UI and Urdu is Noto Nastaliq. The header and the footer come from the store's Receipt settings, in English and Urdu; there is no brand footer. The invoice number is printed as a Code 128 barcode with the number under it.
 
 ## Voice
 

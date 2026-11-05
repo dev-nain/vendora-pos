@@ -69,17 +69,21 @@ FBR fiscal integration is deferred, but v1 keeps the data it will need so no mig
 - Products have an optional PCT/HS code and a tax category.
 - Sale lines snapshot the tax rate and the computed tax.
 - Each terminal has its own invoice sequence (FBR requires one POS ID per counter).
-- Returns reference the original sale and line.
+- Returns reference the original sale and line when the return has a receipt.
+- Products have a Third Schedule flag (`is_third_schedule`, default off). Sale lines snapshot it and the MRP, because Third Schedule items are taxed on the printed retail price.
+- Each terminal has an optional FBR POS ID (`fbr_pos_id`).
 
 ## Hardware
 
 | Device | v1 support |
 |--------|-----------|
-| Receipt printer | ESC/POS thermal, 58 and 80 mm, USB and network |
-| Cash drawer | Kick through the receipt printer |
+| Receipt printer | ESC/POS thermal, 58 and 80 mm: a Windows-installed printer sent raw through the spooler, or a network printer on TCP 9100 (Xprinter XP-58 and XP-80, Epson TM-T82, Black Copper BC-85) |
+| Cash drawer | Kick through the receipt printer: `ESC p 0 25 250` (pin 2) |
 | Barcode scanner | USB keyboard-wedge (no driver) |
 | Label scale | EAN-13 scale barcodes (prefix-configurable) |
 | Serial scale, customer display | Stretch |
+
+The receipt is one dithered 1-bit raster image sent with `GS v 0` in bands of at most 128 rows, then a feed and `GS V 66 0` to cut. These are the only commands used, because all four target printers support them. The renderer never talks to the printer: main builds every job. `VENDORA_FAKE_PRINTER=<dir>` replaces the printer in unpackaged builds and writes each job as a `.bin` (exact bytes) and `.png`, and each drawer kick as a line in `drawer.log`.
 
 ## Performance Targets
 

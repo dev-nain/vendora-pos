@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseQuantityMilli, quantityInputText } from "./quantity";
+import { formatQuantity, parseQuantityMilli, quantityInputText } from "./quantity";
 
 describe("parseQuantityMilli", () => {
   it.each([
@@ -34,5 +34,18 @@ describe("quantityInputText", () => {
 
   it("rejects fractional milli-units", () => {
     expect(() => quantityInputText(1.5, "kg")).toThrow();
+  });
+});
+
+describe("formatQuantity", () => {
+  it.each([
+    [12000, "piece", "12 pcs"],
+    [0, "piece", "0 pcs"],
+    [-3000, "piece", "-3 pcs"],
+    [1250, "kg", "1.250 kg"],
+    [1, "litre", "0.001 L"],
+    [25000, "kg", "25.000 kg"],
+  ] as const)("writes %i %s as %j", (milli, unit, text) => {
+    expect(formatQuantity(milli, unit)).toBe(text);
   });
 });

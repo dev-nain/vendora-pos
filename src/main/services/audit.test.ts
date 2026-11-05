@@ -140,7 +140,7 @@ describe("auditRecordInputSchema", () => {
     for (const action of auditActions) {
       expect(auditRecordInputSchema.safeParse({ action, actorUserId: actor }).success).toBe(true);
     }
-    expect(auditActions).toHaveLength(18);
+    expect(auditActions).toHaveLength(24);
     expect(
       auditRecordInputSchema.safeParse({ action: "override", actorUserId: actor }).success,
     ).toBe(false);

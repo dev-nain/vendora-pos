@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ean13CheckDigit, parseScaleBarcode, type ScaleBarcodeConfig } from "./scale-barcode";
+import {
+  ean13CheckDigit,
+  parseScaleBarcode,
+  scaleLabelPricePaisa,
+  type ScaleBarcodeConfig,
+} from "./scale-barcode";
 
 const config: ScaleBarcodeConfig = { weightPrefix: "21", pricePrefix: "22" };
 
@@ -87,5 +92,16 @@ describe("parseScaleBarcode", () => {
     expect(
       parseScaleBarcode(build("21", "00123", "01234"), { weightPrefix: "21", pricePrefix: "21" }),
     ).toBeNull();
+  });
+});
+
+describe("scaleLabelPricePaisa", () => {
+  it("reads the label price in paisa whatever the prefix", () => {
+    expect(scaleLabelPricePaisa(build("22", "00123", "00350"))).toBe(35000);
+    expect(scaleLabelPricePaisa(build("29", "00123", "00350"))).toBe(35000);
+  });
+
+  it("throws on anything that is not 13 digits", () => {
+    expect(() => scaleLabelPricePaisa("12345")).toThrow();
   });
 });
