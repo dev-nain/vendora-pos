@@ -25,6 +25,8 @@ export const auditActions = [
   "shift_open",
   "shift_close",
   "cash_move_delete",
+  "line_delete",
+  "bill_discard",
 ] as const;
 export type AuditAction = (typeof auditActions)[number];
 

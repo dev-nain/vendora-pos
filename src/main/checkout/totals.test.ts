@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { Discount } from "../../shared/checkout";
 import {
   computeBill,
   divRoundHalfUp,
   roundToUnit,
   spreadPaisa,
-  type Discount,
   type RoundingSettings,
   type TenderInput,
   type TotalsLine,

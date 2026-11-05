@@ -6,7 +6,12 @@ import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
 import { stores } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
-import { getMiscItemEnabled, getScalePrefixes, getShiftVarianceWarnPaisa } from "./store-settings";
+import {
+  getCheckoutSettings,
+  getMiscItemEnabled,
+  getScalePrefixes,
+  getShiftVarianceWarnPaisa,
+} from "./store-settings";
 
 const migrationsFolder = join(process.cwd(), "drizzle");
 
@@ -49,6 +54,21 @@ describe("store settings", () => {
     database.db.update(stores).set({ shiftVarianceWarnPaisa: 15000 }).run();
     expect(getShiftVarianceWarnPaisa(database, storeId())).toBe(15000);
     expect(() => getShiftVarianceWarnPaisa(database, "missing")).toThrow("Store not found");
+  });
+
+  it("reads checkout settings and derives the rounding mode", () => {
+    runMigrations(database, { migrationsFolder, backupDir });
+    seedStoreAndTerminal(database);
+    expect(getCheckoutSettings(database.db, storeId())).toEqual({
+      pricesIncludeTax: true,
+      standardTaxRateBps: 1800,
+      rounding: { mode: "off", unitPaisa: 100 },
+    });
+    database.db.update(stores).set({ cashRoundingEnabled: true }).run();
+    expect(getCheckoutSettings(database.db, storeId()).rounding.mode).toBe("cash-only");
+    database.db.update(stores).set({ cashRoundingCashOnly: false }).run();
+    expect(getCheckoutSettings(database.db, storeId()).rounding.mode).toBe("every-bill");
+    expect(() => getCheckoutSettings(database.db, "missing")).toThrow("Store not found");
   });
 
   it("throws for an unknown store when reading scale prefixes", () => {
