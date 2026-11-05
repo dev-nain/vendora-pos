@@ -65,7 +65,7 @@ This answers design challenge 1. The layout follows Odoo POS `ProductScreen`: th
 | F3 / F4 / F5   | Quantity, line discount, price of the selected line        |
 | Shift+F4       | Bill discount                                              |
 | F10 / F11      | Hold the bill and start a new one / held bills             |
-| F12            | Pay (disabled until the payment step)                      |
+| F12            | Pay (opens the payment step)                               |
 | Ctrl+M         | Misc item, only when the setting is on                     |
 | Up / Down, Del | Select a line, delete the selected line without asking     |
 | Ctrl+Del       | Discard the bill after a confirmation that names the total |
@@ -76,7 +76,33 @@ This answers design challenge 1. The layout follows Odoo POS `ProductScreen`: th
 - **Interruptions.** A loose kg or litre barcode, or a kg/litre tile, opens a weight prompt with a live total. A price-embedded scale label sets its own quantity and is read-only. A pack barcode adds a pack line (`2 × Pack (24 pcs) at Rs 3,400`). An unknown barcode shows an inline message under the field, plays the error sound, clears after 4 s or on the next scan, and never blocks the next scan.
 - **Mistyped quantity.** Typed quantities of 100 or more (pieces and packs) or 25 or more (kg and litres) ask for confirmation with a message that names the total, for example `Set quantity to 100 × Lux Soap (Rs 15,000)?`. Scan increments never ask, so a normal sale is not slowed.
 - **Held bills.** F10 holds the bill and starts a new one. F11 lists held-at, cashier, item count, total and the first item names. Enter resumes, and resuming holds the current bill. The last open bill and every held bill come back after a restart. Bills have no names. Discarding from the list asks first and is audited.
-- **Payment.** Payment is a separate step (VEN-38). Pay is visible and disabled here.
+
+## Payment step
+
+F12 or the Pay button opens a separate payment step, as in Odoo POS `PaymentScreen`. Esc returns to the bill unchanged, and the payment lines and buyer details stay in memory until Validate. Nothing is saved before that. Pay is off for an empty bill and for a bill with a negative total (refunds come later).
+
+- **Methods.** Cash, Card, Bank transfer, JazzCash and Easypaisa, fixed. There is one line per method, and pressing a method again selects its line. A new line's amount is what is left to pay. The reference on card, bank and wallet lines is optional, and adding one focuses it.
+- **Change.** Any method can overpay. The excess is stored as a cash change row, and the screen shows `Change` instead of `Left to pay`.
+- **Quick tender.** Exact sets cash to the cash still due. The first 500, 1,000 or 5,000 press replaces the cash amount and later presses add to it. Typing an amount or adding a line starts a fresh run.
+- **Rounding.** A Rounding row shows whenever it isn't zero. Under cash-only rounding it updates live with the lines. The default cash amount is rounded to the unit, and Validate refuses a cash amount that is not a multiple of it.
+- **Validate.** Disabled while the bill is underpaid, and Enter shows `Rs N left to pay`. A zero-total bill validates with no lines. Paying more than 1,000 times the total asks for confirmation first. A double press makes one sale, because Validate is locked while it runs and main replays by draft.
+- **Buyer details.** Optional and collapsed by default. Name is up to 100 characters. NTN is `1234567-8`, CNIC is `12345-1234567-1` (dashes optional, stored dashed), and phone is `03xxxxxxxxx` or `+923xxxxxxxxx`. Main checks the same formats. Values are kept on the sale only.
+- **Scans.** A scanner burst on the payment screen is ignored with the error sound and never validates.
+- **Receipt screen.** After Validate, "Sale saved" shows the invoice number with Total, Paid and Change. Enter, or a scan, starts the next bill, and the scan adds its item. Drawer and printing arrive with the receipt work.
+
+| Key           | Action                                              |
+| ------------- | --------------------------------------------------- |
+| F2 to F6      | Cash, Card, Bank transfer, JazzCash, Easypaisa      |
+| F7            | Exact amount for cash                               |
+| F8 / F9 / F10 | Cash 500 / 1,000 / 5,000                            |
+| F11           | Buyer details                                       |
+| Up / Down     | Select a payment line                               |
+| Del           | Remove the selected line                            |
+| Digits        | Replace the selected amount                         |
+| Enter         | Validate (in a reference field: back to the amount) |
+| Esc           | Back to the bill                                    |
+
+The shift strip is hidden on the payment and receipt screens, and F6 to F9 do not reach it there.
 
 ## Not included yet
 

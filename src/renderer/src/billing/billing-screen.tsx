@@ -12,6 +12,7 @@ import {
   type Bill,
   type BillLine,
   type BillResult,
+  type CompletedSale,
   type UpdateLineInput,
 } from "@shared/checkout";
 import type { ProductSearchItem } from "@shared/products";
@@ -35,6 +36,7 @@ import { backspace, freshField, typeKey, type NumpadMode } from "./numpad-entry"
 import { Numpad } from "./numpad";
 import { newPaymentDraft, type PaymentDraft } from "./payment-lines";
 import { PaymentScreen } from "./payment-screen";
+import { ReceiptScreen } from "./receipt-screen";
 import { ProductGrid, type ProductGridHandle } from "./product-grid";
 import { QuantityConfirmDialog } from "./quantity-confirm-dialog";
 import { quantityGuardMessage } from "./quantity-guard";
@@ -74,6 +76,11 @@ const paymentHints: Hint[] = [
   ["Ctrl+L", "Switch user"],
 ];
 
+const receiptHints: Hint[] = [
+  ["Enter", "New bill"],
+  ["Ctrl+L", "Switch user"],
+];
+
 const editingHints: Hint[] = [
   ["Enter", "Save"],
   ["Esc", "Cancel"],
@@ -87,7 +94,9 @@ const discountEditingHints: Hint[] = [
   ["Ctrl+L", "Switch user"],
 ];
 
-export type BillingStep = "products" | "payment";
+export type BillingStep = "products" | "payment" | "receipt";
+
+type Step = { name: "products" } | { name: "payment" } | { name: "receipt"; sale: CompletedSale };
 
 interface View {
   bill: Bill | null;
@@ -135,7 +144,8 @@ export function BillingScreen({
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [miscEnabled, setMiscEnabled] = useState(false);
   const [heldCount, setHeldCount] = useState(0);
-  const [step, setStep] = useState<BillingStep>("products");
+  const [stepState, setStepState] = useState<Step>({ name: "products" });
+  const step = stepState.name;
   const [paymentState, setPayment] = useState<PaymentDraft | null>(null);
   const query = useDebouncedValue(searchText, SEARCH_DEBOUNCE_MS);
 
@@ -550,10 +560,17 @@ export function BillingScreen({
     if (!bill || !canPay || prompt !== null) return;
     setEditing(null);
     setPayment(payment ?? newPaymentDraft(bill.id));
-    setStep("payment");
+    setStepState({ name: "payment" });
   };
 
-  const closePayment = () => setStep("products");
+  const closePayment = () => setStepState({ name: "products" });
+
+  const startNewBill = useCallback((scannedCode?: string) => {
+    setView({ bill: null, selectedId: null });
+    setPayment(null);
+    setStepState({ name: "products" });
+    if (scannedCode !== undefined) queue.current?.enqueue(scannedCode);
+  }, []);
 
   useEffect(() => {
     onStepChange(step);
@@ -656,19 +673,25 @@ export function BillingScreen({
 
   const idle = useMemo(() => idleHints(miscEnabled), [miscEnabled]);
   const hints =
-    step === "payment"
-      ? paymentHints
-      : editing
-        ? editing.mode === "discount"
-          ? discountEditingHints
-          : editingHints
-        : idle;
+    step === "receipt"
+      ? receiptHints
+      : step === "payment"
+        ? paymentHints
+        : editing
+          ? editing.mode === "discount"
+            ? discountEditingHints
+            : editingHints
+          : idle;
 
   useEffect(() => {
     onHintsChange(hints);
   }, [hints, onHintsChange]);
 
   const lines = view.bill?.lines ?? [];
+
+  if (stepState.name === "receipt") {
+    return <ReceiptScreen sale={stepState.sale} active={active} onNewBill={startNewBill} />;
+  }
 
   if (step === "payment" && view.bill && payment) {
     return (
@@ -678,6 +701,8 @@ export function BillingScreen({
         active={active}
         onDraftChange={setPayment}
         onBack={closePayment}
+        onCompleted={(sale) => setStepState({ name: "receipt", sale })}
+        onSessionEnded={onSessionEnded}
       />
     );
   }
