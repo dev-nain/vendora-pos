@@ -18,6 +18,7 @@ import { createStockService } from "./services/stock";
 import { createTaxCategoriesService } from "./services/tax-categories";
 import { createUsersService } from "./services/users";
 import { createSessionStore } from "./auth/session";
+import { createRenderWindow } from "./receipts/render-window";
 import { createMainWindow } from "./window";
 
 let database: VendoraDatabase | null = null;
@@ -83,7 +84,9 @@ void app.whenReady().then(async () => {
     taxCategories,
     users,
   });
-  createMainWindow();
+  const renderWindow = createRenderWindow();
+  const mainWindow = createMainWindow();
+  mainWindow.once("show", () => void renderWindow.warm().catch(() => undefined));
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
