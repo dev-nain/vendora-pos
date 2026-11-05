@@ -13,6 +13,7 @@ const unitLine = (price: number) => [
     qtyMilli: 1000,
     unitPricePaisa: price,
     fixedGrossPaisa: null,
+    fixedAmounts: null,
     discount: null,
     taxRateBps: 0,
   } satisfies TotalsLine,
@@ -25,6 +26,7 @@ function line(overrides: Partial<TotalsLine> & { id: string }): TotalsLine {
     qtyMilli: 1000,
     unitPricePaisa: 10000,
     fixedGrossPaisa: null,
+    fixedAmounts: null,
     discount: null,
     taxRateBps: 0,
     ...overrides,
@@ -219,6 +221,29 @@ describe("computeBill cash rounding", () => {
       },
     );
     expect(result.totals).toMatchObject({ roundingPaisa: -50, totalPaisa: -1100 });
+  });
+});
+
+describe("computeBill fixed amounts", () => {
+  const fixed = {
+    grossPaisa: -5000,
+    lineDiscountPaisa: -500,
+    billDiscountPaisa: -250,
+    taxPaisa: -100,
+    totalPaisa: -4350,
+  };
+
+  it("uses the given amounts and keeps the line out of the bill discount", () => {
+    const result = bill(
+      [
+        line({ id: "r", isReturn: true, qtyMilli: -1000, fixedAmounts: fixed }),
+        line({ id: "s", position: 2, unitPricePaisa: 20000 }),
+      ],
+      { billDiscount: { kind: "amount", amountPaisa: 1000 } },
+    );
+    expect(result.lines[0]).toMatchObject({ id: "r", ...fixed });
+    expect(result.lines[1]).toMatchObject({ billDiscountPaisa: 1000, totalPaisa: 19000 });
+    expect(result.totals.totalPaisa).toBe(19000 - 4350);
   });
 });
 
