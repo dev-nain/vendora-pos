@@ -29,6 +29,7 @@ function billOf(
     billDiscount: null,
     lines: [],
     deletedLineCount: 0,
+    refund: null,
     totals: {
       subtotalPaisa: preTotalPaisa,
       discountPaisa: 0,
