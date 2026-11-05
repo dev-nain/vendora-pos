@@ -70,6 +70,7 @@ import type {
   UpdateProductInput,
   UpdateProductResult,
 } from "./products";
+import type { GetOrderResult, OrderSummary, SalesListQuery } from "./sales";
 import type {
   CreateTaxCategoryInput,
   CreateTaxCategoryResult,
@@ -163,6 +164,8 @@ export const ipcChannels = {
   checkoutListHeld: "checkout:list-held",
   checkoutDiscard: "checkout:discard",
   checkoutComplete: "checkout:complete",
+  salesList: "sales:list",
+  salesGet: "sales:get",
 } as const;
 
 export const ipcErrorMessages = {
@@ -261,5 +264,9 @@ export interface VendoraApi {
     listHeld: () => Promise<HeldBillSummary[]>;
     discard: (draftId: string) => Promise<ActionResult>;
     complete: (input: CompleteSaleInput) => Promise<CompleteSaleResult>;
+  };
+  sales: {
+    list: (query: SalesListQuery) => Promise<OrderSummary[]>;
+    get: (id: string) => Promise<GetOrderResult>;
   };
 }

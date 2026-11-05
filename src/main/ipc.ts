@@ -34,6 +34,12 @@ import {
 } from "@shared/checkout";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
 import {
+  getOrderResultSchema,
+  orderIdInputSchema,
+  orderListSchema,
+  salesListQuerySchema,
+} from "@shared/sales";
+import {
   barcodeLookupInputSchema,
   barcodeLookupSchema,
   bulkUpdateProductsInputSchema,
@@ -393,4 +399,10 @@ export function registerIpcHandlers({
     if (result.ok && !result.sale.replayed) receipts.startAfterSale(result.sale.id);
     return result;
   });
+  handle(ipcChannels.salesList, (_event, input) =>
+    orderListSchema.parse(sales.list(salesListQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.salesGet, (_event, input) =>
+    getOrderResultSchema.parse(sales.get(orderIdInputSchema.parse(input))),
+  );
 }

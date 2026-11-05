@@ -37,6 +37,7 @@ import {
   shiftStateSchema,
 } from "@shared/shifts";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
+import { getOrderResultSchema, orderListSchema } from "@shared/sales";
 import {
   barcodeLookupSchema,
   bulkUpdateProductsResultSchema,
@@ -279,6 +280,12 @@ const api: VendoraApi = {
       actionResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutDiscard, { draftId })),
     complete: async (input) =>
       completeSaleResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutComplete, input)),
+  },
+  sales: {
+    list: async (query) =>
+      orderListSchema.parse(await ipcRenderer.invoke(ipcChannels.salesList, query)),
+    get: async (id) =>
+      getOrderResultSchema.parse(await ipcRenderer.invoke(ipcChannels.salesGet, { id })),
   },
 };
 

@@ -1,9 +1,11 @@
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { BillResult, CompleteSaleInput, CompleteSaleResult } from "../../shared/checkout";
+import { UnauthenticatedError } from "../auth/errors";
 import {
   auditLog,
   billDrafts,
+  receiptPrints,
   saleLines,
   salePayments,
   sales,
@@ -432,5 +434,185 @@ describe("complete a sale", () => {
         db().select().from(salePayments).where(eq(salePayments.position, 0)).get()?.cashierUserId,
       ).toBe(second.id);
     });
+  });
+});
+
+describe("order lookup", () => {
+  let kit: CheckoutKit;
+  let service: ReturnType<typeof createSalesService>;
+  let clock: Date;
+
+  beforeEach(() => {
+    kit = createCheckoutKit();
+    clock = new Date(2026, 9, 27, 10, 0);
+    service = createSalesService({
+      database: kit.database,
+      audit: kit.audit,
+      sessions: kit.sessions,
+      stock: createStockService({ database: kit.database, audit: kit.audit }),
+      now: () => clock,
+    });
+    kit.signIn("cashier");
+  });
+
+  afterEach(() => kit.close());
+
+  const sell = (
+    payments: CompleteSaleInput["payments"] = [{ method: "cash", amountPaisa: 10000 }],
+    buyer?: object,
+  ) => {
+    const product = kit.addProduct({ nameEn: "Tea", salePricePaisa: 10000 });
+    const added = kit.billDrafts.addProduct({ productId: product.id, qtyMilli: 1000 });
+    const result = service.complete({
+      draftId: draftIdOf(added),
+      payments,
+      ...(buyer ? { buyer } : {}),
+    });
+    return saleOf(result);
+  };
+  const invoices = (query: Parameters<typeof service.list>[0]) =>
+    service.list(query).map((order) => order.invoiceNo);
+
+  it("lists the open shift's sales newest first and nothing without a shift", () => {
+    expect(service.list({ scope: "shift" })).toEqual([]);
+    kit.openShift();
+    sell();
+    clock = new Date(2026, 9, 27, 11, 0);
+    sell([{ method: "card", amountPaisa: 10000 }]);
+
+    const orders = service.list({ scope: "shift" });
+
+    expect(orders.map((order) => order.invoiceNo)).toEqual(["T1-000002", "T1-000001"]);
+    expect(orders[0]).toMatchObject({
+      cashierName: "cashier name",
+      totalPaisa: 10000,
+      type: "sale",
+      methods: ["card"],
+    });
+  });
+
+  it("lists payment methods without the change row, in payment order", () => {
+    kit.openShift();
+    sell([
+      { method: "card", amountPaisa: 5000 },
+      { method: "cash", amountPaisa: 6000 },
+    ]);
+
+    expect(service.list({ scope: "shift" })[0]?.methods).toEqual(["card", "cash"]);
+  });
+
+  it("finds another shift's sale by invoice number but not in the shift list", () => {
+    const first = kit.openShift();
+    sell();
+    const closed = kit.shifts.close({
+      shiftId: first,
+      count: { method: "total", countedCashPaisa: 10000 },
+    });
+    expect(closed.ok).toBe(true);
+    kit.openShift();
+    sell();
+
+    expect(invoices({ scope: "shift" })).toEqual(["T1-000002"]);
+    expect(invoices({ invoiceNo: "T1-000001" })).toEqual(["T1-000001"]);
+  });
+
+  it("pads digits-only input into this terminal's format and uppercases other text", () => {
+    kit.openShift();
+    sell();
+    sell();
+
+    expect(invoices({ invoiceNo: "2" })).toEqual(["T1-000002"]);
+    expect(invoices({ invoiceNo: "000001" })).toEqual(["T1-000001"]);
+    expect(invoices({ invoiceNo: "t1-000002" })).toEqual(["T1-000002"]);
+    expect(invoices({ invoiceNo: "T1-0000" })).toEqual([]);
+    expect(invoices({ invoiceNo: "99" })).toEqual([]);
+    expect(invoices({ invoiceNo: "1".repeat(20) })).toEqual([]);
+  });
+
+  it("searches a single local day from 00:00 to 23:59:59.999", () => {
+    kit.openShift();
+    const at = [
+      new Date(2026, 9, 26, 23, 59, 59, 999),
+      new Date(2026, 9, 27, 0, 0, 0, 0),
+      new Date(2026, 9, 27, 23, 59, 59, 999),
+      new Date(2026, 9, 28, 0, 0, 0, 0),
+    ];
+    for (const time of at) {
+      clock = time;
+      sell();
+    }
+
+    expect(invoices({ date: "2026-10-27" })).toEqual(["T1-000003", "T1-000002"]);
+    expect(invoices({ date: "2026-10-26" })).toEqual(["T1-000001"]);
+    expect(invoices({ date: "2026-10-29" })).toEqual([]);
+  });
+
+  it("returns at most the newest 200", () => {
+    kit.openShift();
+    const product = kit.addProduct({ salePricePaisa: 100 });
+    kit.database.db.transaction(() => {
+      for (let i = 0; i < 205; i++) {
+        clock = new Date(2026, 9, 27, 10, 0, 0, i);
+        const added = kit.billDrafts.addProduct({ productId: product.id, qtyMilli: 1000 });
+        saleOf(
+          service.complete({
+            draftId: draftIdOf(added),
+            payments: [{ method: "cash", amountPaisa: 100 }],
+          }),
+        );
+      }
+    });
+
+    const orders = service.list({ scope: "shift" });
+
+    expect(orders).toHaveLength(200);
+    expect(orders[0]?.invoiceNo).toBe("T1-000205");
+    expect(orders.at(-1)?.invoiceNo).toBe("T1-000006");
+  });
+
+  it("returns the snapshot detail with the print count", () => {
+    kit.openShift();
+    const sale = sell([{ method: "cash", amountPaisa: 12000 }], {
+      name: "Bilal",
+      ntn: "1234567-8",
+    });
+    kit.database.db
+      .insert(receiptPrints)
+      .values({
+        storeId: kit.storeId,
+        terminalId: kit.terminalId,
+        saleId: sale.id,
+        printedBy: kit.signIn("cashier").id,
+      })
+      .run();
+
+    const result = service.get({ id: sale.id });
+
+    expect(result).toMatchObject({
+      ok: true,
+      sale: {
+        invoiceNo: "T1-000001",
+        totalPaisa: 10000,
+        changePaisa: 2000,
+        buyerName: "Bilal",
+        buyerNtn: "1234567-8",
+        printCount: 1,
+        payments: [{ method: "cash", amountPaisa: 12000, reference: null }],
+      },
+    });
+    expect(result.ok && result.sale.lines).toHaveLength(1);
+  });
+
+  it("refuses an unknown sale and a missing session", () => {
+    expect(service.get({ id: "0192f3a0-0000-7000-8000-000000000099" })).toMatchObject({
+      ok: false,
+      reason: "not-found",
+    });
+
+    kit.sessions.end();
+    expect(() => service.list({ scope: "shift" })).toThrow(UnauthenticatedError);
+    expect(() => service.get({ id: "0192f3a0-0000-7000-8000-000000000099" })).toThrow(
+      UnauthenticatedError,
+    );
   });
 });
