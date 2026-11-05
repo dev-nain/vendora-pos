@@ -6,9 +6,12 @@ const require = createRequire(import.meta.url);
 const electron = require("electron");
 const vitest = join(dirname(require.resolve("vitest/package.json")), "vitest.mjs");
 
-const result = spawnSync(electron, [vitest, "run", ...process.argv.slice(2)], {
+const args = process.argv.slice(2);
+const bench = args.includes("--bench");
+
+const result = spawnSync(electron, [vitest, "run", ...args.filter((arg) => arg !== "--bench")], {
   stdio: "inherit",
-  env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+  env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", ...(bench && { VENDORA_BENCH: "1" }) },
 });
 
 process.exit(result.status ?? 1);
