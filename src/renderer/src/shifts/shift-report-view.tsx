@@ -5,11 +5,18 @@ import { isVarianceWarning, type CashMove, type ShiftReport } from "@shared/shif
 import { Badge } from "@renderer/components/ui/badge";
 import { Button } from "@renderer/components/ui/button";
 import { formatRupees } from "@renderer/lib/money";
+import { formatTaxRate } from "../categories/tax-rate-input";
 import { cn } from "@renderer/lib/utils";
 import { formatDateTime, formatTime } from "../lib/date-time";
 
 export const formatSignedOut = (paisa: number): string =>
   paisa === 0 ? formatRupees(0) : `−${formatRupees(paisa)}`;
+
+const formatSigned = (paisa: number): string =>
+  paisa < 0 ? formatSignedOut(-paisa) : formatRupees(paisa);
+
+const plural = (count: number, one: string, many: string): string =>
+  `${count} ${count === 1 ? one : many}`;
 
 const sectionHeading =
   "m-0 text-[length:var(--font-size-400)] leading-[var(--line-height-tight)] font-semibold text-foreground";
@@ -29,10 +36,18 @@ function Section({ id, title, children }: { id: string; title: string; children:
   );
 }
 
-function TotalRow({ label, children }: { label: string; children: ReactNode }) {
+function TotalRow({
+  label,
+  span = 3,
+  children,
+}: {
+  label: string;
+  span?: number;
+  children: ReactNode;
+}) {
   return (
     <tr className="border-t border-line font-semibold">
-      <th scope="row" colSpan={3} className={`${cellBase} text-left font-semibold`}>
+      <th scope="row" colSpan={span} className={`${cellBase} text-left font-semibold`}>
         {label}
       </th>
       <td className={amountCell}>{children}</td>
@@ -144,6 +159,91 @@ export function ShiftReportView({
             : null}
         </p>
       </div>
+      <Section id={`${report.shiftId}-sales`} title="Sales by payment method">
+        <p className="m-0 text-[length:var(--font-size-300)] text-tertiary">
+          {plural(report.sales.billCount, "bill", "bills")}
+          {" · "}
+          {plural(report.sales.refundBillCount, "refund", "refunds")}
+        </p>
+        <table className="w-full border-collapse text-[length:var(--font-size-350)]">
+          <tbody>
+            {report.sales.byMethod.map((method) => (
+              <tr key={method.method}>
+                <th scope="row" className={`${cellBase} text-left font-normal text-foreground`}>
+                  {method.label}
+                </th>
+                <td className={amountCell}>{formatSigned(method.amountPaisa)}</td>
+              </tr>
+            ))}
+            <TotalRow label="Total sales" span={1}>
+              {formatSigned(report.sales.totalPaisa)}
+            </TotalRow>
+          </tbody>
+        </table>
+      </Section>
+      <Section id={`${report.shiftId}-taxes`} title="Taxes">
+        <table className="w-full border-collapse text-[length:var(--font-size-350)]">
+          {report.taxes.length > 0 ? (
+            <thead>
+              <tr>
+                <th scope="col" className={`${captionCell} text-left font-normal`}>
+                  Rate
+                </th>
+                <th scope="col" className={`${captionCell} pr-0 text-right font-normal`}>
+                  Taxable
+                </th>
+                <th scope="col" className={`${captionCell} pr-0 text-right font-normal`}>
+                  Tax
+                </th>
+              </tr>
+            </thead>
+          ) : null}
+          <tbody>
+            {report.taxes.map((tax) => (
+              <tr key={tax.rateBps}>
+                <th scope="row" className={`${cellBase} text-left font-normal text-foreground`}>
+                  {formatTaxRate(tax.rateBps)}
+                </th>
+                <td className={amountCell}>{formatSigned(tax.taxablePaisa)}</td>
+                <td className={amountCell}>{formatSigned(tax.taxPaisa)}</td>
+              </tr>
+            ))}
+            {report.taxes.length === 0 ? (
+              <tr>
+                <td colSpan={3} className={cn(cellBase, "text-secondary")}>
+                  None
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </Section>
+      <Section id={`${report.shiftId}-discounts`} title="Discounts">
+        <table className="w-full border-collapse text-[length:var(--font-size-350)]">
+          <tbody>
+            <tr>
+              <th scope="row" className={`${cellBase} text-left font-normal text-foreground`}>
+                {plural(report.discounts.count, "bill", "bills")}
+              </th>
+              <td className={amountCell}>{formatRupees(report.discounts.amountPaisa)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </Section>
+      <Section id={`${report.shiftId}-refunds`} title="Refunds">
+        <table className="w-full border-collapse text-[length:var(--font-size-350)]">
+          <tbody>
+            <tr>
+              <th scope="row" className={`${cellBase} text-left font-normal text-foreground`}>
+                {plural(report.refunds.count, "line", "lines")}
+              </th>
+              <td className={cn(amountCell, "text-critical")}>
+                {formatSignedOut(report.refunds.amountPaisa)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Section>
       <Section id={`${report.shiftId}-float`} title="Opening float">
         <table className="w-full border-collapse text-[length:var(--font-size-350)]">
           <tbody>
@@ -187,6 +287,24 @@ export function ShiftReportView({
                 </td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </Section>
+      <Section id={`${report.shiftId}-voids`} title="Deleted lines and discarded bills">
+        <table className="w-full border-collapse text-[length:var(--font-size-350)]">
+          <tbody>
+            <tr>
+              <th scope="row" className={`${cellBase} text-left font-normal text-foreground`}>
+                Deleted lines
+              </th>
+              <td className={amountCell}>{report.deletedLines.count}</td>
+            </tr>
+            <tr>
+              <th scope="row" className={`${cellBase} text-left font-normal text-foreground`}>
+                Discarded bills
+              </th>
+              <td className={amountCell}>{report.discardedBills.count}</td>
+            </tr>
           </tbody>
         </table>
       </Section>

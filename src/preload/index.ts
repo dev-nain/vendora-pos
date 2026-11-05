@@ -12,10 +12,17 @@ import {
   shiftVarianceSettingSchema,
 } from "@shared/settings";
 import {
+  actionResultSchema,
+  billResultSchema,
+  completeSaleResultSchema,
+  currentBillSchema,
+} from "@shared/checkout";
+import {
   addCashMoveResultSchema,
   closeShiftResultSchema,
   deleteCashMoveResultSchema,
   denominationSchema,
+  heldBillSummarySchema,
   openShiftResultSchema,
   shiftReportResultSchema,
   shiftStateSchema,
@@ -205,6 +212,32 @@ const api: VendoraApi = {
         .parse(await ipcRenderer.invoke(ipcChannels.shiftsListDenominations)),
     close: async (input) =>
       closeShiftResultSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsClose, input)),
+  },
+  checkout: {
+    current: async () =>
+      currentBillSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutCurrent)),
+    scan: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutScan, input)),
+    addProduct: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutAddProduct, input)),
+    addMisc: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutAddMisc, input)),
+    updateLine: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutUpdateLine, input)),
+    deleteLine: async (lineId) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutDeleteLine, { lineId })),
+    setBillDiscount: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutSetBillDiscount, input)),
+    hold: async (input) =>
+      actionResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutHold, input)),
+    resume: async (draftId) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutResume, { draftId })),
+    listHeld: async () =>
+      z.array(heldBillSummarySchema).parse(await ipcRenderer.invoke(ipcChannels.checkoutListHeld)),
+    discard: async (draftId) =>
+      actionResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutDiscard, { draftId })),
+    complete: async (input) =>
+      completeSaleResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutComplete, input)),
   },
 };
 

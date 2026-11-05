@@ -17,6 +17,21 @@ import {
   renameCategoryInputSchema,
   renameCategoryResultSchema,
 } from "@shared/categories";
+import {
+  actionResultSchema,
+  addMiscInputSchema,
+  addProductInputSchema,
+  billResultSchema,
+  completeSaleInputSchema,
+  completeSaleResultSchema,
+  currentBillSchema,
+  draftIdInputSchema,
+  holdInputSchema,
+  lineIdInputSchema,
+  scanInputSchema,
+  setBillDiscountInputSchema,
+  updateLineInputSchema,
+} from "@shared/checkout";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
 import {
   barcodeLookupInputSchema,
@@ -52,6 +67,7 @@ import {
   closeShiftResultSchema,
   deleteCashMoveResultSchema,
   denominationSchema,
+  heldBillSummarySchema,
   openShiftInputSchema,
   openShiftResultSchema,
   shiftIdInputSchema,
@@ -82,9 +98,11 @@ import {
 import { z } from "zod";
 import { toIpcError } from "./ipc-errors";
 import type { AuthService } from "./services/auth";
+import type { BillDraftsService } from "./services/bill-drafts";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { ProductsService } from "./services/products";
+import type { SalesService } from "./services/sales";
 import type { SettingsService } from "./services/settings";
 import type { ShiftsService } from "./services/shifts";
 import type { TaxCategoriesService } from "./services/tax-categories";
@@ -105,8 +123,10 @@ function handle(
 
 interface IpcServices {
   auth: AuthService;
+  billDrafts: BillDraftsService;
   catalogExport: CatalogExportService;
   categories: CategoriesService;
+  sales: SalesService;
   settings: SettingsService;
   shifts: ShiftsService;
   taxCategories: TaxCategoriesService;
@@ -116,9 +136,11 @@ interface IpcServices {
 
 export function registerIpcHandlers({
   auth,
+  billDrafts,
   catalogExport,
   categories,
   products,
+  sales,
   settings,
   shifts,
   taxCategories,
@@ -263,5 +285,39 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.shiftsClose, (_event, input) =>
     closeShiftResultSchema.parse(shifts.close(closeShiftInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutCurrent, () => currentBillSchema.parse(billDrafts.current()));
+  handle(ipcChannels.checkoutScan, (_event, input) =>
+    billResultSchema.parse(billDrafts.scan(scanInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutAddProduct, (_event, input) =>
+    billResultSchema.parse(billDrafts.addProduct(addProductInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutAddMisc, (_event, input) =>
+    billResultSchema.parse(billDrafts.addMisc(addMiscInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutUpdateLine, (_event, input) =>
+    billResultSchema.parse(billDrafts.updateLine(updateLineInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutDeleteLine, (_event, input) =>
+    billResultSchema.parse(billDrafts.deleteLine(lineIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutSetBillDiscount, (_event, input) =>
+    billResultSchema.parse(billDrafts.setBillDiscount(setBillDiscountInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutHold, (_event, input) =>
+    actionResultSchema.parse(billDrafts.hold(holdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutResume, (_event, input) =>
+    billResultSchema.parse(billDrafts.resume(draftIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutListHeld, () =>
+    z.array(heldBillSummarySchema).parse(billDrafts.listHeld()),
+  );
+  handle(ipcChannels.checkoutDiscard, (_event, input) =>
+    actionResultSchema.parse(billDrafts.discard(draftIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutComplete, (_event, input) =>
+    completeSaleResultSchema.parse(sales.complete(completeSaleInputSchema.parse(input))),
   );
 }
