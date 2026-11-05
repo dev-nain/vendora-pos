@@ -688,6 +688,17 @@ describe("sales schema", () => {
       );
     });
 
+    it("allows the damaged flag only on return lines", () => {
+      check(() => insert(database, "bill_draft_lines", draftLineRow("a", { is_damaged: 1 })));
+      expect(() =>
+        insert(
+          database,
+          "bill_draft_lines",
+          draftLineRow("b", { is_return: 1, is_damaged: 1, qty_milli: -1000 }),
+        ),
+      ).not.toThrow();
+    });
+
     it("keeps the deleted pair together and positions unique per draft", () => {
       check(() => insert(database, "bill_draft_lines", draftLineRow("a", { deleted_at: 5 })));
       check(() => insert(database, "bill_draft_lines", draftLineRow("b", { deleted_by: "u1" })));
