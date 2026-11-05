@@ -7,13 +7,13 @@ import { userMessages } from "../../shared/users";
 import { hashCredential, verifyCredential } from "../auth/credentials";
 import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
-import { openDatabase, type VendoraDatabase } from "../db/client";
-import { runMigrations } from "../db/migrate";
+import type { VendoraDatabase } from "../db/client";
 import { auditLog, terminals, users } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import { createAuditService } from "./audit";
 import { createAuthService } from "./auth";
 import { createUsersService } from "./users";
+import { openMigratedDatabase } from "../db/test-database";
 
 const PASSWORD = "secret-pass";
 const PIN = "4821";
@@ -73,11 +73,7 @@ describe("createUsersService", () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-users-"));
-    database = openDatabase(join(dir, "vendora.db"));
-    runMigrations(database, {
-      migrationsFolder: join(process.cwd(), "drizzle"),
-      backupDir: join(dir, "backups"),
-    });
+    database = openMigratedDatabase(join(dir, "vendora.db"));
     seedStoreAndTerminal(database);
     sessions = createSessionStore();
     clock = t0;

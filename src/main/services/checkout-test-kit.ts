@@ -3,8 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { createSessionStore } from "../auth/session";
-import { openDatabase, type VendoraDatabase } from "../db/client";
-import { runMigrations } from "../db/migrate";
+import type { VendoraDatabase } from "../db/client";
 import {
   categories,
   productBarcodes,
@@ -23,6 +22,7 @@ import { createReturnsService } from "./returns";
 import { createSalesService } from "./sales";
 import { createShiftsService } from "./shifts";
 import { createStockService } from "./stock";
+import { openMigratedDatabase } from "../db/test-database";
 
 export function scaleCode(prefix: string, item: string, value: string): string {
   const first12 = `${prefix}${item}${value}`;
@@ -31,11 +31,7 @@ export function scaleCode(prefix: string, item: string, value: string): string {
 
 export function createCheckoutKit() {
   const dir = mkdtempSync(join(tmpdir(), "vendora-checkout-"));
-  const database: VendoraDatabase = openDatabase(join(dir, "vendora.db"));
-  runMigrations(database, {
-    migrationsFolder: join(process.cwd(), "drizzle"),
-    backupDir: join(dir, "backups"),
-  });
+  const database: VendoraDatabase = openMigratedDatabase(join(dir, "vendora.db"));
   seedStoreAndTerminal(database);
 
   const sessions = createSessionStore();

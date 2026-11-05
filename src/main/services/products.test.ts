@@ -13,8 +13,7 @@ import {
 } from "../../shared/products";
 import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
-import { openDatabase, type VendoraDatabase } from "../db/client";
-import { runMigrations } from "../db/migrate";
+import type { VendoraDatabase } from "../db/client";
 import {
   auditLog,
   categories,
@@ -29,6 +28,7 @@ import { createAuditService } from "./audit";
 import { searchProducts } from "./product-search";
 import { createProductsService, getMiscItem } from "./products";
 import { normalizeSearchText } from "./search-text";
+import { openMigratedDatabase } from "../db/test-database";
 
 const barcode = (code: string, packQtyMilli = 1000, salePricePaisa: number | null = null) => ({
   barcode: code,
@@ -168,11 +168,7 @@ describe("createProductsService", () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-products-"));
-    database = openDatabase(join(dir, "vendora.db"));
-    runMigrations(database, {
-      migrationsFolder: join(process.cwd(), "drizzle"),
-      backupDir: join(dir, "backups"),
-    });
+    database = openMigratedDatabase(join(dir, "vendora.db"));
     seedStoreAndTerminal(database);
     categoryId = database.db.select().from(categories).get()!.id;
     taxCategoryId = database.db.select().from(taxCategories).get()!.id;

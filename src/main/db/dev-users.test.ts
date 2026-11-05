@@ -6,11 +6,11 @@ import { passwordSchema, pinSchema } from "../../shared/credentials";
 import { createSessionStore } from "../auth/session";
 import { createAuditService } from "../services/audit";
 import { createAuthService } from "../services/auth";
-import { openDatabase, type VendoraDatabase } from "./client";
+import type { VendoraDatabase } from "./client";
 import { devUsers, seedDevUsers } from "./dev-users";
-import { runMigrations } from "./migrate";
 import { users } from "./schema";
 import { seedStoreAndTerminal } from "./seed";
+import { openMigratedDatabase } from "./test-database";
 
 describe("seedDevUsers", () => {
   let dir: string;
@@ -19,11 +19,7 @@ describe("seedDevUsers", () => {
 
   beforeEach(async () => {
     dir = mkdtempSync(join(tmpdir(), "vendora-dev-users-"));
-    database = openDatabase(join(dir, "vendora.db"));
-    runMigrations(database, {
-      migrationsFolder: join(process.cwd(), "drizzle"),
-      backupDir: join(dir, "backups"),
-    });
+    database = openMigratedDatabase(join(dir, "vendora.db"));
     seedStoreAndTerminal(database);
     await seedDevUsers(database);
     const sessions = createSessionStore();

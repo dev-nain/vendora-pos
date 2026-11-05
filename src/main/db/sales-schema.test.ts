@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openDatabase, type VendoraDatabase } from "./client";
 import { runMigrations } from "./migrate";
+import { openMigratedDatabase } from "./test-database";
 
 const migrationsFolder = join(process.cwd(), "drizzle");
 
@@ -152,8 +153,7 @@ describe("sales schema", () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-sales-schema-"));
-    database = openDatabase(join(dir, "vendora.db"));
-    runMigrations(database, { migrationsFolder, backupDir: join(dir, "backups") });
+    database = openMigratedDatabase(join(dir, "vendora.db"));
     seedBase(database);
     insert(database, "bill_drafts", draftRow("d1"));
   });

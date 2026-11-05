@@ -2,11 +2,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { openDatabase, type VendoraDatabase } from "./client";
+import type { VendoraDatabase } from "./client";
 import { formatInvoiceNo, takeInvoiceNumber } from "./invoice-numbers";
-import { runMigrations } from "./migrate";
-
-const migrationsFolder = join(process.cwd(), "drizzle");
+import { openMigratedDatabase } from "./test-database";
 
 describe("formatInvoiceNo", () => {
   it("pads to six digits and does not truncate seven", () => {
@@ -24,8 +22,7 @@ describe("takeInvoiceNumber", () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-invoice-"));
-    database = openDatabase(join(dir, "vendora.db"));
-    runMigrations(database, { migrationsFolder, backupDir: join(dir, "backups") });
+    database = openMigratedDatabase(join(dir, "vendora.db"));
     database.sqlite.exec(`
       INSERT INTO stores (id, created_at, updated_at) VALUES ('s1', 1, 2);
       INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 2);

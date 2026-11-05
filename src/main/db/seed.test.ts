@@ -2,8 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { openDatabase, type VendoraDatabase } from "./client";
-import { runMigrations } from "./migrate";
+import type { VendoraDatabase } from "./client";
 import { desc, eq } from "drizzle-orm";
 import {
   cashDenominations,
@@ -15,6 +14,7 @@ import {
   terminals,
 } from "./schema";
 import { seedStoreAndTerminal } from "./seed";
+import { openMigratedDatabase } from "./test-database";
 
 describe("seedStoreAndTerminal", () => {
   let dir: string;
@@ -22,11 +22,7 @@ describe("seedStoreAndTerminal", () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-seed-"));
-    database = openDatabase(join(dir, "vendora.db"));
-    runMigrations(database, {
-      migrationsFolder: join(process.cwd(), "drizzle"),
-      backupDir: join(dir, "backups"),
-    });
+    database = openMigratedDatabase(join(dir, "vendora.db"));
   });
 
   afterEach(() => {

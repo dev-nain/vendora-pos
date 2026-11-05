@@ -2,12 +2,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { openDatabase, type VendoraDatabase } from "../db/client";
-import { runMigrations } from "../db/migrate";
+import type { VendoraDatabase } from "../db/client";
 import { auditLog, stores, terminals, users } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import * as auditModule from "./audit";
 import { auditActions, auditRecordInputSchema, createAuditService } from "./audit";
+import { openMigratedDatabase } from "../db/test-database";
 
 const actor = "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b";
 
@@ -29,11 +29,7 @@ describe("createAuditService", () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-audit-"));
-    database = openDatabase(join(dir, "vendora.db"));
-    runMigrations(database, {
-      migrationsFolder: join(process.cwd(), "drizzle"),
-      backupDir: join(dir, "backups"),
-    });
+    database = openMigratedDatabase(join(dir, "vendora.db"));
     seedStoreAndTerminal(database);
     ownerId = database.db.insert(users).values(newUser("owner")).returning().get().id;
     managerId = database.db.insert(users).values(newUser("manager")).returning().get().id;
