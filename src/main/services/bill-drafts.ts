@@ -73,6 +73,7 @@ export function totalsLineOf(line: LineRow, taxRateBps: number): TotalsLine {
     fixedGrossPaisa:
       line.scaleSource === "price" && line.barcode ? scaleLabelPricePaisa(line.barcode) : null,
     discount: toDiscount(line.lineDiscountKind, line.lineDiscountValue),
+    fixedAmounts: null,
     taxRateBps,
   };
 }

@@ -14,8 +14,17 @@ export type TotalsLine = {
   qtyMilli: number;
   unitPricePaisa: number;
   fixedGrossPaisa: number | null;
+  fixedAmounts: FixedAmounts | null;
   discount: Discount | null;
   taxRateBps: number;
+};
+
+export type FixedAmounts = {
+  grossPaisa: number;
+  lineDiscountPaisa: number;
+  billDiscountPaisa: number;
+  taxPaisa: number;
+  totalPaisa: number;
 };
 
 export type LineAmounts = {
@@ -93,15 +102,26 @@ export function computeBill(input: {
     assertInteger(line.unitPricePaisa, "unitPricePaisa");
     assertInteger(line.taxRateBps, "taxRateBps");
     if (line.fixedGrossPaisa !== null) assertInteger(line.fixedGrossPaisa, "fixedGrossPaisa");
+    if (line.fixedAmounts) {
+      for (const [name, value] of Object.entries(line.fixedAmounts)) assertInteger(value, name);
+    }
   }
 
   const stage = input.lines.map((line) => {
+    if (line.fixedAmounts) {
+      return {
+        line,
+        grossPaisa: line.fixedAmounts.grossPaisa,
+        lineDiscountPaisa: line.fixedAmounts.lineDiscountPaisa,
+        netPaisa: 0,
+      };
+    }
     const grossPaisa = grossFor(line);
     const lineDiscountPaisa = line.isReturn ? 0 : discountPaisaFor(line.discount, grossPaisa);
     return { line, grossPaisa, lineDiscountPaisa, netPaisa: grossPaisa - lineDiscountPaisa };
   });
 
-  const saleStage = stage.filter((s) => !s.line.isReturn);
+  const saleStage = stage.filter((s) => !s.line.isReturn && !s.line.fixedAmounts);
   const saleNet = saleStage.reduce((acc, s) => acc + s.netPaisa, 0);
   const billDiscount = discountPaisaFor(input.billDiscount, saleNet);
   const shares = spreadPaisa(
@@ -111,6 +131,8 @@ export function computeBill(input: {
   const shareById = new Map(saleStage.map((s, index) => [s.line.id, shares[index] ?? 0]));
 
   const lines = stage.map<LineAmounts>((s) => {
+    const fixed = s.line.fixedAmounts;
+    if (fixed) return { id: s.line.id, ...fixed };
     const billDiscountPaisa = shareById.get(s.line.id) ?? 0;
     const net = s.netPaisa - billDiscountPaisa;
     const rate = BigInt(s.line.taxRateBps);
