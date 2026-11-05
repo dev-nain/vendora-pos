@@ -99,8 +99,8 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 - Tax is computed and rounded half-up per line
 - Cash rounding is applied to every bill or only to the cash share, per a store setting
 - Completing a sale is **atomic**: sale, lines, payments and stock movements are all saved or none are
-- Cash drawer opens on cash payment; the receipt prints automatically (setting: print / ask / don't print)
-- A printer or network failure never blocks a sale — it degrades with a visible warning
+- The sale commits first. Then the cash drawer opens when the sale has a cash payment row, which covers cash tendered, cash change and cash refunds. Then the receipt prints, and nothing waits on the print. The print mode is a terminal setting: print, ask first (Enter prints, Esc skips) or don't print; the Print button is always there
+- A printer or network failure never blocks a sale — it degrades with a visible warning and a Retry button, and the sale, its payments and its stock movements stay saved
 
 ---
 
@@ -108,11 +108,12 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 
 **Acceptance criteria:**
 
-- Supports 58 mm and 80 mm ESC/POS thermal printers
-- Receipt shows: store header, NTN/STRN if set, invoice number, date/time, cashier, lines (name, qty × price, discount, tax), totals, payments, change, receipt barcode (for returns), footer
-- Urdu text prints correctly (rendered as an image, since printer fonts lack Urdu)
-- Any past receipt can be reprinted, marked **"DUPLICATE"**
-- Optional A4 invoice PDF per sale for business customers
+- Supports 58 mm and 80 mm ESC/POS thermal printers, on a Windows-installed printer (raw spooler) or a network printer (TCP 9100)
+- Receipt shows: store header (name, address, phone, NTN and STRN if set, English and Urdu header text), invoice number, date/time, cashier, buyer name and NTN if entered, lines (name, Urdu name, qty × price, tax rate, discount), subtotal, discount, sales tax, rounding, total, a tax summary by rate, payments with references, change, a Code 128 barcode of the invoice number (for returns), and the English and Urdu footer
+- The whole receipt is rendered as one image and printed as raster at 384 px (58 mm) or 576 px (80 mm), so Urdu prints correctly (printer fonts lack Urdu)
+- Any past receipt can be reprinted from the Orders screen (Ctrl+O): find it in the current shift, by invoice number (typed or scanned, digits only works) or by day. A reprint is rebuilt from the sale with the current store header and is not marked as a duplicate; every successful print is counted ("Printed N times")
+- Print modes per terminal: print the receipt, ask first, or don't print. With no printer set up the sale completes and the receipt screen and the shift strip say "No printer set up"
+- The A4 invoice PDF for business customers is deferred to its own ticket
 
 ---
 
@@ -165,7 +166,8 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 - Cashier **opens a shift** with an opening float, pre-filled from the last count and editable; one open shift per terminal; sales require an open shift
 - Cash in / cash out (e.g. petty expenses) with a reason; deletable while the shift is open (audit-logged) and fixed after close
 - **Close shift**: count cash by denomination or as a total; expected cash per payment method is shown while counting (the count is not blind); expected cash = opening float + cash in − cash out + cash payments, including change given and cash refunds, and non-cash methods show their expected totals; the variance warns above a store setting; a shift can't close while bills are on hold
-- X-report (mid-shift) and Z-report (at close): sales by payment method, taxes, discounts (count and amount), refunds, cash in/out, expected vs counted and variance, deleted lines and discarded bills; no overrides; printable on the receipt printer
+- X-report (mid-shift) and Z-report (at close): sales by payment method, taxes, discounts (count and amount), refunds, cash in/out, expected vs counted and variance, deleted lines and discarded bills; no overrides; printable on the receipt printer with a Print button on the X-report and the Z-report (nothing prints automatically)
+- The cash drawer also opens on cash in, cash out, and when the opening and closing counts begin; each of these opens is audit-logged as a drawer open without a sale, with its reason
 - Day close summarizes all shifts of the day
 
 ---

@@ -11,6 +11,7 @@ import {
 } from "@renderer/components/ui/dialog";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { DeleteCashMoveDialog } from "./delete-cash-move-dialog";
+import { ReportPrintResult, useReportPrint } from "./report-print";
 import { ShiftReportView } from "./shift-report-view";
 
 interface XReportDialogProps {
@@ -19,6 +20,7 @@ interface XReportDialogProps {
   onOpenChange: (open: boolean) => void;
   onChanged: () => void;
   onSessionEnded: () => void;
+  onPrinterChanged: () => void;
 }
 
 export function XReportDialog({
@@ -27,7 +29,9 @@ export function XReportDialog({
   onOpenChange,
   onChanged,
   onSessionEnded,
+  onPrinterChanged,
 }: XReportDialogProps) {
+  const printer = useReportPrint(report.shiftId, onPrinterChanged, onSessionEnded);
   const [deleting, setDeleting] = useState<{ move: CashMove; opener: HTMLElement } | null>(null);
 
   return (
@@ -44,10 +48,23 @@ export function XReportDialog({
           />
         </DialogHeader>
         <DialogFooter className="grid-flow-row justify-items-end">
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
-            Close
-            <Kbd>Esc</Kbd>
-          </Button>
+          <div className="w-full">
+            <ReportPrintResult
+              result={printer.result}
+              running={printer.running}
+              onRetry={printer.print}
+            />
+          </div>
+          <div className="flex gap-200">
+            <Button variant="secondary" disabled={printer.running} onClick={printer.print}>
+              Print
+              <Kbd>Ctrl+P</Kbd>
+            </Button>
+            <Button variant="secondary" onClick={() => onOpenChange(false)}>
+              Close
+              <Kbd>Esc</Kbd>
+            </Button>
+          </div>
         </DialogFooter>
         {deleting ? (
           <DeleteCashMoveDialog

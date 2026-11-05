@@ -439,6 +439,19 @@ describe("receipts service", () => {
       expect(printCount()).toBe(0);
     });
 
+    it("prints a Z-report for a closed shift", async () => {
+      const state = kit.shifts.state();
+      if (state.status !== "open") throw new Error("shift is not open");
+      kit.shifts.close({
+        shiftId: state.shift.id,
+        count: { method: "total", countedCashPaisa: 0 },
+      });
+
+      expect(await service.printShiftReport({ shiftId: state.shift.id })).toEqual(ok);
+
+      expect(kinds()).toEqual(["report"]);
+    });
+
     it("refuses an unknown shift and reports a failure", async () => {
       const unknown = await service.printShiftReport({
         shiftId: "0192f3a0-0000-7000-8000-000000000099",
