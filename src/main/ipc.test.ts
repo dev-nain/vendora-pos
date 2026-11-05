@@ -125,6 +125,7 @@ describe("products ipc", () => {
       categories: stub,
       products: service,
       receipts: stub,
+      returns: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
@@ -341,6 +342,7 @@ describe("shifts ipc", () => {
       categories: stub,
       products: stub,
       receipts: receipts as never,
+      returns: stub,
       sales: stub,
       settings: stub,
       shifts: service,
@@ -488,6 +490,7 @@ describe("checkout ipc", () => {
       categories: stub,
       products: stub,
       receipts: receipts as never,
+      returns: kit.returns,
       sales,
       settings: stub,
       shifts: kit.shifts,
@@ -508,6 +511,13 @@ describe("checkout ipc", () => {
     ["checkout:hold", { draftId: unknownId }],
     ["checkout:resume", { draftId: unknownId }],
     ["checkout:discard", { draftId: unknownId }],
+    ["checkout:toggle-return", { lineId: unknownId }],
+    ["checkout:set-damaged", { lineId: unknownId, damaged: true }],
+    ["returns:returnable", { saleId: unknownId }],
+    [
+      "returns:add-from-sale",
+      { saleId: unknownId, lines: [{ saleLineId: unknownId, qtyMilli: 1000 }] },
+    ],
     ["checkout:complete", { draftId: unknownId, payments: [{ method: "cash", amountPaisa: 100 }] }],
   ];
 
@@ -535,6 +545,29 @@ describe("checkout ipc", () => {
     ["checkout:hold", { draftId: unknownId, label: "Mr Khan" }],
     ["checkout:resume", { draftId: "nope" }],
     ["checkout:discard", {}],
+    ["checkout:toggle-return", { lineId: "nope" }],
+    ["checkout:set-damaged", { lineId: unknownId }],
+    ["checkout:set-damaged", { lineId: unknownId, damaged: "yes" }],
+    ["returns:returnable", { saleId: "nope" }],
+    ["returns:add-from-sale", { saleId: unknownId, lines: [] }],
+    [
+      "returns:add-from-sale",
+      { saleId: unknownId, lines: [{ saleLineId: unknownId, qtyMilli: 0 }] },
+    ],
+    [
+      "returns:add-from-sale",
+      {
+        saleId: unknownId,
+        lines: [
+          { saleLineId: unknownId, qtyMilli: 1000 },
+          { saleLineId: unknownId, qtyMilli: 1000 },
+        ],
+      },
+    ],
+    [
+      "returns:add-from-sale",
+      { saleId: unknownId, lines: [{ saleLineId: unknownId, qtyMilli: 1000, extra: 1 }] },
+    ],
     ["checkout:complete", { draftId: unknownId, payments: [{ method: "cash", amountPaisa: 1.5 }] }],
     [
       "checkout:complete",
@@ -549,11 +582,14 @@ describe("checkout ipc", () => {
     const spies = (Object.keys(kit.billDrafts) as (keyof typeof kit.billDrafts)[]).map((name) =>
       vi.spyOn(kit.billDrafts, name),
     );
+    const returnSpies = (Object.keys(kit.returns) as (keyof typeof kit.returns)[]).map((name) =>
+      vi.spyOn(kit.returns, name),
+    );
     const complete = vi.spyOn(sales, "complete");
 
     await expect(invoke(channel, input)).rejects.toThrow();
 
-    for (const spy of [...spies, complete]) expect(spy).not.toHaveBeenCalled();
+    for (const spy of [...spies, ...returnSpies, complete]) expect(spy).not.toHaveBeenCalled();
   });
 
   it.each([

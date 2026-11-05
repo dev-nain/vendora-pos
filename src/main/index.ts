@@ -11,6 +11,7 @@ import { createBillDraftsService } from "./services/bill-drafts";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createCategoriesService } from "./services/categories";
 import { createReceiptsService } from "./services/receipts";
+import { createReturnsService } from "./services/returns";
 import { createSalesService } from "./services/sales";
 import { createSettingsService } from "./services/settings";
 import { createShiftsService } from "./services/shifts";
@@ -49,6 +50,7 @@ void app.whenReady().then(async () => {
   const stock = createStockService({ database, audit });
   const billDrafts = createBillDraftsService({ database, audit, sessions });
   const sales = createSalesService({ database, audit, sessions, stock });
+  const returns = createReturnsService({ database, sessions });
   const shifts = createShiftsService({
     database,
     audit,
@@ -94,6 +96,7 @@ void app.whenReady().then(async () => {
     categories,
     products,
     receipts,
+    returns,
     sales,
     settings,
     shifts,

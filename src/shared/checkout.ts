@@ -26,7 +26,6 @@ export const checkoutMessages = {
   cashNotRounded: "Cash is taken in the rounding unit. Adjust the cash amount.",
   refundCashOnly: "Refunds without a receipt are paid in cash.",
   needsWeight: "Enter the weight.",
-  refundAmount: "Pay the refund in one cash amount equal to the total.",
 } as const;
 
 const maxPaisa = 100_000_000_00;
@@ -274,6 +273,10 @@ export const completeSaleResultSchema = z.union([
   refusal("cash-not-rounded"),
   refusal("refund-cash-only"),
   refusal("refund-amount"),
+  refusal("refund-over-cap"),
+  refusal("one-sale"),
+  refusal("not-returnable"),
+  refusal("return-over-sold"),
 ]);
 
 export type Discount = z.infer<typeof discountSchema>;

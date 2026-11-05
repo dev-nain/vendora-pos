@@ -34,6 +34,7 @@ export const orderDetailSchema = z.strictObject({
   type: z.enum(["sale", "refund"]),
   createdAt: z.iso.datetime(),
   cashierName: z.string(),
+  refundedInvoiceNo: z.string().nullable(),
   lines: z.array(
     z.strictObject({
       nameEn: z.string(),

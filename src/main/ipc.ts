@@ -30,9 +30,15 @@ import {
   lineIdInputSchema,
   scanInputSchema,
   setBillDiscountInputSchema,
+  setDamagedInputSchema,
   updateLineInputSchema,
 } from "@shared/checkout";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
+import {
+  addFromSaleInputSchema,
+  returnableInputSchema,
+  returnableResultSchema,
+} from "@shared/returns";
 import {
   getOrderResultSchema,
   orderIdInputSchema,
@@ -122,6 +128,7 @@ import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { ProductsService } from "./services/products";
 import type { ReceiptsService } from "./services/receipts";
+import type { ReturnsService } from "./services/returns";
 import type { SalesService } from "./services/sales";
 import type { SettingsService } from "./services/settings";
 import type { ShiftsService } from "./services/shifts";
@@ -146,6 +153,7 @@ interface IpcServices {
   billDrafts: BillDraftsService;
   catalogExport: CatalogExportService;
   categories: CategoriesService;
+  returns: ReturnsService;
   sales: SalesService;
   settings: SettingsService;
   shifts: ShiftsService;
@@ -162,6 +170,7 @@ export function registerIpcHandlers({
   categories,
   products,
   receipts,
+  returns,
   sales,
   settings,
   shifts,
@@ -376,6 +385,18 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.checkoutDeleteLine, (_event, input) =>
     billResultSchema.parse(billDrafts.deleteLine(lineIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutToggleReturn, (_event, input) =>
+    billResultSchema.parse(billDrafts.toggleReturn(lineIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.checkoutSetDamaged, (_event, input) =>
+    billResultSchema.parse(billDrafts.setDamaged(setDamagedInputSchema.parse(input))),
+  );
+  handle(ipcChannels.returnsReturnable, (_event, input) =>
+    returnableResultSchema.parse(returns.returnable(returnableInputSchema.parse(input))),
+  );
+  handle(ipcChannels.returnsAddFromSale, (_event, input) =>
+    billResultSchema.parse(returns.addFromSale(addFromSaleInputSchema.parse(input))),
   );
   handle(ipcChannels.checkoutSetBillDiscount, (_event, input) =>
     billResultSchema.parse(billDrafts.setBillDiscount(setBillDiscountInputSchema.parse(input))),

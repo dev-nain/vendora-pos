@@ -1,6 +1,7 @@
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { uuidv7 } from "../db/id";
-import { productBarcodes } from "../db/schema";
+import { productBarcodes, saleLines } from "../db/schema";
 import { createCheckoutKit, type CheckoutKit } from "./checkout-test-kit";
 import { createSalesService } from "./sales";
 import { createStockService } from "./stock";
@@ -140,5 +141,45 @@ describe("checkout benchmark", () => {
     }
 
     expect(report("scan into 49-line bill", durations)).toBeLessThan(100);
+  }, 120_000);
+
+  it("scans into a bill with 20 linked return lines quickly", () => {
+    const current = kit.billDrafts.current().bill;
+    if (current) kit.billDrafts.hold({ draftId: current.id });
+
+    let draftId = "";
+    for (let line = 0; line < 20; line++) {
+      const result = kit.billDrafts.addProduct({ productId: productIds[line]!, qtyMilli: 3000 });
+      if (!result.ok) throw new Error("add failed");
+      draftId = result.bill.id;
+    }
+    const sold = sales.complete({
+      draftId,
+      payments: [{ method: "cash", amountPaisa: 100_000_000 }],
+    });
+    if (!sold.ok) throw new Error("sale failed");
+    const original = kit.database.db
+      .select({ id: saleLines.id })
+      .from(saleLines)
+      .where(eq(saleLines.saleId, sold.sale.id))
+      .all();
+    const added = kit.returns.addFromSale({
+      saleId: sold.sale.id,
+      lines: original.map((row) => ({ saleLineId: row.id, qtyMilli: 1000 })),
+    });
+    if (!added.ok) throw new Error("return failed");
+    expect(added.bill.lines).toHaveLength(20);
+
+    const durations: number[] = [];
+    for (let run = 0; run < 100; run++) {
+      const barcode = `890${String(billLines + run).padStart(9, "0")}`;
+      const start = performance.now();
+      const result = kit.billDrafts.scan({ barcode });
+      durations.push(performance.now() - start);
+      if (!result.ok) throw new Error("scan failed");
+      kit.billDrafts.deleteLine({ lineId: result.bill.lines.at(-1)!.id });
+    }
+
+    expect(report("scan into 20 linked return lines", durations)).toBeLessThan(100);
   }, 120_000);
 });

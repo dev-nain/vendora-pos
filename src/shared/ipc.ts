@@ -52,8 +52,10 @@ import type {
   HoldInput,
   ScanInput,
   SetBillDiscountInput,
+  SetDamagedInput,
   UpdateLineInput,
 } from "./checkout";
+import type { AddFromSaleInput, ReturnableResult } from "./returns";
 import type {
   BarcodeLookup,
   BulkUpdateProductsInput,
@@ -164,6 +166,10 @@ export const ipcChannels = {
   checkoutListHeld: "checkout:list-held",
   checkoutDiscard: "checkout:discard",
   checkoutComplete: "checkout:complete",
+  checkoutToggleReturn: "checkout:toggle-return",
+  checkoutSetDamaged: "checkout:set-damaged",
+  returnsReturnable: "returns:returnable",
+  returnsAddFromSale: "returns:add-from-sale",
   salesList: "sales:list",
   salesGet: "sales:get",
 } as const;
@@ -258,12 +264,18 @@ export interface VendoraApi {
     addMisc: (input: AddMiscInput) => Promise<BillResult>;
     updateLine: (input: UpdateLineInput) => Promise<BillResult>;
     deleteLine: (lineId: string) => Promise<BillResult>;
+    toggleReturn: (lineId: string) => Promise<BillResult>;
+    setDamaged: (input: SetDamagedInput) => Promise<BillResult>;
     setBillDiscount: (input: SetBillDiscountInput) => Promise<BillResult>;
     hold: (input: HoldInput) => Promise<ActionResult>;
     resume: (draftId: string) => Promise<BillResult>;
     listHeld: () => Promise<HeldBillSummary[]>;
     discard: (draftId: string) => Promise<ActionResult>;
     complete: (input: CompleteSaleInput) => Promise<CompleteSaleResult>;
+  };
+  returns: {
+    returnable: (saleId: string) => Promise<ReturnableResult>;
+    addFromSale: (input: AddFromSaleInput) => Promise<BillResult>;
   };
   sales: {
     list: (query: SalesListQuery) => Promise<OrderSummary[]>;
