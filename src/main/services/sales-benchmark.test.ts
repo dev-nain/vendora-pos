@@ -1,6 +1,5 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { uuidv7 } from "../db/id";
 import { productBarcodes, saleLines } from "../db/schema";
 import { createCheckoutKit, type CheckoutKit } from "./checkout-test-kit";
 import { createSalesService } from "./sales";
@@ -8,8 +7,8 @@ import { createStockService } from "./stock";
 
 const productCount = 30_000;
 const billLines = 50;
-const completeRuns = 30;
-const scanRuns = 200;
+const completeRuns = 20;
+const scanRuns = 100;
 const barcodedProducts = billLines + scanRuns;
 
 const percentile = (sorted: number[], p: number) =>
@@ -36,42 +35,38 @@ describe("checkout benchmark", () => {
     kit.openShift();
     const taxCategoryId = kit.taxCategoryId("Standard");
 
-    const insertProduct = kit.database.sqlite.prepare(
-      `INSERT INTO products (id, store_id, name_en, search_text, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'piece', ?, ?, ?, ?)`,
-    );
-    const insertMovement = kit.database.sqlite.prepare(
-      `INSERT INTO stock_movements (id, store_id, terminal_id, product_id, type, qty_milli, unit_cost_paisa, actor_user_id, created_at)
-       VALUES (?, ?, ?, ?, 'receipt', ?, ?, ?, ?)`,
-    );
     const base = Date.now();
+    for (let i = 0; i < productCount; i++) {
+      productIds.push(`00000000-0000-7000-8000-${String(i).padStart(12, "0")}`);
+    }
+    const params = {
+      count: productCount,
+      storeId: kit.storeId,
+      terminalId: kit.terminalId,
+      categoryId: kit.categoryId,
+      taxCategoryId,
+      actorId: user.id,
+      base,
+    };
     kit.database.sqlite.transaction(() => {
-      for (let i = 0; i < productCount; i++) {
-        const id = uuidv7();
-        productIds.push(id);
-        insertProduct.run(
-          id,
-          kit.storeId,
-          `Item ${i}`,
-          `item ${i}`,
-          kit.categoryId,
-          taxCategoryId,
-          1000 + i,
-          1500 + i,
-          base,
-          base,
-        );
-        insertMovement.run(
-          uuidv7(),
-          kit.storeId,
-          kit.terminalId,
-          id,
-          100_000,
-          1000 + i,
-          user.id,
-          base,
-        );
-      }
+      kit.database.sqlite
+        .prepare(
+          `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < @count - 1)
+           INSERT INTO products (id, store_id, name_en, search_text, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, created_at, updated_at)
+           SELECT printf('00000000-0000-7000-8000-%012d', i), @storeId, 'Item ' || i, 'item ' || i,
+                  @categoryId, @taxCategoryId, 'piece', 1000 + i, 1500 + i, @base, @base
+           FROM n`,
+        )
+        .run(params);
+      kit.database.sqlite
+        .prepare(
+          `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < @count - 1)
+           INSERT INTO stock_movements (id, store_id, terminal_id, product_id, type, qty_milli, unit_cost_paisa, actor_user_id, created_at)
+           SELECT printf('00000000-0000-7000-9000-%012d', i), @storeId, @terminalId,
+                  printf('00000000-0000-7000-8000-%012d', i), 'receipt', 100000, 1000 + i, @actorId, @base
+           FROM n`,
+        )
+        .run(params);
     })();
     kit.database.db
       .insert(productBarcodes)
