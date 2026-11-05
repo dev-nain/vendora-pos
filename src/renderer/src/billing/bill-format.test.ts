@@ -22,6 +22,8 @@ const line = (over: Partial<BillLine>): BillLine => ({
   priceType: "original",
   discount: null,
   isReturn: false,
+  isDamaged: false,
+  refundedLineId: null,
   scaleSource: null,
   isMisc: false,
   grossPaisa: 0,

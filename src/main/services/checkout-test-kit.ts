@@ -19,7 +19,10 @@ import { seedStoreAndTerminal } from "../db/seed";
 import { ean13CheckDigit } from "../hardware/scale-barcode";
 import { createAuditService } from "./audit";
 import { createBillDraftsService } from "./bill-drafts";
+import { createReturnsService } from "./returns";
+import { createSalesService } from "./sales";
 import { createShiftsService } from "./shifts";
+import { createStockService } from "./stock";
 
 export function scaleCode(prefix: string, item: string, value: string): string {
   const first12 = `${prefix}${item}${value}`;
@@ -38,6 +41,9 @@ export function createCheckoutKit() {
   const sessions = createSessionStore();
   const audit = createAuditService(database);
   const billDrafts = createBillDraftsService({ database, audit, sessions });
+  const stock = createStockService({ database, audit });
+  const sales = createSalesService({ database, audit, sessions, stock });
+  const returns = createReturnsService({ database, sessions });
   const shifts = createShiftsService({
     database,
     audit,
@@ -118,6 +124,9 @@ export function createCheckoutKit() {
     sessions,
     audit,
     billDrafts,
+    stock,
+    sales,
+    returns,
     shifts,
     storeId,
     terminalId,

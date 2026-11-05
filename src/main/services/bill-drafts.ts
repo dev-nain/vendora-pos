@@ -12,12 +12,20 @@ import {
   type HoldInput,
   type ScanInput,
   type SetBillDiscountInput,
+  type SetDamagedInput,
   type UpdateLineInput,
 } from "../../shared/checkout";
+import { returnMessages } from "../../shared/returns";
 import type { HeldBillSummary } from "../../shared/shifts";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
-import { computeBill, type TotalsLine } from "../checkout/totals";
+import {
+  linkedAmounts,
+  leftQtyMilli,
+  loadLinkedOriginals,
+  loadRefundMethods,
+} from "../checkout/linked-lines";
+import { computeBill, type FixedAmounts, type TotalsLine } from "../checkout/totals";
 import { divRoundHalfUp } from "../../shared/rounding";
 import type { VendoraDatabase } from "../db/client";
 import { billDraftLines, billDrafts, products, taxCategories, users } from "../db/schema";
@@ -41,7 +49,7 @@ interface BillDraftsDeps {
   now?: () => Date;
 }
 
-interface Context {
+export interface Context {
   tx: DbExecutor;
   session: Session;
   terminal: { id: string; storeId: string; code: string };
@@ -60,10 +68,17 @@ const returnDiscount = refuse("return-discount", checkoutMessages.returnDiscount
 const noPrice = refuse("no-price", checkoutMessages.noPrice);
 const miscDisabled = refuse("misc-disabled", checkoutMessages.miscDisabled);
 const emptyBill = refuse("empty-bill", checkoutMessages.emptyBill);
+const linkedReturn = refuse("linked-return", returnMessages.linkedLocked);
+const notReturn = refuse("not-return", returnMessages.notReturn);
+const noStock = refuse("no-stock", returnMessages.noStock);
 
 const WHOLE_UNIT_MILLI = 1000;
 
-export function totalsLineOf(line: LineRow, taxRateBps: number): TotalsLine {
+export function totalsLineOf(
+  line: LineRow,
+  taxRateBps: number,
+  fixedAmounts: FixedAmounts | null = null,
+): TotalsLine {
   return {
     id: line.id,
     position: line.position,
@@ -73,7 +88,7 @@ export function totalsLineOf(line: LineRow, taxRateBps: number): TotalsLine {
     fixedGrossPaisa:
       line.scaleSource === "price" && line.barcode ? scaleLabelPricePaisa(line.barcode) : null,
     discount: toDiscount(line.lineDiscountKind, line.lineDiscountValue),
-    fixedAmounts: null,
+    fixedAmounts,
     taxRateBps,
   };
 }
@@ -121,12 +136,27 @@ function toBill(tx: DbExecutor, draft: DraftRow): Bill {
     .all();
 
   const rateOf = (rate: number | null) => resolveTaxRateBps(rate, settings.standardTaxRateBps);
+  const linked = loadLinkedOriginals(
+    tx,
+    rows.flatMap(({ line }) => (line.refundedLineId ? [line.refundedLineId] : [])),
+  );
+  const linkedOf = (line: LineRow) =>
+    line.refundedLineId ? linked.get(line.refundedLineId) : undefined;
+  const lineRateOf = (line: LineRow, categoryRateBps: number | null) =>
+    linkedOf(line)?.line.taxRateBps ?? rateOf(categoryRateBps);
   const rounding =
     settings.rounding.mode === "every-bill"
       ? settings.rounding
       : { ...settings.rounding, mode: "off" as const };
   const computed = computeBill({
-    lines: rows.map(({ line, categoryRateBps }) => totalsLineOf(line, rateOf(categoryRateBps))),
+    lines: rows.map(({ line, categoryRateBps }) => {
+      const original = linkedOf(line);
+      return totalsLineOf(
+        line,
+        lineRateOf(line, categoryRateBps),
+        original ? linkedAmounts(original, -line.qtyMilli) : null,
+      );
+    }),
     billDiscount: toDiscount(draft.billDiscountKind, draft.billDiscountValue),
     pricesIncludeTax: settings.pricesIncludeTax,
     rounding,
@@ -148,12 +178,14 @@ function toBill(tx: DbExecutor, draft: DraftRow): Bill {
       priceType: line.priceType,
       discount: toDiscount(line.lineDiscountKind, line.lineDiscountValue),
       isReturn: line.isReturn,
+      isDamaged: line.isDamaged,
+      refundedLineId: line.refundedLineId,
       scaleSource: line.scaleSource,
       isMisc: line.miscName !== null,
       grossPaisa: amounts.grossPaisa,
       lineDiscountPaisa: amounts.lineDiscountPaisa,
       billDiscountPaisa: amounts.billDiscountPaisa,
-      taxRateBps: rateOf(categoryRateBps),
+      taxRateBps: lineRateOf(line, categoryRateBps),
       taxPaisa: amounts.taxPaisa,
       totalPaisa: amounts.totalPaisa,
     };
@@ -166,12 +198,25 @@ function toBill(tx: DbExecutor, draft: DraftRow): Bill {
       .where(and(eq(billDraftLines.draftId, draft.id), isNotNull(billDraftLines.deletedAt)))
       .get()?.n ?? 0;
 
+  const [firstLinked] = linked.values();
+  const refund = firstLinked
+    ? {
+        saleId: firstLinked.saleId,
+        invoiceNo: firstLinked.invoiceNo,
+        linkedRefundPaisa: -lines
+          .filter((line) => line.refundedLineId !== null)
+          .reduce((acc, line) => acc + line.totalPaisa, 0),
+        methods: loadRefundMethods(tx, firstLinked.saleId),
+      }
+    : null;
+
   return {
     id: draft.id,
     heldAt: draft.heldAt ? draft.heldAt.toISOString() : null,
     billDiscount: toDiscount(draft.billDiscountKind, draft.billDiscountValue),
     lines,
     deletedLineCount,
+    refund,
     totals: computed.totals,
     pricesIncludeTax: settings.pricesIncludeTax,
     cashRounding: settings.rounding,
@@ -231,7 +276,7 @@ interface NewLine {
   miscName: string | null;
 }
 
-function currentDraft({ tx, terminal, shiftId }: Context): DraftRow | undefined {
+export function currentDraft({ tx, terminal, shiftId }: Context): DraftRow | undefined {
   return tx
     .select()
     .from(billDrafts)
@@ -264,9 +309,14 @@ function findDraft({ tx, terminal, shiftId }: Context, draftId: string): DraftRo
 function findLine(
   { tx, terminal, shiftId }: Context,
   lineId: string,
-): { line: LineRow; draft: DraftRow; unit: NewLine["unit"] } | undefined {
+): { line: LineRow; draft: DraftRow; unit: NewLine["unit"]; isSystem: boolean } | undefined {
   return tx
-    .select({ line: billDraftLines, draft: billDrafts, unit: products.unit })
+    .select({
+      line: billDraftLines,
+      draft: billDrafts,
+      unit: products.unit,
+      isSystem: products.isSystem,
+    })
     .from(billDraftLines)
     .innerJoin(billDrafts, eq(billDrafts.id, billDraftLines.draftId))
     .innerJoin(products, eq(products.id, billDraftLines.productId))
@@ -282,7 +332,7 @@ function findLine(
     )
     .get();
 }
-function billOf(tx: DbExecutor, draftId: string): BillResult {
+export function billOf(tx: DbExecutor, draftId: string): BillResult {
   const draft = tx.select().from(billDrafts).where(eq(billDrafts.id, draftId)).get();
   if (!draft) return notFound;
   return { ok: true, bill: toBill(tx, draft) };
@@ -308,6 +358,41 @@ function findSellable(tx: DbExecutor, storeId: string, productId: string) {
     .get();
 }
 
+export function ensureDraft(context: Context): DraftRow {
+  const { tx, session, terminal, shiftId } = context;
+  return (
+    currentDraft(context) ??
+    tx
+      .insert(billDrafts)
+      .values({
+        storeId: terminal.storeId,
+        terminalId: terminal.id,
+        shiftId,
+        createdBy: session.userId,
+      })
+      .returning()
+      .get()
+  );
+}
+
+export function runInShift<T extends { ok: boolean }>(
+  database: VendoraDatabase,
+  sessions: SessionStore,
+  fn: (context: Context) => T,
+): T | typeof noOpenShift {
+  const session = requireSession(sessions);
+  return database.db.transaction((tx) => {
+    const terminal = currentTerminal(tx);
+    try {
+      const shift = requireOpenShift(tx, terminal.id);
+      return fn({ tx, session, terminal, shiftId: shift.id });
+    } catch (error) {
+      if (error instanceof NoOpenShiftError) return noOpenShift;
+      throw error;
+    }
+  });
+}
+
 export function createBillDraftsService({
   database,
   audit,
@@ -317,17 +402,7 @@ export function createBillDraftsService({
   const { db } = database;
 
   function inShift<T extends { ok: boolean }>(fn: (context: Context) => T): T | typeof noOpenShift {
-    const session = requireSession(sessions);
-    return db.transaction((tx) => {
-      const terminal = currentTerminal(tx);
-      try {
-        const shift = requireOpenShift(tx, terminal.id);
-        return fn({ tx, session, terminal, shiftId: shift.id });
-      } catch (error) {
-        if (error instanceof NoOpenShiftError) return noOpenShift;
-        throw error;
-      }
-    });
+    return runInShift(database, sessions, fn);
   }
 
   function touch(tx: DbExecutor, draftId: string): void {
@@ -335,20 +410,8 @@ export function createBillDraftsService({
   }
 
   function addLine(context: Context, input: NewLine): BillResult {
-    const { tx, session, terminal, shiftId } = context;
-    const existing = currentDraft(context);
-    const draft =
-      existing ??
-      tx
-        .insert(billDrafts)
-        .values({
-          storeId: terminal.storeId,
-          terminalId: terminal.id,
-          shiftId,
-          createdBy: session.userId,
-        })
-        .returning()
-        .get();
+    const { tx, terminal } = context;
+    const draft = ensureDraft(context);
 
     const mergeable =
       input.unit === "piece" &&
@@ -539,7 +602,11 @@ export function createBillDraftsService({
       const found = findLine(context, input.lineId);
       if (!found) return notFound;
       const { line, unit } = found;
+      const linked = line.refundedLineId
+        ? loadLinkedOriginals(tx, [line.refundedLineId]).get(line.refundedLineId)
+        : undefined;
 
+      if (linked && input.unitPricePaisa !== undefined) return linkedReturn;
       if (
         line.scaleSource === "price" &&
         (input.qtyMilli !== undefined || input.unitPricePaisa !== undefined)
@@ -553,6 +620,12 @@ export function createBillDraftsService({
         input.qtyMilli % WHOLE_UNIT_MILLI !== 0
       ) {
         return wholeUnits;
+      }
+      if (linked && input.qtyMilli !== undefined && input.qtyMilli > leftQtyMilli(linked)) {
+        return refuse(
+          "return-over-sold",
+          returnMessages.overSold(Math.max(0, leftQtyMilli(linked)), unit),
+        );
       }
 
       const changes: Partial<typeof billDraftLines.$inferInsert> = { updatedAt: now() };
@@ -569,6 +642,45 @@ export function createBillDraftsService({
         changes.lineDiscountValue = columns.value;
       }
       tx.update(billDraftLines).set(changes).where(eq(billDraftLines.id, line.id)).run();
+      touch(tx, found.draft.id);
+      return billOf(tx, found.draft.id);
+    });
+  }
+
+  function toggleReturn({ lineId }: { lineId: string }): BillResult {
+    return inShift((context) => {
+      const { tx } = context;
+      const found = findLine(context, lineId);
+      if (!found) return notFound;
+      const { line } = found;
+      if (line.refundedLineId) return linkedReturn;
+      tx.update(billDraftLines)
+        .set({
+          isReturn: !line.isReturn,
+          qtyMilli: -line.qtyMilli,
+          isDamaged: false,
+          lineDiscountKind: null,
+          lineDiscountValue: null,
+          updatedAt: now(),
+        })
+        .where(eq(billDraftLines.id, line.id))
+        .run();
+      touch(tx, found.draft.id);
+      return billOf(tx, found.draft.id);
+    });
+  }
+
+  function setDamaged(input: SetDamagedInput): BillResult {
+    return inShift((context) => {
+      const { tx } = context;
+      const found = findLine(context, input.lineId);
+      if (!found) return notFound;
+      if (!found.line.isReturn) return notReturn;
+      if (found.isSystem) return noStock;
+      tx.update(billDraftLines)
+        .set({ isDamaged: input.damaged, updatedAt: now() })
+        .where(eq(billDraftLines.id, found.line.id))
+        .run();
       touch(tx, found.draft.id);
       return billOf(tx, found.draft.id);
     });
@@ -733,6 +845,8 @@ export function createBillDraftsService({
     addProduct,
     addMisc,
     updateLine,
+    toggleReturn,
+    setDamaged,
     deleteLine,
     setBillDiscount,
     hold,

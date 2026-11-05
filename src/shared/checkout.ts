@@ -77,6 +77,11 @@ export const updateLineInputSchema = z
     { message: "Nothing to change" },
   );
 
+export const setDamagedInputSchema = z.strictObject({
+  lineId: z.uuid(),
+  damaged: z.boolean(),
+});
+
 export const lineIdInputSchema = z.strictObject({ lineId: z.uuid() });
 export const draftIdInputSchema = z.strictObject({ draftId: z.uuid() });
 
@@ -153,6 +158,8 @@ export const billLineSchema = z.strictObject({
   priceType: z.enum(["original", "manual"]),
   discount: discountSchema.nullable(),
   isReturn: z.boolean(),
+  isDamaged: z.boolean(),
+  refundedLineId: z.string().nullable(),
   scaleSource: z.enum(["weight", "price"]).nullable(),
   isMisc: z.boolean(),
   grossPaisa: z.int(),
@@ -171,12 +178,22 @@ export const billTotalsSchema = z.strictObject({
   totalPaisa: z.int(),
 });
 
+export const billRefundSchema = z.strictObject({
+  saleId: z.string(),
+  invoiceNo: z.string(),
+  linkedRefundPaisa: z.int(),
+  methods: z.array(
+    z.strictObject({ method: z.enum(paymentMethods), availablePaisa: z.int().min(0) }),
+  ),
+});
+
 export const billSchema = z.strictObject({
   id: z.string(),
   heldAt: isoSchema.nullable(),
   billDiscount: discountSchema.nullable(),
   lines: z.array(billLineSchema),
   deletedLineCount: z.int(),
+  refund: billRefundSchema.nullable(),
   totals: billTotalsSchema,
   pricesIncludeTax: z.boolean(),
   cashRounding: z.strictObject({
@@ -212,6 +229,12 @@ export const billResultSchema = z.union([
   refusal("return-discount"),
   refusal("no-price"),
   refusal("misc-disabled"),
+  refusal("one-sale"),
+  refusal("not-returnable"),
+  refusal("return-over-sold"),
+  refusal("linked-return"),
+  refusal("not-return"),
+  refusal("no-stock"),
   needsWeightSchema,
   emptyBillSchema,
 ]);
@@ -258,6 +281,7 @@ export type ScanInput = z.input<typeof scanInputSchema>;
 export type AddProductInput = z.input<typeof addProductInputSchema>;
 export type AddMiscInput = z.input<typeof addMiscInputSchema>;
 export type UpdateLineInput = z.input<typeof updateLineInputSchema>;
+export type SetDamagedInput = z.input<typeof setDamagedInputSchema>;
 export type SetBillDiscountInput = z.input<typeof setBillDiscountInputSchema>;
 export type HoldInput = z.input<typeof holdInputSchema>;
 export type CompleteSaleInput = z.input<typeof completeSaleInputSchema>;
