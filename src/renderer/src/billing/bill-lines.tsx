@@ -1,11 +1,13 @@
-import { ScanBarcodeIcon } from "lucide-react";
+import { PackageCheckIcon, PackageXIcon, ScanBarcodeIcon } from "lucide-react";
 import { useEffect, type ChangeEvent, type KeyboardEvent } from "react";
 
 import type { BillLine } from "@shared/checkout";
+import { Badge } from "@renderer/components/ui/badge";
+import { Button } from "@renderer/components/ui/button";
+import { Kbd } from "@renderer/components/ui/kbd";
 import { cn } from "@renderer/lib/utils";
 import { AdornedInput } from "../products/barcode-rows";
-import { formatRupees } from "../lib/money";
-import { discountText, isWeighedLine, lineDetail } from "./bill-format";
+import { discountText, isWeighedLine, lineDetail, signedRupees } from "./bill-format";
 import type { DiscountKind } from "./discount-input";
 import type { FieldState, NumpadMode } from "./numpad-entry";
 
@@ -20,7 +22,9 @@ interface BillLinesProps {
   lines: BillLine[];
   selectedId: string | null;
   editing: LineEditing | null;
+  returningFrom: string | null;
   onSelect: (lineId: string) => void;
+  onSetDamaged: (line: BillLine, damaged: boolean) => void;
   onFieldChange: (text: string) => void;
   onFieldKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
 }
@@ -85,6 +89,7 @@ function Row({
   selected,
   editing,
   onSelect,
+  onSetDamaged,
   onFieldChange,
   onFieldKeyDown,
 }: {
@@ -92,6 +97,7 @@ function Row({
   selected: boolean;
   editing: LineEditing | null;
   onSelect: (lineId: string) => void;
+  onSetDamaged: (line: BillLine, damaged: boolean) => void;
   onFieldChange: (text: string) => void;
   onFieldKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
 }) {
@@ -132,6 +138,7 @@ function Row({
           />
         ) : (
           <span className="flex flex-wrap items-center gap-x-200 text-[length:var(--font-size-300)] text-secondary">
+            {line.isReturn ? <Badge variant="critical">Return</Badge> : null}
             <span>{lineDetail(line)}</span>
             {selected && editing ? null : line.discount ? (
               <span className="text-critical tabular-nums">{discountText(line.discount)}</span>
@@ -147,9 +154,34 @@ function Row({
           />
         ) : null}
       </div>
-      <span className="shrink-0 text-[length:var(--font-size-400)] font-semibold text-foreground tabular-nums">
-        {formatRupees(line.totalPaisa)}
-      </span>
+      <div className="flex shrink-0 items-center gap-300">
+        {line.isReturn && !line.isMisc ? (
+          <Button
+            variant="secondary"
+            aria-pressed={line.isDamaged}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSetDamaged(line, !line.isDamaged);
+            }}
+          >
+            {line.isDamaged ? (
+              <PackageXIcon aria-hidden="true" size={16} strokeWidth={2} />
+            ) : (
+              <PackageCheckIcon aria-hidden="true" size={16} strokeWidth={2} />
+            )}
+            {line.isDamaged ? "Damaged" : "Back to shelf"}
+            {selected ? <Kbd>Ctrl+D</Kbd> : null}
+          </Button>
+        ) : null}
+        <span
+          className={cn(
+            "text-[length:var(--font-size-400)] font-semibold tabular-nums",
+            line.totalPaisa < 0 ? "text-critical" : "text-foreground",
+          )}
+        >
+          {signedRupees(line.totalPaisa)}
+        </span>
+      </div>
     </div>
   );
 }
@@ -158,7 +190,9 @@ export function BillLines({
   lines,
   selectedId,
   editing,
+  returningFrom,
   onSelect,
+  onSetDamaged,
   onFieldChange,
   onFieldKeyDown,
 }: BillLinesProps) {
@@ -183,23 +217,31 @@ export function BillLines({
   }
 
   return (
-    <div
-      role="listbox"
-      aria-label="Bill lines"
-      aria-activedescendant={selectedId ? optionId(selectedId) : undefined}
-      className="min-h-0 flex-1 overflow-y-auto"
-    >
-      {lines.map((line) => (
-        <Row
-          key={line.id}
-          line={line}
-          selected={line.id === selectedId}
-          editing={editing}
-          onSelect={onSelect}
-          onFieldChange={onFieldChange}
-          onFieldKeyDown={onFieldKeyDown}
-        />
-      ))}
-    </div>
+    <>
+      {returningFrom ? (
+        <p className="m-0 px-600 pt-300 text-[length:var(--font-size-350)] text-secondary tabular-nums">
+          Returning from {returningFrom}
+        </p>
+      ) : null}
+      <div
+        role="listbox"
+        aria-label="Bill lines"
+        aria-activedescendant={selectedId ? optionId(selectedId) : undefined}
+        className="min-h-0 flex-1 overflow-y-auto"
+      >
+        {lines.map((line) => (
+          <Row
+            key={line.id}
+            line={line}
+            selected={line.id === selectedId}
+            editing={editing}
+            onSelect={onSelect}
+            onSetDamaged={onSetDamaged}
+            onFieldChange={onFieldChange}
+            onFieldKeyDown={onFieldKeyDown}
+          />
+        ))}
+      </div>
+    </>
   );
 }

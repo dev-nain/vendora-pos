@@ -12,8 +12,10 @@ export const isWeighedLine = (line: Pick<BillLine, "unit" | "packQtyMilli">): bo
   line.unit !== "piece" && !isPackLine(line);
 
 export function lineQuantityText(line: BillLine): string {
-  if (isWeighedLine(line)) return formatQuantity(line.qtyMilli, line.unit);
-  return String(line.qtyMilli / 1000);
+  const text = isWeighedLine(line)
+    ? formatQuantity(line.qtyMilli, line.unit)
+    : String(line.qtyMilli / 1000);
+  return text.replace(/^-/, MINUS);
 }
 
 export function lineDetail(line: BillLine): string {
@@ -40,6 +42,9 @@ export function billDiscountLabel(discount: Discount): string {
 }
 
 export const negativeRupees = (paisa: number): string => `${MINUS}${formatRupees(paisa)}`;
+
+export const signedRupees = (paisa: number): string =>
+  paisa < 0 ? negativeRupees(-paisa) : formatRupees(paisa);
 
 export const itemCountText = (count: number): string =>
   `${count} ${count === 1 ? "item" : "items"}`;

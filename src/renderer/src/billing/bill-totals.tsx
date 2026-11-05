@@ -1,6 +1,6 @@
 import type { Bill } from "@shared/checkout";
-import { formatRupees } from "../lib/money";
-import { billDiscountLabel, itemCountText, negativeRupees } from "./bill-format";
+import { cn } from "@renderer/lib/utils";
+import { billDiscountLabel, itemCountText, signedRupees } from "./bill-format";
 
 export function Row({
   label,
@@ -27,27 +27,24 @@ export function BillTotals({ bill }: { bill: Bill | null }) {
   return (
     <section aria-label="Totals" className="grid gap-100 border-t border-line px-600 py-300">
       <dl className="m-0 grid gap-050 text-[length:var(--font-size-350)] text-secondary">
-        <Row label="Subtotal" value={formatRupees(totals?.subtotalPaisa ?? 0)} />
-        {lineDiscountPaisa > 0 ? (
-          <Row label="Discount" value={negativeRupees(lineDiscountPaisa)} critical />
-        ) : null}
-        {bill?.billDiscount ? (
+        <Row label="Subtotal" value={signedRupees(totals?.subtotalPaisa ?? 0)} />
+        {lineDiscountPaisa !== 0 ? (
           <Row
-            label={billDiscountLabel(bill.billDiscount)}
-            value={negativeRupees(billDiscountPaisa)}
-            critical
+            label="Discount"
+            value={signedRupees(-lineDiscountPaisa)}
+            critical={lineDiscountPaisa > 0}
           />
         ) : null}
-        <Row label="Sales tax" value={formatRupees(totals?.taxPaisa ?? 0)} />
+        {bill?.billDiscount || billDiscountPaisa !== 0 ? (
+          <Row
+            label={bill?.billDiscount ? billDiscountLabel(bill.billDiscount) : "Bill discount"}
+            value={signedRupees(-billDiscountPaisa)}
+            critical={billDiscountPaisa > 0}
+          />
+        ) : null}
+        <Row label="Sales tax" value={signedRupees(totals?.taxPaisa ?? 0)} />
         {totals && totals.roundingPaisa !== 0 ? (
-          <Row
-            label="Rounding"
-            value={
-              totals.roundingPaisa < 0
-                ? negativeRupees(-totals.roundingPaisa)
-                : formatRupees(totals.roundingPaisa)
-            }
-          />
+          <Row label="Rounding" value={signedRupees(totals.roundingPaisa)} />
         ) : null}
       </dl>
       <div className="flex items-end justify-between gap-400">
@@ -59,8 +56,13 @@ export function BillTotals({ bill }: { bill: Bill | null }) {
             {itemCountText(bill?.lines.length ?? 0)}
           </span>
         </div>
-        <output className="font-display text-[length:var(--font-size-1400)] leading-[var(--line-height-tight)] font-semibold text-foreground tabular-nums">
-          {formatRupees(totals?.totalPaisa ?? 0)}
+        <output
+          className={cn(
+            "font-display text-[length:var(--font-size-1400)] leading-[var(--line-height-tight)] font-semibold tabular-nums",
+            (totals?.totalPaisa ?? 0) < 0 ? "text-critical" : "text-foreground",
+          )}
+        >
+          {signedRupees(totals?.totalPaisa ?? 0)}
         </output>
       </div>
     </section>

@@ -7,6 +7,7 @@ import {
   lineDetail,
   lineQuantityText,
   negativeRupees,
+  signedRupees,
 } from "./bill-format";
 
 const line = (over: Partial<BillLine>): BillLine => ({
@@ -92,6 +93,25 @@ describe("discounts", () => {
 
   it("writes a negative amount", () => {
     expect(negativeRupees(12550)).toBe("−Rs 125.50");
+  });
+});
+
+describe("signedRupees", () => {
+  it("puts the minus sign before Rs", () => {
+    expect(signedRupees(-57000)).toBe("−Rs 570");
+    expect(signedRupees(57000)).toBe("Rs 570");
+    expect(signedRupees(0)).toBe("Rs 0");
+  });
+});
+
+describe("return lines", () => {
+  it("reads the quantity with a minus sign", () => {
+    expect(lineDetail(line({ isReturn: true, qtyMilli: -2000, unitPricePaisa: 15000 }))).toBe(
+      "−2 × Rs 150",
+    );
+    expect(lineDetail(line({ isReturn: true, unit: "kg", qtyMilli: -400 }))).toBe(
+      "−0.400 kg × Rs 150",
+    );
   });
 });
 
