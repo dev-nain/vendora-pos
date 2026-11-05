@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type { SafeUser } from "@shared/auth";
 import { serviceErrorMessage } from "../auth/messages";
@@ -20,8 +20,19 @@ const backOfficeHints: Hint[] = [
 
 export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
   const [error, setError] = useState<string | null>(null);
-  const [area, setArea] = useState<Area>("sell");
+  const [area, setAreaState] = useState<Area>("sell");
+  const [printerFocus, setPrinterFocus] = useState(false);
   const [sellHints, setSellHints] = useState<Hint[]>([["Ctrl+L", "Switch user"]]);
+
+  const setArea = useCallback((next: Area) => {
+    setPrinterFocus(false);
+    setAreaState(next);
+  }, []);
+
+  const openPrinterSettings = useCallback(() => {
+    setPrinterFocus(true);
+    setAreaState("back-office");
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -40,7 +51,7 @@ export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onSwitchUser]);
+  }, [onSwitchUser, setArea]);
 
   const logOut = async () => {
     try {
@@ -64,10 +75,14 @@ export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
         <SellArea
           onSessionEnded={onLoggedOut}
           onHintsChange={setSellHints}
-          onOpenPrinterSettings={() => setArea("back-office")}
+          onOpenPrinterSettings={openPrinterSettings}
         />
       ) : (
-        <BackOffice currentUserId={user.id} onSessionEnded={onLoggedOut} />
+        <BackOffice
+          currentUserId={user.id}
+          onSessionEnded={onLoggedOut}
+          focusPrinter={printerFocus}
+        />
       )}
       <HintBar hints={area === "sell" ? sellHints : backOfficeHints} error={error} />
     </div>

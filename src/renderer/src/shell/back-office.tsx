@@ -5,6 +5,8 @@ import { cn } from "@renderer/lib/utils";
 import { CategoriesScreen } from "../categories/categories-screen";
 import { ProductsScreen } from "../products/products-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
+import { PrinterSetting } from "../settings/printer-setting";
+import { ReceiptSetting } from "../settings/receipt-setting";
 import { ShiftVarianceSetting } from "../settings/shift-variance-setting";
 import { UsersScreen } from "../users/users-screen";
 import { backOfficeEntries, type BackOfficePage } from "./back-office-nav";
@@ -29,10 +31,11 @@ const moveFocus = (event: KeyboardEvent<HTMLElement>) => {
 interface BackOfficeProps {
   currentUserId: string;
   onSessionEnded: () => void;
+  focusPrinter?: boolean;
 }
 
-export function BackOffice({ currentUserId, onSessionEnded }: BackOfficeProps) {
-  const [page, setPage] = useState<BackOfficePage>("products");
+export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: BackOfficeProps) {
+  const [page, setPage] = useState<BackOfficePage>(focusPrinter ? "settings" : "products");
 
   return (
     <div
@@ -84,6 +87,8 @@ export function BackOffice({ currentUserId, onSessionEnded }: BackOfficeProps) {
             </h1>
             <MiscItemSetting />
             <ShiftVarianceSetting />
+            <PrinterSetting focusOnReady={focusPrinter === true} />
+            <ReceiptSetting />
           </div>
         ) : null}
       </section>
