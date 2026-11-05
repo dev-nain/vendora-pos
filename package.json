@@ -13,6 +13,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "test": "node scripts/test.mjs",
+    "test:bench": "node scripts/test.mjs --bench",
     "db:generate": "drizzle-kit generate",
     "postinstall": "electron-builder install-app-deps",
     "prepare": "lefthook install"
