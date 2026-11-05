@@ -50,7 +50,7 @@ import { WeightDialog, type WeighedProduct } from "./weight-dialog";
 const SEARCH_DEBOUNCE_MS = 150;
 const NOTICE_MS = 4000;
 
-const idleHints = (miscEnabled: boolean): Hint[] => [
+const idleHints = (miscEnabled: boolean, returnSelected: boolean): Hint[] => [
   ["F2", "Search"],
   ["F3", "Qty"],
   ["F4", "Discount"],
@@ -62,6 +62,8 @@ const idleHints = (miscEnabled: boolean): Hint[] => [
   ["Del", "Delete line"],
   ["Ctrl+Del", "Discard"],
   ...(miscEnabled ? ([["Ctrl+M", "Misc item"]] as Hint[]) : []),
+  ["Ctrl+R", "Return item"],
+  ...(returnSelected ? ([["Ctrl+D", "Damaged"]] as Hint[]) : []),
   ["Ctrl+L", "Switch user"],
 ];
 
@@ -404,6 +406,29 @@ export function BillingScreen({
     }
   }, [view, selectedLine, focusScan, showNotice, fail]);
 
+  const toggleReturnSelected = useCallback(async () => {
+    if (!selectedLine) return;
+    try {
+      applyResult(await window.vendora.checkout.toggleReturn(selectedLine.id));
+      focusScan();
+    } catch (cause) {
+      fail(cause);
+    }
+  }, [selectedLine, applyResult, focusScan, fail]);
+
+  const setDamaged = useCallback(
+    async (line: BillLine, damaged: boolean) => {
+      setView((prev) => ({ ...prev, selectedId: line.id }));
+      try {
+        applyResult(await window.vendora.checkout.setDamaged({ lineId: line.id, damaged }));
+        focusScan();
+      } catch (cause) {
+        fail(cause);
+      }
+    },
+    [applyResult, focusScan, fail],
+  );
+
   const submitChange = useCallback(
     async (lineId: string, change: Omit<UpdateLineInput, "lineId">) => {
       if (committing.current) return;
@@ -564,8 +589,7 @@ export function BillingScreen({
       selectedId: moveSelection(prev.bill?.lines ?? [], prev.selectedId, direction),
     }));
 
-  const canPay =
-    view.bill !== null && view.bill.lines.length > 0 && view.bill.totals.totalPaisa >= 0;
+  const canPay = view.bill !== null && view.bill.lines.length > 0;
 
   const openPayment = () => {
     const { bill } = view;
@@ -630,6 +654,19 @@ export function BillingScreen({
         openMisc();
         return;
       }
+      if (event.ctrlKey && !event.altKey && !event.metaKey && !editing) {
+        const key = event.key.toLowerCase();
+        if (key === "r") {
+          event.preventDefault();
+          void toggleReturnSelected();
+          return;
+        }
+        if (key === "d") {
+          event.preventDefault();
+          if (selectedLine?.isReturn) void setDamaged(selectedLine, !selectedLine.isDamaged);
+          return;
+        }
+      }
       if (event.ctrlKey || event.altKey || event.metaKey || editing) return;
 
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -683,7 +720,8 @@ export function BillingScreen({
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [active, promptOpen, editingOpen]);
 
-  const idle = useMemo(() => idleHints(miscEnabled), [miscEnabled]);
+  const returnSelected = selectedLine?.isReturn ?? false;
+  const idle = useMemo(() => idleHints(miscEnabled, returnSelected), [miscEnabled, returnSelected]);
   const hints =
     step === "receipt"
       ? receiptAsking
@@ -737,7 +775,9 @@ export function BillingScreen({
           lines={lines}
           selectedId={view.selectedId}
           editing={editing}
+          returningFrom={view.bill?.refund?.invoiceNo ?? null}
           onSelect={selectLine}
+          onSetDamaged={(line, damaged) => void setDamaged(line, damaged)}
           onFieldChange={(text) =>
             setEditing(
               (current) => current && { ...current, field: { text, fresh: false }, error: null },

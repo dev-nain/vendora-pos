@@ -37,6 +37,11 @@ export function createMainWindow(): BrowserWindow {
     window.removeMenu();
   }
 
+  window.webContents.on("before-input-event", (_event, input) => {
+    // The default dev menu binds Ctrl+R to reload; Ctrl+R is the return key.
+    window.webContents.setIgnoreMenuShortcuts(input.control && input.key.toLowerCase() === "r");
+  });
+
   const syncChrome = () => {
     window.setBackgroundColor(chromeColors().color);
     window.setTitleBarOverlay({ height: TITLE_BAR_HEIGHT, ...chromeColors() });
