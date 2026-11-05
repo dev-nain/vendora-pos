@@ -4,6 +4,7 @@ import type { AddCashMoveInput, ShiftReport, ShiftState } from "@shared/shifts";
 import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
+import { BillingScreen } from "../billing/billing-screen";
 import type { Hint } from "../shell/hint-bar";
 import { CashMoveDialog } from "./cash-move-dialog";
 import { CloseShiftScreen } from "./close-shift-screen";
@@ -15,13 +16,6 @@ import { XReportDialog } from "./x-report-dialog";
 const baseHints: Hint[] = [["Ctrl+L", "Switch user"]];
 const closingHints: Hint[] = [["Ctrl+Enter", "Close shift"], ["Esc", "Cancel"], ...baseHints];
 const reportHints: Hint[] = [["Enter", "Done"], ...baseHints];
-const openHints: Hint[] = [
-  ["F6", "Cash in"],
-  ["F7", "Cash out"],
-  ["F8", "X-report"],
-  ["F9", "Close shift"],
-  ...baseHints,
-];
 
 type Mode =
   | { name: "main" }
@@ -46,6 +40,7 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
   const [loadFailed, setLoadFailed] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [mode, setMode] = useState<Mode>({ name: "main" });
+  const [billingHints, setBillingHints] = useState<Hint[]>(baseHints);
   const strip = useRef<HTMLDivElement | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
 
@@ -76,13 +71,17 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
         : mode.name === "z-report"
           ? reportHints
           : shiftOpen
-            ? openHints
+            ? billingHints
             : baseHints,
     );
-  }, [onHintsChange, shiftOpen, mode.name]);
+  }, [onHintsChange, shiftOpen, mode.name, billingHints]);
 
   const openDialog = useCallback((next: NonNullable<Dialog>, opener: HTMLElement | null) => {
-    returnFocus.current = opener ?? strip.current?.querySelector("button") ?? null;
+    returnFocus.current =
+      opener ??
+      document.getElementById("scan-field") ??
+      strip.current?.querySelector("button") ??
+      null;
     setDialog(next);
   }, []);
 
@@ -192,9 +191,11 @@ export function SellArea({ onSessionEnded, onHintsChange }: SellAreaProps) {
             onXReport={(opener) => openDialog({ kind: "x-report" }, opener)}
             onCloseShift={() => setMode({ name: "closing" })}
           />
-          <div className="grid flex-1 place-items-center text-secondary">
-            <p className="m-0">Checkout isn't set up yet.</p>
-          </div>
+          <BillingScreen
+            active={dialog === null}
+            onSessionEnded={onSessionEnded}
+            onHintsChange={setBillingHints}
+          />
         </>
       )}
       {dialog?.kind === "cash-move" ? (
