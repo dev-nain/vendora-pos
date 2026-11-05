@@ -19,13 +19,6 @@ import { XReportDialog } from "./x-report-dialog";
 const baseHints: Hint[] = [["Ctrl+L", "Switch user"]];
 const closingHints: Hint[] = [["Ctrl+Enter", "Close shift"], ["Esc", "Cancel"], ...baseHints];
 const reportHints: Hint[] = [["Enter", "Done"], ...baseHints];
-const ordersHints: Hint[] = [
-  ["Enter", "Search"],
-  ["↑/↓", "Select"],
-  ["Ctrl+P", "Reprint"],
-  ["Esc", "Back"],
-  ...baseHints,
-];
 
 type Mode =
   | { name: "main" }
@@ -95,6 +88,7 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
   const [dialog, setDialog] = useState<Dialog>(null);
   const [mode, setMode] = useState<Mode>({ name: "main" });
   const [billingHints, setBillingHints] = useState<Hint[]>(baseHints);
+  const [ordersHints, setOrdersHints] = useState<Hint[]>(baseHints);
   const [billingStep, setBillingStep] = useState<BillingStep>("products");
   const [printerStatus, setPrinterStatus] = useState<PrinterStatus | null>(null);
   const strip = useRef<HTMLDivElement | null>(null);
@@ -147,7 +141,7 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
               ? billingHints
               : baseHints,
     );
-  }, [onHintsChange, shiftOpen, mode.name, billingHints]);
+  }, [onHintsChange, shiftOpen, mode.name, billingHints, ordersHints]);
 
   const openDialog = useCallback((next: NonNullable<Dialog>, opener: HTMLElement | null) => {
     returnFocus.current =
@@ -232,6 +226,8 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
           onBack={() => setMode({ name: "main" })}
           onSessionEnded={onSessionEnded}
           onPrinterChanged={refreshPrinter}
+          onHintsChange={setOrdersHints}
+          onReturned={() => setMode({ name: "main" })}
         />
       ) : mode.name === "closing" ? (
         <CloseShiftScreen

@@ -39,10 +39,20 @@ interface OrderDetailProps {
   loading: boolean;
   printing: boolean;
   result: PrintResult | null;
+  canReturn: boolean;
   onReprint: () => void;
+  onReturn: () => void;
 }
 
-export function OrderDetail({ order, loading, printing, result, onReprint }: OrderDetailProps) {
+export function OrderDetail({
+  order,
+  loading,
+  printing,
+  result,
+  canReturn,
+  onReprint,
+  onReturn,
+}: OrderDetailProps) {
   if (!order) {
     return (
       <p className="m-0 text-secondary">{loading ? "Loading…" : "Select a sale to see it here."}</p>
@@ -59,6 +69,11 @@ export function OrderDetail({ order, loading, printing, result, onReprint }: Ord
         <p className="m-0 text-[length:var(--font-size-300)] text-tertiary">
           {formatDateTime(order.createdAt)} · {order.cashierName}
         </p>
+        {order.refundedInvoiceNo ? (
+          <p className="m-0 text-[length:var(--font-size-300)] text-tertiary tabular-nums">
+            Original invoice {order.refundedInvoiceNo}
+          </p>
+        ) : null}
       </div>
       <ul aria-label="Lines" className="m-0 grid list-none gap-200 p-0">
         {order.lines.map((line, index) => (
@@ -134,6 +149,20 @@ export function OrderDetail({ order, loading, printing, result, onReprint }: Ord
           {printing ? "Printing…" : "Reprint"}
           <Kbd>Ctrl+P</Kbd>
         </Button>
+        <Button
+          id="return-items-button"
+          variant="secondary"
+          disabled={!canReturn}
+          onClick={onReturn}
+        >
+          Return items
+          <Kbd>Ctrl+R</Kbd>
+        </Button>
+        {canReturn ? null : (
+          <p className="m-0 text-[length:var(--font-size-300)] text-tertiary">
+            Nothing left to return.
+          </p>
+        )}
         {result?.successful ? (
           <p role="status" className="m-0 text-[length:var(--font-size-350)] text-secondary">
             Receipt sent to the printer.
