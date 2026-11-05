@@ -14,9 +14,13 @@ import type {
 } from "./categories";
 import type {
   MiscItemSetting,
+  PrinterSettings,
+  ReceiptSettings,
+  ReceiptSettingsInput,
   ScalePrefixesInput,
   ScalePrefixesSetting,
   ShiftVarianceSetting,
+  WindowsPrinter,
 } from "./settings";
 import type {
   AddCashMoveInput,
@@ -93,6 +97,11 @@ export const ipcChannels = {
   settingsSetMiscItemEnabled: "settings:set-misc-item-enabled",
   settingsGetShiftVarianceWarn: "settings:get-shift-variance-warn",
   settingsSetShiftVarianceWarn: "settings:set-shift-variance-warn",
+  settingsGetReceipt: "settings:get-receipt",
+  settingsSetReceipt: "settings:set-receipt",
+  printerGetSettings: "printer:get-settings",
+  printerSetSettings: "printer:set-settings",
+  printerListWindows: "printer:list-windows",
   authNeedsSetup: "auth:needs-setup",
   authCreateFirstUser: "auth:create-first-user",
   usersList: "users:list",
@@ -165,6 +174,13 @@ export interface VendoraApi {
     setMiscItemEnabled: (enabled: boolean) => Promise<MiscItemSetting>;
     getShiftVarianceWarn: () => Promise<ShiftVarianceSetting>;
     setShiftVarianceWarn: (warnPaisa: number) => Promise<ShiftVarianceSetting>;
+    getReceipt: () => Promise<ReceiptSettings>;
+    setReceipt: (input: ReceiptSettingsInput) => Promise<ReceiptSettings>;
+  };
+  printer: {
+    getSettings: () => Promise<PrinterSettings>;
+    setSettings: (input: PrinterSettings) => Promise<PrinterSettings>;
+    listWindows: () => Promise<WindowsPrinter[]>;
   };
   users: {
     list: () => Promise<ManagedUser[]>;

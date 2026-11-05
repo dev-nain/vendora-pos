@@ -1,10 +1,12 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   miscItemInputSchema,
   miscItemSettingSchema,
+  printerSettingsSchema,
+  receiptSettingsInputSchema,
   scalePrefixesInputSchema,
   scalePrefixesSettingSchema,
   shiftVarianceInputSchema,
@@ -13,7 +15,7 @@ import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
 import { openDatabase, type VendoraDatabase } from "../db/client";
 import { runMigrations } from "../db/migrate";
-import { auditLog, stores, users } from "../db/schema";
+import { auditLog, stores, terminals, users } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import {
   getMiscItemEnabled,
@@ -77,6 +79,100 @@ describe("shift variance schema", () => {
   });
 });
 
+const blankReceipt = {
+  name: null,
+  address: null,
+  phone: null,
+  ntn: null,
+  strn: null,
+  headerEn: null,
+  headerUr: null,
+  footerEn: null,
+  footerUr: null,
+};
+
+const parseReceipt = (patch: Record<string, string | null>) =>
+  receiptSettingsInputSchema.safeParse({ ...blankReceipt, ...patch });
+
+describe("receipt settings schema", () => {
+  it("turns empty and whitespace-only text into null and trims the rest", () => {
+    const result = parseReceipt({ name: "  Al Noor  ", address: "   ", headerEn: "" });
+    expect(result.success && result.data).toMatchObject({
+      name: "Al Noor",
+      address: null,
+      headerEn: null,
+    });
+  });
+
+  it("stores the NTN as 7 digits, a dash and 1 digit", () => {
+    const result = parseReceipt({ ntn: "12345678" });
+    expect(result.success && result.data.ntn).toBe("1234567-8");
+    expect(parseReceipt({ ntn: "123456" }).success).toBe(false);
+  });
+
+  it("stores the STRN as 13 digits only", () => {
+    const dashed = parseReceipt({ strn: "32-77-8761-234-19" });
+    expect(dashed.success && dashed.data.strn).toBe("3277876123419");
+    expect(parseReceipt({ strn: "3277876123419" }).success).toBe(true);
+    expect(parseReceipt({ strn: "327787612341" }).success).toBe(false);
+    expect(parseReceipt({ strn: "32778761234AB" }).success).toBe(false);
+  });
+
+  it("accepts phone digits, spaces, + and - up to 30 characters", () => {
+    expect(parseReceipt({ phone: "+92 300 1234567" }).success).toBe(true);
+    expect(parseReceipt({ phone: "0300-abc" }).success).toBe(false);
+    expect(parseReceipt({ phone: "1".repeat(30) }).success).toBe(true);
+    expect(parseReceipt({ phone: "1".repeat(31) }).success).toBe(false);
+  });
+
+  it("limits the address to 200 characters", () => {
+    expect(parseReceipt({ address: "a".repeat(200) }).success).toBe(true);
+    expect(parseReceipt({ address: "a".repeat(201) }).success).toBe(false);
+  });
+
+  it("limits a header to 300 characters and 4 lines", () => {
+    expect(parseReceipt({ headerEn: "a".repeat(300) }).success).toBe(true);
+    expect(parseReceipt({ headerEn: "a".repeat(301) }).success).toBe(false);
+    expect(parseReceipt({ footerUr: "a\nb\nc\nd" }).success).toBe(true);
+    expect(parseReceipt({ footerUr: "a\nb\nc\nd\ne" }).success).toBe(false);
+  });
+
+  it("rejects extra keys", () => {
+    expect(receiptSettingsInputSchema.safeParse({ ...blankReceipt, extra: 1 }).success).toBe(false);
+  });
+});
+
+describe("printer settings schema", () => {
+  const base = { paperWidthMm: 80, printMode: "print" } as const;
+  const parse = (connection: unknown, patch: Record<string, unknown> = {}) =>
+    printerSettingsSchema.safeParse({ ...base, connection, ...patch });
+
+  it("accepts each connection kind", () => {
+    expect(parse({ kind: "none" }).success).toBe(true);
+    expect(parse({ kind: "windows", name: "XP-80" }).success).toBe(true);
+    expect(parse({ kind: "network", host: "192.168.1.50", port: 9100 }).success).toBe(true);
+    expect(parse({ kind: "network", host: "receipt-printer.local", port: 1 }).success).toBe(true);
+  });
+
+  it("bounds the port and the host", () => {
+    expect(parse({ kind: "network", host: "10.0.0.1", port: 0 }).success).toBe(false);
+    expect(parse({ kind: "network", host: "10.0.0.1", port: 65536 }).success).toBe(false);
+    expect(parse({ kind: "network", host: "10.0.0.1", port: 65535 }).success).toBe(true);
+    expect(parse({ kind: "network", host: "10.0.0.1", port: 91.5 }).success).toBe(false);
+    expect(parse({ kind: "network", host: "300.0.0.1", port: 9100 }).success).toBe(false);
+    expect(parse({ kind: "network", host: "a b", port: 9100 }).success).toBe(false);
+    expect(parse({ kind: "network", host: "", port: 9100 }).success).toBe(false);
+    expect(parse({ kind: "network", host: "a".repeat(254), port: 9100 }).success).toBe(false);
+  });
+
+  it("needs a Windows printer name, only 58 or 80 mm and a known print mode", () => {
+    expect(parse({ kind: "windows", name: "" }).success).toBe(false);
+    expect(parse({ kind: "none" }, { paperWidthMm: 70 }).success).toBe(false);
+    expect(parse({ kind: "none" }, { printMode: "never" }).success).toBe(false);
+    expect(parse({ kind: "none" }, { paperWidthMm: 58, printMode: "ask" }).success).toBe(true);
+  });
+});
+
 describe("createSettingsService", () => {
   let dir: string;
   let database: VendoraDatabase;
@@ -84,6 +180,7 @@ describe("createSettingsService", () => {
   let service: ReturnType<typeof createSettingsService>;
 
   const storeId = () => database.db.select().from(stores).get()!.id;
+  const terminalId = () => database.db.select().from(terminals).get()!.id;
   const auditRows = () => database.db.select().from(auditLog).all();
 
   const signIn = (name: string) => {
@@ -254,6 +351,126 @@ describe("createSettingsService", () => {
     it("refuses with no session", () => {
       expect(() => service.setScalePrefixes(input)).toThrow(UnauthenticatedError);
       expect(auditRows()).toHaveLength(0);
+    });
+  });
+  describe("receipt settings", () => {
+    const input = {
+      ...blankReceipt,
+      name: "Al Noor Store",
+      ntn: "1234567-8",
+      headerUr: "خوش آمدید",
+    };
+
+    it("reads blanks, saves, and writes one settings_change row with from and to", () => {
+      const user = signIn("cashier");
+      expect(service.getReceipt()).toEqual({ ...blankReceipt });
+
+      expect(service.setReceipt(input)).toEqual(input);
+
+      expect(service.getReceipt()).toEqual(input);
+      const rows = auditRows();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        action: "settings_change",
+        actorUserId: user.id,
+        entityType: "store",
+        entityId: storeId(),
+      });
+      expect(JSON.parse(rows[0]!.details!)).toEqual({
+        setting: "receipt",
+        from: blankReceipt,
+        to: input,
+      });
+    });
+
+    it("writes nothing when unchanged", () => {
+      signIn("cashier");
+      service.setReceipt(input);
+
+      service.setReceipt(input);
+
+      expect(auditRows()).toHaveLength(1);
+    });
+
+    it("refuses with no session", () => {
+      expect(() => service.getReceipt()).toThrow(UnauthenticatedError);
+      expect(() => service.setReceipt(input)).toThrow(UnauthenticatedError);
+    });
+  });
+
+  describe("printer settings", () => {
+    const network = {
+      connection: { kind: "network", host: "192.168.1.50", port: 9100 },
+      paperWidthMm: 58,
+      printMode: "ask",
+    } as const;
+
+    it("defaults to none, 80 mm and print", () => {
+      signIn("cashier");
+
+      expect(service.getPrinter()).toEqual({
+        connection: { kind: "none" },
+        paperWidthMm: 80,
+        printMode: "print",
+      });
+    });
+
+    it("saves on the terminal row and audits one settings_change", () => {
+      const user = signIn("cashier");
+
+      expect(service.setPrinter(network)).toEqual(network);
+
+      expect(service.getPrinter()).toEqual(network);
+      const rows = auditRows();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        action: "settings_change",
+        actorUserId: user.id,
+        entityType: "terminal",
+        entityId: terminalId(),
+      });
+      expect(JSON.parse(rows[0]!.details!)).toMatchObject({ setting: "printer", to: network });
+    });
+
+    it("clears the old connection fields when the kind changes", () => {
+      signIn("cashier");
+      service.setPrinter(network);
+
+      service.setPrinter({ ...network, connection: { kind: "windows", name: "XP-80" } });
+
+      const row = database.db.select().from(terminals).get()!;
+      expect(row).toMatchObject({
+        printerKind: "windows",
+        printerName: "XP-80",
+        printerHost: null,
+        printerPort: null,
+      });
+    });
+
+    it("writes nothing when unchanged", () => {
+      signIn("cashier");
+      service.setPrinter(network);
+
+      service.setPrinter(network);
+
+      expect(auditRows()).toHaveLength(1);
+    });
+
+    it("refuses with no session", () => {
+      expect(() => service.getPrinter()).toThrow(UnauthenticatedError);
+      expect(() => service.setPrinter(network)).toThrow(UnauthenticatedError);
+    });
+
+    it("lists no Windows printers off Windows and needs a session", async () => {
+      await expect(service.listWindowsPrinters(async () => [])).rejects.toThrow(
+        UnauthenticatedError,
+      );
+      signIn("cashier");
+      const fetch = vi.fn(async () => [{ name: "a", displayName: "A", isDefault: false }]);
+
+      const result = await service.listWindowsPrinters(fetch);
+
+      expect(result).toEqual(process.platform === "win32" ? await fetch() : []);
     });
   });
 });

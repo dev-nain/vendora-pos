@@ -54,10 +54,14 @@ import {
 import {
   miscItemInputSchema,
   miscItemSettingSchema,
+  printerSettingsSchema,
+  receiptSettingsInputSchema,
+  receiptSettingsSchema,
   scalePrefixesInputSchema,
   scalePrefixesSettingSchema,
   shiftVarianceInputSchema,
   shiftVarianceSettingSchema,
+  windowsPrintersSchema,
 } from "@shared/settings";
 import {
   addCashMoveInputSchema,
@@ -175,6 +179,25 @@ export function registerIpcHandlers({
   handle(ipcChannels.settingsSetShiftVarianceWarn, (_event, input) =>
     shiftVarianceSettingSchema.parse(
       settings.setShiftVarianceWarn(shiftVarianceInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.settingsGetReceipt, () => receiptSettingsSchema.parse(settings.getReceipt()));
+  handle(ipcChannels.settingsSetReceipt, (_event, input) =>
+    receiptSettingsSchema.parse(settings.setReceipt(receiptSettingsInputSchema.parse(input))),
+  );
+  handle(ipcChannels.printerGetSettings, () => printerSettingsSchema.parse(settings.getPrinter()));
+  handle(ipcChannels.printerSetSettings, (_event, input) =>
+    printerSettingsSchema.parse(settings.setPrinter(printerSettingsSchema.parse(input))),
+  );
+  handle(ipcChannels.printerListWindows, async (event) =>
+    windowsPrintersSchema.parse(
+      await settings.listWindowsPrinters(async () =>
+        (await event.sender.getPrintersAsync()).map(({ name, displayName, options }) => ({
+          name,
+          displayName,
+          isDefault: (options as Record<string, unknown>)["is-default"] === "true",
+        })),
+      ),
     ),
   );
   handle(ipcChannels.productsGetMiscItem, () =>

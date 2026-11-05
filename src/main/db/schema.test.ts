@@ -647,6 +647,14 @@ describe("remove roles and lock migration on an existing database", () => {
         "cash_rounding_cash_only",
         "created_at",
         "updated_at",
+        "address",
+        "phone",
+        "ntn",
+        "strn",
+        "receipt_header_en",
+        "receipt_header_ur",
+        "receipt_footer_en",
+        "receipt_footer_ur",
       ]);
       expect(columnsOf(database, "users")).not.toContain("role");
       expect(columnsOf(database, "audit_log")).not.toContain("approver_user_id");
@@ -666,6 +674,14 @@ describe("remove roles and lock migration on an existing database", () => {
           cash_rounding_enabled: 0,
           cash_rounding_paisa: 100,
           cash_rounding_cash_only: 1,
+          address: null,
+          phone: null,
+          ntn: null,
+          strn: null,
+          receipt_header_en: null,
+          receipt_header_ur: null,
+          receipt_footer_en: null,
+          receipt_footer_ur: null,
         },
       ]);
       expect(database.sqlite.prepare("SELECT * FROM users ORDER BY id").all()).toEqual([
@@ -1106,6 +1122,88 @@ describe("stock movements migration on an existing database", () => {
         { name: "stock_movements_product_id_created_at_idx" },
         { name: "stock_movements_product_id_idx" },
       ]);
+    } finally {
+      database.sqlite.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("receipt and printer columns migration", () => {
+  it("adds nullable header fields, printer defaults and the date index, keeping sales", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vendora-printer-"));
+    const database = openDatabase(join(dir, "vendora.db"));
+    try {
+      const sql = readFileSync(
+        join(migrationsFolder, "0013_overjoyed_serpent_society.sql"),
+        "utf8",
+      );
+      expect(sql).not.toContain("__new_");
+
+      const oldFolder = join(dir, "old-migrations");
+      mkdirSync(join(oldFolder, "meta"), { recursive: true });
+      const journal = JSON.parse(
+        readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+      ) as { entries: { tag: string }[] };
+      journal.entries = journal.entries.slice(0, 13);
+      writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
+      for (const entry of journal.entries) {
+        copyFileSync(
+          join(migrationsFolder, `${entry.tag}.sql`),
+          join(oldFolder, `${entry.tag}.sql`),
+        );
+      }
+
+      const backupDir = join(dir, "backups");
+      runMigrations(database, { migrationsFolder: oldFolder, backupDir });
+      database.sqlite.exec(`
+        INSERT INTO stores (id, name, created_at, updated_at) VALUES ('s1', 'Existing', 1, 2);
+        INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 2);
+        INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at) VALUES ('u1', 'owner', 'Owner', 'p', 'q', 1, 2);
+        INSERT INTO shifts (id, store_id, terminal_id, opened_by, opened_at, opening_float_paisa, created_at, updated_at)
+          VALUES ('sh1', 's1', 't1', 'u1', 1, 0, 1, 2);
+      `);
+      const before = database.sqlite.prepare("SELECT id, code FROM terminals").all();
+
+      expect(runMigrations(database, { migrationsFolder, backupDir })).toBe("migrated");
+
+      expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
+      expect(database.sqlite.prepare("SELECT id, code FROM terminals").all()).toEqual(before);
+      expect(
+        database.sqlite
+          .prepare(
+            "SELECT name, address, phone, ntn, strn, receipt_header_en, receipt_footer_ur FROM stores",
+          )
+          .get(),
+      ).toEqual({
+        name: "Existing",
+        address: null,
+        phone: null,
+        ntn: null,
+        strn: null,
+        receipt_header_en: null,
+        receipt_footer_ur: null,
+      });
+      expect(
+        database.sqlite
+          .prepare(
+            "SELECT printer_kind, printer_name, printer_host, printer_port, paper_width_mm, print_mode FROM terminals",
+          )
+          .get(),
+      ).toEqual({
+        printer_kind: "none",
+        printer_name: null,
+        printer_host: null,
+        printer_port: null,
+        paper_width_mm: 80,
+        print_mode: "print",
+      });
+      const indexes = database.sqlite
+        .prepare("SELECT name FROM pragma_index_list('sales') WHERE origin = 'c'")
+        .all()
+        .map((row) => (row as { name: string }).name);
+      expect(indexes).toContain("sales_terminal_id_created_at_idx");
+      expect(database.sqlite.pragma("foreign_key_check")).toEqual([]);
     } finally {
       database.sqlite.close();
       rmSync(dir, { recursive: true, force: true });

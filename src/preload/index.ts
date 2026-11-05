@@ -8,8 +8,11 @@ import {
 } from "@shared/auth";
 import {
   miscItemSettingSchema,
+  printerSettingsSchema,
+  receiptSettingsSchema,
   scalePrefixesSettingSchema,
   shiftVarianceSettingSchema,
+  windowsPrintersSchema,
 } from "@shared/settings";
 import {
   actionResultSchema,
@@ -105,6 +108,18 @@ const api: VendoraApi = {
       shiftVarianceSettingSchema.parse(
         await ipcRenderer.invoke(ipcChannels.settingsSetShiftVarianceWarn, { warnPaisa }),
       ),
+    getReceipt: async () =>
+      receiptSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsGetReceipt)),
+    setReceipt: async (input) =>
+      receiptSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsSetReceipt, input)),
+  },
+  printer: {
+    getSettings: async () =>
+      printerSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.printerGetSettings)),
+    setSettings: async (input) =>
+      printerSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.printerSetSettings, input)),
+    listWindows: async () =>
+      windowsPrintersSchema.parse(await ipcRenderer.invoke(ipcChannels.printerListWindows)),
   },
   users: {
     list: async () =>
