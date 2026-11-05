@@ -7,8 +7,7 @@ import type { BillResult, CompleteSaleInput } from "../../shared/checkout";
 import type { HeldBillSummary } from "../../shared/shifts";
 import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
-import { openDatabase, type VendoraDatabase } from "../db/client";
-import { runMigrations } from "../db/migrate";
+import type { VendoraDatabase } from "../db/client";
 import {
   auditLog,
   cashDenominations,
@@ -27,6 +26,7 @@ import { createCheckoutKit, type CheckoutKit } from "./checkout-test-kit";
 import { createSalesService } from "./sales";
 import { createStockService } from "./stock";
 import { NoOpenShiftError, createShiftsService, requireOpenShift } from "./shifts";
+import { openMigratedDatabase } from "../db/test-database";
 
 describe("createShiftsService", () => {
   let dir: string;
@@ -77,11 +77,7 @@ describe("createShiftsService", () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-shifts-service-"));
-    database = openDatabase(join(dir, "vendora.db"));
-    runMigrations(database, {
-      migrationsFolder: join(process.cwd(), "drizzle"),
-      backupDir: join(dir, "backups"),
-    });
+    database = openMigratedDatabase(join(dir, "vendora.db"));
     seedStoreAndTerminal(database);
     sessions = createSessionStore();
     held = [];

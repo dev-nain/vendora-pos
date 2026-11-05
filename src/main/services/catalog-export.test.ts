@@ -4,23 +4,19 @@ import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
-import { openDatabase, type VendoraDatabase } from "../db/client";
+import type { VendoraDatabase } from "../db/client";
 import { uuidv7 } from "../db/id";
-import { runMigrations } from "../db/migrate";
 import { categories, productBarcodes, products, stores, taxCategories, users } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import { catalogCsvColumns } from "./catalog-csv";
 import { createCatalogExportService, writeCatalogCsv } from "./catalog-export";
 import { normalizeSearchText } from "./search-text";
+import { openMigratedDatabase } from "../db/test-database";
 
 const BOM = "﻿";
 
 function openMigrated(dir: string): VendoraDatabase {
-  const database = openDatabase(join(dir, "vendora.db"));
-  runMigrations(database, {
-    migrationsFolder: join(process.cwd(), "drizzle"),
-    backupDir: join(dir, "backups"),
-  });
+  const database = openMigratedDatabase(join(dir, "vendora.db"));
   seedStoreAndTerminal(database);
   return database;
 }

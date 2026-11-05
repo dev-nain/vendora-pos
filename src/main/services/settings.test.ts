@@ -13,8 +13,7 @@ import {
 } from "../../shared/settings";
 import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
-import { openDatabase, type VendoraDatabase } from "../db/client";
-import { runMigrations } from "../db/migrate";
+import type { VendoraDatabase } from "../db/client";
 import { auditLog, stores, terminals, users } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import {
@@ -24,6 +23,7 @@ import {
 } from "../settings/store-settings";
 import { createAuditService } from "./audit";
 import { createSettingsService } from "./settings";
+import { openMigratedDatabase } from "../db/test-database";
 
 describe("misc item schemas", () => {
   it.each([true, false])("accepts %s", (enabled) => {
@@ -200,11 +200,7 @@ describe("createSettingsService", () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-settings-service-"));
-    database = openDatabase(join(dir, "vendora.db"));
-    runMigrations(database, {
-      migrationsFolder: join(process.cwd(), "drizzle"),
-      backupDir: join(dir, "backups"),
-    });
+    database = openMigratedDatabase(join(dir, "vendora.db"));
     seedStoreAndTerminal(database);
     sessions = createSessionStore();
     service = createSettingsService({ database, audit: createAuditService(database), sessions });

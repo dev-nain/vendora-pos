@@ -4,8 +4,7 @@ import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createSessionStore } from "../auth/session";
-import { openDatabase, type VendoraDatabase } from "../db/client";
-import { runMigrations } from "../db/migrate";
+import type { VendoraDatabase } from "../db/client";
 import { uuidv7 } from "../db/id";
 import {
   auditLog,
@@ -23,6 +22,7 @@ import { createAuditService } from "./audit";
 import { createProductsService } from "./products";
 import * as stockModule from "./stock";
 import { createStockService, type RecordMovementInput } from "./stock";
+import { openMigratedDatabase } from "../db/test-database";
 
 describe("createStockService", () => {
   let dir: string;
@@ -85,11 +85,7 @@ describe("createStockService", () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-stock-"));
-    database = openDatabase(join(dir, "vendora.db"));
-    runMigrations(database, {
-      migrationsFolder: join(process.cwd(), "drizzle"),
-      backupDir: join(dir, "backups"),
-    });
+    database = openMigratedDatabase(join(dir, "vendora.db"));
     seedStoreAndTerminal(database);
     storeId = database.db.select().from(stores).get()!.id;
     terminalId = database.db.select().from(terminals).get()!.id;

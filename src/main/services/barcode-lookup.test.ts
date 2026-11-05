@@ -2,9 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { openDatabase, type VendoraDatabase } from "../db/client";
+import type { VendoraDatabase } from "../db/client";
 import { uuidv7 } from "../db/id";
-import { runMigrations } from "../db/migrate";
 import {
   categories,
   productBarcodes,
@@ -16,6 +15,7 @@ import {
 import { seedStoreAndTerminal } from "../db/seed";
 import { ean13CheckDigit } from "../hardware/scale-barcode";
 import { lookupBarcode } from "./barcode-lookup";
+import { openMigratedDatabase } from "../db/test-database";
 
 describe("lookupBarcode", () => {
   let dir: string;
@@ -26,11 +26,7 @@ describe("lookupBarcode", () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-barcode-"));
-    database = openDatabase(join(dir, "test.db"));
-    runMigrations(database, {
-      migrationsFolder: join(process.cwd(), "drizzle"),
-      backupDir: join(dir, "backups"),
-    });
+    database = openMigratedDatabase(join(dir, "test.db"));
     seedStoreAndTerminal(database);
     storeId = database.db.select().from(stores).get()!.id;
     categoryId = database.db.select().from(categories).get()!.id;
@@ -310,11 +306,7 @@ describe("lookupBarcode benchmark", () => {
 
   beforeAll(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-barcode-bench-"));
-    database = openDatabase(join(dir, "test.db"));
-    runMigrations(database, {
-      migrationsFolder: join(process.cwd(), "drizzle"),
-      backupDir: join(dir, "backups"),
-    });
+    database = openMigratedDatabase(join(dir, "test.db"));
     seedStoreAndTerminal(database);
     storeId = database.db.select().from(stores).get()!.id;
     const categoryId = database.db.select().from(categories).get()!.id;

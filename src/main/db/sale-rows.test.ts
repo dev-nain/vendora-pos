@@ -3,8 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { openDatabase, type VendoraDatabase } from "./client";
-import { runMigrations } from "./migrate";
+import type { VendoraDatabase } from "./client";
 import {
   changeRow,
   paymentRow,
@@ -15,8 +14,7 @@ import {
   saleRow,
 } from "./sale-rows";
 import { billDrafts, receiptPrints, saleLines, salePayments, sales } from "./schema";
-
-const migrationsFolder = join(process.cwd(), "drizzle");
+import { openMigratedDatabase } from "./test-database";
 
 const buyer = { name: null, ntn: null, cnic: null, phone: null };
 const totals = {
@@ -165,8 +163,7 @@ describe("rows insert into a migrated database", () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-sale-rows-"));
-    database = openDatabase(join(dir, "vendora.db"));
-    runMigrations(database, { migrationsFolder, backupDir: join(dir, "backups") });
+    database = openMigratedDatabase(join(dir, "vendora.db"));
     database.sqlite.exec(`
       INSERT INTO stores (id, created_at, updated_at) VALUES ('s1', 1, 2);
       INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 2);

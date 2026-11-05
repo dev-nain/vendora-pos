@@ -2,17 +2,18 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { openDatabase, type VendoraDatabase } from "../db/client";
-import { runMigrations } from "../db/migrate";
-import { uuidv7 } from "../db/id";
+import type { VendoraDatabase } from "../db/client";
 import { categories, stores, taxCategories, terminals, users } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import { createAuditService } from "./audit";
 import { createStockService } from "./stock";
+import { openMigratedDatabase } from "../db/test-database";
 
 const productCount = 30_000;
 const movementCount = 1_000_000;
 const hotMovements = 10_000;
+
+const productId = (i: number) => `00000000-0000-7000-8000-${String(i).padStart(12, "0")}`;
 
 const percentile = (sorted: number[], p: number) =>
   sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))]!;
@@ -43,11 +44,7 @@ describe("stock on-hand benchmark", () => {
 
   beforeAll(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-stock-bench-"));
-    database = openDatabase(join(dir, "test.db"));
-    runMigrations(database, {
-      migrationsFolder: join(process.cwd(), "drizzle"),
-      backupDir: join(dir, "backups"),
-    });
+    database = openMigratedDatabase(join(dir, "test.db"));
     seedStoreAndTerminal(database);
     const storeId = database.db.select().from(stores).get()!.id;
     const terminalId = database.db.select().from(terminals).get()!.id;
@@ -59,49 +56,43 @@ describe("stock on-hand benchmark", () => {
       .returning()
       .get().id;
 
-    const insertProduct = database.sqlite.prepare(
-      `INSERT INTO products (id, store_id, name_en, search_text, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'piece', ?, ?, ?, ?)`,
-    );
-    const insertMovement = database.sqlite.prepare(
-      `INSERT INTO stock_movements (id, store_id, terminal_id, product_id, type, qty_milli, unit_cost_paisa, actor_user_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    );
     const base = Date.now();
+    for (let i = 0; i < productCount; i++) productIds.push(productId(i));
+    for (let m = 0; m < movementCount; m++) {
+      const index = m < hotMovements ? 0 : (m - hotMovements) % productCount;
+      totals[index]! += (m % 3 !== 0 ? 1 : -1) * (1000 + (m % 7) * 250);
+    }
+
     database.sqlite.transaction(() => {
-      for (let i = 0; i < productCount; i++) {
-        const id = uuidv7();
-        productIds.push(id);
-        insertProduct.run(
-          id,
-          storeId,
-          `Item ${i}`,
-          `item ${i}`,
-          categoryId,
-          taxCategoryId,
-          1000 + i,
-          1500 + i,
-          base,
-          base,
-        );
-      }
-      for (let m = 0; m < movementCount; m++) {
-        const index = m < hotMovements ? 0 : (m - hotMovements) % productCount;
-        const incoming = m % 3 !== 0;
-        const qty = (incoming ? 1 : -1) * (1000 + (m % 7) * 250);
-        totals[index]! += qty;
-        insertMovement.run(
-          uuidv7(),
+      database.sqlite
+        .prepare(
+          `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < @count - 1)
+           INSERT INTO products (id, store_id, name_en, search_text, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, created_at, updated_at)
+           SELECT printf('00000000-0000-7000-8000-%012d', i), @storeId, 'Item ' || i, 'item ' || i,
+                  @categoryId, @taxCategoryId, 'piece', 1000 + i, 1500 + i, @base, @base
+           FROM n`,
+        )
+        .run({ count: productCount, storeId, categoryId, taxCategoryId, base });
+      database.sqlite
+        .prepare(
+          `WITH RECURSIVE n(m) AS (SELECT 0 UNION ALL SELECT m + 1 FROM n WHERE m < @count - 1)
+           INSERT INTO stock_movements (id, store_id, terminal_id, product_id, type, qty_milli, unit_cost_paisa, actor_user_id, created_at)
+           SELECT printf('00000000-0000-7000-9000-%012d', m), @storeId, @terminalId,
+                  printf('00000000-0000-7000-8000-%012d', CASE WHEN m < @hot THEN 0 ELSE (m - @hot) % @products END),
+                  CASE WHEN m % 3 != 0 THEN 'receipt' ELSE 'sale' END,
+                  (CASE WHEN m % 3 != 0 THEN 1 ELSE -1 END) * (1000 + (m % 7) * 250),
+                  1000 + (m % 500), @actorId, @base + m
+           FROM n`,
+        )
+        .run({
+          count: movementCount,
+          hot: hotMovements,
+          products: productCount,
           storeId,
           terminalId,
-          productIds[index],
-          incoming ? "receipt" : "sale",
-          qty,
-          1000 + (m % 500),
           actorId,
-          base + m,
-        );
-      }
+          base,
+        });
     })();
 
     service = createStockService({ database, audit: createAuditService(database) });

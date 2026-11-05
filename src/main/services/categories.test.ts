@@ -10,12 +10,12 @@ import {
 } from "../../shared/categories";
 import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
-import { openDatabase, type VendoraDatabase } from "../db/client";
-import { runMigrations } from "../db/migrate";
+import type { VendoraDatabase } from "../db/client";
 import { auditLog, categories, products, stores, taxCategories, users } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import { createAuditService } from "./audit";
 import { createCategoriesService } from "./categories";
+import { openMigratedDatabase } from "../db/test-database";
 
 const uuid = "01900000-0000-7000-8000-000000000001";
 
@@ -79,11 +79,7 @@ describe("createCategoriesService", () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-categories-service-"));
-    database = openDatabase(join(dir, "vendora.db"));
-    runMigrations(database, {
-      migrationsFolder: join(process.cwd(), "drizzle"),
-      backupDir: join(dir, "backups"),
-    });
+    database = openMigratedDatabase(join(dir, "vendora.db"));
     seedStoreAndTerminal(database);
     sessions = createSessionStore();
     service = createCategoriesService({

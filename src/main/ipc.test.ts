@@ -5,8 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ipcErrorMessages } from "@shared/ipc";
 import { createProductInputSchema } from "@shared/products";
 import { createSessionStore, type SessionStore } from "./auth/session";
-import { openDatabase, type VendoraDatabase } from "./db/client";
-import { runMigrations } from "./db/migrate";
+import type { VendoraDatabase } from "./db/client";
 import { auditLog, categories, products, stores, taxCategories, users } from "./db/schema";
 import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
@@ -17,6 +16,7 @@ import { createCheckoutKit, type CheckoutKit } from "./services/checkout-test-ki
 import { createSalesService, type SalesService } from "./services/sales";
 import { createShiftsService, type ShiftsService } from "./services/shifts";
 import { createStockService } from "./services/stock";
+import { openMigratedDatabase } from "./db/test-database";
 
 const handlers = vi.hoisted(
   () => new Map<string, (event: unknown, ...args: unknown[]) => unknown>(),
@@ -101,11 +101,7 @@ describe("products ipc", () => {
   beforeEach(() => {
     handlers.clear();
     dir = mkdtempSync(join(tmpdir(), "vendora-ipc-"));
-    database = openDatabase(join(dir, "vendora.db"));
-    runMigrations(database, {
-      migrationsFolder: join(process.cwd(), "drizzle"),
-      backupDir: join(dir, "backups"),
-    });
+    database = openMigratedDatabase(join(dir, "vendora.db"));
     seedStoreAndTerminal(database);
     categoryId = database.db.select().from(categories).get()!.id;
     taxCategoryId = database.db.select().from(taxCategories).get()!.id;
@@ -320,11 +316,7 @@ describe("shifts ipc", () => {
   beforeEach(() => {
     handlers.clear();
     dir = mkdtempSync(join(tmpdir(), "vendora-ipc-shifts-"));
-    database = openDatabase(join(dir, "vendora.db"));
-    runMigrations(database, {
-      migrationsFolder: join(process.cwd(), "drizzle"),
-      backupDir: join(dir, "backups"),
-    });
+    database = openMigratedDatabase(join(dir, "vendora.db"));
     seedStoreAndTerminal(database);
     sessions = createSessionStore();
     service = createShiftsService({
