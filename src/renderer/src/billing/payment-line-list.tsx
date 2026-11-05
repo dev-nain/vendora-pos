@@ -1,4 +1,4 @@
-import { XIcon } from "lucide-react";
+import { CircleAlertIcon, XIcon } from "lucide-react";
 
 import { paymentMethodLabels, type PaymentMethod } from "@shared/checkout";
 import { Button } from "@renderer/components/ui/button";
@@ -11,6 +11,7 @@ export const referenceInputId = (method: PaymentMethod) => `pay-reference-${meth
 
 interface PaymentLineListProps {
   lines: PaymentLine[];
+  lineErrors: Partial<Record<PaymentMethod, string>>;
   selected: PaymentMethod | null;
   onSelect: (method: PaymentMethod) => void;
   onActivate: (method: PaymentMethod) => void;
@@ -21,6 +22,7 @@ interface PaymentLineListProps {
 
 export function PaymentLineList({
   lines,
+  lineErrors,
   selected,
   onSelect,
   onActivate,
@@ -41,7 +43,7 @@ export function PaymentLineList({
             key={line.method}
             onClick={() => onActivate(line.method)}
             className={cn(
-              "flex min-h-[var(--height-row)] items-center gap-300 rounded-200 px-300 py-100",
+              "flex min-h-[var(--height-row)] flex-wrap items-center gap-300 rounded-200 px-300 py-100",
               isSelected ? "selection-pill" : "hover:bg-surface-hover",
             )}
           >
@@ -87,6 +89,20 @@ export function PaymentLineList({
             >
               <XIcon aria-hidden="true" size={16} strokeWidth={2} />
             </Button>
+            {lineErrors[line.method] ? (
+              <p
+                role="alert"
+                className="m-0 flex w-full items-center justify-end gap-100 text-[length:var(--font-size-300)] text-critical"
+              >
+                <CircleAlertIcon
+                  aria-hidden="true"
+                  size={14}
+                  strokeWidth={2}
+                  className="shrink-0 text-[var(--color-icon-critical)]"
+                />
+                {lineErrors[line.method]}
+              </p>
+            ) : null}
           </li>
         );
       })}

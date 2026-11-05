@@ -4,11 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   checkoutMessages,
   paymentMethodLabels,
-  paymentMethods,
   type Bill,
   type CompletedSale,
   type PaymentMethod,
 } from "@shared/checkout";
+import { returnMessages } from "@shared/returns";
 import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { cn } from "@renderer/lib/utils";
@@ -21,7 +21,9 @@ import { Numpad } from "./numpad";
 import { amountInputId, PaymentLineList, referenceInputId } from "./payment-line-list";
 import {
   backspaceAmount,
+  methodCapPaisa,
   moveSelected,
+  offeredMethods,
   paymentSummary,
   quickTender,
   removeSelected,
@@ -111,6 +113,9 @@ export function PaymentScreen({
   const keyHandler = useRef<(event: KeyboardEvent) => void>(() => {});
 
   const summary = useMemo(() => paymentSummary(bill, draft.lines), [bill, draft.lines]);
+  const refund = summary.refundMode;
+  const offered = useMemo(() => offeredMethods(bill), [bill]);
+  const issue = useMemo(() => validationIssue(bill, draft), [bill, draft]);
 
   const focusOn = useCallback((target: FocusTarget) => {
     setFocusRequest((prev) => ({ target, n: (prev?.n ?? 0) + 1 }));
@@ -161,9 +166,21 @@ export function PaymentScreen({
     locked.current = true;
     setBusy(true);
     try {
-      const issue = validationIssue(bill, draft);
       if (issue?.kind === "underpaid") {
         showNotice(`${formatRupees(issue.remainingPaisa)} left to pay`);
+        return;
+      }
+      if (issue?.kind === "under-refunded") {
+        showNotice(`${formatRupees(issue.remainingPaisa)} left to refund`);
+        return;
+      }
+      if (issue?.kind === "over-refunded") {
+        showNotice(returnMessages.refundExact(issue.duePaisa));
+        return;
+      }
+      if (issue?.kind === "over-cap") {
+        showNotice(returnMessages.overCap(paymentMethodLabels[issue.method], issue.capPaisa));
+        focusOn({ kind: "amount", method: issue.method });
         return;
       }
       if (issue?.kind === "cash-not-rounded") {
@@ -232,6 +249,7 @@ export function PaymentScreen({
   };
 
   const addMethod = (method: PaymentMethod) => {
+    if (!offered.includes(method)) return;
     const existed = draft.lines.some((line) => line.method === method);
     change(selectOrAdd(draft, bill, method));
     focusOn({
@@ -241,6 +259,7 @@ export function PaymentScreen({
   };
 
   const tender = (kind: TenderKind) => {
+    if (refund && kind !== "exact") return;
     change(quickTender(draft, bill, kind));
     focusOn({ kind: "amount", method: "cash" });
   };
@@ -327,7 +346,17 @@ export function PaymentScreen({
   }, [active]);
 
   const hasSelection = draft.selected !== null;
-  const issue = validationIssue(bill, draft);
+  const blocked =
+    issue?.kind === "underpaid" ||
+    issue?.kind === "under-refunded" ||
+    issue?.kind === "over-refunded" ||
+    issue?.kind === "over-cap";
+  const lineErrors: Partial<Record<PaymentMethod, string>> =
+    issue?.kind === "over-cap"
+      ? {
+          [issue.method]: returnMessages.overCap(paymentMethodLabels[issue.method], issue.capPaisa),
+        }
+      : {};
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -338,7 +367,7 @@ export function PaymentScreen({
           <Kbd>Esc</Kbd>
         </Button>
         <h1 className="m-0 text-[length:var(--font-size-550)] font-semibold text-foreground">
-          Payment
+          {refund ? "Refund" : "Payment"}
         </h1>
       </header>
       <div className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)_340px]">
@@ -346,8 +375,10 @@ export function PaymentScreen({
           aria-label="Payment methods"
           className="flex min-h-0 flex-col gap-200 overflow-y-auto border-r border-line p-400"
         >
-          {paymentMethods.map((method) => {
+          {offered.map((method) => {
             const hasLine = draft.lines.some((line) => line.method === method);
+            const cap =
+              refund && method !== "cash" ? methodCapPaisa(bill, method, draft.lines) : null;
             return (
               <Button
                 key={method}
@@ -358,9 +389,16 @@ export function PaymentScreen({
                 className={cn("w-full justify-between px-400", hasLine && "bg-surface-selected")}
                 onClick={() => addMethod(method)}
               >
-                <span className="flex items-center gap-200">
-                  {hasLine ? <CheckIcon aria-hidden="true" size={16} strokeWidth={2} /> : null}
-                  {paymentMethodLabels[method]}
+                <span className="grid justify-items-start">
+                  <span className="flex items-center gap-200">
+                    {hasLine ? <CheckIcon aria-hidden="true" size={16} strokeWidth={2} /> : null}
+                    {paymentMethodLabels[method]}
+                  </span>
+                  {cap === null ? null : (
+                    <span className="text-[length:var(--font-size-300)] font-normal text-tertiary">
+                      Up to {formatRupees(cap)}
+                    </span>
+                  )}
                 </span>
                 <Kbd>{methodKeycaps[method]}</Kbd>
               </Button>
@@ -370,18 +408,20 @@ export function PaymentScreen({
             Quick tender
           </p>
           <div className="grid grid-cols-2 gap-200">
-            {tenderButtons.map(({ key, kind, label }) => (
-              <Button
-                key={key}
-                variant="secondary"
-                size="lg"
-                className="justify-between px-300"
-                onClick={() => tender(kind)}
-              >
-                {label}
-                <Kbd>{key}</Kbd>
-              </Button>
-            ))}
+            {tenderButtons
+              .filter(({ kind }) => !refund || kind === "exact")
+              .map(({ key, kind, label }) => (
+                <Button
+                  key={key}
+                  variant="secondary"
+                  size="lg"
+                  className="justify-between px-300"
+                  onClick={() => tender(kind)}
+                >
+                  {label}
+                  <Kbd>{key}</Kbd>
+                </Button>
+              ))}
           </div>
           <BuyerToggle text={draft.buyer} open={draft.buyerOpen} onToggle={toggleBuyer} />
         </section>
@@ -392,6 +432,7 @@ export function PaymentScreen({
           <PaymentHero summary={summary} />
           <PaymentLineList
             lines={draft.lines}
+            lineErrors={lineErrors}
             selected={draft.selected}
             onSelect={(method) => {
               if (draft.selected !== method) onDraftChange({ ...draft, selected: method });
@@ -435,7 +476,7 @@ export function PaymentScreen({
           />
           <Button
             size="lg"
-            disabled={issue?.kind === "underpaid" || busy}
+            disabled={blocked || busy}
             aria-busy={busy}
             className="mt-auto w-full"
             onClick={() => void validate()}

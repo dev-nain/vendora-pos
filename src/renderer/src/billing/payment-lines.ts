@@ -1,4 +1,11 @@
-import type { Bill, BuyerInput, CompleteSaleInput, PaymentMethod } from "@shared/checkout";
+import {
+  paymentMethods,
+  type Bill,
+  type BuyerInput,
+  type CompleteSaleInput,
+  type PaymentMethod,
+} from "@shared/checkout";
+import { refundCapPaisa } from "@shared/returns";
 import { roundToUnit, tenderRoundingPaisa, type TenderInput } from "@shared/rounding";
 import { parseRupees, rupeeInputText } from "../lib/money";
 import { emptyBuyerText, type BuyerText } from "./buyer-input";
@@ -22,16 +29,21 @@ export type PaymentDraft = {
 export type TenderKind = "exact" | 50000 | 100000 | 500000;
 
 export type PaymentSummary = {
+  refundMode: boolean;
   preTotalPaisa: number;
   roundingPaisa: number;
   totalPaisa: number;
   paidPaisa: number;
   remainingPaisa: number;
+  overPaisa: number;
   changePaisa: number;
 };
 
 export type ValidationIssue =
   | { kind: "underpaid"; remainingPaisa: number }
+  | { kind: "under-refunded"; remainingPaisa: number }
+  | { kind: "over-refunded"; overPaisa: number; duePaisa: number }
+  | { kind: "over-cap"; method: PaymentMethod; capPaisa: number }
   | { kind: "cash-not-rounded" }
   | { kind: "bad-amount"; method: PaymentMethod }
   | { kind: "too-large"; paidPaisa: number; totalPaisa: number };
@@ -56,20 +68,71 @@ const tendersOf = (lines: readonly PaymentLine[]): TenderInput[] =>
     .map((line) => ({ method: line.method, amountPaisa: amountPaisa(line) }))
     .filter((tender) => tender.amountPaisa > 0);
 
+export const refundMode = (bill: Bill): boolean =>
+  bill.totals.totalPaisa - bill.totals.roundingPaisa < 0;
+
 export function paymentSummary(bill: Bill, lines: readonly PaymentLine[]): PaymentSummary {
   const preTotalPaisa = bill.totals.totalPaisa - bill.totals.roundingPaisa;
   const tenders = tendersOf(lines);
-  const roundingPaisa = tenderRoundingPaisa(preTotalPaisa, bill.cashRounding, tenders);
+  const refund = refundMode(bill);
+  const roundingPaisa = tenderRoundingPaisa(
+    preTotalPaisa,
+    bill.cashRounding,
+    refund ? tenders.map((tender) => ({ ...tender, amountPaisa: -tender.amountPaisa })) : tenders,
+  );
   const totalPaisa = preTotalPaisa + roundingPaisa;
   const paidPaisa = tenders.reduce((sum, tender) => sum + tender.amountPaisa, 0);
+  if (refund) {
+    const duePaisa = -totalPaisa;
+    return {
+      refundMode: true,
+      preTotalPaisa,
+      roundingPaisa,
+      totalPaisa,
+      paidPaisa,
+      remainingPaisa: Math.max(0, duePaisa - paidPaisa),
+      overPaisa: Math.max(0, paidPaisa - duePaisa),
+      changePaisa: 0,
+    };
+  }
   return {
+    refundMode: false,
     preTotalPaisa,
     roundingPaisa,
     totalPaisa,
     paidPaisa,
     remainingPaisa: Math.max(0, totalPaisa - paidPaisa),
+    overPaisa: 0,
     changePaisa: Math.max(0, paidPaisa - totalPaisa),
   };
+}
+
+export function offeredMethods(bill: Bill): PaymentMethod[] {
+  if (!refundMode(bill)) return [...paymentMethods];
+  const offered = new Set<PaymentMethod>(["cash"]);
+  for (const entry of bill.refund?.methods ?? []) {
+    if (entry.availablePaisa > 0) offered.add(entry.method);
+  }
+  return paymentMethods.filter((method) => offered.has(method));
+}
+
+export function methodCapPaisa(
+  bill: Bill,
+  method: PaymentMethod,
+  lines: readonly PaymentLine[],
+): number {
+  const refund = bill.refund;
+  if (!refund || method === "cash") return 0;
+  const index = lines.findIndex((line) => line.method === method);
+  const earlier = index === -1 ? lines : lines.slice(0, index);
+  const taken = tendersOf(earlier)
+    .filter((tender) => tender.method !== "cash")
+    .reduce((sum, tender) => sum + tender.amountPaisa, 0);
+  return refundCapPaisa({
+    availablePaisa: refund.methods.find((entry) => entry.method === method)?.availablePaisa ?? 0,
+    linkedRefundPaisa: refund.linkedRefundPaisa - taken,
+    netRefundPaisa: -paymentSummary(bill, lines).totalPaisa,
+  });
 }
 
 const roundUpToUnit = (paisa: number, unitPaisa: number): number =>
@@ -81,6 +144,18 @@ export function suggestedAmountPaisa(
   method: PaymentMethod,
 ): number {
   const others = lines.filter((line) => line.method !== method);
+  if (refundMode(bill)) {
+    const remaining = paymentSummary(bill, others).remainingPaisa;
+    if (method !== "cash") {
+      const cap = methodCapPaisa(bill, method, [
+        ...others,
+        { method, amount: freshField(""), reference: "", tenderRun: false },
+      ]);
+      return Math.min(cap, remaining);
+    }
+    const { mode, unitPaisa } = bill.cashRounding;
+    return mode === "cash-only" ? roundToUnit(remaining, unitPaisa) : remaining;
+  }
   if (method !== "cash") {
     return Math.max(0, paymentSummary(bill, others).remainingPaisa);
   }
@@ -117,6 +192,7 @@ export function selectOrAdd(draft: PaymentDraft, bill: Bill, method: PaymentMeth
 }
 
 export function quickTender(draft: PaymentDraft, bill: Bill, kind: TenderKind): PaymentDraft {
+  if (refundMode(bill) && kind !== "exact") return draft;
   const existing = draft.lines.find((line) => line.method === "cash");
   const base: PaymentDraft = existing
     ? draft
@@ -214,7 +290,24 @@ export function validationIssue(bill: Bill, draft: PaymentDraft): ValidationIssu
   if (bad) return { kind: "bad-amount", method: bad.method };
 
   const summary = paymentSummary(bill, draft.lines);
-  if (summary.remainingPaisa > 0) {
+  if (summary.refundMode) {
+    for (const line of draft.lines) {
+      if (line.method === "cash") continue;
+      const capPaisa = methodCapPaisa(bill, line.method, draft.lines);
+      if (amountPaisa(line) > capPaisa) return { kind: "over-cap", method: line.method, capPaisa };
+    }
+    const { mode, unitPaisa } = bill.cashRounding;
+    const refundCash = draft.lines.find((line) => line.method === "cash");
+    if (mode !== "off" && refundCash && amountPaisa(refundCash) % unitPaisa !== 0) {
+      return { kind: "cash-not-rounded" };
+    }
+    if (summary.remainingPaisa > 0) {
+      return { kind: "under-refunded", remainingPaisa: summary.remainingPaisa };
+    }
+    if (summary.overPaisa > 0) {
+      return { kind: "over-refunded", overPaisa: summary.overPaisa, duePaisa: -summary.totalPaisa };
+    }
+  } else if (summary.remainingPaisa > 0) {
     return { kind: "underpaid", remainingPaisa: summary.remainingPaisa };
   }
 
