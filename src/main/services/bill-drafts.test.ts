@@ -264,6 +264,49 @@ describe("bill drafts", () => {
     });
   });
 
+  describe("loose weighed items", () => {
+    let rice: { id: string };
+
+    beforeEach(() => {
+      kit.openShift();
+      rice = kit.addProduct({
+        nameEn: "Rice",
+        nameUr: "چاول",
+        searchText: "rice",
+        unit: "kg",
+        salePricePaisa: 85000,
+      });
+      kit.addBarcode(rice.id, "8961014000035");
+    });
+
+    it("asks for the weight of a plain kg barcode and adds nothing", () => {
+      expect(service().scan({ barcode: "8961014000035" })).toEqual({
+        ok: false,
+        reason: "needs-weight",
+        message: "Enter the weight.",
+        product: {
+          id: rice.id,
+          name: "Rice",
+          nameUr: "چاول",
+          unit: "kg",
+          unitPricePaisa: 85000,
+        },
+      });
+      expect(service().current()).toEqual({ bill: null });
+    });
+
+    it("adds a fixed-size kg pack straight away", () => {
+      kit.addBarcode(rice.id, "8961014000042", { packQtyMilli: 5000, salePricePaisa: 400000 });
+      const bill = okBill(service().scan({ barcode: "8961014000042" }));
+      expect(bill.lines[0]).toMatchObject({ qtyMilli: 1000, packQtyMilli: 5000 });
+    });
+
+    it("adds the weight the cashier typed", () => {
+      const bill = okBill(service().addProduct({ productId: rice.id, qtyMilli: 412 }));
+      expect(bill.lines[0]).toMatchObject({ qtyMilli: 412, grossPaisa: 35020 });
+    });
+  });
+
   describe("scale labels", () => {
     beforeEach(() => {
       kit.openShift();
@@ -378,10 +421,10 @@ describe("bill drafts", () => {
 
     it("holds the current bill so nothing is current, and refuses an empty one", () => {
       const bill = okBill(service().addProduct({ productId: tea.id }));
-      expect(service().hold({ draftId: bill.id, label: "Mr Khan" })).toEqual({ ok: true });
+      expect(service().hold({ draftId: bill.id })).toEqual({ ok: true });
       expect(service().current()).toEqual({ bill: null });
       expect(service().listHeld()).toEqual([
-        expect.objectContaining({ id: bill.id, label: "Mr Khan", totalPaisa: 10000 }),
+        expect.objectContaining({ id: bill.id, totalPaisa: 10000 }),
       ]);
 
       const fresh = okBill(service().addProduct({ productId: soap.id }));
@@ -390,7 +433,7 @@ describe("bill drafts", () => {
       expect(service().hold({ draftId: fresh.id })).toMatchObject({ reason: "empty-bill" });
     });
 
-    it("labels an unnamed held bill by its item count and lists oldest first", () => {
+    it("summarises held bills by cashier, item count and first item names, oldest first", () => {
       const first = okBill(service().addProduct({ productId: tea.id }));
       service().addProduct({ productId: soap.id });
       service().hold({ draftId: first.id });
@@ -400,7 +443,10 @@ describe("bill drafts", () => {
       const held = service().listHeld();
 
       expect(held.map((bill) => bill.id)).toEqual([first.id, second.id]);
-      expect(held.map((bill) => bill.label)).toEqual(["2 items", "1 item"]);
+      expect(held.map((bill) => bill.lineCount)).toEqual([2, 1]);
+      expect(held[0]?.itemNames).toHaveLength(2);
+      expect(held[0]?.cashier).toEqual(expect.any(String));
+      expect(held[0]).not.toHaveProperty("label");
     });
 
     it("resumes a held bill and holds the current non-empty one", () => {
@@ -457,7 +503,7 @@ describe("bill drafts", () => {
 
     it("survives a restart: a new service sees the same current bill and held list", () => {
       const first = okBill(service().addProduct({ productId: tea.id }));
-      service().hold({ draftId: first.id, label: "Mr Khan" });
+      service().hold({ draftId: first.id });
       const second = okBill(service().addProduct({ productId: soap.id }));
 
       const restarted = createBillDraftsService({

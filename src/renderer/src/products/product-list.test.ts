@@ -34,6 +34,7 @@ const item = (id: string): ProductSearchResult["items"][number] => ({
   isActive: true,
   primaryBarcode: null,
   extraBarcodeCount: 0,
+  onHandMilli: 0,
 });
 
 describe("fetchProductPage", () => {

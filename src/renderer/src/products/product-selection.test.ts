@@ -13,6 +13,7 @@ const item = (n: number): ProductSearchItem => ({
   isActive: true,
   primaryBarcode: null,
   extraBarcodeCount: 0,
+  onHandMilli: 0,
 });
 
 const page = [item(1), item(2), item(3)];

@@ -25,6 +25,7 @@ export const checkoutMessages = {
   underpaid: "Payment is short.",
   cashNotRounded: "Cash is taken in the rounding unit. Adjust the cash amount.",
   refundCashOnly: "Refunds without a receipt are paid in cash.",
+  needsWeight: "Enter the weight.",
   refundAmount: "Pay the refund in one cash amount equal to the total.",
 } as const;
 
@@ -86,7 +87,6 @@ export const setBillDiscountInputSchema = z.strictObject({
 
 export const holdInputSchema = z.strictObject({
   draftId: z.uuid(),
-  label: z.string().trim().min(1).max(40).optional(),
 });
 
 const buyerSchema = z.strictObject({
@@ -148,7 +148,6 @@ export const billTotalsSchema = z.strictObject({
 
 export const billSchema = z.strictObject({
   id: z.string(),
-  label: z.string().nullable(),
   heldAt: isoSchema.nullable(),
   billDiscount: discountSchema.nullable(),
   lines: z.array(billLineSchema),
@@ -158,6 +157,19 @@ export const billSchema = z.strictObject({
   cashRounding: z.strictObject({
     mode: z.enum(["off", "every-bill", "cash-only"]),
     unitPaisa: z.int(),
+  }),
+});
+
+const needsWeightSchema = z.strictObject({
+  ok: z.literal(false),
+  reason: z.literal("needs-weight"),
+  message: z.string(),
+  product: z.strictObject({
+    id: z.string(),
+    name: z.string(),
+    nameUr: z.string().nullable(),
+    unit: z.enum(productUnits),
+    unitPricePaisa: z.int(),
   }),
 });
 
@@ -175,6 +187,7 @@ export const billResultSchema = z.union([
   refusal("return-discount"),
   refusal("no-price"),
   refusal("misc-disabled"),
+  needsWeightSchema,
   emptyBillSchema,
 ]);
 

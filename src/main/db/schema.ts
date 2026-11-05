@@ -459,7 +459,6 @@ export const billDrafts = sqliteTable(
       .references(() => shifts.id),
     state: text("state", { enum: billDraftStates }).notNull().default("draft"),
     heldAt: integer("held_at", { mode: "timestamp_ms" }),
-    label: text("label"),
     createdBy: text("created_by")
       .notNull()
       .references(() => users.id),

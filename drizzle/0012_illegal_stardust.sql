@@ -1,0 +1,1 @@
+ALTER TABLE `bill_drafts` DROP COLUMN `label`;

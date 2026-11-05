@@ -490,7 +490,7 @@ describe("checkout ipc", () => {
     ["checkout:update-line", { lineId: unknownId, discount: { kind: "percent", bps: 10001 } }],
     ["checkout:delete-line", { lineId: "nope" }],
     ["checkout:set-bill-discount", { draftId: unknownId, discount: { kind: "amount" } }],
-    ["checkout:hold", { draftId: unknownId, label: "" }],
+    ["checkout:hold", { draftId: unknownId, label: "Mr Khan" }],
     ["checkout:resume", { draftId: "nope" }],
     ["checkout:discard", {}],
     ["checkout:complete", { draftId: unknownId, payments: [{ method: "cash", amountPaisa: 1.5 }] }],
@@ -554,14 +554,14 @@ describe("checkout ipc", () => {
       bill: { id: string };
     };
 
-    expect(await invoke("checkout:hold", { draftId: added.bill.id, label: "Mr Khan" })).toEqual({
+    expect(await invoke("checkout:hold", { draftId: added.bill.id })).toEqual({
       ok: true,
     });
     expect(await invoke("checkout:list-held")).toEqual([
-      expect.objectContaining({ label: "Mr Khan", totalPaisa: 16000 }),
+      expect.objectContaining({ lineCount: 1, itemNames: ["Sugar"], totalPaisa: 16000 }),
     ]);
     expect(await invoke("shifts:state")).toMatchObject({
-      heldBills: [expect.objectContaining({ label: "Mr Khan" })],
+      heldBills: [expect.objectContaining({ lineCount: 1 })],
     });
   });
 });
