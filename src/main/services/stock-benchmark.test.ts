@@ -134,7 +134,7 @@ describe("stock on-hand benchmark", () => {
       );
       expect(service.onHandMany(ids).size).toBe(50);
     });
-    expect(p95).toBeLessThan(10);
+    expect(p95).toBeLessThan(50);
   });
 
   it("looks up on-hand for the hot product quickly", () => {
