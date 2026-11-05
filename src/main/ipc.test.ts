@@ -13,6 +13,7 @@ import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createProductsService, type ProductsService } from "./services/products";
+import { createShiftsService, type ShiftsService } from "./services/shifts";
 
 const handlers = vi.hoisted(
   () => new Map<string, (event: unknown, ...args: unknown[]) => unknown>(),
@@ -120,6 +121,7 @@ describe("products ipc", () => {
       categories: stub,
       products: service,
       settings: stub,
+      shifts: stub,
       taxCategories: stub,
       users: stub,
     });
@@ -285,5 +287,134 @@ describe("products ipc", () => {
         new Error(ipcErrorMessages.unauthenticated),
       );
     });
+  });
+});
+
+describe("shifts ipc", () => {
+  let dir: string;
+  let database: VendoraDatabase;
+  let sessions: SessionStore;
+  let service: ShiftsService;
+
+  const signIn = () => {
+    const user = database.db
+      .insert(users)
+      .values({ username: "cashier", displayName: "Bilal", passwordHash: "x", pinHash: "x" })
+      .returning()
+      .get();
+    sessions.start({
+      userId: user.id,
+      storeId: database.db.select().from(stores).get()!.id,
+      loggedInAt: new Date(0),
+    });
+  };
+
+  beforeEach(() => {
+    handlers.clear();
+    dir = mkdtempSync(join(tmpdir(), "vendora-ipc-shifts-"));
+    database = openDatabase(join(dir, "vendora.db"));
+    runMigrations(database, {
+      migrationsFolder: join(process.cwd(), "drizzle"),
+      backupDir: join(dir, "backups"),
+    });
+    seedStoreAndTerminal(database);
+    sessions = createSessionStore();
+    service = createShiftsService({
+      database,
+      audit: createAuditService(database),
+      sessions,
+      heldBills: () => [],
+    });
+    const stub = {} as never;
+    registerIpcHandlers({
+      auth: stub,
+      catalogExport: stub,
+      categories: stub,
+      products: stub,
+      settings: stub,
+      shifts: service,
+      taxCategories: stub,
+      users: stub,
+    });
+  });
+
+  afterEach(() => {
+    database.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it.each([
+    ["shifts:open", { openingFloatPaisa: 1.5 }],
+    ["shifts:open", { openingFloatPaisa: -1 }],
+    ["shifts:open", { openingFloatPaisa: 0, extra: 1 }],
+    ["shifts:add-cash-move", { kind: "in", amountPaisa: 0, reason: "x" }],
+    ["shifts:add-cash-move", { kind: "in", amountPaisa: 1.5, reason: "x" }],
+    ["shifts:add-cash-move", { kind: "in", amountPaisa: 10, reason: "" }],
+    ["shifts:add-cash-move", { kind: "in", amountPaisa: 10, reason: "x".repeat(121) }],
+    ["shifts:delete-cash-move", { id: "not-a-uuid" }],
+    ["shifts:report", { id: "not-a-uuid" }],
+    ["shifts:close", { shiftId: unknownId, count: { method: "total", countedCashPaisa: -1 } }],
+    [
+      "shifts:close",
+      {
+        shiftId: unknownId,
+        count: {
+          method: "denominations",
+          lines: [
+            { denominationId: unknownId, count: 1 },
+            { denominationId: unknownId, count: 2 },
+          ],
+        },
+      },
+    ],
+  ])("rejects invalid input on %s before the service runs", async (channel, input) => {
+    signIn();
+    const spies = (["open", "addCashMove", "deleteCashMove", "report", "close"] as const).map(
+      (method) => vi.spyOn(service, method),
+    );
+
+    await expect(invoke(channel, input)).rejects.toThrow();
+
+    for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+    expect(database.db.select().from(auditLog).all()).toHaveLength(0);
+  });
+
+  it.each([
+    "shifts:state",
+    "shifts:open",
+    "shifts:add-cash-move",
+    "shifts:delete-cash-move",
+    "shifts:report",
+    "shifts:list-denominations",
+    "shifts:close",
+  ])("rejects %s with no session", async (channel) => {
+    const input: Record<string, unknown> = {
+      "shifts:open": { openingFloatPaisa: 0 },
+      "shifts:add-cash-move": { kind: "in", amountPaisa: 10, reason: "x" },
+      "shifts:delete-cash-move": { id: unknownId },
+      "shifts:report": { id: unknownId },
+      "shifts:close": { shiftId: unknownId, count: { method: "total", countedCashPaisa: 0 } },
+    };
+
+    await expect(invoke(channel, input[channel])).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
+  });
+
+  it("opens then closes by total", async () => {
+    signIn();
+
+    const opened = await invoke("shifts:open", { openingFloatPaisa: 5000 });
+    expect(opened).toMatchObject({ ok: true });
+    const shiftId = (opened as { shift: { id: string } }).shift.id;
+    expect(await invoke("shifts:state")).toMatchObject({ status: "open" });
+
+    const closed = await invoke("shifts:close", {
+      shiftId,
+      count: { method: "total", countedCashPaisa: 5000 },
+    });
+
+    expect(closed).toMatchObject({ ok: true, report: { kind: "z", variancePaisa: 0 } });
+    expect(await invoke("shifts:state")).toEqual({ status: "closed", suggestedFloatPaisa: 5000 });
   });
 });
