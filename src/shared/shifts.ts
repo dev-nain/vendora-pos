@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { refusal } from "./checkout";
+import { paymentMethods, refusal } from "./checkout";
 
 export const shiftMessages = {
   alreadyOpen: "A shift is already open on this counter.",
@@ -75,7 +75,28 @@ const cashMovesSectionSchema = z.strictObject({
   totalPaisa: z.int(),
 });
 
+export const shiftSalesSummarySchema = z.strictObject({
+  sales: z.strictObject({
+    billCount: z.int(),
+    refundBillCount: z.int(),
+    totalPaisa: z.int(),
+    byMethod: z.array(
+      z.strictObject({
+        method: z.enum(paymentMethods),
+        label: z.string(),
+        amountPaisa: z.int(),
+      }),
+    ),
+  }),
+  taxes: z.array(z.strictObject({ rateBps: z.int(), taxablePaisa: z.int(), taxPaisa: z.int() })),
+  discounts: z.strictObject({ count: z.int(), amountPaisa: z.int() }),
+  refunds: z.strictObject({ count: z.int(), amountPaisa: z.int() }),
+  deletedLines: z.strictObject({ count: z.int() }),
+  discardedBills: z.strictObject({ count: z.int() }),
+});
+
 export const shiftReportSchema = z.strictObject({
+  ...shiftSalesSummarySchema.shape,
   kind: z.enum(["x", "z"]),
   shiftId: z.string(),
   terminalCode: z.string(),
@@ -88,7 +109,7 @@ export const shiftReportSchema = z.strictObject({
   cashOut: cashMovesSectionSchema,
   expectedByMethod: z.array(
     z.strictObject({
-      method: z.enum(["cash"]),
+      method: z.enum(paymentMethods),
       label: z.string(),
       expectedPaisa: z.int(),
     }),
@@ -166,6 +187,7 @@ export type CloseShiftInput = z.input<typeof closeShiftInputSchema>;
 export type Denomination = z.infer<typeof denominationSchema>;
 export type CashMove = z.infer<typeof cashMoveSchema>;
 export type HeldBillSummary = z.infer<typeof heldBillSummarySchema>;
+export type ShiftSalesSummary = z.infer<typeof shiftSalesSummarySchema>;
 export type ShiftReport = z.infer<typeof shiftReportSchema>;
 export type ShiftState = z.infer<typeof shiftStateSchema>;
 export type OpenShiftResult = z.infer<typeof openShiftResultSchema>;
@@ -192,8 +214,14 @@ export function expectedCashPaisa(input: {
   openingFloatPaisa: number;
   cashInPaisa: number;
   cashOutPaisa: number;
+  cashSalesPaisa: number;
 }): number {
-  return sumPaisa([input.openingFloatPaisa, input.cashInPaisa, -input.cashOutPaisa]);
+  return sumPaisa([
+    input.openingFloatPaisa,
+    input.cashInPaisa,
+    -input.cashOutPaisa,
+    input.cashSalesPaisa,
+  ]);
 }
 
 export function denominationTotalPaisa(

@@ -18,6 +18,7 @@ import {
   type ShiftReportResult,
   type ShiftState,
 } from "../../shared/shifts";
+import { paymentMethodLabels, paymentMethods } from "../../shared/checkout";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
@@ -33,6 +34,7 @@ import { isUniqueViolation } from "../db/sqlite-errors";
 import { currentTerminal, type DbExecutor } from "../db/terminal";
 import { getShiftVarianceWarnPaisa } from "../settings/store-settings";
 import type { createAuditService } from "./audit";
+import { paymentPaisa, shiftSalesSummary } from "./shift-sales";
 
 type ShiftRow = typeof shifts.$inferSelect;
 
@@ -151,6 +153,7 @@ function buildReport(executor: DbExecutor, shift: ShiftRow, kind: "x" | "z"): Sh
     .where(eq(terminals.id, shift.terminalId))
     .get();
 
+  const salesSummary = shiftSalesSummary(executor, shift.id);
   const closed = kind === "z" && shift.closedAt !== null;
   const expectedPaisa = closed
     ? (shift.expectedCashPaisa ?? 0)
@@ -158,6 +161,7 @@ function buildReport(executor: DbExecutor, shift: ShiftRow, kind: "x" | "z"): Sh
         openingFloatPaisa: shift.openingFloatPaisa,
         cashInPaisa,
         cashOutPaisa,
+        cashSalesPaisa: paymentPaisa(salesSummary, "cash"),
       });
 
   let count: ShiftReport["count"] = null;
@@ -190,7 +194,12 @@ function buildReport(executor: DbExecutor, shift: ShiftRow, kind: "x" | "z"): Sh
     openingFloatPaisa: shift.openingFloatPaisa,
     cashIn: { moves: cashIn, totalPaisa: cashInPaisa },
     cashOut: { moves: cashOut, totalPaisa: cashOutPaisa },
-    expectedByMethod: [{ method: "cash", label: "Cash", expectedPaisa }],
+    ...salesSummary,
+    expectedByMethod: paymentMethods.map((method) => ({
+      method,
+      label: paymentMethodLabels[method],
+      expectedPaisa: method === "cash" ? expectedPaisa : paymentPaisa(salesSummary, method),
+    })),
     expectedCashPaisa: expectedPaisa,
     count,
     variancePaisa: closed ? shift.variancePaisa : null,
@@ -446,6 +455,7 @@ export function createShiftsService({
         openingFloatPaisa: shift.openingFloatPaisa,
         cashInPaisa,
         cashOutPaisa,
+        cashSalesPaisa: paymentPaisa(shiftSalesSummary(tx, shift.id), "cash"),
       });
       const variance = variancePaisa(countedPaisa, expectedPaisa);
 

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { BillResult, CompleteSaleInput } from "../../shared/checkout";
 import type { HeldBillSummary } from "../../shared/shifts";
 import { UnauthenticatedError } from "../auth/errors";
 import { createSessionStore, type SessionStore } from "../auth/session";
@@ -12,6 +13,7 @@ import {
   auditLog,
   cashDenominations,
   shiftCashCounts,
+  sales,
   shiftCashMoves,
   shifts,
   stores,
@@ -20,6 +22,9 @@ import {
 } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import { createAuditService } from "./audit";
+import { createCheckoutKit, type CheckoutKit } from "./checkout-test-kit";
+import { createSalesService } from "./sales";
+import { createStockService } from "./stock";
 import { NoOpenShiftError, createShiftsService, requireOpenShift } from "./shifts";
 
 describe("createShiftsService", () => {
@@ -298,7 +303,13 @@ describe("createShiftsService", () => {
         report: {
           cashOut: { moves: [], totalPaisa: 0 },
           expectedCashPaisa: 550000,
-          expectedByMethod: [{ method: "cash", label: "Cash", expectedPaisa: 550000 }],
+          expectedByMethod: [
+            { method: "cash", label: "Cash", expectedPaisa: 550000 },
+            { method: "card", label: "Card", expectedPaisa: 0 },
+            { method: "bank_transfer", label: "Bank transfer", expectedPaisa: 0 },
+            { method: "jazzcash", label: "JazzCash", expectedPaisa: 0 },
+            { method: "easypaisa", label: "Easypaisa", expectedPaisa: 0 },
+          ],
         },
       });
     });
@@ -533,5 +544,181 @@ describe("createShiftsService", () => {
         }),
       ).toThrow(UnauthenticatedError);
     });
+  });
+});
+
+function draftOf(result: BillResult) {
+  if (!result.ok) throw new Error("add failed");
+  return result.bill;
+}
+
+describe("shift sales", () => {
+  let kit: CheckoutKit;
+  let salesService: ReturnType<typeof createSalesService>;
+
+  beforeEach(() => {
+    kit = createCheckoutKit();
+    kit.signIn("cashier");
+    salesService = createSalesService({
+      database: kit.database,
+      audit: kit.audit,
+      sessions: kit.sessions,
+      stock: createStockService({ database: kit.database, audit: kit.audit }),
+    });
+  });
+
+  afterEach(() => kit.close());
+
+  const sell = (
+    productId: string,
+    payments: CompleteSaleInput["payments"],
+    options: { qtyMilli?: number; isReturn?: boolean } = {},
+  ) => {
+    const bill = draftOf(kit.billDrafts.addProduct({ productId, ...options }));
+    const result = salesService.complete({ draftId: bill.id, payments });
+    if (!result.ok) throw new Error(`sale refused: ${result.reason}`);
+    return result.sale;
+  };
+  const report = (shiftId: string) => {
+    const result = kit.shifts.report({ id: shiftId });
+    if (!result.ok) throw new Error("report failed");
+    return result.report;
+  };
+  const expected = (shiftId: string) =>
+    Object.fromEntries(
+      report(shiftId).expectedByMethod.map((row) => [row.method, row.expectedPaisa]),
+    );
+
+  it("adds a cash sale to expected cash and lists every method", () => {
+    const shiftId = kit.openShift(500000);
+    const tea = kit.addProduct({ salePricePaisa: 45000 });
+
+    sell(tea.id, [{ method: "cash", amountPaisa: 50000 }]);
+
+    expect(report(shiftId).expectedByMethod.map((row) => row.method)).toEqual([
+      "cash",
+      "card",
+      "bank_transfer",
+      "jazzcash",
+      "easypaisa",
+    ]);
+    expect(expected(shiftId)).toEqual({
+      cash: 545000,
+      card: 0,
+      bank_transfer: 0,
+      jazzcash: 0,
+      easypaisa: 0,
+    });
+    expect(report(shiftId).expectedCashPaisa).toBe(545000);
+  });
+
+  it("takes change out of the till after a card overpay", () => {
+    const shiftId = kit.openShift(500000);
+    const oil = kit.addProduct({ salePricePaisa: 98000 });
+
+    sell(oil.id, [{ method: "card", amountPaisa: 100000, reference: "4821" }]);
+
+    expect(expected(shiftId)).toMatchObject({ cash: 498000, card: 100000 });
+  });
+
+  it("takes a cash refund out of the till", () => {
+    const shiftId = kit.openShift(500000);
+    const soap = kit.addProduct({ salePricePaisa: 5000 });
+
+    sell(soap.id, [{ method: "cash", amountPaisa: 5000 }]);
+    sell(soap.id, [{ method: "cash", amountPaisa: 5000 }], { isReturn: true });
+
+    expect(expected(shiftId).cash).toBe(500000);
+    expect(report(shiftId).refunds).toEqual({ count: 1, amountPaisa: 5000 });
+    expect(report(shiftId).sales).toMatchObject({ billCount: 2, refundBillCount: 1 });
+  });
+
+  it("adds up the X sections to the sales of the shift", () => {
+    const shiftId = kit.openShift(0);
+    const tea = kit.addProduct({ salePricePaisa: 11800 });
+    const rice = kit.addProduct({
+      nameEn: "Rice",
+      searchText: "rice",
+      salePricePaisa: 5000,
+      taxCategoryId: kit.taxCategoryId("Exempt"),
+    });
+
+    const discounted = draftOf(kit.billDrafts.addProduct({ productId: tea.id, qtyMilli: 2000 }));
+    kit.billDrafts.setBillDiscount({
+      draftId: discounted.id,
+      discount: { kind: "percent", bps: 1000 },
+    });
+    const first = salesService.complete({
+      draftId: discounted.id,
+      payments: [
+        { method: "card", amountPaisa: 10000 },
+        { method: "jazzcash", amountPaisa: 11240 },
+      ],
+    });
+    expect(first.ok).toBe(true);
+    sell(rice.id, [{ method: "cash", amountPaisa: 6000 }]);
+    sell(rice.id, [{ method: "cash", amountPaisa: 5000 }], { isReturn: true });
+
+    const lined = draftOf(kit.billDrafts.addProduct({ productId: tea.id }));
+    const second = draftOf(kit.billDrafts.addProduct({ productId: rice.id }));
+    kit.billDrafts.deleteLine({ lineId: second.lines[1]!.id });
+    kit.billDrafts.discard({ draftId: lined.id });
+
+    const summary = report(shiftId);
+    const rows = kit.database.db.select().from(sales).all();
+    const sumOf = (pick: (row: (typeof rows)[number]) => number) =>
+      rows.reduce((acc, row) => acc + pick(row), 0);
+
+    expect(summary.sales.totalPaisa).toBe(sumOf((row) => row.totalPaisa));
+    expect(summary.sales.byMethod.reduce((acc, row) => acc + row.amountPaisa, 0)).toBe(
+      summary.sales.totalPaisa,
+    );
+    expect(summary.taxes.reduce((acc, row) => acc + row.taxPaisa, 0)).toBe(
+      sumOf((row) => row.taxPaisa),
+    );
+    expect(summary.taxes.map((row) => row.rateBps)).toEqual([1800, 0]);
+    expect(summary.discounts).toEqual({
+      count: 1,
+      amountPaisa: sumOf((row) => row.discountPaisa),
+    });
+    expect(summary.refunds).toEqual({ count: 1, amountPaisa: 5000 });
+    expect(summary.deletedLines).toEqual({ count: 1 });
+    expect(summary.discardedBills).toEqual({ count: 1 });
+    expect(summary.sales).toMatchObject({ billCount: 3, refundBillCount: 1 });
+  });
+
+  it("keeps the stored expected cash on the Z report", () => {
+    const shiftId = kit.openShift(100000);
+    const tea = kit.addProduct({ salePricePaisa: 10000 });
+    sell(tea.id, [{ method: "cash", amountPaisa: 10000 }]);
+
+    const closed = kit.shifts.close({
+      shiftId,
+      count: { method: "total", countedCashPaisa: 110000 },
+    });
+
+    expect(closed).toMatchObject({ ok: true });
+    if (!closed.ok) return;
+    expect(closed.report).toMatchObject({
+      kind: "z",
+      expectedCashPaisa: 110000,
+      variancePaisa: 0,
+    });
+    expect(closed.report.sales.totalPaisa).toBe(10000);
+  });
+
+  it("refuses to close while a non-empty draft exists, then closes once it is discarded", () => {
+    const shiftId = kit.openShift(0);
+    const tea = kit.addProduct();
+    const bill = draftOf(kit.billDrafts.addProduct({ productId: tea.id }));
+    const input = { shiftId, count: { method: "total", countedCashPaisa: 0 } } as const;
+
+    const refused = kit.shifts.close(input);
+    expect(refused).toMatchObject({ ok: false, reason: "held-bills" });
+    if (refused.ok || refused.reason !== "held-bills") return;
+    expect(refused.bills.map((row) => row.id)).toEqual([bill.id]);
+
+    kit.billDrafts.discard({ draftId: bill.id });
+    expect(kit.shifts.close(input)).toMatchObject({ ok: true });
   });
 });

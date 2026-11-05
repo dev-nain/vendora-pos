@@ -13,27 +13,51 @@ const id1 = "0190a000-0000-7000-8000-000000000001";
 const id2 = "0190a000-0000-7000-8000-000000000002";
 
 describe("expectedCashPaisa", () => {
-  it("is float plus cash in minus cash out", () => {
+  it("is float plus cash in minus cash out plus cash sales", () => {
     expect(
-      expectedCashPaisa({ openingFloatPaisa: 500000, cashInPaisa: 50000, cashOutPaisa: 20000 }),
+      expectedCashPaisa({
+        openingFloatPaisa: 500000,
+        cashInPaisa: 50000,
+        cashOutPaisa: 20000,
+        cashSalesPaisa: 0,
+      }),
     ).toBe(530000);
+    expect(
+      expectedCashPaisa({
+        openingFloatPaisa: 500000,
+        cashInPaisa: 0,
+        cashOutPaisa: 0,
+        cashSalesPaisa: 38500,
+      }),
+    ).toBe(538500);
   });
 
   it("can be negative", () => {
-    expect(expectedCashPaisa({ openingFloatPaisa: 1000, cashInPaisa: 0, cashOutPaisa: 5000 })).toBe(
-      -4000,
-    );
+    expect(
+      expectedCashPaisa({
+        openingFloatPaisa: 1000,
+        cashInPaisa: 0,
+        cashOutPaisa: 5000,
+        cashSalesPaisa: 0,
+      }),
+    ).toBe(-4000);
   });
 
   it("throws on floats and unsafe integers", () => {
     expect(() =>
-      expectedCashPaisa({ openingFloatPaisa: 1.5, cashInPaisa: 0, cashOutPaisa: 0 }),
+      expectedCashPaisa({
+        openingFloatPaisa: 1.5,
+        cashInPaisa: 0,
+        cashOutPaisa: 0,
+        cashSalesPaisa: 0,
+      }),
     ).toThrow();
     expect(() =>
       expectedCashPaisa({
         openingFloatPaisa: Number.MAX_SAFE_INTEGER + 1,
         cashInPaisa: 0,
         cashOutPaisa: 0,
+        cashSalesPaisa: 0,
       }),
     ).toThrow();
   });
