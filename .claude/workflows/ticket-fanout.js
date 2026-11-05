@@ -223,7 +223,7 @@ async function runTicket(id) {
   try {
     return await buildTicket(id, t, deps, port++)
   } catch (e) {
-    return result(id, 'blocked', `Workflow error: ${e?.message ?? e}`)
+    return await giveUp(id, `Workflow error: ${e?.message ?? e}`)
   } finally {
     release()
   }
