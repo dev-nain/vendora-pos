@@ -16,6 +16,19 @@ import {
 } from "./invoice-search";
 import { OrderDetail } from "./order-detail";
 import { OrderList } from "./order-list";
+import { ReturnPanel } from "./return-panel";
+import type { Hint } from "../shell/hint-bar";
+
+const baseHints: Hint[] = [["Ctrl+L", "Switch user"]];
+const listHints: Hint[] = [
+  ["Enter", "Search"],
+  ["↑/↓", "Select"],
+  ["Ctrl+P", "Reprint"],
+  ["Ctrl+R", "Return items"],
+  ["Esc", "Back"],
+  ...baseHints,
+];
+const returnHints: Hint[] = [["↑/↓", "Line"], ["Enter", "Refund"], ["Esc", "Back"], ...baseHints];
 
 type Source = "shift" | "invoice" | "date";
 
@@ -30,6 +43,8 @@ interface OrdersScreenProps {
   onBack: () => void;
   onSessionEnded: () => void;
   onPrinterChanged: () => void;
+  onHintsChange: (hints: Hint[]) => void;
+  onReturned: () => void;
 }
 
 export function OrdersScreen({
@@ -37,6 +52,8 @@ export function OrdersScreen({
   onBack,
   onSessionEnded,
   onPrinterChanged,
+  onHintsChange,
+  onReturned,
 }: OrdersScreenProps) {
   const [source, setSource] = useState<Source>("shift");
   const [orders, setOrders] = useState<OrderSummary[] | null>(null);
@@ -47,6 +64,8 @@ export function OrdersScreen({
   const [dateText, setDateText] = useState("");
   const [printing, setPrinting] = useState(false);
   const [result, setResult] = useState<PrintResult | null>(null);
+  const [returnable, setReturnable] = useState<{ id: string; hasLeft: boolean } | null>(null);
+  const [returning, setReturning] = useState(false);
   const request = useRef(0);
   const searchField = useRef<HTMLInputElement | null>(null);
   const running = useRef(false);
@@ -116,6 +135,42 @@ export function OrdersScreen({
     };
   }, [selectedId, fail]);
 
+  useEffect(() => {
+    if (selectedId === null) return;
+    let live = true;
+    window.vendora.returns
+      .returnable(selectedId)
+      .then((found) => {
+        if (live && found.ok) {
+          setReturnable({
+            id: selectedId,
+            hasLeft: found.lines.some((line) => line.leftQtyMilli > 0),
+          });
+        }
+      })
+      .catch((cause: unknown) => {
+        if (live) fail(cause);
+      });
+    return () => {
+      live = false;
+    };
+  }, [selectedId, fail]);
+
+  useEffect(() => {
+    onHintsChange(returning ? returnHints : listHints);
+  }, [returning, onHintsChange]);
+
+  const canReturn = selectedId !== null && returnable?.id === selectedId && returnable.hasLeft;
+
+  const startReturn = useCallback(() => {
+    if (canReturn) setReturning(true);
+  }, [canReturn]);
+
+  const leaveReturn = useCallback(() => {
+    setReturning(false);
+    requestAnimationFrame(() => document.getElementById("return-items-button")?.focus());
+  }, []);
+
   const reprint = useCallback(() => {
     if (!selectedId || running.current) return;
     running.current = true;
@@ -148,9 +203,20 @@ export function OrdersScreen({
   useEffect(() => {
     if (!active) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === "p") {
+      if (returning) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          leaveReturn();
+        }
+        return;
+      }
+      const plainCtrl = event.ctrlKey && !event.altKey && !event.metaKey;
+      if (plainCtrl && event.key.toLowerCase() === "p") {
         event.preventDefault();
         reprint();
+      } else if (plainCtrl && event.key.toLowerCase() === "r") {
+        event.preventDefault();
+        startReturn();
       } else if (event.key === "Escape") {
         event.preventDefault();
         onBack();
@@ -167,7 +233,7 @@ export function OrdersScreen({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [active, orders, reprint, onBack]);
+  }, [active, orders, returning, reprint, startReturn, leaveReturn, onBack]);
 
   useEffect(() => {
     if (!active) return;
@@ -177,6 +243,7 @@ export function OrdersScreen({
       if (scan === null) return;
       event.preventDefault();
       event.stopPropagation();
+      setReturning(false);
       setSearchText(scan);
       runSearch(scan);
       searchField.current?.focus();
@@ -197,84 +264,95 @@ export function OrdersScreen({
           Orders
         </h1>
       </div>
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_420px]">
-        <section aria-label="Sales" className="flex min-h-0 flex-col gap-400 p-600">
-          <div className="flex items-center gap-200">
-            <Input
-              id="orders-search"
-              ref={searchField}
-              autoFocus
-              aria-label="Invoice number"
-              placeholder="Invoice number"
-              autoComplete="off"
-              maxLength={32}
-              value={searchText}
-              className="min-h-[var(--height-control-lg)] min-w-0 flex-1 text-[length:var(--font-size-450)] tabular-nums"
-              onChange={(event) => setSearchText(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  runSearch(searchText);
-                }
-              }}
-            />
-            <Input
-              type="date"
-              aria-label="Sales date"
-              value={dateText}
-              className="w-[180px] shrink-0"
-              onChange={(event) => {
-                const next = event.target.value;
-                setDateText(next);
-                const query = dateQueryFrom(next);
-                if (query) {
-                  setSearchText("");
-                  load(query, "date");
-                } else if (next === "") {
-                  showShift();
-                }
-              }}
-            />
-            <Button variant="secondary" onClick={showShift}>
-              Current shift
-            </Button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {loadFailed ? (
-              <div className="grid justify-items-start gap-200">
-                <p role="alert" className="m-0 text-secondary">
-                  {serviceErrorMessage}
-                </p>
-                <Button variant="secondary" onClick={showShift}>
-                  Retry
-                </Button>
-              </div>
-            ) : orders === null ? (
-              <p className="m-0 text-secondary">Loading…</p>
-            ) : (
-              <OrderList
-                orders={orders}
-                selectedId={selectedId}
-                showDate={source !== "shift"}
-                emptyText={emptyText[source]}
-                onSelect={pickOrder}
+      {returning && selectedId ? (
+        <ReturnPanel
+          saleId={selectedId}
+          onBack={leaveReturn}
+          onReturned={onReturned}
+          onSessionEnded={onSessionEnded}
+        />
+      ) : (
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_420px]">
+          <section aria-label="Sales" className="flex min-h-0 flex-col gap-400 p-600">
+            <div className="flex items-center gap-200">
+              <Input
+                id="orders-search"
+                ref={searchField}
+                autoFocus
+                aria-label="Invoice number"
+                placeholder="Invoice number"
+                autoComplete="off"
+                maxLength={32}
+                value={searchText}
+                className="min-h-[var(--height-control-lg)] min-w-0 flex-1 text-[length:var(--font-size-450)] tabular-nums"
+                onChange={(event) => setSearchText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    runSearch(searchText);
+                  }
+                }}
               />
-            )}
-          </div>
-        </section>
-        <aside
-          aria-label="Sale details"
-          className="min-h-0 overflow-y-auto border-l border-line p-600"
-        >
-          <OrderDetail
-            order={selectedId !== null && detail?.id === selectedId ? detail : null}
-            loading={selectedId !== null}
-            printing={printing}
-            result={result}
-            onReprint={reprint}
-          />
-        </aside>
-      </div>
+              <Input
+                type="date"
+                aria-label="Sales date"
+                value={dateText}
+                className="w-[180px] shrink-0"
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setDateText(next);
+                  const query = dateQueryFrom(next);
+                  if (query) {
+                    setSearchText("");
+                    load(query, "date");
+                  } else if (next === "") {
+                    showShift();
+                  }
+                }}
+              />
+              <Button variant="secondary" onClick={showShift}>
+                Current shift
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {loadFailed ? (
+                <div className="grid justify-items-start gap-200">
+                  <p role="alert" className="m-0 text-secondary">
+                    {serviceErrorMessage}
+                  </p>
+                  <Button variant="secondary" onClick={showShift}>
+                    Retry
+                  </Button>
+                </div>
+              ) : orders === null ? (
+                <p className="m-0 text-secondary">Loading…</p>
+              ) : (
+                <OrderList
+                  orders={orders}
+                  selectedId={selectedId}
+                  showDate={source !== "shift"}
+                  emptyText={emptyText[source]}
+                  onSelect={pickOrder}
+                />
+              )}
+            </div>
+          </section>
+          <aside
+            aria-label="Sale details"
+            className="min-h-0 overflow-y-auto border-l border-line p-600"
+          >
+            <OrderDetail
+              order={selectedId !== null && detail?.id === selectedId ? detail : null}
+              loading={selectedId !== null}
+              printing={printing}
+              result={result}
+              canReturn={canReturn}
+              onReprint={reprint}
+              onReturn={startReturn}
+            />
+          </aside>
+        </div>
+      )}
     </div>
   );
 }
