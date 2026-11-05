@@ -89,12 +89,36 @@ export const holdInputSchema = z.strictObject({
   draftId: z.uuid(),
 });
 
-const buyerSchema = z.strictObject({
-  name: z.string().trim().max(80).optional(),
-  ntn: z.string().trim().max(20).optional(),
-  cnic: z.string().trim().max(20).optional(),
-  phone: z.string().trim().max(20).optional(),
+export const buyerSchema = z.strictObject({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Name is up to 100 characters.")
+    .max(100, "Name is up to 100 characters.")
+    .optional(),
+  ntn: z
+    .string()
+    .trim()
+    .regex(/^\d{7}-?\d$/, "NTN is 7 digits, then 1 digit, like 1234567-8.")
+    .transform((value) => `${value.slice(0, 7)}-${value.slice(-1)}`)
+    .optional(),
+  cnic: z
+    .string()
+    .trim()
+    .regex(/^\d{5}-?\d{7}-?\d$/, "CNIC is 13 digits, like 12345-1234567-1.")
+    .transform((value) => {
+      const digits = value.replaceAll("-", "");
+      return `${digits.slice(0, 5)}-${digits.slice(5, 12)}-${digits.slice(12)}`;
+    })
+    .optional(),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^(03\d{9}|\+923\d{9})$/, "Phone is 03xxxxxxxxx or +923xxxxxxxxx.")
+    .optional(),
 });
+
+export type BuyerInput = z.input<typeof buyerSchema>;
 
 export const completeSaleInputSchema = z.strictObject({
   draftId: z.uuid(),

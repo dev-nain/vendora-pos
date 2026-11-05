@@ -7,7 +7,8 @@ import {
 } from "../../shared/checkout";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
-import { computeBill, divRoundHalfUp } from "../checkout/totals";
+import { computeBill } from "../checkout/totals";
+import { divRoundHalfUp } from "../../shared/rounding";
 import type { VendoraDatabase } from "../db/client";
 import { takeInvoiceNumber } from "../db/invoice-numbers";
 import {

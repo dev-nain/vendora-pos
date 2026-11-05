@@ -17,7 +17,8 @@ import {
 import type { HeldBillSummary } from "../../shared/shifts";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
-import { computeBill, divRoundHalfUp, type TotalsLine } from "../checkout/totals";
+import { computeBill, type TotalsLine } from "../checkout/totals";
+import { divRoundHalfUp } from "../../shared/rounding";
 import type { VendoraDatabase } from "../db/client";
 import { billDraftLines, billDrafts, products, taxCategories, users } from "../db/schema";
 import { resolveTaxRateBps } from "../db/sale-rows";

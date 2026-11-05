@@ -3,7 +3,7 @@ import type { VendoraDatabase } from "../db/client";
 import type { ScaleBarcodeConfig } from "../hardware/scale-barcode";
 import { stores } from "../db/schema";
 import type { DbExecutor } from "../db/terminal";
-import type { RoundingSettings } from "../checkout/totals";
+import type { RoundingSettings } from "../../shared/rounding";
 
 export function getScalePrefixes(database: VendoraDatabase, storeId: string): ScaleBarcodeConfig {
   const row = database.db
