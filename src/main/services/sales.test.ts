@@ -256,12 +256,10 @@ describe("complete a sale", () => {
         reason: "refund-amount",
       });
       expect(complete(draftId, [])).toMatchObject({ reason: "refund-amount" });
-      expect(
-        complete(draftId, [
-          { method: "cash", amountPaisa: 2500 },
-          { method: "cash", amountPaisa: 2500 },
-        ]),
-      ).toMatchObject({ reason: "refund-amount" });
+      expect(complete(draftId, [{ method: "cash", amountPaisa: 6000 }])).toMatchObject({
+        reason: "refund-amount",
+        message: "Refund exactly Rs 50.",
+      });
 
       const sale = saleOf(complete(draftId, [{ method: "cash", amountPaisa: 5000 }]));
 
@@ -294,9 +292,15 @@ describe("complete a sale", () => {
       const returned = auditRows("return");
       expect(JSON.parse(returned[0]!.details!)).toEqual({
         invoiceNo: "T1-000001",
-        returnLineCount: 1,
+        refundedSaleId: null,
+        refundedInvoiceNo: null,
+        linkedLineCount: 0,
+        withoutReceiptLineCount: 1,
+        damagedLineCount: 0,
         returnTotalPaisa: -5000,
+        refundByMethod: {},
       });
+      expect(auditRows("return_without_receipt")).toHaveLength(1);
     });
 
     it("writes pack sales to stock in base units", () => {

@@ -8,6 +8,7 @@ export const auditActions = [
   "logout",
   "void",
   "return",
+  "return_without_receipt",
   "price_change",
   "cost_change",
   "stock_adjustment",

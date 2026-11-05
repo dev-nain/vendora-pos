@@ -13,6 +13,7 @@ import {
   auditLog,
   cashDenominations,
   shiftCashCounts,
+  saleLines,
   sales,
   shiftCashMoves,
   shifts,
@@ -649,6 +650,70 @@ describe("shift sales", () => {
     expect(expected(shiftId).cash).toBe(500000);
     expect(report(shiftId).refunds).toEqual({ count: 1, amountPaisa: 5000 });
     expect(report(shiftId).sales).toMatchObject({ billCount: 2, refundBillCount: 1 });
+  });
+
+  it("takes a card refund out of expected card and counts its return lines", () => {
+    const shiftId = kit.openShift(500000);
+    const soap = kit.addProduct({
+      salePricePaisa: 5000,
+      taxCategoryId: kit.taxCategoryId("Exempt"),
+    });
+    const sold = sell(soap.id, [{ method: "card", amountPaisa: 5000, reference: "1" }]);
+    const original = kit.database.db
+      .select()
+      .from(saleLines)
+      .all()
+      .find((row) => row.saleId === sold.id)!;
+
+    const bill = draftOf(
+      kit.returns.addFromSale({
+        saleId: sold.id,
+        lines: [{ saleLineId: original.id, qtyMilli: 1000 }],
+      }),
+    );
+    const refund = salesService.complete({
+      draftId: bill.id,
+      payments: [{ method: "card", amountPaisa: 5000, reference: "2" }],
+    });
+    expect(refund).toMatchObject({ ok: true });
+
+    expect(expected(shiftId)).toMatchObject({ cash: 500000, card: 0 });
+    expect(report(shiftId).refunds).toEqual({ count: 1, amountPaisa: 5000 });
+  });
+
+  it("counts the refund of a closed shift's sale in the open shift", () => {
+    const first = kit.openShift(100000);
+    const soap = kit.addProduct({
+      salePricePaisa: 5000,
+      taxCategoryId: kit.taxCategoryId("Exempt"),
+    });
+    const sold = sell(soap.id, [{ method: "cash", amountPaisa: 5000 }]);
+    const original = kit.database.db
+      .select()
+      .from(saleLines)
+      .all()
+      .find((row) => row.saleId === sold.id)!;
+    expect(
+      kit.shifts.close({ shiftId: first, count: { method: "total", countedCashPaisa: 105000 } }),
+    ).toMatchObject({ ok: true });
+
+    const second = kit.openShift(200000);
+    const bill = draftOf(
+      kit.returns.addFromSale({
+        saleId: sold.id,
+        lines: [{ saleLineId: original.id, qtyMilli: 1000 }],
+      }),
+    );
+    expect(
+      salesService.complete({
+        draftId: bill.id,
+        payments: [{ method: "cash", amountPaisa: 5000 }],
+      }),
+    ).toMatchObject({ ok: true });
+
+    expect(report(second).expectedCashPaisa).toBe(195000);
+    expect(report(second).refunds).toEqual({ count: 1, amountPaisa: 5000 });
+    expect(report(first).expectedCashPaisa).toBe(105000);
   });
 
   it("adds up the X sections to the sales of the shift", () => {

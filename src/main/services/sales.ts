@@ -14,10 +14,12 @@ import {
 } from "drizzle-orm";
 import {
   checkoutMessages,
+  paymentMethodLabels,
   type CompleteSaleInput,
   type CompleteSaleResult,
   type PaymentMethod,
 } from "../../shared/checkout";
+import { refundCapPaisa, returnMessages } from "../../shared/returns";
 import {
   ordersListLimit,
   salesMessages,
@@ -27,6 +29,12 @@ import {
 } from "../../shared/sales";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
+import {
+  leftQtyMilli,
+  linkedAmounts,
+  loadLinkedOriginals,
+  loadRefundMethods,
+} from "../checkout/linked-lines";
 import { computeBill } from "../checkout/totals";
 import { divRoundHalfUp } from "../../shared/rounding";
 import type { VendoraDatabase } from "../db/client";
@@ -79,7 +87,8 @@ const notFound = refuse("not-found", checkoutMessages.notFound);
 const emptyBill = refuse("empty-bill", checkoutMessages.emptyBill);
 const cashNotRounded = refuse("cash-not-rounded", checkoutMessages.cashNotRounded);
 const refundCashOnly = refuse("refund-cash-only", checkoutMessages.refundCashOnly);
-const refundAmount = refuse("refund-amount", checkoutMessages.refundAmount);
+const oneSale = refuse("one-sale", returnMessages.oneSale);
+const notReturnable = refuse("not-returnable", returnMessages.notReturnable);
 
 function buyerOf(input: CompleteSaleInput["buyer"]): Buyer {
   return {
@@ -182,23 +191,75 @@ export function createSalesService({
 
     const settings = getCheckoutSettings(tx, terminal.storeId);
     const rateOf = (rate: number | null) => resolveTaxRateBps(rate, settings.standardTaxRateBps);
+
+    const linkedIds = rows.flatMap(({ line }) =>
+      line.refundedLineId ? [line.refundedLineId] : [],
+    );
+    const originals = loadLinkedOriginals(tx, linkedIds);
+    const pendingByOriginal = new Map<string, number>();
+    for (const { line } of rows) {
+      if (!line.refundedLineId) continue;
+      const original = originals.get(line.refundedLineId);
+      if (
+        !original ||
+        original.line.storeId !== terminal.storeId ||
+        original.line.terminalId !== terminal.id
+      ) {
+        return notFound;
+      }
+      pendingByOriginal.set(
+        line.refundedLineId,
+        (pendingByOriginal.get(line.refundedLineId) ?? 0) - line.qtyMilli,
+      );
+    }
+    const originalSaleIds = new Set([...originals.values()].map((original) => original.saleId));
+    if (originalSaleIds.size > 1) return oneSale;
+    const [refundedSaleId = null] = originalSaleIds;
+    for (const [lineId, pending] of pendingByOriginal) {
+      const original = originals.get(lineId);
+      if (!original) return notFound;
+      if (original.line.isReturn) return notReturnable;
+      if (pending > leftQtyMilli(original)) {
+        return refuse(
+          "return-over-sold",
+          returnMessages.overSold(Math.max(0, leftQtyMilli(original)), original.line.unit),
+        );
+      }
+    }
+
+    const totalsLines = (lines: typeof rows) =>
+      lines.map(({ line, categoryRateBps }) => {
+        const original = line.refundedLineId ? originals.get(line.refundedLineId) : undefined;
+        return totalsLineOf(
+          line,
+          original ? original.line.taxRateBps : rateOf(categoryRateBps),
+          original ? linkedAmounts(original, -line.qtyMilli) : null,
+        );
+      });
     const tenders = input.payments.map((payment) => ({
       method: payment.method,
       amountPaisa: payment.amountPaisa,
     }));
-    const computed = computeBill({
-      lines: rows.map(({ line, categoryRateBps }) => totalsLineOf(line, rateOf(categoryRateBps))),
-      billDiscount: toDiscount(draft.billDiscountKind, draft.billDiscountValue),
-      pricesIncludeTax: settings.pricesIncludeTax,
-      rounding: settings.rounding,
-      tenders,
-    });
+    const compute = (withTenders: typeof tenders) =>
+      computeBill({
+        lines: totalsLines(rows),
+        billDiscount: toDiscount(draft.billDiscountKind, draft.billDiscountValue),
+        pricesIncludeTax: settings.pricesIncludeTax,
+        rounding: settings.rounding,
+        tenders: withTenders,
+      });
+    const probe = compute([]).totals;
+    const isRefund = probe.totalPaisa - probe.roundingPaisa < 0;
+    const computed = compute(
+      isRefund
+        ? tenders.map((tender) => ({ method: tender.method, amountPaisa: -tender.amountPaisa }))
+        : tenders,
+    );
     const totalPaisa = computed.totals.totalPaisa;
 
     const unit = settings.rounding.unitPaisa;
     if (
       settings.rounding.mode !== "off" &&
-      totalPaisa >= 0 &&
       tenders.some((tender) => tender.method === "cash" && tender.amountPaisa % unit !== 0)
     ) {
       return cashNotRounded;
@@ -226,10 +287,41 @@ export function createSalesService({
     } else if (totalPaisa === 0) {
       changePaisa = paidPaisa;
     } else {
-      if (tenders.some((tender) => tender.method !== "cash")) return refundCashOnly;
-      const [only] = tenders;
-      if (tenders.length !== 1 || !only || only.amountPaisa !== -totalPaisa) return refundAmount;
-      paymentInputs = [{ method: "cash", amountPaisa: totalPaisa, reference: null }];
+      const nonCash = input.payments.filter((payment) => payment.method !== "cash");
+      if (nonCash.length > 0 && refundedSaleId === null) return refundCashOnly;
+      if (refundedSaleId !== null && nonCash.length > 0) {
+        const available = new Map(
+          loadRefundMethods(tx, refundedSaleId).map((row) => [row.method, row.availablePaisa]),
+        );
+        const linkedRefundPaisa = -computed.lines
+          .filter((_, index) => rows[index]?.line.refundedLineId)
+          .reduce((acc, line) => acc + line.totalPaisa, 0);
+        let nonCashSoFar = 0;
+        for (const method of new Set(nonCash.map((payment) => payment.method))) {
+          const amountPaisa = nonCash
+            .filter((payment) => payment.method === method)
+            .reduce((acc, payment) => acc + payment.amountPaisa, 0);
+          const cap = refundCapPaisa({
+            availablePaisa: available.get(method) ?? 0,
+            linkedRefundPaisa: linkedRefundPaisa - nonCashSoFar,
+            netRefundPaisa: -totalPaisa,
+          });
+          if (amountPaisa > cap) {
+            return refuse(
+              "refund-over-cap",
+              returnMessages.overCap(paymentMethodLabels[method], cap),
+            );
+          }
+          nonCashSoFar += amountPaisa;
+        }
+      }
+      if (paidPaisa !== -totalPaisa) {
+        return refuse("refund-amount", returnMessages.refundExact(-totalPaisa));
+      }
+      paymentInputs = paymentInputs.map((payment) => ({
+        ...payment,
+        amountPaisa: -payment.amountPaisa,
+      }));
     }
 
     const invoiceNo = takeInvoiceNumber(tx, terminal);
@@ -251,7 +343,7 @@ export function createSalesService({
           draftId: draft.id,
           invoiceNo,
           cashierUserId: session.userId,
-          refundedSaleId: null,
+          refundedSaleId,
           pricesIncludeTax: settings.pricesIncludeTax,
           totals: computed.totals,
           deletedLineCount,
@@ -266,9 +358,39 @@ export function createSalesService({
     const lineValues = rows.map(({ line, product, categoryRateBps }, index) => {
       const amounts = computed.lines[index];
       if (!amounts) throw new Error("Totals are out of step with the lines");
+      const original = line.refundedLineId ? originals.get(line.refundedLineId) : undefined;
+      if (original) {
+        const snapshot = original.line;
+        return {
+          ...saleLineRow({
+            sale: { ...saleRef, refundedSaleId },
+            position: index,
+            product: {
+              id: snapshot.productId,
+              nameEn: snapshot.nameEn,
+              nameUr: snapshot.nameUr,
+              unit: snapshot.unit,
+              costPaisa: snapshot.costPaisa,
+              mrpPaisa: snapshot.mrpPaisa,
+              pctCode: snapshot.pctCode,
+              isThirdSchedule: snapshot.isThirdSchedule,
+            },
+            taxRateBps: snapshot.taxRateBps,
+            line: {
+              ...line,
+              unitPricePaisa: snapshot.unitPricePaisa,
+              packQtyMilli: snapshot.packQtyMilli,
+              barcode: snapshot.barcode,
+              miscName: null,
+            },
+            amounts,
+          }),
+          createdAt,
+        };
+      }
       return {
         ...saleLineRow({
-          sale: { ...saleRef, refundedSaleId: null },
+          sale: { ...saleRef, refundedSaleId },
           position: index,
           product,
           taxRateBps: rateOf(categoryRateBps),
@@ -321,6 +443,17 @@ export function createSalesService({
         sourceId: lineId,
         actorUserId: session.userId,
       });
+      if (line.isReturn && line.isDamaged) {
+        stock.record(tx, {
+          productId: product.id,
+          type: "damage",
+          qtyMilli: divRoundHalfUp(BigInt(line.qtyMilli) * BigInt(line.packQtyMilli), 1000n),
+          reason: "damage",
+          sourceType: "sale_line",
+          sourceId: lineId,
+          actorUserId: session.userId,
+        });
+      }
     }
 
     tx.update(billDrafts)
@@ -338,8 +471,16 @@ export function createSalesService({
       },
       tx,
     );
-    const returnLines = computed.lines.filter((_, index) => rows[index]?.line.isReturn);
-    if (returnLines.length > 0) {
+    const returnRows = rows.filter(({ line }) => line.isReturn);
+    if (returnRows.length > 0) {
+      const withoutReceiptLineCount = returnRows.filter(({ line }) => !line.refundedLineId).length;
+      const refundByMethod: Partial<Record<PaymentMethod, number>> = {};
+      if (totalPaisa < 0) {
+        for (const payment of input.payments) {
+          refundByMethod[payment.method] =
+            (refundByMethod[payment.method] ?? 0) + payment.amountPaisa;
+        }
+      }
       audit.record(
         {
           action: "return",
@@ -348,12 +489,31 @@ export function createSalesService({
           entityId: sale.id,
           details: {
             invoiceNo,
-            returnLineCount: returnLines.length,
-            returnTotalPaisa: returnLines.reduce((acc, line) => acc + line.totalPaisa, 0),
+            refundedSaleId,
+            refundedInvoiceNo: [...originals.values()][0]?.invoiceNo ?? null,
+            linkedLineCount: returnRows.length - withoutReceiptLineCount,
+            withoutReceiptLineCount,
+            damagedLineCount: returnRows.filter(({ line }) => line.isDamaged).length,
+            returnTotalPaisa: computed.lines
+              .filter((_, index) => rows[index]?.line.isReturn)
+              .reduce((acc, line) => acc + line.totalPaisa, 0),
+            refundByMethod,
           },
         },
         tx,
       );
+      if (withoutReceiptLineCount > 0) {
+        audit.record(
+          {
+            action: "return_without_receipt",
+            actorUserId: session.userId,
+            entityType: "sale",
+            entityId: sale.id,
+            details: { invoiceNo, lineCount: withoutReceiptLineCount },
+          },
+          tx,
+        );
+      }
     }
 
     return {
