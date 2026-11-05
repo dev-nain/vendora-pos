@@ -1,7 +1,7 @@
-import { asc } from "drizzle-orm";
 import { z } from "zod";
 import type { VendoraDatabase } from "../db/client";
-import { auditLog, terminals } from "../db/schema";
+import { auditLog } from "../db/schema";
+import { currentTerminal, type DbExecutor } from "../db/terminal";
 
 export const auditActions = [
   "login",
@@ -72,22 +72,12 @@ export const auditRecordInputSchema = z.strictObject({
 });
 export type AuditRecordInput = z.input<typeof auditRecordInputSchema>;
 
-type AuditExecutor =
-  | VendoraDatabase["db"]
-  | Parameters<Parameters<VendoraDatabase["db"]["transaction"]>[0]>[0];
-
 export function createAuditService(database: VendoraDatabase) {
   return {
-    record(input: AuditRecordInput, tx?: AuditExecutor): string {
+    record(input: AuditRecordInput, tx?: DbExecutor): string {
       const parsed = auditRecordInputSchema.parse(input);
       const executor = tx ?? database.db;
-      const terminal = executor
-        .select({ id: terminals.id, storeId: terminals.storeId })
-        .from(terminals)
-        .orderBy(asc(terminals.id))
-        .limit(1)
-        .get();
-      if (!terminal) throw new Error("No terminal is configured");
+      const terminal = currentTerminal(executor);
 
       return executor
         .insert(auditLog)
