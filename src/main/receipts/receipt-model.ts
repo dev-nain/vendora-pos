@@ -112,7 +112,9 @@ function quantityText(line: SnapshotLine): string {
   const price = formatRupees(line.unitPricePaisa);
   const isPack = line.packQtyMilli !== 1000;
   const isWeighed = line.unit !== "piece" && !isPack;
-  const qty = isWeighed ? formatQuantity(line.qtyMilli, line.unit) : String(line.qtyMilli / 1000);
+  const qty = (
+    isWeighed ? formatQuantity(line.qtyMilli, line.unit) : String(line.qtyMilli / 1000)
+  ).replace(/^-/, MINUS);
   const base = isPack
     ? `${qty} × Pack (${formatQuantity(line.packQtyMilli, line.unit)}) at ${price}`
     : `${qty} × ${price}`;
@@ -123,7 +125,9 @@ function lineBlocks(line: SnapshotLine): ReceiptBlock[] {
   const blocks: ReceiptBlock[] = [text(line.nameEn, { weight: "bold" })];
   if (line.nameUr) blocks.push(text(line.nameUr, { lang: "ur", align: "right" }));
   blocks.push(pair(quantityText(line), signedRupees(line.grossPaisa)));
-  if (line.discountPaisa !== 0) blocks.push(pair("Discount", negativeRupees(line.discountPaisa)));
+  if (line.discountPaisa !== 0) {
+    blocks.push(pair("Discount", signedRupees(-line.discountPaisa)));
+  }
   return blocks;
 }
 
@@ -146,7 +150,18 @@ export function buildReceiptModel(snapshot: SaleSnapshot, widthPx: ReceiptWidthP
   const billDiscountPaisa = lines.reduce((sum, line) => sum + line.billDiscountPaisa, 0);
 
   const blocks: ReceiptBlock[] = [...headerBlocks(snapshot.store), gap(8), rule];
+  const hasReturn = lines.some((line) => line.isReturn);
+  if (sale.type === "refund" || hasReturn) {
+    blocks.push(
+      text(sale.type === "refund" ? "Credit note" : "Exchange", {
+        align: "center",
+        size: "title",
+        weight: "bold",
+      }),
+    );
+  }
   blocks.push(pair("Invoice", sale.invoiceNo, { weight: "bold" }));
+  if (sale.refundedInvoiceNo) blocks.push(pair("Original invoice", sale.refundedInvoiceNo));
   blocks.push(pair("Date", formatReceiptDateTime(sale.createdAt)));
   blocks.push(pair("Cashier", snapshot.cashierName));
   if (sale.buyerName) blocks.push(pair("Buyer", sale.buyerName));
@@ -157,8 +172,10 @@ export function buildReceiptModel(snapshot: SaleSnapshot, widthPx: ReceiptWidthP
   blocks.push(rule);
 
   blocks.push(pair("Subtotal", signedRupees(sale.subtotalPaisa)));
-  if (lineDiscountPaisa > 0) blocks.push(pair("Discount", negativeRupees(lineDiscountPaisa)));
-  if (billDiscountPaisa > 0) blocks.push(pair("Bill discount", negativeRupees(billDiscountPaisa)));
+  if (lineDiscountPaisa !== 0) blocks.push(pair("Discount", signedRupees(-lineDiscountPaisa)));
+  if (billDiscountPaisa !== 0) {
+    blocks.push(pair("Bill discount", signedRupees(-billDiscountPaisa)));
+  }
   blocks.push(pair("Sales tax", signedRupees(sale.taxPaisa)));
   if (sale.roundingPaisa !== 0) blocks.push(pair("Rounding", signedRupees(sale.roundingPaisa)));
   blocks.push(pair("Total", signedRupees(sale.totalPaisa), { weight: "bold", size: "title" }));

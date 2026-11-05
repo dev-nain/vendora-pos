@@ -107,6 +107,22 @@ describe("receipts service", () => {
     return result.sale.id;
   }
 
+  function refundSale(): string {
+    const product = kit.addProduct({ nameEn: "Soap", salePricePaisa: 10000 });
+    const bill = kit.billDrafts.addProduct({ productId: product.id, qtyMilli: 1000 });
+    if (!bill.ok) throw new Error("add failed");
+    const flipped = kit.billDrafts.toggleReturn({
+      lineId: bill.bill.lines[0]!.id,
+    });
+    if (!flipped.ok) throw new Error("flip failed");
+    const result = salesService.complete({
+      draftId: flipped.bill.id,
+      payments: [{ method: "cash", amountPaisa: -flipped.bill.totals.totalPaisa }],
+    });
+    if (!result.ok) throw new Error(`refund refused: ${result.reason}`);
+    return result.sale.id;
+  }
+
   const cashSale = () => sell([{ method: "cash", amountPaisa: 10000 }]);
   const cardSale = () => sell([{ method: "card", amountPaisa: 10000, reference: "4321" }]);
   const printCount = () => db().select().from(receiptPrints).all().length;
@@ -234,6 +250,51 @@ describe("receipts service", () => {
       service.startAfterSale(third);
       expect(await service.saleJob({ saleId: third })).toEqual({ state: "off" });
       expect(jobs).toHaveLength(0);
+    });
+
+    describe("credit notes", () => {
+      it("prints in print mode off and ask, and kicks the drawer for a cash refund", async () => {
+        configure({ printMode: "off" });
+        const saleId = refundSale();
+        service.startAfterSale(saleId);
+        expect(await service.saleJob({ saleId })).toEqual({ state: "printed" });
+        expect(kinds()).toEqual(["drawer", "receipt"]);
+
+        jobs.length = 0;
+        configure({ printMode: "ask" });
+        const asked = refundSale();
+        service.startAfterSale(asked);
+        expect(await service.saleJob({ saleId: asked })).toEqual({ state: "printed" });
+        expect(kinds()).toEqual(["drawer", "receipt"]);
+      });
+
+      it("still skips ordinary sales in off mode", async () => {
+        configure({ printMode: "off" });
+        const saleId = cardSale();
+        service.startAfterSale(saleId);
+        expect(await service.saleJob({ saleId })).toEqual({ state: "off" });
+        expect(jobs).toHaveLength(0);
+      });
+
+      it("reports no printer even in off mode and keeps the refund when printing fails", async () => {
+        configure({ printMode: "off", printerKind: "none" });
+        const saleId = refundSale();
+        service.startAfterSale(saleId);
+        expect(await service.saleJob({ saleId })).toEqual({
+          state: "no-printer",
+          message: printerMessages.notSetUp,
+        });
+
+        configure({ printerKind: "network" });
+        next = async () => offline;
+        const failed = refundSale();
+        service.startAfterSale(failed);
+        expect(await service.saleJob({ saleId: failed })).toMatchObject({
+          state: "failed",
+          canRetry: true,
+        });
+        expect(db().select().from(sales).all()).toHaveLength(2);
+      });
     });
 
     it("returns none for a sale that never started a job", async () => {
