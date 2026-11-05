@@ -35,6 +35,7 @@ export interface SaleSnapshot {
     id: string;
     invoiceNo: string;
     type: SaleType;
+    refundedInvoiceNo: string | null;
     createdAt: Date;
     subtotalPaisa: number;
     discountPaisa: number;
@@ -106,11 +107,19 @@ export function loadSaleSnapshot(executor: DbExecutor, saleId: string): SaleSnap
     .all();
 
   const { sale } = found;
+  const refundedInvoiceNo = sale.refundedSaleId
+    ? (executor
+        .select({ invoiceNo: sales.invoiceNo })
+        .from(sales)
+        .where(eq(sales.id, sale.refundedSaleId))
+        .get()?.invoiceNo ?? null)
+    : null;
   return {
     sale: {
       id: sale.id,
       invoiceNo: sale.invoiceNo,
       type: sale.type,
+      refundedInvoiceNo,
       createdAt: sale.createdAt,
       subtotalPaisa: sale.subtotalPaisa,
       discountPaisa: sale.discountPaisa,

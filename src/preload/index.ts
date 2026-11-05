@@ -37,6 +37,7 @@ import {
   shiftStateSchema,
 } from "@shared/shifts";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
+import { returnableResultSchema } from "@shared/returns";
 import { getOrderResultSchema, orderListSchema } from "@shared/sales";
 import {
   barcodeLookupSchema,
@@ -268,6 +269,12 @@ const api: VendoraApi = {
       billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutUpdateLine, input)),
     deleteLine: async (lineId) =>
       billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutDeleteLine, { lineId })),
+    toggleReturn: async (lineId) =>
+      billResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.checkoutToggleReturn, { lineId }),
+      ),
+    setDamaged: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutSetDamaged, input)),
     setBillDiscount: async (input) =>
       billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutSetBillDiscount, input)),
     hold: async (input) =>
@@ -280,6 +287,14 @@ const api: VendoraApi = {
       actionResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutDiscard, { draftId })),
     complete: async (input) =>
       completeSaleResultSchema.parse(await ipcRenderer.invoke(ipcChannels.checkoutComplete, input)),
+  },
+  returns: {
+    returnable: async (saleId) =>
+      returnableResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.returnsReturnable, { saleId }),
+      ),
+    addFromSale: async (input) =>
+      billResultSchema.parse(await ipcRenderer.invoke(ipcChannels.returnsAddFromSale, input)),
   },
   sales: {
     list: async (query) =>

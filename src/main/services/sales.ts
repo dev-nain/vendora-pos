@@ -624,6 +624,7 @@ export function createSalesService({
         type: sale.type,
         createdAt: sale.createdAt.toISOString(),
         cashierName: snapshot.cashierName,
+        refundedInvoiceNo: sale.refundedInvoiceNo,
         lines: snapshot.lines.map((line) => ({
           nameEn: line.nameEn,
           nameUr: line.nameUr,

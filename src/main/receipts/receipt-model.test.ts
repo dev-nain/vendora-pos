@@ -39,6 +39,7 @@ const snapshot = (patch: Partial<SaleSnapshot> = {}): SaleSnapshot => ({
     id: "s1",
     invoiceNo: "T1-000231",
     type: "sale",
+    refundedInvoiceNo: null,
     createdAt: new Date(2026, 9, 27, 16, 5),
     subtotalPaisa: 23600,
     discountPaisa: 0,

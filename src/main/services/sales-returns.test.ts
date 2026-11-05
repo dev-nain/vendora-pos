@@ -229,6 +229,14 @@ describe("refunds and exchanges", () => {
         type: "refund",
         refundedSaleId: sale.id,
       });
+      expect(kit.sales.get({ id: refund.id })).toMatchObject({
+        ok: true,
+        sale: { refundedInvoiceNo: sale.invoiceNo },
+      });
+      expect(kit.sales.get({ id: sale.id })).toMatchObject({
+        ok: true,
+        sale: { refundedInvoiceNo: null },
+      });
     });
   });
 
