@@ -61,7 +61,11 @@ export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
         onLogOut={() => void logOut()}
       />
       {area === "sell" ? (
-        <SellArea onSessionEnded={onLoggedOut} onHintsChange={setSellHints} />
+        <SellArea
+          onSessionEnded={onLoggedOut}
+          onHintsChange={setSellHints}
+          onOpenPrinterSettings={() => setArea("back-office")}
+        />
       ) : (
         <BackOffice currentUserId={user.id} onSessionEnded={onLoggedOut} />
       )}

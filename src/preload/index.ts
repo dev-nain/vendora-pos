@@ -7,6 +7,12 @@ import {
   sessionStateSchema,
 } from "@shared/auth";
 import {
+  openDrawerForCountResultSchema,
+  printerStatusSchema,
+  printResultSchema,
+  saleJobResultSchema,
+} from "@shared/receipt";
+import {
   miscItemSettingSchema,
   printerSettingsSchema,
   receiptSettingsSchema,
@@ -120,6 +126,26 @@ const api: VendoraApi = {
       printerSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.printerSetSettings, input)),
     listWindows: async () =>
       windowsPrintersSchema.parse(await ipcRenderer.invoke(ipcChannels.printerListWindows)),
+    status: async () =>
+      printerStatusSchema.parse(await ipcRenderer.invoke(ipcChannels.printerStatus)),
+    testPrint: async () =>
+      printResultSchema.parse(await ipcRenderer.invoke(ipcChannels.printerTestPrint)),
+    testDrawer: async () =>
+      printResultSchema.parse(await ipcRenderer.invoke(ipcChannels.printerTestDrawer)),
+    openDrawerForCount: async (phase) =>
+      openDrawerForCountResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.printerOpenDrawerForCount, { phase }),
+      ),
+  },
+  receipts: {
+    saleJob: async (saleId) =>
+      saleJobResultSchema.parse(await ipcRenderer.invoke(ipcChannels.receiptsSaleJob, { saleId })),
+    print: async (saleId) =>
+      printResultSchema.parse(await ipcRenderer.invoke(ipcChannels.receiptsPrint, { saleId })),
+    printShiftReport: async (shiftId) =>
+      printResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.receiptsPrintShiftReport, { shiftId }),
+      ),
   },
   users: {
     list: async () =>

@@ -78,6 +78,13 @@ const paymentHints: Hint[] = [
 
 const receiptHints: Hint[] = [
   ["Enter", "New bill"],
+  ["Ctrl+P", "Print"],
+  ["Ctrl+L", "Switch user"],
+];
+
+const receiptAskHints: Hint[] = [
+  ["Enter", "Print"],
+  ["Esc", "Skip"],
   ["Ctrl+L", "Switch user"],
 ];
 
@@ -124,6 +131,8 @@ interface BillingScreenProps {
   onSessionEnded: () => void;
   onHintsChange: (hints: Hint[]) => void;
   onStepChange: (step: BillingStep) => void;
+  onPrinterChanged: () => void;
+  onOpenPrinterSettings: () => void;
 }
 
 const fieldUnit = (line: BillLine) => (isWeighedLine(line) ? line.unit : "piece");
@@ -135,6 +144,8 @@ export function BillingScreen({
   onSessionEnded,
   onHintsChange,
   onStepChange,
+  onPrinterChanged,
+  onOpenPrinterSettings,
 }: BillingScreenProps) {
   const [view, setView] = useState<View>({ bill: null, selectedId: null });
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -144,6 +155,7 @@ export function BillingScreen({
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [miscEnabled, setMiscEnabled] = useState(false);
   const [heldCount, setHeldCount] = useState(0);
+  const [receiptAsking, setReceiptAsking] = useState(false);
   const [stepState, setStepState] = useState<Step>({ name: "products" });
   const step = stepState.name;
   const [paymentState, setPayment] = useState<PaymentDraft | null>(null);
@@ -674,7 +686,9 @@ export function BillingScreen({
   const idle = useMemo(() => idleHints(miscEnabled), [miscEnabled]);
   const hints =
     step === "receipt"
-      ? receiptHints
+      ? receiptAsking
+        ? receiptAskHints
+        : receiptHints
       : step === "payment"
         ? paymentHints
         : editing
@@ -690,7 +704,16 @@ export function BillingScreen({
   const lines = view.bill?.lines ?? [];
 
   if (stepState.name === "receipt") {
-    return <ReceiptScreen sale={stepState.sale} active={active} onNewBill={startNewBill} />;
+    return (
+      <ReceiptScreen
+        sale={stepState.sale}
+        active={active}
+        onNewBill={startNewBill}
+        onPrinterChanged={onPrinterChanged}
+        onOpenPrinterSettings={onOpenPrinterSettings}
+        onAskingChange={setReceiptAsking}
+      />
+    );
   }
 
   if (step === "payment" && view.bill && payment) {
