@@ -149,16 +149,17 @@ export function createReceiptsService({
       const snapshot = loadSaleSnapshot(db, saleId);
       if (!snapshot) return { state: "none" };
       const { printer, transport } = printerNow();
+      const hasReturn = snapshot.lines.some((line) => line.isReturn);
       if (!transport) {
-        return printer.printMode === "off"
+        return printer.printMode === "off" && !hasReturn
           ? { state: "off" }
           : { state: "no-printer", message: printerMessages.notSetUp };
       }
       if (opensDrawer(snapshot.payments)) {
         await transmit({ kind: "drawer", bytes: drawerKick(), reason: "sale" });
       }
-      if (printer.printMode === "ask") return { state: "ask" };
-      if (printer.printMode === "off") return { state: "off" };
+      if (printer.printMode === "ask" && !hasReturn) return { state: "ask" };
+      if (printer.printMode === "off" && !hasReturn) return { state: "off" };
       const result = await printSale(snapshot, userId);
       return result.successful
         ? { state: "printed" }

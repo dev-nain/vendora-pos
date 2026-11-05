@@ -223,7 +223,7 @@ describe("buildReceiptModel", () => {
       grossPaisa: -11800,
       totalPaisa: -11800,
       taxPaisa: -1800,
-      qtyMilli: 1000,
+      qtyMilli: -1000,
     });
     const sale = {
       ...snapshot().sale,
@@ -240,9 +240,52 @@ describe("buildReceiptModel", () => {
       buildReceiptModel(snapshot({ sale, lines: [returned], payments }), 576).blocks,
     );
 
-    expect(out).toContain("Return · 1 × Rs 118 · 18%|−Rs 118");
+    expect(out).toContain("Return · −1 × Rs 118 · 18%|−Rs 118");
     expect(out).toContain("Total|−Rs 118");
     expect(out).toContain("Cash|−Rs 118");
+  });
+
+  it("titles credit notes and exchanges and shows the original invoice", () => {
+    const returned = line({ isReturn: true, qtyMilli: -400, unit: "kg", grossPaisa: -16000 });
+    const refund = { ...snapshot().sale, type: "refund" as const, refundedInvoiceNo: "T1-000100" };
+    const credit = buildReceiptModel(snapshot({ sale: refund, lines: [returned] }), 576);
+    const out = textOf(credit.blocks);
+
+    expect(
+      credit.blocks.find((block) => block.type === "text" && block.text === "Credit note"),
+    ).toMatchObject({ align: "center", weight: "bold", size: "title" });
+    expect(out.indexOf("Credit note")).toBeLessThan(out.indexOf("Invoice|T1-000231"));
+    expect(out).toContain("Original invoice|T1-000100");
+    expect(out).toContain("Return · −0.400 kg × Rs 118 · 18%|−Rs 160");
+
+    const exchange = textOf(buildReceiptModel(snapshot({ lines: [line(), returned] }), 576).blocks);
+    expect(exchange).toContain("Exchange");
+    expect(exchange.some((row) => row.startsWith("Original invoice"))).toBe(false);
+
+    const plain = textOf(buildReceiptModel(snapshot(), 576).blocks);
+    expect(plain).not.toContain("Credit note");
+    expect(plain).not.toContain("Exchange");
+  });
+
+  it("prints refunded discounts with their sign", () => {
+    const returned = line({
+      isReturn: true,
+      qtyMilli: -1000,
+      grossPaisa: -10000,
+      lineDiscountPaisa: -500,
+      billDiscountPaisa: -200,
+      discountPaisa: -700,
+    });
+    const sold = line({ lineDiscountPaisa: 300, billDiscountPaisa: 0, discountPaisa: 300 });
+
+    const out = textOf(buildReceiptModel(snapshot({ lines: [sold, returned] }), 576).blocks);
+
+    expect(out).toContain("Discount|−Rs 3");
+    expect(out).toContain("Discount|Rs 7");
+    expect(out).toContain("Bill discount|Rs 2");
+    const refundOnly = textOf(buildReceiptModel(snapshot({ lines: [returned] }), 576).blocks);
+    expect(refundOnly).toContain("Discount|Rs 5");
+    expect(refundOnly).not.toContain("Discount|−Rs 5");
   });
 
   it("describes weighed and pack lines", () => {
