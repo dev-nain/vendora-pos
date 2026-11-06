@@ -34,6 +34,7 @@ export const auditActions = [
   "purchase_order_create",
   "purchase_order_confirm",
   "purchase_order_cancel",
+  "goods_received_post",
 ] as const;
 export type AuditAction = (typeof auditActions)[number];
 

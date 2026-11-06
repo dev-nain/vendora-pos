@@ -177,6 +177,7 @@ export const ipcChannels = {
   purchaseOrdersUpdate: "purchase-orders:update",
   purchaseOrdersConfirm: "purchase-orders:confirm",
   purchaseOrdersCancel: "purchase-orders:cancel",
+  goodsReceivedPost: "goods-received:post",
   shiftsState: "shifts:state",
   shiftsOpen: "shifts:open",
   shiftsAddCashMove: "shifts:add-cash-move",
