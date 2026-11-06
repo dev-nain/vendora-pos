@@ -411,4 +411,89 @@ describe("createBackupService", () => {
       expect(records()[0]).toMatchObject({ result: "failed", error: "Backup was cancelled" });
     });
   });
+  describe("shift close trigger", () => {
+    it("records the closing user and the shift_close trigger", async () => {
+      const user = kit.signIn("cashier");
+      const service = createService();
+
+      service.afterShiftClose(user.id);
+      await service.whenIdle();
+
+      expect(records()[0]).toMatchObject({ trigger: "shift_close", result: "ok" });
+      expect(backupAudit()[0]?.actorUserId).toBe(user.id);
+    });
+
+    it("satisfies the daily backup for the same day", async () => {
+      const user = kit.signIn("cashier");
+      const service = createService();
+
+      service.afterShiftClose(user.id);
+      await runDailyAt(service, t0 + 60 * 60 * 1000);
+
+      expect(records()).toHaveLength(1);
+    });
+
+    it("gets its own attempt after a running copy and never overlaps", async () => {
+      const user = kit.signIn("cashier");
+      const gate = deferred<void>();
+      let running = 0;
+      let overlapped = false;
+      copy.mockImplementation(async (job) => {
+        running += 1;
+        overlapped ||= running > 1;
+        await gate.promise;
+        await okCopy(job);
+        running -= 1;
+        return { sizeBytes: 6 };
+      });
+      const service = createService();
+
+      service.runDailyIfDue();
+      await vi.waitFor(() => expect(copy).toHaveBeenCalledTimes(1));
+      service.afterShiftClose(user.id);
+      vi.setSystemTime(t0 + 1000);
+      gate.resolve();
+      await service.whenIdle();
+
+      expect(copy).toHaveBeenCalledTimes(2);
+      expect(overlapped).toBe(false);
+      expect(records().map((record) => record.trigger)).toEqual(["daily", "shift_close"]);
+    });
+
+    it("finishes a queued shift close during stop", async () => {
+      const user = kit.signIn("cashier");
+      const service = createService();
+
+      service.afterShiftClose(user.id);
+      await service.stop();
+
+      expect(records()).toHaveLength(1);
+      expect(files()).toHaveLength(1);
+    });
+
+    it("skips queued daily runs once stopping", async () => {
+      const service = createService();
+
+      const stopped = service.stop();
+      service.runDailyIfDue();
+      await stopped;
+      await service.whenIdle();
+
+      expect(records()).toHaveLength(0);
+    });
+
+    it("does not throw when the record cannot be written", async () => {
+      const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      const user = kit.signIn("cashier");
+      const service = createService();
+      vi.spyOn(kit.audit, "record").mockImplementation(() => {
+        throw new Error("audit down");
+      });
+
+      expect(() => service.afterShiftClose(user.id)).not.toThrow();
+      await service.whenIdle();
+
+      expect(error).toHaveBeenCalled();
+    });
+  });
 });

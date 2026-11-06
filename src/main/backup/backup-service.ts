@@ -178,6 +178,10 @@ export function createBackupService({
     });
   }
 
+  function afterShiftClose(userId: string): void {
+    enqueue(() => attempt("shift_close", userId));
+  }
+
   function start(): void {
     enqueue(sweepTempFiles);
     runDailyIfDue();
@@ -198,7 +202,7 @@ export function createBackupService({
     return stopping;
   }
 
-  return { start, runDailyIfDue, whenIdle, stop };
+  return { start, runDailyIfDue, afterShiftClose, whenIdle, stop };
 }
 
 export type BackupService = ReturnType<typeof createBackupService>;

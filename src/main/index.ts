@@ -68,6 +68,7 @@ void app.whenReady().then(async () => {
     audit,
     sessions,
     heldBills: billDrafts.heldBillsFor,
+    afterClose: backups.afterShiftClose,
   });
   const users = createUsersService({ database, audit, sessions });
   const products = createProductsService({ database, audit, sessions });
