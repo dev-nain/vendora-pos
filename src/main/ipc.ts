@@ -109,6 +109,17 @@ import {
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
 import {
+  cancelPurchaseOrderResultSchema,
+  confirmPurchaseOrderResultSchema,
+  createPurchaseOrderInputSchema,
+  createPurchaseOrderResultSchema,
+  getPurchaseOrderResultSchema,
+  purchaseOrderIdInputSchema,
+  purchaseOrderSummarySchema,
+  updatePurchaseOrderInputSchema,
+  updatePurchaseOrderResultSchema,
+} from "@shared/purchase-orders";
+import {
   createSupplierInputSchema,
   createSupplierResultSchema,
   supplierIdInputSchema,
@@ -137,6 +148,7 @@ import type { BillDraftsService } from "./services/bill-drafts";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { ProductsService } from "./services/products";
+import type { PurchaseOrdersService } from "./services/purchase-orders";
 import type { ReceiptsService } from "./services/receipts";
 import type { ReturnsService } from "./services/returns";
 import type { SalesService } from "./services/sales";
@@ -172,6 +184,7 @@ interface IpcServices {
   taxCategories: TaxCategoriesService;
   users: UsersService;
   products: ProductsService;
+  purchaseOrders: PurchaseOrdersService;
   receipts: ReceiptsService;
 }
 
@@ -181,6 +194,7 @@ export function registerIpcHandlers({
   catalogExport,
   categories,
   products,
+  purchaseOrders,
   receipts,
   returns,
   sales,
@@ -357,6 +371,32 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.suppliersRestore, (_event, input) =>
     supplierStatusResultSchema.parse(suppliers.restore(supplierIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.purchaseOrdersList, () =>
+    z.array(purchaseOrderSummarySchema).parse(purchaseOrders.list()),
+  );
+  handle(ipcChannels.purchaseOrdersGet, (_event, input) =>
+    getPurchaseOrderResultSchema.parse(purchaseOrders.get(purchaseOrderIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.purchaseOrdersCreate, (_event, input) =>
+    createPurchaseOrderResultSchema.parse(
+      purchaseOrders.create(createPurchaseOrderInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseOrdersUpdate, (_event, input) =>
+    updatePurchaseOrderResultSchema.parse(
+      purchaseOrders.update(updatePurchaseOrderInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseOrdersConfirm, (_event, input) =>
+    confirmPurchaseOrderResultSchema.parse(
+      purchaseOrders.confirm(purchaseOrderIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseOrdersCancel, (_event, input) =>
+    cancelPurchaseOrderResultSchema.parse(
+      purchaseOrders.cancel(purchaseOrderIdInputSchema.parse(input)),
+    ),
   );
   handle(ipcChannels.taxCategoriesList, () =>
     z.array(taxCategorySchema).parse(taxCategories.list()),
