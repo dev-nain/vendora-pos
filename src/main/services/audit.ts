@@ -23,6 +23,8 @@ export const auditActions = [
   "product_archive",
   "product_restore",
   "product_delete",
+  "supplier_archive",
+  "supplier_restore",
   "shift_open",
   "shift_close",
   "cash_move_delete",
