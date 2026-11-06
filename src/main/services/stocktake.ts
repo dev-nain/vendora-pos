@@ -19,6 +19,7 @@ import {
   type CancelStocktakeResult,
   type PastStocktakesQuery,
   type PastStocktakesResult,
+  type PostStocktakeResult,
   type StocktakeReview,
   type StocktakeReviewLinesQuery,
   type StocktakeReviewLinesResult,
@@ -50,6 +51,7 @@ import { currentTerminal, type DbExecutor } from "../db/terminal";
 import { lookupBarcode } from "./barcode-lookup";
 import { outerProductId, searchTextMatch } from "./product-search";
 import { normalizeSearchText } from "./search-text";
+import type { createAuditService } from "./audit";
 import type { StockService } from "./stock";
 import { lineVariance, varianceTotals } from "./stocktake-variance";
 
@@ -59,6 +61,7 @@ interface StocktakeDeps {
   database: VendoraDatabase;
   sessions: SessionStore;
   stock: StockService;
+  audit: ReturnType<typeof createAuditService>;
   now?: () => Date;
 }
 
@@ -194,6 +197,7 @@ export function createStocktakeService({
   database,
   sessions,
   stock,
+  audit,
   now = () => new Date(),
 }: StocktakeDeps) {
   const { db } = database;
@@ -513,6 +517,91 @@ export function createStocktakeService({
     return { ok: true, items, total };
   }
 
+  function post(input: { stocktakeId: string }): PostStocktakeResult {
+    const session = requireSession(sessions);
+    return db.transaction((tx) => {
+      const header = tx
+        .select({ scope: stocktakes.scope })
+        .from(stocktakes)
+        .where(
+          and(
+            eq(stocktakes.id, input.stocktakeId),
+            eq(stocktakes.storeId, session.storeId),
+            eq(stocktakes.status, "open"),
+          ),
+        )
+        .get();
+      if (!header) return refuse("not-open", stocktakeMessages.notOpen);
+
+      const rows = countedRows(tx, input.stocktakeId, products.costPaisa);
+      if (rows.length === 0) return refuse("nothing-counted", stocktakeMessages.nothingCounted);
+
+      let adjustmentCount = 0;
+      for (const row of rows) {
+        if (row.varianceMilli === 0) continue;
+        stock.record(tx, {
+          productId: row.productId,
+          type: "stocktake",
+          qtyMilli: row.varianceMilli,
+          sourceType: "stocktake",
+          sourceId: input.stocktakeId,
+          actorUserId: session.userId,
+        });
+        adjustmentCount += 1;
+      }
+
+      tx.update(stocktakeLines)
+        .set({
+          unitCostPaisa: sql`(SELECT ${products.costPaisa} FROM ${products} WHERE ${products.id} = ${stocktakeLines.productId})`,
+        })
+        .where(
+          and(
+            eq(stocktakeLines.stocktakeId, input.stocktakeId),
+            isNotNull(stocktakeLines.countedAt),
+          ),
+        )
+        .run();
+
+      const postedAt = now();
+      const marked = tx
+        .update(stocktakes)
+        .set({ status: "posted", postedAt, postedBy: session.userId })
+        .where(and(eq(stocktakes.id, input.stocktakeId), eq(stocktakes.status, "open")))
+        .run();
+      if (marked.changes !== 1) throw new Error("Stocktake changed state while posting");
+
+      const totals = varianceTotals(rows);
+      const lineCount =
+        tx
+          .select({ n: count() })
+          .from(stocktakeLines)
+          .where(eq(stocktakeLines.stocktakeId, input.stocktakeId))
+          .get()?.n ?? 0;
+      const skippedCount = lineCount - rows.length;
+      audit.record(
+        {
+          action: "stocktake_post",
+          actorUserId: session.userId,
+          entityType: "stocktake",
+          entityId: input.stocktakeId,
+          details: {
+            scope: header.scope,
+            lineCount,
+            countedCount: rows.length,
+            skippedCount,
+            adjustmentCount,
+            shortValuePaisa: totals.shortValuePaisa,
+            surplusValuePaisa: totals.surplusValuePaisa,
+            netValuePaisa: totals.netValuePaisa,
+          },
+        },
+        tx,
+      );
+
+      return { ok: true, adjustmentCount, skippedCount, netValuePaisa: totals.netValuePaisa };
+    });
+  }
+
   function listPast(query: PastStocktakesQuery): PastStocktakesResult {
     const session = requireSession(sessions);
     const where = and(
@@ -548,6 +637,6 @@ export function createStocktakeService({
     };
   }
 
-  return { current, start, lines, scan, record, cancel, review, reviewLines, listPast };
+  return { current, start, lines, scan, record, cancel, review, reviewLines, post, listPast };
 }
 export type StocktakeService = ReturnType<typeof createStocktakeService>;

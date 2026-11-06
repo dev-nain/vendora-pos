@@ -172,6 +172,17 @@ export const pastStocktakesResultSchema = z.strictObject({
   total: z.int(),
 });
 
+export const postStocktakeResultSchema = z.union([
+  z.strictObject({
+    ok: z.literal(true),
+    adjustmentCount: z.int(),
+    skippedCount: z.int(),
+    netValuePaisa: z.int(),
+  }),
+  refusal("not-open"),
+  refusal("nothing-counted"),
+]);
+
 export const cancelStocktakeResultSchema = z.union([
   z.strictObject({ ok: z.literal(true) }),
   refusal("not-open"),
@@ -195,3 +206,4 @@ export type StocktakeReviewLine = z.infer<typeof stocktakeReviewLineSchema>;
 export type StocktakeReviewResult = z.infer<typeof stocktakeReviewResultSchema>;
 export type StocktakeReviewLinesResult = z.infer<typeof stocktakeReviewLinesResultSchema>;
 export type PastStocktakesResult = z.infer<typeof pastStocktakesResultSchema>;
+export type PostStocktakeResult = z.infer<typeof postStocktakeResultSchema>;

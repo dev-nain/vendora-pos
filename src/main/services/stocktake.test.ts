@@ -3,7 +3,14 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { UnauthenticatedError } from "../auth/errors";
 import { openDatabase } from "../db/client";
-import { categories, products, stockMovements, stocktakeLines, stocktakes } from "../db/schema";
+import {
+  auditLog,
+  categories,
+  products,
+  stockMovements,
+  stocktakeLines,
+  stocktakes,
+} from "../db/schema";
 import { createCheckoutKit, scaleCode, type CheckoutKit } from "./checkout-test-kit";
 import { createStockService } from "./stock";
 import { createStocktakeService } from "./stocktake";
@@ -22,6 +29,7 @@ describe("createStocktakeService", () => {
       database: kit.database,
       sessions: kit.sessions,
       stock: kit.stock,
+      audit: kit.audit,
     });
     userId = kit.signIn("cashier").id;
     secondCategoryId = kit.database.db
@@ -94,6 +102,36 @@ describe("createStocktakeService", () => {
     if (!result.ok) throw new Error(`refused: ${result.reason}`);
     return result;
   };
+
+  const auditRows = () =>
+    kit.database.db.select().from(auditLog).where(eq(auditLog.action, "stocktake_post")).all();
+
+  const sell = (productId: string, qtyMilli: number) => {
+    kit.openShift();
+    const bill = kit.billDrafts.addProduct({ productId, qtyMilli });
+    if (!bill.ok) throw new Error("refused");
+    const sale = kit.sales.complete({
+      draftId: bill.bill.id,
+      payments: [{ method: "cash", amountPaisa: bill.bill.totals.totalPaisa }],
+    });
+    if (!sale.ok) throw new Error("sale refused");
+  };
+
+  const linesResult = (stocktakeId: string) =>
+    service.lines({ stocktakeId, query: "", limit: 5, offset: 0 });
+
+  const post = (stocktakeId: string) => service.post({ stocktakeId });
+  const posted = (stocktakeId: string) => {
+    const result = post(stocktakeId);
+    if (!result.ok) throw new Error(`refused: ${result.reason}`);
+    return result;
+  };
+  const movementsOf = (stocktakeId: string) =>
+    kit.database.db
+      .select()
+      .from(stockMovements)
+      .where(eq(stockMovements.sourceId, stocktakeId))
+      .all();
 
   describe("start", () => {
     it("takes active products, and archived products with stock either way", () => {
@@ -443,6 +481,7 @@ describe("createStocktakeService", () => {
         database: kit.database,
         sessions: kit.sessions,
         stock: kit.stock,
+        audit: kit.audit,
         now: () => counted,
       });
       const stocktake = startFull();
@@ -468,6 +507,7 @@ describe("createStocktakeService", () => {
         database: kit.database,
         sessions: kit.sessions,
         stock: kit.stock,
+        audit: kit.audit,
         now: () => clock,
       });
       const stocktake = startFull();
@@ -551,6 +591,7 @@ describe("createStocktakeService", () => {
           database: reopened,
           sessions: kit.sessions,
           stock: createStockService({ database: reopened, audit: kit.audit }),
+          audit: kit.audit,
         });
         expect(resumed.current()).toMatchObject({
           id: stocktake.id,
@@ -748,6 +789,7 @@ describe("createStocktakeService", () => {
         database: kit.database,
         sessions: kit.sessions,
         stock: kit.stock,
+        audit: kit.audit,
         now: () => clock,
       });
       const first = startFull();
@@ -773,6 +815,308 @@ describe("createStocktakeService", () => {
     });
   });
 
+  describe("post", () => {
+    it("writes no adjustment when stock moved after the count: counted 20, then sold 3", () => {
+      const tea = product("Tea");
+      move(tea.id, 20000);
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tea"), 20000);
+      sell(tea.id, 3000);
+
+      expect(posted(stocktake.id)).toMatchObject({ adjustmentCount: 0, netValuePaisa: 0 });
+
+      expect(movementsOf(stocktake.id)).toHaveLength(0);
+      expect(kit.stock.onHand(tea.id)).toBe(17000);
+    });
+
+    it("keeps movements made after the count on top of the counted quantity", () => {
+      const tea = product("Tea");
+      move(tea.id, 20000);
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tea"), 18000);
+      move(tea.id, -3000);
+      move(tea.id, 5000);
+
+      expect(posted(stocktake.id)).toMatchObject({ adjustmentCount: 1 });
+
+      expect(movementsOf(stocktake.id)).toMatchObject([
+        { type: "stocktake", qtyMilli: -2000, reason: null, sourceType: "stocktake" },
+      ]);
+      expect(kit.stock.onHand(tea.id)).toBe(20000);
+    });
+
+    it("counts stock moved before the count as part of expected", () => {
+      const tea = product("Tea");
+      move(tea.id, 20000);
+      move(tea.id, -5000);
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tea"), 16000);
+
+      posted(stocktake.id);
+
+      expect(movementsOf(stocktake.id).map((m) => m.qtyMilli)).toEqual([1000]);
+      expect(kit.stock.onHand(tea.id)).toBe(16000);
+    });
+
+    it("writes nothing for an uncounted line and never treats it as zero", () => {
+      const tea = product("Tea");
+      const rice = product("Rice");
+      move(tea.id, 5000);
+      move(rice.id, 8000);
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tea"), 4000);
+
+      expect(posted(stocktake.id)).toMatchObject({ adjustmentCount: 1, skippedCount: 1 });
+
+      expect(kit.stock.onHand(rice.id)).toBe(8000);
+      expect(movementsOf(stocktake.id).map((m) => m.productId)).toEqual([tea.id]);
+      expect(JSON.parse(auditRows()[0]!.details!)).toMatchObject({ skippedCount: 1 });
+    });
+
+    it("posts a count with no variance without any movement", () => {
+      const tea = product("Tea");
+      move(tea.id, 5000);
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tea"), 5000);
+
+      expect(posted(stocktake.id)).toMatchObject({ adjustmentCount: 0 });
+
+      expect(movementsOf(stocktake.id)).toHaveLength(0);
+      expect(kit.database.db.select().from(stocktakes).get()?.status).toBe("posted");
+    });
+
+    it("refuses to post with nothing counted and writes nothing", () => {
+      product("Tea");
+      const stocktake = startFull();
+
+      expect(post(stocktake.id)).toMatchObject({ ok: false, reason: "nothing-counted" });
+
+      expect(kit.database.db.select().from(stocktakes).get()?.status).toBe("open");
+      expect(auditRows()).toHaveLength(0);
+    });
+
+    it("refuses a second post and writes nothing more", () => {
+      const tea = product("Tea");
+      move(tea.id, 5000);
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tea"), 4000);
+      posted(stocktake.id);
+
+      expect(post(stocktake.id)).toMatchObject({ ok: false, reason: "not-open" });
+
+      expect(movementsOf(stocktake.id)).toHaveLength(1);
+      expect(auditRows()).toHaveLength(1);
+      expect(kit.stock.onHand(tea.id)).toBe(4000);
+    });
+
+    it("refuses an unknown count", () => {
+      expect(post(UNKNOWN_ID)).toMatchObject({ ok: false, reason: "not-open" });
+    });
+
+    it("rolls back every write when a later movement fails, and a retry succeeds", () => {
+      const tea = product("Tea");
+      const rice = product("Rice");
+      move(tea.id, 5000);
+      move(rice.id, 5000);
+      let calls = 0;
+      const failing = createStocktakeService({
+        database: kit.database,
+        sessions: kit.sessions,
+        audit: kit.audit,
+        stock: {
+          ...kit.stock,
+          record: (tx, input) => {
+            calls += 1;
+            if (calls === 2) throw new Error("disk full");
+            return kit.stock.record(tx, input);
+          },
+        },
+      });
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tea"), 4000);
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Rice"), 3000);
+
+      expect(() => failing.post({ stocktakeId: stocktake.id })).toThrow("disk full");
+
+      expect(movementsOf(stocktake.id)).toHaveLength(0);
+      expect(kit.database.db.select().from(stocktakes).get()?.status).toBe("open");
+      expect(
+        kit.database.db
+          .select()
+          .from(stocktakeLines)
+          .all()
+          .every((line) => line.unitCostPaisa === null),
+      ).toBe(true);
+      expect(auditRows()).toHaveLength(0);
+
+      expect(posted(stocktake.id)).toMatchObject({ adjustmentCount: 2 });
+      expect(kit.stock.onHand(tea.id)).toBe(4000);
+      expect(kit.stock.onHand(rice.id)).toBe(3000);
+    });
+
+    it("rolls back the movements when the audit row cannot be written", () => {
+      const tea = product("Tea");
+      move(tea.id, 5000);
+      const failing = createStocktakeService({
+        database: kit.database,
+        sessions: kit.sessions,
+        stock: kit.stock,
+        audit: {
+          record: (input, tx) => {
+            if (input.action === "stocktake_post") throw new Error("audit down");
+            return kit.audit.record(input, tx);
+          },
+        },
+      });
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tea"), 4000);
+
+      expect(() => failing.post({ stocktakeId: stocktake.id })).toThrow("audit down");
+
+      expect(movementsOf(stocktake.id)).toHaveLength(0);
+      expect(kit.stock.onHand(tea.id)).toBe(5000);
+      expect(kit.database.db.select().from(stocktakes).get()?.status).toBe("open");
+    });
+
+    it("posts a line whose product was archived or deleted after the count started", () => {
+      const lux = product("Lux");
+      const old = product("Old");
+      move(lux.id, 5000);
+      move(old.id, 5000);
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Lux"), 4000);
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Old"), 6000);
+      kit.database.db
+        .update(products)
+        .set({ isActive: false })
+        .where(eq(products.id, lux.id))
+        .run();
+      kit.database.db
+        .update(products)
+        .set({ deletedAt: new Date() })
+        .where(eq(products.id, old.id))
+        .run();
+
+      expect(posted(stocktake.id)).toMatchObject({ adjustmentCount: 2 });
+
+      expect(kit.stock.onHand(lux.id)).toBe(4000);
+      expect(kit.stock.onHand(old.id)).toBe(6000);
+    });
+
+    it("freezes the cost, matches review to the audit totals and stamps the movements", () => {
+      const tapal = product("Tapal", { costPaisa: 105050 });
+      product("Lux", { costPaisa: 8500 });
+      move(tapal.id, 12000);
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tapal"), 11000);
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Lux"), 2000);
+      const before = service.review({ stocktakeId: stocktake.id });
+
+      const result = posted(stocktake.id);
+
+      const after = service.review({ stocktakeId: stocktake.id });
+      if (!before.ok || !after.ok) throw new Error("refused");
+      expect(result.netValuePaisa).toBe(-88050);
+      expect(after.review).toMatchObject({
+        status: "posted",
+        postedByName: "cashier name",
+        shortValuePaisa: before.review.shortValuePaisa,
+        surplusValuePaisa: before.review.surplusValuePaisa,
+        netValuePaisa: before.review.netValuePaisa,
+      });
+      expect(JSON.parse(auditRows()[0]!.details!)).toMatchObject({
+        shortValuePaisa: -105050,
+        surplusValuePaisa: 17000,
+        netValuePaisa: -88050,
+        adjustmentCount: 2,
+        countedCount: 2,
+        lineCount: 2,
+        scope: "full",
+      });
+      expect(auditRows()[0]).toMatchObject({
+        actorUserId: userId,
+        entityType: "stocktake",
+        entityId: stocktake.id,
+      });
+      const frozen = new Map(
+        kit.database.db
+          .select()
+          .from(stocktakeLines)
+          .all()
+          .map((line) => [line.productId, line.unitCostPaisa]),
+      );
+      expect(frozen.get(tapal.id)).toBe(105050);
+      for (const movement of movementsOf(stocktake.id)) {
+        expect(movement.unitCostPaisa).toBe(frozen.get(movement.productId));
+        expect(movement.actorUserId).toBe(userId);
+      }
+    });
+
+    it("keeps a posted count's values after a later cost edit", () => {
+      const tea = product("Tea", { costPaisa: 1000 });
+      move(tea.id, 5000);
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tea"), 4000);
+      posted(stocktake.id);
+
+      kit.database.db
+        .update(products)
+        .set({ costPaisa: 9000 })
+        .where(eq(products.id, tea.id))
+        .run();
+
+      expect(service.review({ stocktakeId: stocktake.id })).toMatchObject({
+        ok: true,
+        review: { netValuePaisa: -1000 },
+      });
+      expect(reviewLinesOf(stocktake.id).items).toMatchObject([
+        { varianceMilli: -1000, varianceValuePaisa: -1000 },
+      ]);
+    });
+
+    it("lists the posted count in the past counts with its posted date", () => {
+      const tea = product("Tea");
+      move(tea.id, 5000);
+      const postedAt = new Date("2026-11-05T09:00:00.000Z");
+      service = createStocktakeService({
+        database: kit.database,
+        sessions: kit.sessions,
+        stock: kit.stock,
+        audit: kit.audit,
+        now: () => postedAt,
+      });
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tea"), 4000);
+      posted(stocktake.id);
+
+      expect(service.listPast({ limit: 5, offset: 0 }).items).toMatchObject([
+        { id: stocktake.id, status: "posted", date: postedAt.toISOString() },
+      ]);
+    });
+
+    it("leaves a posted count read-only", () => {
+      const tea = product("Tea");
+      move(tea.id, 5000);
+      kit.addBarcode(tea.id, "6001");
+      const stocktake = startFull();
+      const lineId = lineIdOf(stocktake.id, "Tea");
+      recorded(stocktake.id, lineId, 4000);
+      posted(stocktake.id);
+      const lineBefore = lineRow(lineId);
+
+      expect(record(stocktake.id, lineId, 1000)).toMatchObject({ ok: false, reason: "not-open" });
+      expect(scanOf(stocktake.id, "6001")).toMatchObject({ ok: false, reason: "not-open" });
+      expect(linesResult(stocktake.id)).toMatchObject({ ok: false, reason: "not-open" });
+      expect(service.cancel({ stocktakeId: stocktake.id })).toMatchObject({
+        ok: false,
+        reason: "not-open",
+      });
+
+      expect(lineRow(lineId)).toEqual(lineBefore);
+      expect(kit.database.db.select().from(stocktakes).get()?.status).toBe("posted");
+    });
+  });
+
   describe("without a session", () => {
     it("throws UnauthenticatedError for every method", () => {
       kit.sessions.end();
@@ -787,6 +1131,7 @@ describe("createStocktakeService", () => {
         service.reviewLines({ stocktakeId: UNKNOWN_ID, filter: "all", limit: 1, offset: 0 }),
       ).toThrow(UnauthenticatedError);
       expect(() => service.listPast({ limit: 1, offset: 0 })).toThrow(UnauthenticatedError);
+      expect(() => service.post({ stocktakeId: UNKNOWN_ID })).toThrow(UnauthenticatedError);
     });
   });
 });

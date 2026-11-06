@@ -131,11 +131,12 @@ describe("stock on-hand benchmark", () => {
         });
     })();
 
-    service = createStockService({ database, audit: createAuditService(database) });
+    const audit = createAuditService(database);
+    service = createStockService({ database, audit });
     const sessions = createSessionStore();
     sessions.start({ userId: actorId, storeId, loggedInAt: new Date(0) });
     inventory = createInventoryService({ database, sessions, stock: service });
-    stocktake = createStocktakeService({ database, sessions, stock: service });
+    stocktake = createStocktakeService({ database, sessions, stock: service, audit });
   }, 180_000);
 
   afterAll(() => {

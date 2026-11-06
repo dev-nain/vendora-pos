@@ -29,6 +29,7 @@ export const auditActions = [
   "line_delete",
   "bill_discard",
   "sale_complete",
+  "stocktake_post",
 ] as const;
 export type AuditAction = (typeof auditActions)[number];
 
