@@ -40,7 +40,7 @@ import {
 } from "../products/product-list";
 import { ErrorLine } from "../users/form-parts";
 import { StockHistory } from "./stock-history";
-import { onHandText } from "./stock-format";
+import { negativeClass, onHandText } from "./stock-format";
 
 const SEARCH_DEBOUNCE_MS = 150;
 const ALL_CATEGORIES = "all";
@@ -53,8 +53,6 @@ const dash = <span className="text-tertiary">—</span>;
 
 const requestKey = (filters: ProductFilters, page: number, reloadKey: number): string =>
   JSON.stringify([filters, page, reloadKey]);
-
-const negativeClass = (value: number): string => (value < 0 ? "text-critical" : "");
 
 export function StockScreen({ onSessionEnded }: StockScreenProps) {
   const [searchText, setSearchText] = useState("");
