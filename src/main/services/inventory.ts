@@ -1,5 +1,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type {
+  NegativeStockQuery,
+  NegativeStockResult,
   StockHistoryQuery,
   StockHistoryResult,
   StockListQuery,
@@ -10,6 +12,7 @@ import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { products, saleLines, sales, users } from "../db/schema";
+import { listNegativeStock } from "./negative-stock";
 import { searchProducts } from "./product-search";
 import type { StockService } from "./stock";
 import { stockValuePaisa } from "./stock-value";
@@ -149,6 +152,12 @@ export function createInventoryService({ database, sessions, stock }: InventoryD
     };
   }
 
-  return { list, history };
+  function negativeStock(input: NegativeStockQuery): NegativeStockResult {
+    const session = requireSession(sessions);
+    const all = listNegativeStock(database, session.storeId);
+    return { items: all.slice(input.offset, input.offset + input.limit), total: all.length };
+  }
+
+  return { list, history, negativeStock };
 }
 export type InventoryService = ReturnType<typeof createInventoryService>;
