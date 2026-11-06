@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import {
   closeSync,
   cpSync,
@@ -17,6 +18,8 @@ import { openDatabase } from "../db/client";
 import { lastAppliedAt, latestMigrationAt, runMigrations } from "../db/migrate";
 import { vacuumInto } from "../db/vacuum-into";
 import { createCheckoutKit, type CheckoutKit } from "../services/checkout-test-kit";
+import { sealBackupFile } from "./backup-cipher";
+import { deriveBackupKey } from "./backup-key";
 import { createBackupService } from "./backup-service";
 import { createRestoreService, restoreMessages, type RestoreSource } from "./restore";
 import type { CopyDatabase } from "./worker-copy";
@@ -416,6 +419,152 @@ describe("createRestoreService", () => {
       expect(restoreRows(databaseFile)[0]?.actor_user_id).toBe(
         "01990000-0000-7000-8000-000000000001",
       );
+    });
+  });
+
+  const expectRefusedWith = async (file: string, reason: string, given?: string) => {
+    const before = readFileSync(databaseFile);
+
+    const result = await createService().restore(sourceOf(file), null, given);
+
+    expect(result).toMatchObject({ ok: false, reason });
+    expect(readFileSync(databaseFile).equals(before)).toBe(true);
+    expect(closeDatabase).not.toHaveBeenCalled();
+    expect(backupCurrent).not.toHaveBeenCalled();
+    expect(restart).not.toHaveBeenCalled();
+    expect(stagedLeftovers()).toEqual([]);
+    expect(readdirSync(backupDir).filter((name) => name.startsWith("pre-restore-"))).toEqual([]);
+  };
+
+  describe("password-protected backups", () => {
+    const password = "blue horse 7";
+    const marker = "marker-pw-4821";
+    const smallKdf = { memoryKiB: 64, iterations: 1, parallelism: 1 };
+
+    const sealWith = async (plainFile: string, secret: string, name = "sealed.db") => {
+      const salt = randomBytes(16);
+      const key = await deriveBackupKey(secret, salt, smallKdf);
+      const file = join(kit.dir, name);
+      sealBackupFile(plainFile, file, { key, salt, kdf: smallKdf });
+      return file;
+    };
+
+    const sealedBackup = async (secret = password) => sealWith(takeBackup(), secret);
+
+    it("restores a sealed backup with the right password", async () => {
+      kit.signIn("cashier");
+      kit.addProduct({ nameEn: "In the backup" });
+      const plain = takeBackup();
+      const file = await sealWith(plain, password);
+      const expected = snapshot(plain);
+      kit.addProduct({ nameEn: "Added later" });
+
+      const result = await createService().restore(sourceOf(file), null, password);
+
+      expect(result).toEqual({ ok: true });
+      expect(productNames(databaseFile)).not.toContain("Added later");
+      const restored = snapshot(databaseFile);
+      expect({
+        ...restored,
+        audit_log: restored.audit_log?.filter(
+          (row) => (row as { action: string }).action !== "restore",
+        ),
+      }).toEqual(expected);
+      expect(stagedLeftovers()).toEqual([]);
+    });
+
+    it("asks for a password when none is given", async () => {
+      await expectRefusedWith(await sealedBackup(), "password-required");
+    });
+
+    it("refuses a wrong password", async () => {
+      await expectRefusedWith(await sealedBackup(), "wrong-password", "green horse 8");
+    });
+
+    it("refuses a tampered file with the same reason", async () => {
+      const file = await sealedBackup();
+      const bytes = readFileSync(file);
+      const middle = Math.floor(bytes.length / 2);
+      bytes[middle] = (bytes[middle] ?? 0) ^ 0xff;
+      writeFileSync(file, bytes);
+
+      await expectRefusedWith(file, "wrong-password", password);
+    });
+
+    it("calls a header with out-of-range values corrupt", async () => {
+      const file = await sealedBackup();
+      const bytes = readFileSync(file);
+      bytes.writeUInt32BE(0xffffffff, 9);
+      writeFileSync(file, bytes);
+
+      await expectRefusedWith(file, "corrupt", password);
+    });
+
+    it("still restores an unencrypted backup with no password", async () => {
+      const file = takeBackup();
+
+      expect(await createService().restore(sourceOf(file), null)).toEqual({ ok: true });
+    });
+
+    it("opens a file made under an earlier password only with that password", async () => {
+      const file = await sealedBackup("earlier password");
+
+      await expectRefusedWith(file, "wrong-password", password);
+      expect(await createService().restore(sourceOf(file), null, "earlier password")).toEqual({
+        ok: true,
+      });
+    });
+
+    it("migrates an encrypted older-schema backup and writes the pre-migrate file", async () => {
+      const oldFolder = join(kit.dir, "old-migrations");
+      cpSync(migrationsFolder, oldFolder, { recursive: true });
+      const journalFile = join(oldFolder, "meta", "_journal.json");
+      const journal = JSON.parse(readFileSync(journalFile, "utf8")) as { entries: unknown[] };
+      journal.entries = journal.entries.slice(0, 15);
+      writeFileSync(journalFile, JSON.stringify(journal));
+      const oldFile = join(kit.dir, "old.db");
+      const old = openDatabase(oldFile);
+      runMigrations(old, { migrationsFolder: oldFolder, backupDir: join(kit.dir, "old-backups") });
+      old.sqlite.exec(`
+        INSERT INTO stores (id, name, created_at, updated_at) VALUES ('s1', 'Old', 1, 2);
+        INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 2);
+        INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at)
+          VALUES ('01990000-0000-7000-8000-000000000001', 'owner', 'Owner', 'p', 'q', 1, 2);
+      `);
+      old.sqlite.close();
+      const sealedOld = await sealWith(oldFile, password, "old-sealed.db");
+
+      const result = await createService().restore(sourceOf(sealedOld), null, password);
+
+      expect(result).toEqual({ ok: true });
+      expect(readdirSync(backupDir).filter((name) => name.startsWith("pre-migrate-"))).toHaveLength(
+        1,
+      );
+    });
+
+    it("leaves the backup key file alone", async () => {
+      const keyFile = join(kit.dir, "backup-key.json");
+      writeFileSync(keyFile, '{"version":1}');
+      const file = await sealedBackup();
+
+      await createService().restore(sourceOf(file), null, password);
+
+      expect(readFileSync(keyFile, "utf8")).toBe('{"version":1}');
+    });
+
+    it("never writes the password to the console or the audit log", async () => {
+      const spies = (["log", "info", "warn", "error", "debug"] as const).map((method) =>
+        vi.spyOn(console, method).mockImplementation(() => undefined),
+      );
+      const file = await sealedBackup(marker);
+
+      await createService().restore(sourceOf(file), null, "wrong guess");
+      await createService().restore(sourceOf(file), null, marker);
+
+      const logged = JSON.stringify(spies.flatMap((spy) => spy.mock.calls));
+      expect(logged).not.toContain(marker);
+      expect(logged).not.toContain("wrong guess");
+      expect(JSON.stringify(restoreRows(databaseFile))).not.toContain(marker);
     });
   });
 });

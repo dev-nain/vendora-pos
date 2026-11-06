@@ -12,6 +12,7 @@ export const backupFileSchema = z.strictObject({
   kind: z.enum(backupKinds),
   takenAt: z.iso.datetime(),
   sizeBytes: z.int().nonnegative(),
+  encrypted: z.boolean(),
 });
 export type BackupFile = z.infer<typeof backupFileSchema>;
 
@@ -30,13 +31,28 @@ export const backupNowResultSchema = z.discriminatedUnion("ok", [
 export type BackupNowResult = z.infer<typeof backupNowResultSchema>;
 
 export const chosenBackupSchema = z
-  .strictObject({ token: z.uuid(), fileName: z.string(), takenAt: z.iso.datetime() })
+  .strictObject({
+    token: z.uuid(),
+    fileName: z.string(),
+    takenAt: z.iso.datetime(),
+    encrypted: z.boolean(),
+  })
   .nullable();
 export type ChosenBackup = z.infer<typeof chosenBackupSchema>;
 
+export const restorePasswordSchema = z.string().min(1).max(256);
+
 export const restoreInputSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("listed"), fileName: backupFileNameSchema }),
-  z.strictObject({ kind: z.literal("picked"), token: z.uuid() }),
+  z.strictObject({
+    kind: z.literal("listed"),
+    fileName: backupFileNameSchema,
+    password: restorePasswordSchema.optional(),
+  }),
+  z.strictObject({
+    kind: z.literal("picked"),
+    token: z.uuid(),
+    password: restorePasswordSchema.optional(),
+  }),
 ]);
 export type RestoreInput = z.infer<typeof restoreInputSchema>;
 
@@ -49,6 +65,8 @@ export const restoreRefusals = [
   "migration-failed",
   "backup-failed",
   "swap-failed",
+  "password-required",
+  "wrong-password",
 ] as const;
 export type RestoreRefusal = (typeof restoreRefusals)[number];
 

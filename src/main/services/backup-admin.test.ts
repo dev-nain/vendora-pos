@@ -238,6 +238,7 @@ describe("backup admin service", () => {
           takenAt: "2026-11-05T10:00:00.000Z",
         },
         { userId: user.id, displayName: "cashier name" },
+        undefined,
       );
     });
 
@@ -251,7 +252,11 @@ describe("backup admin service", () => {
 
       const chosen = await service.chooseRestoreFile();
 
-      expect(chosen).toMatchObject({ fileName: "note.db", takenAt: "2026-10-01T00:00:00.000Z" });
+      expect(chosen).toMatchObject({
+        fileName: "note.db",
+        takenAt: "2026-10-01T00:00:00.000Z",
+        encrypted: false,
+      });
       const wrong = await service.restore({
         kind: "picked",
         token: "018f0000-0000-7000-8000-000000000000",
@@ -266,6 +271,59 @@ describe("backup admin service", () => {
         reason: "not-found",
       });
       expect(restore).toHaveBeenCalledTimes(1);
+    });
+
+    it("reports whether a picked file is encrypted", async () => {
+      kit.signIn("cashier");
+      const picked = join(kit.dir, "sealed.db");
+      writeFileSync(picked, Buffer.concat([Buffer.from("VNDBKENC"), Buffer.alloc(100)]));
+      chooseFile.mockResolvedValueOnce(picked);
+
+      expect(await createService().chooseRestoreFile()).toMatchObject({ encrypted: true });
+    });
+
+    it.each(["password-required", "wrong-password"] as const)(
+      "keeps a picked file after %s so the dialog can retry",
+      async (reason) => {
+        kit.signIn("cashier");
+        const picked = join(kit.dir, "sealed.db");
+        writeFileSync(picked, "x");
+        chooseFile.mockResolvedValueOnce(picked);
+        const service = createService();
+        const chosen = await service.chooseRestoreFile();
+        restore.mockResolvedValueOnce({ ok: false, reason, message: restoreMessages[reason] });
+
+        const refused = await service.restore({ kind: "picked", token: chosen!.token });
+        const retried = await service.restore({
+          kind: "picked",
+          token: chosen!.token,
+          password: "blue horse 7",
+        });
+
+        expect(refused).toMatchObject({ ok: false, reason });
+        expect(retried).toEqual({ ok: true });
+        expect(restore.mock.calls[1]?.[2]).toBe("blue horse 7");
+      },
+    );
+
+    it("consumes a picked file after any other refusal", async () => {
+      kit.signIn("cashier");
+      const picked = join(kit.dir, "bad.db");
+      writeFileSync(picked, "x");
+      chooseFile.mockResolvedValueOnce(picked);
+      const service = createService();
+      const chosen = await service.chooseRestoreFile();
+      restore.mockResolvedValueOnce({
+        ok: false,
+        reason: "corrupt",
+        message: restoreMessages.corrupt,
+      });
+
+      await service.restore({ kind: "picked", token: chosen!.token });
+
+      expect(await service.restore({ kind: "picked", token: chosen!.token })).toMatchObject({
+        reason: "not-found",
+      });
     });
 
     it("takes the date of a picked backup from its name", async () => {

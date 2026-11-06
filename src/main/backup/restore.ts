@@ -6,6 +6,8 @@ import { runMigrations } from "../db/migrate";
 import { users } from "../db/schema";
 import { createAuditService } from "../services/audit";
 import type { BackupAttempt } from "./backup-service";
+import { isEncryptedBackup, openBackupFile, readBackupHeader } from "./backup-cipher";
+import { deriveBackupKey } from "./backup-key";
 import { checkBackup } from "./restore-check";
 
 export interface RestoreActor {
@@ -38,6 +40,9 @@ export const restoreMessages: Record<Exclude<RestoreRefusal, "open-work">, strin
   "migration-failed": "This backup couldn't be brought up to date. Nothing was changed.",
   "backup-failed": "Couldn't back up the current data, so nothing was restored.",
   "swap-failed": "The restore didn't finish. Your data is unchanged. Vendora will restart.",
+  "password-required": "This backup has a password. Enter it to restore. Nothing was changed.",
+  "wrong-password":
+    "That password doesn't open this backup, or the file is damaged. Nothing was changed.",
 };
 
 const stagedSuffixes = ["", "-wal", "-shm"];
@@ -80,10 +85,23 @@ export function createRestoreService({
 }: RestoreDeps) {
   const staged = stagedFile(databaseFile);
 
-  async function stage(source: RestoreSource): Promise<RestoreResult | null> {
+  async function stage(
+    source: RestoreSource,
+    password: string | undefined,
+  ): Promise<RestoreResult | null> {
     await removeStagedRestore(databaseFile);
     try {
-      await copyFile(source.file, staged);
+      if (!(await isEncryptedBackup(source.file))) {
+        await copyFile(source.file, staged);
+      } else {
+        if (password === undefined) return refuse("password-required");
+        const header = await readBackupHeader(source.file);
+        if (!header.ok) return refuse(header.reason);
+        const key = await deriveBackupKey(password, header.header.passwordSalt, header.header.kdf);
+        if (!(await openBackupFile(source.file, staged, header.header, key))) {
+          return refuse("wrong-password");
+        }
+      }
     } catch (cause) {
       logFailure("Restore copy failed:", cause);
       return refuse("not-found");
@@ -112,10 +130,11 @@ export function createRestoreService({
   async function restore(
     source: RestoreSource,
     actor: RestoreActor | null,
+    password?: string,
   ): Promise<RestoreResult> {
     let stagedDatabase: VendoraDatabase | null = null;
     try {
-      const refused = await stage(source);
+      const refused = await stage(source, password);
       if (refused) return refused;
 
       try {

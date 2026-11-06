@@ -13,6 +13,7 @@ import type { ShiftState } from "../../shared/shifts";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import { listBackupFiles, parseBackupName } from "../backup/backup-files";
+import { isEncryptedBackup } from "../backup/backup-cipher";
 import type { BackupService } from "../backup/backup-service";
 import { restoreMessages, type RestoreService, type RestoreSource } from "../backup/restore";
 import type { VendoraDatabase } from "../db/client";
@@ -85,9 +86,10 @@ export function createBackupAdminService({
     requireSession(sessions);
     const fileName = basename(file);
     const takenAt = parseBackupName(fileName)?.takenAt ?? (await stat(file)).mtime.toISOString();
+    const encrypted = await isEncryptedBackup(file);
     const token = randomUUID();
     chosen = { token, source: { file, fileName, takenAt } };
-    return { token, fileName, takenAt };
+    return { token, fileName, takenAt, encrypted };
   }
 
   async function resolveSource(input: RestoreInput): Promise<RestoreSource | null> {
@@ -119,10 +121,19 @@ export function createBackupAdminService({
       .from(users)
       .where(eq(users.id, session.userId))
       .get();
-    return restores.restore(
+    const result = await restores.restore(
       source,
       user ? { userId: session.userId, displayName: user.displayName } : null,
+      input.password,
     );
+    if (
+      input.kind === "picked" &&
+      !result.ok &&
+      (result.reason === "password-required" || result.reason === "wrong-password")
+    ) {
+      chosen = { token: input.token, source };
+    }
+    return result;
   }
 
   return { status, backupNow, chooseRestoreFile, restore };
