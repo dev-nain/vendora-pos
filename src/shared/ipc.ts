@@ -63,6 +63,18 @@ import type {
 } from "./inventory";
 import type { AddFromSaleInput, ReturnableResult } from "./returns";
 import type {
+  CancelStocktakeResult,
+  RecordCountInput,
+  RecordCountResult,
+  StartStocktakeInput,
+  StartStocktakeResult,
+  StocktakeLinesQuery,
+  StocktakeLinesResult,
+  StocktakeScanInput,
+  StocktakeScanResult,
+  StocktakeSummary,
+} from "./stocktake";
+import type {
   BarcodeLookup,
   BulkUpdateProductsInput,
   BulkUpdateProductsResult,
@@ -136,6 +148,12 @@ export const ipcChannels = {
   usersReactivate: "users:reactivate",
   inventoryListStock: "inventory:list-stock",
   inventoryStockHistory: "inventory:stock-history",
+  stocktakeCurrent: "stocktake:current",
+  stocktakeStart: "stocktake:start",
+  stocktakeLines: "stocktake:lines",
+  stocktakeScan: "stocktake:scan",
+  stocktakeRecord: "stocktake:record",
+  stocktakeCancel: "stocktake:cancel",
   productsSearch: "products:search",
   productsGet: "products:get",
   productsCreate: "products:create",
@@ -234,6 +252,14 @@ export interface VendoraApi {
   inventory: {
     listStock: (query: StockListQuery) => Promise<StockListResult>;
     stockHistory: (query: StockHistoryQuery) => Promise<StockHistoryResult>;
+  };
+  stocktake: {
+    current: () => Promise<StocktakeSummary | null>;
+    start: (input: StartStocktakeInput) => Promise<StartStocktakeResult>;
+    lines: (query: StocktakeLinesQuery) => Promise<StocktakeLinesResult>;
+    scan: (input: StocktakeScanInput) => Promise<StocktakeScanResult>;
+    record: (input: RecordCountInput) => Promise<RecordCountResult>;
+    cancel: (stocktakeId: string) => Promise<CancelStocktakeResult>;
   };
   products: {
     getMiscItem: () => Promise<Product | null>;

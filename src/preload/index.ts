@@ -38,6 +38,14 @@ import {
 } from "@shared/shifts";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 import { stockHistoryResultSchema, stockListResultSchema } from "@shared/inventory";
+import {
+  cancelStocktakeResultSchema,
+  recordCountResultSchema,
+  startStocktakeResultSchema,
+  stocktakeLinesResultSchema,
+  stocktakeScanResultSchema,
+  stocktakeSummarySchema,
+} from "@shared/stocktake";
 import { returnableResultSchema } from "@shared/returns";
 import { getOrderResultSchema, orderListSchema } from "@shared/sales";
 import {
@@ -178,6 +186,24 @@ const api: VendoraApi = {
     stockHistory: async (query) =>
       stockHistoryResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.inventoryStockHistory, query),
+      ),
+  },
+  stocktake: {
+    current: async () =>
+      stocktakeSummarySchema
+        .nullable()
+        .parse(await ipcRenderer.invoke(ipcChannels.stocktakeCurrent)),
+    start: async (input) =>
+      startStocktakeResultSchema.parse(await ipcRenderer.invoke(ipcChannels.stocktakeStart, input)),
+    lines: async (query) =>
+      stocktakeLinesResultSchema.parse(await ipcRenderer.invoke(ipcChannels.stocktakeLines, query)),
+    scan: async (input) =>
+      stocktakeScanResultSchema.parse(await ipcRenderer.invoke(ipcChannels.stocktakeScan, input)),
+    record: async (input) =>
+      recordCountResultSchema.parse(await ipcRenderer.invoke(ipcChannels.stocktakeRecord, input)),
+    cancel: async (stocktakeId) =>
+      cancelStocktakeResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.stocktakeCancel, { stocktakeId }),
       ),
   },
   products: {

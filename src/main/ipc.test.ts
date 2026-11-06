@@ -17,6 +17,7 @@ import { createCheckoutKit, type CheckoutKit } from "./services/checkout-test-ki
 import { createSalesService, type SalesService } from "./services/sales";
 import { createShiftsService, type ShiftsService } from "./services/shifts";
 import { createStockService } from "./services/stock";
+import { createStocktakeService, type StocktakeService } from "./services/stocktake";
 import { openMigratedDatabase } from "./db/test-database";
 
 const handlers = vi.hoisted(
@@ -121,6 +122,7 @@ describe("products ipc", () => {
       catalogExport,
       categories: stub,
       inventory: stub,
+      stocktake: stub,
       products: service,
       receipts: stub,
       returns: stub,
@@ -335,6 +337,7 @@ describe("shifts ipc", () => {
       catalogExport: stub,
       categories: stub,
       inventory: stub,
+      stocktake: stub,
       products: stub,
       receipts: receipts as never,
       returns: stub,
@@ -484,6 +487,7 @@ describe("checkout ipc", () => {
       catalogExport: stub,
       categories: stub,
       inventory: stub,
+      stocktake: stub,
       products: stub,
       receipts: receipts as never,
       returns: kit.returns,
@@ -724,6 +728,7 @@ describe("inventory ipc", () => {
       catalogExport: stub,
       categories: stub,
       inventory: service,
+      stocktake: stub,
       products: stub,
       receipts: stub,
       returns: stub,
@@ -776,5 +781,111 @@ describe("inventory ipc", () => {
     await expect(
       invoke("inventory:list-stock", { query: "", limit: 10, offset: 0 }),
     ).rejects.toThrow(new Error(ipcErrorMessages.unauthenticated));
+  });
+});
+
+describe("stocktake ipc", () => {
+  let kit: CheckoutKit;
+  let service: StocktakeService;
+
+  beforeEach(() => {
+    handlers.clear();
+    kit = createCheckoutKit();
+    service = createStocktakeService({
+      database: kit.database,
+      sessions: kit.sessions,
+      stock: kit.stock,
+    });
+    const stub = {} as never;
+    registerIpcHandlers({
+      auth: stub,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      inventory: stub,
+      stocktake: service,
+      products: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+    kit.signIn("cashier");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    kit.close();
+  });
+
+  it.each([
+    ["stocktake:start", "start", { scope: "category" }],
+    ["stocktake:start", "start", { scope: "category", categoryId: "x" }],
+    ["stocktake:start", "start", { scope: "full", extra: 1 }],
+    ["stocktake:start", "start", { scope: "other" }],
+    ["stocktake:lines", "lines", { stocktakeId: "x", query: "", limit: 10, offset: 0 }],
+    ["stocktake:lines", "lines", { stocktakeId: unknownId, query: "", limit: 101, offset: 0 }],
+    [
+      "stocktake:lines",
+      "lines",
+      { stocktakeId: unknownId, query: "", limit: 10, offset: 0, extra: 1 },
+    ],
+    ["stocktake:scan", "scan", { stocktakeId: unknownId, barcode: "  " }],
+    ["stocktake:scan", "scan", { stocktakeId: "x", barcode: "123" }],
+    ["stocktake:record", "record", { stocktakeId: unknownId, lineId: unknownId, countedMilli: -1 }],
+    [
+      "stocktake:record",
+      "record",
+      { stocktakeId: unknownId, lineId: unknownId, countedMilli: 1.5 },
+    ],
+    [
+      "stocktake:record",
+      "record",
+      { stocktakeId: unknownId, lineId: unknownId, countedMilli: 1_000_000_001 },
+    ],
+    [
+      "stocktake:record",
+      "record",
+      { stocktakeId: unknownId, lineId: unknownId, countedMilli: 1000, extra: 1 },
+    ],
+    ["stocktake:record", "record", { stocktakeId: unknownId, lineId: "x", countedMilli: 1000 }],
+    ["stocktake:cancel", "cancel", { stocktakeId: "x" }],
+    ["stocktake:cancel", "cancel", { stocktakeId: unknownId, extra: 1 }],
+  ] as const)("%s rejects bad input", async (channel, method, input) => {
+    const spy = vi.spyOn(service, method);
+    await expect(invoke(channel, input)).rejects.toThrow();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("starts, scans and cancels a count", async () => {
+    const tea = kit.addProduct({ nameEn: "Tea", searchText: "tea" });
+    kit.addBarcode(tea.id, "8961000000011");
+
+    expect(await invoke("stocktake:current")).toBeNull();
+    const started = (await invoke("stocktake:start", { scope: "full" })) as {
+      stocktake: { id: string };
+    };
+    const stocktakeId = started.stocktake.id;
+    expect(await invoke("stocktake:scan", { stocktakeId, barcode: "8961000000011" })).toMatchObject(
+      { ok: true, line: { productId: tea.id } },
+    );
+    expect(await invoke("stocktake:cancel", { stocktakeId })).toEqual({ ok: true });
+    expect(await invoke("stocktake:cancel", { stocktakeId })).toMatchObject({
+      ok: false,
+      reason: "not-open",
+    });
+  });
+
+  it("rejects calls with no session", async () => {
+    kit.sessions.end();
+    await expect(invoke("stocktake:current")).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
+    await expect(invoke("stocktake:start", { scope: "full" })).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
   });
 });
