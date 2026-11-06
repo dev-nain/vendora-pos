@@ -496,4 +496,68 @@ describe("createBackupService", () => {
       expect(error).toHaveBeenCalled();
     });
   });
+
+  describe("backup now and before restore", () => {
+    it("records a manual backup with the user and reports the file", async () => {
+      const user = kit.signIn("cashier");
+      const service = createService();
+
+      const result = await service.backupNow(user.id);
+
+      expect(records()[0]).toMatchObject({ trigger: "manual", result: "ok" });
+      expect(result).toEqual({ ok: true, fileName: records()[0]?.fileName });
+      expect(backupAudit()[0]?.actorUserId).toBe(user.id);
+    });
+
+    it("reports a failing copy with its error and a failed record", async () => {
+      const user = kit.signIn("cashier");
+      copy.mockRejectedValueOnce(new Error("disk full"));
+      const service = createService();
+
+      const result = await service.backupNow(user.id);
+
+      expect(result).toEqual({ ok: false, error: "disk full" });
+      expect(records()[0]).toMatchObject({
+        trigger: "manual",
+        result: "failed",
+        error: "disk full",
+      });
+    });
+
+    it("writes a pre-restore file and accepts no user", async () => {
+      const service = createService();
+
+      const result = await service.backupBeforeRestore(null);
+
+      const [record] = records();
+      expect(record).toMatchObject({ trigger: "pre_restore", result: "ok" });
+      expect(record?.fileName).toMatch(/^pre-restore-.*\.db$/);
+      expect(result).toEqual({ ok: true, fileName: record?.fileName });
+      expect(files()).toEqual([record?.fileName]);
+      expect(backupAudit()[0]?.actorUserId).toBeNull();
+    });
+
+    it("sweeps pre-restore temp files on start", async () => {
+      mkdirSync(backupDir, { recursive: true });
+      writeFileSync(join(backupDir, "pre-restore-2020-01-01T00-00-00-000Z.db.tmp"), "partial");
+      const service = createService();
+
+      service.start();
+      await service.whenIdle();
+      await service.stop();
+
+      expect(files()).not.toContain("pre-restore-2020-01-01T00-00-00-000Z.db.tmp");
+    });
+
+    it("waits for a queued manual backup when stopping", async () => {
+      const user = kit.signIn("cashier");
+      const service = createService();
+
+      const pending = service.backupNow(user.id);
+      await service.stop();
+
+      expect(records()).toHaveLength(1);
+      await expect(pending).resolves.toMatchObject({ ok: true });
+    });
+  });
 });

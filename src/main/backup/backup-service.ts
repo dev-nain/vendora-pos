@@ -12,9 +12,11 @@ const retentionMs = 30 * 24 * 60 * 60 * 1000;
 const dailyCheckMs = 60 * 60 * 1000;
 const quitWaitMs = 60 * 1000;
 const maxErrorLength = 500;
-const tempFilePattern = /^vendora-.*\.db\.tmp$/;
+const tempFilePattern = /^(vendora|pre-restore)-.*\.db\.tmp$/;
 
 const karachiDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" });
+
+export type BackupAttempt = { ok: true; fileName: string } | { ok: false; error: string };
 
 interface BackupServiceDeps {
   database: VendoraDatabase;
@@ -41,6 +43,20 @@ export function createBackupService({
     chain = chain.then(task).catch((error: unknown) => {
       console.error("Backup task failed:", error instanceof Error ? error.message : String(error));
     });
+  }
+
+  function enqueueForResult<T>(task: () => Promise<T>): Promise<T> {
+    const result = chain.then(task);
+    chain = result.then(
+      () => undefined,
+      (error: unknown) => {
+        console.error(
+          "Backup task failed:",
+          error instanceof Error ? error.message : String(error),
+        );
+      },
+    );
+    return result;
   }
 
   async function whenIdle(): Promise<void> {
@@ -87,9 +103,13 @@ export function createBackupService({
     }
   }
 
-  async function attempt(trigger: BackupTrigger, actorUserId: string | null): Promise<void> {
+  async function attempt(
+    trigger: BackupTrigger,
+    actorUserId: string | null,
+  ): Promise<BackupAttempt> {
     const startedAt = now();
-    const fileName = `vendora-${backupStamp(startedAt)}.db`;
+    const prefix = trigger === "pre_restore" ? "pre-restore" : "vendora";
+    const fileName = `${prefix}-${backupStamp(startedAt)}.db`;
     const finalFile = join(backupDir, fileName);
     const tempFile = `${finalFile}.tmp`;
 
@@ -145,10 +165,12 @@ export function createBackupService({
         "Backup record failed:",
         cause instanceof Error ? cause.message : String(cause),
       );
-      return;
+      return error === null ? { ok: true, fileName } : { ok: false, error };
     }
 
-    if (result === "ok") await removeExpired();
+    if (error !== null) return { ok: false, error };
+    await removeExpired();
+    return { ok: true, fileName };
   }
 
   function backedUpToday(): boolean {
@@ -179,7 +201,17 @@ export function createBackupService({
   }
 
   function afterShiftClose(userId: string): void {
-    enqueue(() => attempt("shift_close", userId));
+    enqueue(async () => {
+      await attempt("shift_close", userId);
+    });
+  }
+
+  function backupNow(userId: string): Promise<BackupAttempt> {
+    return enqueueForResult(() => attempt("manual", userId));
+  }
+
+  function backupBeforeRestore(userId: string | null): Promise<BackupAttempt> {
+    return enqueueForResult(() => attempt("pre_restore", userId));
   }
 
   function start(): void {
@@ -202,7 +234,7 @@ export function createBackupService({
     return stopping;
   }
 
-  return { start, runDailyIfDue, afterShiftClose, whenIdle, stop };
+  return { start, runDailyIfDue, afterShiftClose, backupNow, backupBeforeRestore, whenIdle, stop };
 }
 
 export type BackupService = ReturnType<typeof createBackupService>;
