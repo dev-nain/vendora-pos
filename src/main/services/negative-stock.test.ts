@@ -105,7 +105,9 @@ describe("listNegativeStock", () => {
   });
 
   it("returns every row without paging", () => {
-    for (let i = 0; i < 130; i++) move(product(`Item ${String(i).padStart(3, "0")}`).id, -1000);
+    kit.database.sqlite.transaction(() => {
+      for (let i = 0; i < 130; i++) move(product(`Item ${String(i).padStart(3, "0")}`).id, -1000);
+    })();
     expect(list()).toHaveLength(130);
   });
 });
