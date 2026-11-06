@@ -125,6 +125,7 @@ describe("products ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      backupPassword: stub,
       backupSettings: stub,
       backupAdmin: stub,
       billDrafts: stub,
@@ -392,6 +393,7 @@ describe("shifts ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      backupPassword: stub,
       backupSettings: stub,
       backupAdmin: stub,
       billDrafts: stub,
@@ -543,6 +545,7 @@ describe("checkout ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      backupPassword: stub,
       backupSettings: stub,
       backupAdmin: stub,
       billDrafts: kit.billDrafts,
@@ -788,6 +791,7 @@ describe("backup settings ipc", () => {
     registerIpcHandlers({
       auth: stub,
       backupAdmin: stub,
+      backupPassword: stub,
       backupSettings,
       billDrafts: stub,
       catalogExport: stub,
@@ -830,6 +834,7 @@ describe("backup ipc", () => {
     registerIpcHandlers({
       auth: stub,
       backupAdmin: admin as never,
+      backupPassword: stub,
       backupSettings: stub,
       billDrafts: stub,
       catalogExport: stub,
@@ -884,5 +889,84 @@ describe("backup ipc", () => {
   ])("rejects restore input %j before the service runs", async (input) => {
     await expect(invoke("backup:restore", input)).rejects.toThrow();
     expect(admin.restore).not.toHaveBeenCalled();
+  });
+});
+
+describe("backup password ipc", () => {
+  const service = {
+    status: vi.fn(),
+    turnOn: vi.fn(),
+    change: vi.fn(),
+    turnOff: vi.fn(),
+  };
+
+  beforeEach(() => {
+    handlers.clear();
+    vi.clearAllMocks();
+    const stub = {} as never;
+    registerIpcHandlers({
+      auth: stub,
+      backupAdmin: stub,
+      backupPassword: service as never,
+      backupSettings: stub,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      products: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      suppliers: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+  });
+
+  it("parses input and output on all four channels", async () => {
+    service.status.mockResolvedValue({ state: "off" });
+    service.turnOn.mockResolvedValue({ ok: true, status: { state: "on" } });
+    service.change.mockResolvedValue({ ok: true, status: { state: "on" } });
+    service.turnOff.mockResolvedValue({ ok: true, status: { state: "off" } });
+
+    expect(await invoke("backup:password-status")).toEqual({ state: "off" });
+    await invoke("backup:password-turn-on", { password: "blue horse 7" });
+    await invoke("backup:password-change", { current: "blue horse 7", next: "green horse 8" });
+    await invoke("backup:password-turn-off", { current: "green horse 8" });
+
+    expect(service.turnOn).toHaveBeenCalledWith({ password: "blue horse 7" });
+    expect(service.change).toHaveBeenCalledWith({ current: "blue horse 7", next: "green horse 8" });
+    expect(service.turnOff).toHaveBeenCalledWith({ current: "green horse 8" });
+  });
+
+  it.each([
+    ["backup:password-turn-on", { password: "short" }],
+    ["backup:password-turn-on", { password: "blue horse 7", extra: 1 }],
+    ["backup:password-change", { current: "", next: "green horse 8" }],
+    ["backup:password-change", { current: "x", next: "short" }],
+    ["backup:password-turn-off", { current: "" }],
+    ["backup:password-turn-off", {}],
+  ])("rejects %s input %j before the service runs", async (channel, input) => {
+    await expect(invoke(channel, input)).rejects.toThrow();
+
+    expect(service.turnOn).not.toHaveBeenCalled();
+    expect(service.change).not.toHaveBeenCalled();
+    expect(service.turnOff).not.toHaveBeenCalled();
+  });
+
+  it("keeps a rejected password out of the error", async () => {
+    const error = await invoke("backup:password-turn-on", { password: "short7" }).catch(
+      (cause: unknown) => cause,
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    expect(String((error as Error).message)).not.toContain("short7");
+  });
+
+  it("rejects a malformed service answer", async () => {
+    service.status.mockResolvedValue({ state: "maybe" });
+
+    await expect(invoke("backup:password-status")).rejects.toThrow();
   });
 });

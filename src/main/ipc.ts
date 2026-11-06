@@ -47,10 +47,15 @@ import {
 } from "@shared/sales";
 import {
   backupNowResultSchema,
+  backupPasswordResultSchema,
+  backupPasswordStatusSchema,
+  changeBackupPasswordInputSchema,
   backupStatusSchema,
   chosenBackupSchema,
   restoreInputSchema,
   restoreResultSchema,
+  turnOffBackupPasswordInputSchema,
+  turnOnBackupPasswordInputSchema,
 } from "@shared/backup";
 import {
   barcodeLookupInputSchema,
@@ -143,6 +148,7 @@ import { toIpcError } from "./ipc-errors";
 import type { AuthService } from "./services/auth";
 import type { BillDraftsService } from "./services/bill-drafts";
 import type { BackupAdminService } from "./services/backup-admin";
+import type { BackupPasswordService } from "./services/backup-password";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { ProductsService } from "./services/products";
@@ -173,6 +179,7 @@ interface IpcServices {
   auth: AuthService;
   backupSettings: BackupSettingsService;
   backupAdmin: BackupAdminService;
+  backupPassword: BackupPasswordService;
   billDrafts: BillDraftsService;
   catalogExport: CatalogExportService;
   categories: CategoriesService;
@@ -191,6 +198,7 @@ export function registerIpcHandlers({
   auth,
   backupSettings,
   backupAdmin,
+  backupPassword,
   billDrafts,
   catalogExport,
   categories,
@@ -488,5 +496,23 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.backupRestore, async (_event, input) =>
     restoreResultSchema.parse(await backupAdmin.restore(restoreInputSchema.parse(input))),
+  );
+  handle(ipcChannels.backupPasswordStatus, async () =>
+    backupPasswordStatusSchema.parse(await backupPassword.status()),
+  );
+  handle(ipcChannels.backupPasswordTurnOn, async (_event, input) =>
+    backupPasswordResultSchema.parse(
+      await backupPassword.turnOn(turnOnBackupPasswordInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.backupPasswordChange, async (_event, input) =>
+    backupPasswordResultSchema.parse(
+      await backupPassword.change(changeBackupPasswordInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.backupPasswordTurnOff, async (_event, input) =>
+    backupPasswordResultSchema.parse(
+      await backupPassword.turnOff(turnOffBackupPasswordInputSchema.parse(input)),
+    ),
   );
 }

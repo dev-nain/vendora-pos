@@ -13,6 +13,7 @@ import { createAuditService } from "./services/audit";
 import { createAuthService } from "./services/auth";
 import { createBackupSettingsService } from "./services/backup-settings";
 import { createBackupAdminService } from "./services/backup-admin";
+import { createBackupPasswordService } from "./services/backup-password";
 import { createBillDraftsService } from "./services/bill-drafts";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createCategoriesService } from "./services/categories";
@@ -95,6 +96,7 @@ void app.whenReady().then(async () => {
       return result.canceled ? null : (result.filePaths[0] ?? null);
     },
   });
+  const backupPassword = createBackupPasswordService({ database, audit, sessions, keys });
   const stock = createStockService({ database, audit });
   const billDrafts = createBillDraftsService({ database, audit, sessions });
   const sales = createSalesService({ database, audit, sessions, stock });
@@ -189,6 +191,7 @@ void app.whenReady().then(async () => {
     auth,
     backupSettings,
     backupAdmin,
+    backupPassword,
     billDrafts,
     catalogExport,
     categories,
