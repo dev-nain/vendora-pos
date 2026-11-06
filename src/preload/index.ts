@@ -37,6 +37,7 @@ import {
   shiftStateSchema,
 } from "@shared/shifts";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
+import { stockHistoryResultSchema, stockListResultSchema } from "@shared/inventory";
 import { returnableResultSchema } from "@shared/returns";
 import { getOrderResultSchema, orderListSchema } from "@shared/sales";
 import {
@@ -170,6 +171,14 @@ const api: VendoraApi = {
       ),
     reactivate: async (id) =>
       userActionResultSchema.parse(await ipcRenderer.invoke(ipcChannels.usersReactivate, { id })),
+  },
+  inventory: {
+    listStock: async (query) =>
+      stockListResultSchema.parse(await ipcRenderer.invoke(ipcChannels.inventoryListStock, query)),
+    stockHistory: async (query) =>
+      stockHistoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.inventoryStockHistory, query),
+      ),
   },
   products: {
     getMiscItem: async () =>

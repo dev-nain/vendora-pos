@@ -15,6 +15,7 @@ import { createReturnsService } from "./services/returns";
 import { createSalesService } from "./services/sales";
 import { createSettingsService } from "./services/settings";
 import { createShiftsService } from "./services/shifts";
+import { createInventoryService } from "./services/inventory";
 import { createProductsService } from "./services/products";
 import { createStockService } from "./services/stock";
 import { createTaxCategoriesService } from "./services/tax-categories";
@@ -59,6 +60,7 @@ void app.whenReady().then(async () => {
   });
   const users = createUsersService({ database, audit, sessions });
   const products = createProductsService({ database, audit, sessions });
+  const inventory = createInventoryService({ database, sessions, stock });
   const categories = createCategoriesService({ database, audit, sessions });
   const taxCategories = createTaxCategoriesService({ database, audit, sessions });
   const catalogExport = createCatalogExportService({
@@ -94,6 +96,7 @@ void app.whenReady().then(async () => {
     billDrafts,
     catalogExport,
     categories,
+    inventory,
     products,
     receipts,
     returns,

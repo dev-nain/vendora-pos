@@ -35,6 +35,12 @@ import {
 } from "@shared/checkout";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
 import {
+  stockHistoryQuerySchema,
+  stockHistoryResultSchema,
+  stockListQuerySchema,
+  stockListResultSchema,
+} from "@shared/inventory";
+import {
   addFromSaleInputSchema,
   returnableInputSchema,
   returnableResultSchema,
@@ -126,6 +132,7 @@ import type { AuthService } from "./services/auth";
 import type { BillDraftsService } from "./services/bill-drafts";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
+import type { InventoryService } from "./services/inventory";
 import type { ProductsService } from "./services/products";
 import type { ReceiptsService } from "./services/receipts";
 import type { ReturnsService } from "./services/returns";
@@ -153,6 +160,7 @@ interface IpcServices {
   billDrafts: BillDraftsService;
   catalogExport: CatalogExportService;
   categories: CategoriesService;
+  inventory: InventoryService;
   returns: ReturnsService;
   sales: SalesService;
   settings: SettingsService;
@@ -168,6 +176,7 @@ export function registerIpcHandlers({
   billDrafts,
   catalogExport,
   categories,
+  inventory,
   products,
   receipts,
   returns,
@@ -285,6 +294,12 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.usersReactivate, (_event, input) =>
     userActionResultSchema.parse(users.reactivate(userIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.inventoryListStock, (_event, input) =>
+    stockListResultSchema.parse(inventory.list(stockListQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.inventoryStockHistory, (_event, input) =>
+    stockHistoryResultSchema.parse(inventory.history(stockHistoryQuerySchema.parse(input))),
   );
   handle(ipcChannels.productsSearch, (_event, input) =>
     productSearchResultSchema.parse(products.search(productSearchInputSchema.parse(input))),

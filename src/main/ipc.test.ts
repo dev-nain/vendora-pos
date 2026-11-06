@@ -11,6 +11,7 @@ import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
 import { createCatalogExportService } from "./services/catalog-export";
+import { createInventoryService, type InventoryService } from "./services/inventory";
 import { createProductsService, type ProductsService } from "./services/products";
 import { createCheckoutKit, type CheckoutKit } from "./services/checkout-test-kit";
 import { createSalesService, type SalesService } from "./services/sales";
@@ -119,6 +120,7 @@ describe("products ipc", () => {
       billDrafts: stub,
       catalogExport,
       categories: stub,
+      inventory: stub,
       products: service,
       receipts: stub,
       returns: stub,
@@ -332,6 +334,7 @@ describe("shifts ipc", () => {
       billDrafts: stub,
       catalogExport: stub,
       categories: stub,
+      inventory: stub,
       products: stub,
       receipts: receipts as never,
       returns: stub,
@@ -480,6 +483,7 @@ describe("checkout ipc", () => {
       billDrafts: kit.billDrafts,
       catalogExport: stub,
       categories: stub,
+      inventory: stub,
       products: stub,
       receipts: receipts as never,
       returns: kit.returns,
@@ -698,5 +702,79 @@ describe("checkout ipc", () => {
     expect(await invoke("shifts:state")).toMatchObject({
       heldBills: [expect.objectContaining({ lineCount: 1 })],
     });
+  });
+});
+
+describe("inventory ipc", () => {
+  let kit: CheckoutKit;
+  let service: InventoryService;
+
+  beforeEach(() => {
+    handlers.clear();
+    kit = createCheckoutKit();
+    service = createInventoryService({
+      database: kit.database,
+      sessions: kit.sessions,
+      stock: kit.stock,
+    });
+    const stub = {} as never;
+    registerIpcHandlers({
+      auth: stub,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      inventory: service,
+      products: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+    kit.signIn("cashier");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    kit.close();
+  });
+
+  it.each([
+    ["inventory:list-stock", "list", { query: "", limit: 101, offset: 0 }],
+    ["inventory:list-stock", "list", { query: "", limit: 10, offset: 0, extra: 1 }],
+    ["inventory:list-stock", "list", { query: "", limit: 10, offset: 0, includeArchived: true }],
+    ["inventory:stock-history", "history", { productId: "x", limit: 10, offset: 0 }],
+    ["inventory:stock-history", "history", { productId: unknownId, limit: 101, offset: 0 }],
+    [
+      "inventory:stock-history",
+      "history",
+      { productId: unknownId, limit: 10, offset: 0, extra: 1 },
+    ],
+  ] as const)("%s rejects bad input", async (channel, method, input) => {
+    const spy = vi.spyOn(service, method);
+    await expect(invoke(channel, input)).rejects.toThrow();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("lists stock and returns a refusal for an unknown product", async () => {
+    const tea = kit.addProduct({ nameEn: "Tea", searchText: "tea", costPaisa: 1000 });
+    expect(await invoke("inventory:list-stock", { query: "", limit: 10, offset: 0 })).toMatchObject(
+      {
+        total: 1,
+        items: [{ id: tea.id, onHandMilli: 0, costPaisa: 1000, stockValuePaisa: 0 }],
+      },
+    );
+    expect(
+      await invoke("inventory:stock-history", { productId: unknownId, limit: 10, offset: 0 }),
+    ).toMatchObject({ ok: false, reason: "not-found" });
+  });
+
+  it("rejects reads with no session", async () => {
+    kit.sessions.end();
+    await expect(
+      invoke("inventory:list-stock", { query: "", limit: 10, offset: 0 }),
+    ).rejects.toThrow(new Error(ipcErrorMessages.unauthenticated));
   });
 });
