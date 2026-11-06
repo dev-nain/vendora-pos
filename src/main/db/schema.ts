@@ -208,6 +208,21 @@ export const taxCategories = sqliteTable(
   ],
 );
 
+export const suppliers = sqliteTable("suppliers", {
+  id: id(),
+  storeId: text("store_id")
+    .notNull()
+    .references(() => stores.id),
+  name: text("name").notNull(),
+  contactPerson: text("contact_person"),
+  phone: text("phone"),
+  ntn: text("ntn"),
+  notes: text("notes"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+  deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+});
+
 export const products = sqliteTable(
   "products",
   {

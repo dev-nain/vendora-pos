@@ -481,6 +481,53 @@ describe("product migration on an existing database", () => {
   });
 });
 
+describe("suppliers migration on an existing database", () => {
+  it("backs up, keeps existing rows and adds the suppliers table", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vendora-upgrade-"));
+    const database = openDatabase(join(dir, "vendora.db"));
+    try {
+      const oldFolder = join(dir, "old-migrations");
+      mkdirSync(join(oldFolder, "meta"), { recursive: true });
+      const journal = JSON.parse(
+        readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+      ) as { entries: { tag: string }[] };
+      journal.entries = journal.entries.slice(0, 15);
+      writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
+      for (const entry of journal.entries) {
+        copyFileSync(
+          join(migrationsFolder, `${entry.tag}.sql`),
+          join(oldFolder, `${entry.tag}.sql`),
+        );
+      }
+
+      const backupDir = join(dir, "backups");
+      runMigrations(database, { migrationsFolder: oldFolder, backupDir });
+      database.sqlite.exec(
+        "INSERT INTO stores (id, name, created_at, updated_at) VALUES ('s1', 'Existing', 0, 0)",
+      );
+      database.sqlite.exec(
+        "INSERT INTO categories (id, store_id, name, created_at, updated_at) VALUES ('c1', 's1', 'General', 0, 0)",
+      );
+
+      expect(runMigrations(database, { migrationsFolder, backupDir })).toBe("migrated");
+
+      expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
+      expect(database.sqlite.prepare("SELECT id, name FROM stores").all()).toEqual([
+        { id: "s1", name: "Existing" },
+      ]);
+      expect(database.sqlite.prepare("SELECT id, name FROM categories").all()).toEqual([
+        { id: "c1", name: "General" },
+      ]);
+      expect(
+        database.sqlite.prepare("SELECT name FROM sqlite_master WHERE name = 'suppliers'").all(),
+      ).toEqual([{ name: "suppliers" }]);
+    } finally {
+      database.sqlite.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 const seedScaleStore = () => {
   const dir = mkdtempSync(join(tmpdir(), "vendora-scale-"));
   const database = openDatabase(join(dir, "vendora.db"));
