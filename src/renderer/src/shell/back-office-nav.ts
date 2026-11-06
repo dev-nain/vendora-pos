@@ -1,4 +1,10 @@
-export type BackOfficePage = "products" | "categories" | "suppliers" | "users" | "settings";
+export type BackOfficePage =
+  | "products"
+  | "categories"
+  | "suppliers"
+  | "users"
+  | "backup"
+  | "settings";
 
 export interface BackOfficeEntry {
   page: BackOfficePage;
@@ -11,5 +17,6 @@ export const backOfficeEntries: readonly BackOfficeEntry[] = [
   { page: "categories", label: "Categories", group: "Catalog" },
   { page: "suppliers", label: "Suppliers", group: "Purchasing" },
   { page: "users", label: "Users" },
+  { page: "backup", label: "Backup" },
   { page: "settings", label: "Settings" },
 ];

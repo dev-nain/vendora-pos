@@ -1,5 +1,12 @@
 import { z } from "zod";
 import type {
+  BackupNowResult,
+  BackupStatus,
+  ChosenBackup,
+  RestoreInput,
+  RestoreResult,
+} from "./backup";
+import type {
   AuthResult,
   CreateFirstUserInput,
   CreateFirstUserResult,
@@ -190,6 +197,10 @@ export const ipcChannels = {
   returnsAddFromSale: "returns:add-from-sale",
   salesList: "sales:list",
   salesGet: "sales:get",
+  backupStatus: "backup:status",
+  backupRun: "backup:run",
+  backupChooseFile: "backup:choose-file",
+  backupRestore: "backup:restore",
 } as const;
 
 export const ipcErrorMessages = {
@@ -308,5 +319,11 @@ export interface VendoraApi {
   sales: {
     list: (query: SalesListQuery) => Promise<OrderSummary[]>;
     get: (id: string) => Promise<GetOrderResult>;
+  };
+  backup: {
+    status: () => Promise<BackupStatus>;
+    run: () => Promise<BackupNowResult>;
+    chooseFile: () => Promise<ChosenBackup>;
+    restore: (input: RestoreInput) => Promise<RestoreResult>;
   };
 }

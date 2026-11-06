@@ -49,7 +49,7 @@ export type DiscountKind = (typeof discountKinds)[number];
 export const linePriceTypes = ["original", "manual"] as const;
 export type LinePriceType = (typeof linePriceTypes)[number];
 
-export const backupTriggers = ["daily", "shift_close"] as const;
+export const backupTriggers = ["daily", "shift_close", "manual", "pre_restore"] as const;
 export type BackupTrigger = (typeof backupTriggers)[number];
 
 export const backupResults = ["ok", "failed"] as const;

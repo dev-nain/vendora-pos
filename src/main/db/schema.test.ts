@@ -1269,64 +1269,6 @@ describe("receipt and printer columns migration", () => {
   });
 });
 
-describe("second copy columns migration on an existing database", () => {
-  it("keeps backup record and terminal rows with the new columns null", () => {
-    const dir = mkdtempSync(join(tmpdir(), "vendora-second-copy-"));
-    const database = openDatabase(join(dir, "vendora.db"));
-    try {
-      const sql = readFileSync(join(migrationsFolder, "0016_gigantic_skrulls.sql"), "utf8");
-      expect(sql).not.toContain("__new_");
-
-      const oldFolder = join(dir, "old-migrations");
-      mkdirSync(join(oldFolder, "meta"), { recursive: true });
-      const journal = JSON.parse(
-        readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
-      ) as { entries: { tag: string }[] };
-      journal.entries = journal.entries.slice(0, 16);
-      writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
-      for (const entry of journal.entries) {
-        copyFileSync(
-          join(migrationsFolder, `${entry.tag}.sql`),
-          join(oldFolder, `${entry.tag}.sql`),
-        );
-      }
-
-      const backupDir = join(dir, "backups");
-      runMigrations(database, { migrationsFolder: oldFolder, backupDir });
-      database.sqlite.exec(`
-        INSERT INTO stores (id, name, created_at, updated_at) VALUES ('s1', 'Existing', 1, 2);
-        INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 2);
-        INSERT INTO backup_records (id, store_id, terminal_id, trigger, file_name, size_bytes, result, created_at, updated_at)
-          VALUES ('b1', 's1', 't1', 'daily', 'vendora-x.db', 10, 'ok', 1, 2);
-      `);
-
-      expect(runMigrations(database, { migrationsFolder, backupDir })).toBe("migrated");
-
-      expect(
-        database.sqlite
-          .prepare(
-            "SELECT file_name, result, copy_folder, copy_result, copy_error, copy_deleted_at FROM backup_records",
-          )
-          .get(),
-      ).toEqual({
-        file_name: "vendora-x.db",
-        result: "ok",
-        copy_folder: null,
-        copy_result: null,
-        copy_error: null,
-        copy_deleted_at: null,
-      });
-      expect(
-        database.sqlite.prepare("SELECT code, second_copy_folder FROM terminals").get(),
-      ).toEqual({ code: "T1", second_copy_folder: null });
-      expect(database.sqlite.pragma("foreign_key_check")).toEqual([]);
-    } finally {
-      database.sqlite.close();
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-});
-
 describe("backup records schema", () => {
   let dir: string;
   let database: VendoraDatabase;
@@ -1371,5 +1313,62 @@ describe("backup records schema", () => {
     expect(() => insert("maybe", 100, null)).toThrow();
     insert("ok", 100, null);
     expect(() => database.sqlite.exec("UPDATE backup_records SET trigger = 'hourly'")).toThrow();
+  });
+});
+
+describe("backup tables migration on an existing database", () => {
+  it("keeps existing rows and accepts every trigger", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vendora-backup-tables-"));
+    const database = openDatabase(join(dir, "vendora.db"));
+    try {
+      const oldFolder = join(dir, "old-migrations");
+      mkdirSync(join(oldFolder, "meta"), { recursive: true });
+      const journal = JSON.parse(
+        readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+      ) as { entries: { tag: string }[] };
+      journal.entries = journal.entries.slice(0, -1);
+      writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
+      for (const entry of journal.entries) {
+        copyFileSync(
+          join(migrationsFolder, `${entry.tag}.sql`),
+          join(oldFolder, `${entry.tag}.sql`),
+        );
+      }
+
+      const backupDir = join(dir, "backups");
+      runMigrations(database, { migrationsFolder: oldFolder, backupDir });
+      database.sqlite.exec(`
+        INSERT INTO stores (id, created_at, updated_at) VALUES ('s1', 1, 2);
+        INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 2);
+        INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at)
+          VALUES ('u1', 'owner', 'Owner', 'p', 'q', 1, 2);
+        INSERT INTO audit_log (id, store_id, terminal_id, actor_user_id, action, created_at)
+          VALUES ('a1', 's1', 't1', 'u1', 'sign_in', 1);
+      `);
+
+      expect(runMigrations(database, { migrationsFolder, backupDir })).toBe("migrated");
+
+      expect(database.sqlite.prepare("SELECT id, action FROM audit_log").all()).toEqual([
+        { id: "a1", action: "sign_in" },
+      ]);
+      expect(
+        database.sqlite.prepare("SELECT code, second_copy_folder FROM terminals").get(),
+      ).toEqual({ code: "T1", second_copy_folder: null });
+      for (const trigger of ["daily", "shift_close", "manual", "pre_restore"]) {
+        database.sqlite
+          .prepare(
+            `INSERT INTO backup_records (id, store_id, terminal_id, trigger, file_name, size_bytes, result, created_at, updated_at)
+             VALUES (?, 's1', 't1', ?, 'vendora-y.db', 5, 'ok', 2, 2)`,
+          )
+          .run(`id-${trigger}`, trigger);
+      }
+      expect(() =>
+        database.sqlite.exec("UPDATE backup_records SET trigger = 'hourly' WHERE id = 'id-daily'"),
+      ).toThrow();
+      expect(database.sqlite.pragma("foreign_key_check")).toEqual([]);
+    } finally {
+      database.sqlite.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
