@@ -545,6 +545,7 @@ export function ProductDialog({ open, onOpenChange, ...rest }: ProductDialogProp
       <DialogContent className="grid max-h-[calc(100vh-64px)] w-[min(880px,calc(100vw-32px))] grid-rows-[minmax(0,1fr)]">
         <ProductForm {...rest} onGuardChange={setGuard} onClose={requestClose} />
         <DiscardChangesDialog
+          noun="product"
           open={discardOpen}
           onKeepEditing={() => setDiscardOpen(false)}
           onDiscard={() => {
