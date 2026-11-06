@@ -10,7 +10,11 @@ import { createAuditService } from "./audit";
 import { createInventoryService } from "./inventory";
 import { createStockService } from "./stock";
 import { openMigratedDatabase } from "../db/test-database";
-import { stockHistoryResultSchema, stockListResultSchema } from "../../shared/inventory";
+import {
+  negativeStockResultSchema,
+  stockHistoryResultSchema,
+  stockListResultSchema,
+} from "../../shared/inventory";
 
 const productCount = 30_000;
 const movementCount = 1_000_000;
@@ -246,5 +250,33 @@ describe("stock on-hand benchmark", () => {
     });
     expect(first).toBeLessThan(100);
     expect(last).toBeLessThan(100);
+  });
+
+  const negativeStock = (offset: number) =>
+    negativeStockResultSchema.parse(inventory.negativeStock({ limit: 50, offset }));
+  const negativeCount = () => totals.reduce((n, total) => n + (total < 0 ? 1 : 0), 0);
+
+  it("lists negative stock that matches the ledger", () => {
+    const page = negativeStock(0);
+    expect(page.total).toBe(negativeCount());
+    expect(page.total).toBeGreaterThan(0);
+    const last = negativeStock(Math.floor((page.total - 1) / 50) * 50);
+    for (const item of [...page.items, ...last.items]) {
+      expect(item.onHandMilli).toBe(totals[Number(item.nameEn.slice("Item ".length))]);
+    }
+  });
+
+  it("opens the first negative stock page quickly (cold)", () => {
+    const start = performance.now();
+    negativeStock(0);
+    console.log(`negative stock first call (cold): ${(performance.now() - start).toFixed(3)} ms`);
+  });
+
+  it("lists the first and last negative stock pages within the report limit", () => {
+    const lastOffset = Math.floor((negativeCount() - 1) / 50) * 50;
+    const first = measure("negative stock first page", 50, () => negativeStock(0));
+    const last = measure("negative stock last page", 50, () => negativeStock(lastOffset));
+    expect(first).toBeLessThan(3000);
+    expect(last).toBeLessThan(3000);
   });
 }, 180_000);
