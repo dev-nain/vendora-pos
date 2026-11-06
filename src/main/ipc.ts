@@ -33,6 +33,7 @@ import {
   setDamagedInputSchema,
   updateLineInputSchema,
 } from "@shared/checkout";
+import { auditListQuerySchema, auditPageSchema, auditUsersSchema } from "@shared/audit";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
 import {
   addFromSaleInputSchema,
@@ -122,6 +123,7 @@ import {
 } from "@shared/users";
 import { z } from "zod";
 import { toIpcError } from "./ipc-errors";
+import type { AuditLogService } from "./services/audit-log";
 import type { AuthService } from "./services/auth";
 import type { BillDraftsService } from "./services/bill-drafts";
 import type { CatalogExportService } from "./services/catalog-export";
@@ -149,6 +151,7 @@ function handle(
 }
 
 interface IpcServices {
+  auditLog: AuditLogService;
   auth: AuthService;
   billDrafts: BillDraftsService;
   catalogExport: CatalogExportService;
@@ -164,6 +167,7 @@ interface IpcServices {
 }
 
 export function registerIpcHandlers({
+  auditLog,
   auth,
   billDrafts,
   catalogExport,
@@ -426,4 +430,8 @@ export function registerIpcHandlers({
   handle(ipcChannels.salesGet, (_event, input) =>
     getOrderResultSchema.parse(sales.get(orderIdInputSchema.parse(input))),
   );
+  handle(ipcChannels.auditList, (_event, input) =>
+    auditPageSchema.parse(auditLog.list(auditListQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.auditUsers, () => auditUsersSchema.parse(auditLog.users()));
 }

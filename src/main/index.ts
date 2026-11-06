@@ -9,6 +9,7 @@ import { createAuditService } from "./services/audit";
 import { createAuthService } from "./services/auth";
 import { createBillDraftsService } from "./services/bill-drafts";
 import { createCatalogExportService } from "./services/catalog-export";
+import { createAuditLogService } from "./services/audit-log";
 import { createCategoriesService } from "./services/categories";
 import { createReceiptsService } from "./services/receipts";
 import { createReturnsService } from "./services/returns";
@@ -57,6 +58,7 @@ void app.whenReady().then(async () => {
     sessions,
     heldBills: billDrafts.heldBillsFor,
   });
+  const auditLog = createAuditLogService({ database, sessions });
   const users = createUsersService({ database, audit, sessions });
   const products = createProductsService({ database, audit, sessions });
   const categories = createCategoriesService({ database, audit, sessions });
@@ -90,6 +92,7 @@ void app.whenReady().then(async () => {
     ...(app.isPackaged ? {} : { log: (entry) => console.info("print job", entry) }),
   });
   registerIpcHandlers({
+    auditLog,
     auth,
     billDrafts,
     catalogExport,

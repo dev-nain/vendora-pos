@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AuditListQuery, AuditPage, AuditUser } from "./audit";
 import type {
   AuthResult,
   CreateFirstUserInput,
@@ -172,6 +173,8 @@ export const ipcChannels = {
   returnsAddFromSale: "returns:add-from-sale",
   salesList: "sales:list",
   salesGet: "sales:get",
+  auditList: "audit:list",
+  auditUsers: "audit:users",
 } as const;
 
 export const ipcErrorMessages = {
@@ -280,5 +283,9 @@ export interface VendoraApi {
   sales: {
     list: (query: SalesListQuery) => Promise<OrderSummary[]>;
     get: (id: string) => Promise<GetOrderResult>;
+  };
+  audit: {
+    list: (query: AuditListQuery) => Promise<AuditPage>;
+    listUsers: () => Promise<AuditUser[]>;
   };
 }
