@@ -3,6 +3,7 @@ import {
   PackageIcon,
   SettingsIcon,
   TagsIcon,
+  TriangleAlertIcon,
   UsersIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -10,6 +11,7 @@ import { Fragment, useState, type KeyboardEvent } from "react";
 
 import { cn } from "@renderer/lib/utils";
 import { CategoriesScreen } from "../categories/categories-screen";
+import { NegativeStockScreen } from "../inventory/negative-stock-screen";
 import { StockScreen } from "../inventory/stock-screen";
 import { ProductsScreen } from "../products/products-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
@@ -23,6 +25,7 @@ const icons: Record<BackOfficePage, LucideIcon> = {
   products: PackageIcon,
   categories: TagsIcon,
   stock: BoxesIcon,
+  "negative-stock": TriangleAlertIcon,
   users: UsersIcon,
   settings: SettingsIcon,
 };
@@ -89,6 +92,8 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
           <CategoriesScreen onSessionEnded={onSessionEnded} />
         ) : page === "stock" ? (
           <StockScreen onSessionEnded={onSessionEnded} />
+        ) : page === "negative-stock" ? (
+          <NegativeStockScreen onSessionEnded={onSessionEnded} />
         ) : page === "users" ? (
           <UsersScreen currentUserId={currentUserId} onSessionEnded={onSessionEnded} />
         ) : page === "settings" ? (
