@@ -331,7 +331,7 @@ export const stockMovements = sqliteTable(
     check("stock_movements_qty_milli_check", sql`${t.qtyMilli} <> 0`),
     check("stock_movements_unit_cost_paisa_check", sql`${t.unitCostPaisa} >= 0`),
     check("stock_movements_source_check", sql`(${t.sourceType} IS NULL) = (${t.sourceId} IS NULL)`),
-    index("stock_movements_product_id_idx").on(t.productId),
+    index("stock_movements_product_id_qty_created_at_idx").on(t.productId, t.qtyMilli, t.createdAt),
     index("stock_movements_product_id_created_at_idx").on(t.productId, t.createdAt),
   ],
 );
