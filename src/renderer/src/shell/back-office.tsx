@@ -1,7 +1,15 @@
-import { PackageIcon, SettingsIcon, TagsIcon, UsersIcon, type LucideIcon } from "lucide-react";
+import {
+  PackageIcon,
+  ScrollTextIcon,
+  SettingsIcon,
+  TagsIcon,
+  UsersIcon,
+  type LucideIcon,
+} from "lucide-react";
 import { Fragment, useState, type KeyboardEvent } from "react";
 
 import { cn } from "@renderer/lib/utils";
+import { AuditLogScreen } from "../audit/audit-log-screen";
 import { CategoriesScreen } from "../categories/categories-screen";
 import { ProductsScreen } from "../products/products-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
@@ -15,6 +23,7 @@ const icons: Record<BackOfficePage, LucideIcon> = {
   products: PackageIcon,
   categories: TagsIcon,
   users: UsersIcon,
+  audit: ScrollTextIcon,
   settings: SettingsIcon,
 };
 
@@ -80,6 +89,8 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
           <CategoriesScreen onSessionEnded={onSessionEnded} />
         ) : page === "users" ? (
           <UsersScreen currentUserId={currentUserId} onSessionEnded={onSessionEnded} />
+        ) : page === "audit" ? (
+          <AuditLogScreen onSessionEnded={onSessionEnded} />
         ) : page === "settings" ? (
           <div className="grid gap-500">
             <h1 className="m-0 font-display text-[length:var(--font-size-700)] leading-[36px] font-semibold text-foreground">
