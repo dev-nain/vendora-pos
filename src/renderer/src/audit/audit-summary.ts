@@ -149,6 +149,7 @@ const returnSummary = (entry: AuditEntry): string => {
 };
 
 const username = (entry: AuditEntry): string => text(detailsOf(entry).username) ?? "";
+const supplierName = (entry: AuditEntry): string => text(detailsOf(entry).name) ?? "";
 const productNameEn = (entry: AuditEntry): string => text(detailsOf(entry).nameEn) ?? "";
 
 const summarisers: Record<AuditAction, (entry: AuditEntry) => string> = {
@@ -193,6 +194,8 @@ const summarisers: Record<AuditAction, (entry: AuditEntry) => string> = {
   product_archive: productNameEn,
   product_restore: productNameEn,
   product_delete: productNameEn,
+  supplier_archive: supplierName,
+  supplier_restore: supplierName,
   shift_open: (entry) => {
     const float = rupees(detailsOf(entry).openingFloatPaisa);
     return float ? `Float ${float}` : "";

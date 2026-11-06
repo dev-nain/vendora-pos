@@ -110,6 +110,16 @@ import {
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
 import {
+  createSupplierInputSchema,
+  createSupplierResultSchema,
+  supplierIdInputSchema,
+  supplierListInputSchema,
+  supplierSchema,
+  supplierStatusResultSchema,
+  updateSupplierInputSchema,
+  updateSupplierResultSchema,
+} from "@shared/suppliers";
+import {
   createUserInputSchema,
   createUserResultSchema,
   deactivateUserResultSchema,
@@ -134,6 +144,7 @@ import type { ReturnsService } from "./services/returns";
 import type { SalesService } from "./services/sales";
 import type { SettingsService } from "./services/settings";
 import type { ShiftsService } from "./services/shifts";
+import type { SuppliersService } from "./services/suppliers";
 import type { TaxCategoriesService } from "./services/tax-categories";
 import type { UsersService } from "./services/users";
 
@@ -160,6 +171,7 @@ interface IpcServices {
   sales: SalesService;
   settings: SettingsService;
   shifts: ShiftsService;
+  suppliers: SuppliersService;
   taxCategories: TaxCategoriesService;
   users: UsersService;
   products: ProductsService;
@@ -178,6 +190,7 @@ export function registerIpcHandlers({
   sales,
   settings,
   shifts,
+  suppliers,
   taxCategories,
   users,
 }: IpcServices): void {
@@ -333,6 +346,21 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.categoriesDelete, (_event, input) =>
     deleteCategoryResultSchema.parse(categories.remove(categoryIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.suppliersList, (_event, input) =>
+    z.array(supplierSchema).parse(suppliers.list(supplierListInputSchema.parse(input ?? {}))),
+  );
+  handle(ipcChannels.suppliersCreate, (_event, input) =>
+    createSupplierResultSchema.parse(suppliers.create(createSupplierInputSchema.parse(input))),
+  );
+  handle(ipcChannels.suppliersUpdate, (_event, input) =>
+    updateSupplierResultSchema.parse(suppliers.update(updateSupplierInputSchema.parse(input))),
+  );
+  handle(ipcChannels.suppliersArchive, (_event, input) =>
+    supplierStatusResultSchema.parse(suppliers.archive(supplierIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.suppliersRestore, (_event, input) =>
+    supplierStatusResultSchema.parse(suppliers.restore(supplierIdInputSchema.parse(input))),
   );
   handle(ipcChannels.taxCategoriesList, () =>
     z.array(taxCategorySchema).parse(taxCategories.list()),

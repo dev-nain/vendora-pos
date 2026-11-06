@@ -16,6 +16,7 @@ import { createProductsService, type ProductsService } from "./services/products
 import { createCheckoutKit, type CheckoutKit } from "./services/checkout-test-kit";
 import { createSalesService, type SalesService } from "./services/sales";
 import { createShiftsService, type ShiftsService } from "./services/shifts";
+import { createSuppliersService, type SuppliersService } from "./services/suppliers";
 import { createStockService } from "./services/stock";
 import { openMigratedDatabase } from "./db/test-database";
 
@@ -46,6 +47,7 @@ describe("products ipc", () => {
   let database: VendoraDatabase;
   let sessions: SessionStore;
   let service: ProductsService;
+  let suppliersService: SuppliersService;
   let exportPath: string | null;
   let categoryId: string;
   let taxCategoryId: string;
@@ -108,6 +110,11 @@ describe("products ipc", () => {
     taxCategoryId = database.db.select().from(taxCategories).get()!.id;
     sessions = createSessionStore();
     service = createProductsService({ database, audit: createAuditService(database), sessions });
+    suppliersService = createSuppliersService({
+      database,
+      audit: createAuditService(database),
+      sessions,
+    });
     exportPath = join(dir, "catalog.csv");
     const catalogExport = createCatalogExportService({
       database,
@@ -127,6 +134,7 @@ describe("products ipc", () => {
       sales: stub,
       settings: stub,
       shifts: stub,
+      suppliers: suppliersService,
       taxCategories: stub,
       users: stub,
     });
@@ -208,6 +216,57 @@ describe("products ipc", () => {
         offset: 0,
       })) as { items: { id: string }[] };
       expect(found.items.map((i) => i.id)).toEqual([product.id]);
+    });
+  });
+
+  describe("suppliers", () => {
+    const supplier = {
+      name: "Al-Noor",
+      contactPerson: null,
+      phone: null,
+      ntn: null,
+      notes: null,
+    };
+
+    it.each([
+      ["suppliers:create", "create", { ...supplier, name: "" }],
+      ["suppliers:create", "create", { ...supplier, extra: 1 }],
+      ["suppliers:update", "update", { ...supplier, id: "x" }],
+      ["suppliers:archive", "archive", { id: "x" }],
+      ["suppliers:restore", "restore", { id: "x" }],
+      ["suppliers:list", "list", { includeArchived: "yes" }],
+    ] as const)("%s rejects bad input", async (channel, method, input) => {
+      signIn("owner");
+      const spy = vi.spyOn(suppliersService, method);
+      await expect(invoke(channel, input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("lists active suppliers when called with no input", async () => {
+      signIn("cashier");
+      const created = (await invoke("suppliers:create", supplier)) as {
+        supplier: { id: string };
+      };
+      await invoke("suppliers:archive", { id: created.supplier.id });
+
+      expect(await invoke("suppliers:list")).toEqual([]);
+      expect(await invoke("suppliers:list", { includeArchived: true })).toHaveLength(1);
+    });
+
+    it("is refused when signed out", async () => {
+      sessions.end();
+      const writes: [string, unknown][] = [
+        ["suppliers:list", undefined],
+        ["suppliers:create", supplier],
+        ["suppliers:update", { ...supplier, id: unknownId }],
+        ["suppliers:archive", { id: unknownId }],
+        ["suppliers:restore", { id: unknownId }],
+      ];
+      for (const [channel, input] of writes) {
+        await expect(invoke(channel, input)).rejects.toThrow(
+          new Error(ipcErrorMessages.unauthenticated),
+        );
+      }
     });
   });
 
@@ -341,6 +400,7 @@ describe("shifts ipc", () => {
       sales: stub,
       settings: stub,
       shifts: service,
+      suppliers: stub,
       taxCategories: stub,
       users: stub,
     });
@@ -490,6 +550,7 @@ describe("checkout ipc", () => {
       sales,
       settings: stub,
       shifts: kit.shifts,
+      suppliers: stub,
       taxCategories: stub,
       users: stub,
     });
@@ -746,6 +807,7 @@ describe("audit log ipc", () => {
       sales: stub,
       settings: stub,
       shifts: stub,
+      suppliers: stub,
       taxCategories: stub,
       users: stub,
     });

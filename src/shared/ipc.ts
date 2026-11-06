@@ -14,6 +14,15 @@ import type {
   RenameCategoryResult,
 } from "./categories";
 import type {
+  CreateSupplierInput,
+  CreateSupplierResult,
+  Supplier,
+  SupplierListInput,
+  SupplierStatusResult,
+  UpdateSupplierInput,
+  UpdateSupplierResult,
+} from "./suppliers";
+import type {
   CountPhase,
   OpenDrawerForCountResult,
   PrinterStatus,
@@ -148,6 +157,11 @@ export const ipcChannels = {
   taxCategoriesCreate: "tax-categories:create",
   taxCategoriesUpdate: "tax-categories:update",
   taxCategoriesDelete: "tax-categories:delete",
+  suppliersList: "suppliers:list",
+  suppliersCreate: "suppliers:create",
+  suppliersUpdate: "suppliers:update",
+  suppliersArchive: "suppliers:archive",
+  suppliersRestore: "suppliers:restore",
   shiftsState: "shifts:state",
   shiftsOpen: "shifts:open",
   shiftsAddCashMove: "shifts:add-cash-move",
@@ -250,6 +264,13 @@ export interface VendoraApi {
     create: (input: CreateTaxCategoryInput) => Promise<CreateTaxCategoryResult>;
     update: (input: UpdateTaxCategoryInput) => Promise<UpdateTaxCategoryResult>;
     remove: (id: string) => Promise<DeleteTaxCategoryResult>;
+  };
+  suppliers: {
+    list: (input?: SupplierListInput) => Promise<Supplier[]>;
+    create: (input: CreateSupplierInput) => Promise<CreateSupplierResult>;
+    update: (input: UpdateSupplierInput) => Promise<UpdateSupplierResult>;
+    archive: (id: string) => Promise<SupplierStatusResult>;
+    restore: (id: string) => Promise<SupplierStatusResult>;
   };
   shifts: {
     state: () => Promise<ShiftState>;

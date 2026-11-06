@@ -114,6 +114,8 @@ describe("summariseAudit", () => {
       "Name: Sara → Sara Khan",
     ],
     [entry("product_archive", { nameEn: "Tapal 950g" }), "Tapal 950g"],
+    [entry("supplier_archive", { name: "Karachi Traders" }), "Karachi Traders"],
+    [entry("supplier_restore", { name: "Karachi Traders" }), "Karachi Traders"],
     [entry("product_restore", { nameEn: "Tapal 950g" }), "Tapal 950g"],
     [entry("product_delete", { nameEn: "Tapal 950g", barcodes: ["1"] }), "Tapal 950g"],
     [entry("shift_open", { openingFloatPaisa: 500000 }), "Float Rs 5,000"],
