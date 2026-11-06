@@ -42,6 +42,9 @@ import {
 } from "@shared/inventory";
 import {
   cancelStocktakeResultSchema,
+  pastStocktakesQuerySchema,
+  pastStocktakesResultSchema,
+  postStocktakeResultSchema,
   recordCountInputSchema,
   recordCountResultSchema,
   startStocktakeInputSchema,
@@ -49,6 +52,9 @@ import {
   stocktakeIdInputSchema,
   stocktakeLinesQuerySchema,
   stocktakeLinesResultSchema,
+  stocktakeReviewLinesQuerySchema,
+  stocktakeReviewLinesResultSchema,
+  stocktakeReviewResultSchema,
   stocktakeScanInputSchema,
   stocktakeScanResultSchema,
   stocktakeSummarySchema,
@@ -334,6 +340,20 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.stocktakeCancel, (_event, input) =>
     cancelStocktakeResultSchema.parse(stocktake.cancel(stocktakeIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeReview, (_event, input) =>
+    stocktakeReviewResultSchema.parse(stocktake.review(stocktakeIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeReviewLines, (_event, input) =>
+    stocktakeReviewLinesResultSchema.parse(
+      stocktake.reviewLines(stocktakeReviewLinesQuerySchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.stocktakePost, (_event, input) =>
+    postStocktakeResultSchema.parse(stocktake.post(stocktakeIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeListPast, (_event, input) =>
+    pastStocktakesResultSchema.parse(stocktake.listPast(pastStocktakesQuerySchema.parse(input))),
   );
   handle(ipcChannels.productsSearch, (_event, input) =>
     productSearchResultSchema.parse(products.search(productSearchInputSchema.parse(input))),

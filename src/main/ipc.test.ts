@@ -6,7 +6,15 @@ import { ipcErrorMessages } from "@shared/ipc";
 import { createProductInputSchema } from "@shared/products";
 import { createSessionStore, type SessionStore } from "./auth/session";
 import type { VendoraDatabase } from "./db/client";
-import { auditLog, categories, products, stores, taxCategories, users } from "./db/schema";
+import {
+  auditLog,
+  categories,
+  products,
+  stockMovements,
+  stores,
+  taxCategories,
+  users,
+} from "./db/schema";
 import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
@@ -787,6 +795,7 @@ describe("inventory ipc", () => {
 describe("stocktake ipc", () => {
   let kit: CheckoutKit;
   let service: StocktakeService;
+  let userId: string;
 
   beforeEach(() => {
     handlers.clear();
@@ -814,7 +823,7 @@ describe("stocktake ipc", () => {
       taxCategories: stub,
       users: stub,
     });
-    kit.signIn("cashier");
+    userId = kit.signIn("cashier").id;
   });
 
   afterEach(() => {
@@ -855,6 +864,38 @@ describe("stocktake ipc", () => {
     ["stocktake:record", "record", { stocktakeId: unknownId, lineId: "x", countedMilli: 1000 }],
     ["stocktake:cancel", "cancel", { stocktakeId: "x" }],
     ["stocktake:cancel", "cancel", { stocktakeId: unknownId, extra: 1 }],
+    ["stocktake:review", "review", { stocktakeId: "x" }],
+    ["stocktake:review", "review", { stocktakeId: unknownId, extra: 1 }],
+    [
+      "stocktake:review-lines",
+      "reviewLines",
+      { stocktakeId: "x", filter: "all", limit: 10, offset: 0 },
+    ],
+    [
+      "stocktake:review-lines",
+      "reviewLines",
+      { stocktakeId: unknownId, filter: "some", limit: 10, offset: 0 },
+    ],
+    [
+      "stocktake:review-lines",
+      "reviewLines",
+      { stocktakeId: unknownId, filter: "all", limit: 101, offset: 0 },
+    ],
+    [
+      "stocktake:review-lines",
+      "reviewLines",
+      { stocktakeId: unknownId, filter: "all", limit: 10, offset: -1 },
+    ],
+    [
+      "stocktake:review-lines",
+      "reviewLines",
+      { stocktakeId: unknownId, filter: "all", limit: 10, offset: 0, extra: 1 },
+    ],
+    ["stocktake:post", "post", { stocktakeId: "x" }],
+    ["stocktake:post", "post", { stocktakeId: unknownId, extra: 1 }],
+    ["stocktake:post", "post", {}],
+    ["stocktake:list-past", "listPast", { limit: 0, offset: 0 }],
+    ["stocktake:list-past", "listPast", { limit: 10, offset: 0, extra: 1 }],
   ] as const)("%s rejects bad input", async (channel, method, input) => {
     const spy = vi.spyOn(service, method);
     await expect(invoke(channel, input)).rejects.toThrow();
@@ -880,9 +921,75 @@ describe("stocktake ipc", () => {
     });
   });
 
+  it("counts, reviews, posts and lists a count", async () => {
+    const tea = kit.addProduct({ nameEn: "Tea", searchText: "tea" });
+    kit.database.db
+      .insert(stockMovements)
+      .values({
+        storeId: kit.storeId,
+        terminalId: kit.terminalId,
+        productId: tea.id,
+        type: "opening",
+        qtyMilli: 5000,
+        unitCostPaisa: 0,
+        actorUserId: userId,
+      })
+      .run();
+    const started = (await invoke("stocktake:start", { scope: "full" })) as {
+      stocktake: { id: string };
+    };
+    const stocktakeId = started.stocktake.id;
+    expect(await invoke("stocktake:post", { stocktakeId })).toMatchObject({
+      ok: false,
+      reason: "nothing-counted",
+    });
+    const lines = (await invoke("stocktake:lines", {
+      stocktakeId,
+      query: "",
+      limit: 10,
+      offset: 0,
+    })) as { items: { id: string }[] };
+    await invoke("stocktake:record", {
+      stocktakeId,
+      lineId: lines.items[0]!.id,
+      countedMilli: 4000,
+    });
+
+    expect(await invoke("stocktake:review", { stocktakeId })).toMatchObject({
+      ok: true,
+      review: { varianceLineCount: 1, netValuePaisa: -8000 },
+    });
+    expect(
+      await invoke("stocktake:review-lines", {
+        stocktakeId,
+        filter: "variance",
+        limit: 10,
+        offset: 0,
+      }),
+    ).toMatchObject({ ok: true, total: 1, items: [{ varianceMilli: -1000 }] });
+    expect(await invoke("stocktake:post", { stocktakeId })).toMatchObject({
+      ok: true,
+      adjustmentCount: 1,
+    });
+    expect(await invoke("stocktake:post", { stocktakeId })).toMatchObject({
+      ok: false,
+      reason: "not-open",
+    });
+    expect(await invoke("stocktake:list-past", { limit: 10, offset: 0 })).toMatchObject({
+      total: 1,
+      items: [{ id: stocktakeId, status: "posted" }],
+    });
+  });
+
   it("rejects calls with no session", async () => {
     kit.sessions.end();
     await expect(invoke("stocktake:current")).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
+    await expect(invoke("stocktake:post", { stocktakeId: unknownId })).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
+    await expect(invoke("stocktake:list-past", { limit: 1, offset: 0 })).rejects.toThrow(
       new Error(ipcErrorMessages.unauthenticated),
     );
     await expect(invoke("stocktake:start", { scope: "full" })).rejects.toThrow(
