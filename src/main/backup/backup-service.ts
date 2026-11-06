@@ -1,4 +1,4 @@
-import { mkdir, rename, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import type { VendoraDatabase } from "../db/client";
@@ -9,7 +9,10 @@ import type { createAuditService } from "../services/audit";
 import type { CopyDatabase } from "./worker-copy";
 
 const retentionMs = 30 * 24 * 60 * 60 * 1000;
+const dailyCheckMs = 60 * 60 * 1000;
+const quitWaitMs = 60 * 1000;
 const maxErrorLength = 500;
+const tempFilePattern = /^vendora-.*\.db\.tmp$/;
 
 const karachiDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" });
 
@@ -31,6 +34,8 @@ export function createBackupService({
   const { db } = database;
   const abort = new AbortController();
   let chain: Promise<void> = Promise.resolve();
+  let timer: ReturnType<typeof setInterval> | null = null;
+  let stopping: Promise<void> | null = null;
 
   function enqueue(task: () => Promise<void>): void {
     chain = chain.then(task).catch((error: unknown) => {
@@ -157,14 +162,43 @@ export function createBackupService({
     return latest !== undefined && karachiDay.format(latest.createdAt) === karachiDay.format(now());
   }
 
+  async function sweepTempFiles(): Promise<void> {
+    const names = await readdir(backupDir).catch(() => []);
+    await Promise.all(
+      names
+        .filter((name) => tempFilePattern.test(name))
+        .map((name) => rm(join(backupDir, name), { force: true }).catch(() => undefined)),
+    );
+  }
+
   function runDailyIfDue(): void {
     enqueue(async () => {
-      if (backedUpToday()) return;
+      if (stopping || backedUpToday()) return;
       await attempt("daily", null);
     });
   }
 
-  return { runDailyIfDue, whenIdle };
+  function start(): void {
+    enqueue(sweepTempFiles);
+    runDailyIfDue();
+    timer = setInterval(runDailyIfDue, dailyCheckMs);
+    timer.unref();
+  }
+
+  function stop(): Promise<void> {
+    stopping ??= (async () => {
+      if (timer) clearInterval(timer);
+      const deadline = setTimeout(() => abort.abort(), quitWaitMs);
+      try {
+        await whenIdle();
+      } finally {
+        clearTimeout(deadline);
+      }
+    })();
+    return stopping;
+  }
+
+  return { start, runDailyIfDue, whenIdle, stop };
 }
 
 export type BackupService = ReturnType<typeof createBackupService>;

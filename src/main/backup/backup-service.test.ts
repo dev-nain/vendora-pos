@@ -343,4 +343,72 @@ describe("createBackupService", () => {
       expect(auth.needsSetup()).toBe(true);
     });
   });
+  describe("start and stop", () => {
+    it("removes leftover temp files before the first backup and nothing else", async () => {
+      mkdirSync(backupDir, { recursive: true });
+      writeFileSync(join(backupDir, "vendora-2020-01-01T00-00-00-000Z.db.tmp"), "partial");
+      writeFileSync(join(backupDir, "pre-migrate-2020-01-01T00-00-00-000Z.db"), "m");
+      writeFileSync(join(backupDir, "other.tmp"), "o");
+      const service = createService();
+
+      service.start();
+      await service.whenIdle();
+      await service.stop();
+
+      expect(files()).not.toContain("vendora-2020-01-01T00-00-00-000Z.db.tmp");
+      expect(files()).toContain("pre-migrate-2020-01-01T00-00-00-000Z.db");
+      expect(files()).toContain("other.tmp");
+      expect(records()).toHaveLength(1);
+    });
+
+    it("starts without a backup folder", async () => {
+      const service = createService();
+
+      service.start();
+      await service.whenIdle();
+      await service.stop();
+
+      expect(existsSync(backupDir)).toBe(true);
+    });
+
+    it("checks again every hour until stopped", async () => {
+      const service = createService();
+      service.start();
+      await service.whenIdle();
+
+      vi.setSystemTime(t0 + day);
+      vi.advanceTimersByTime(60 * 60 * 1000);
+      await service.whenIdle();
+      expect(records()).toHaveLength(2);
+
+      await service.stop();
+      vi.setSystemTime(t0 + 2 * day);
+      vi.advanceTimersByTime(60 * 60 * 1000);
+      await service.whenIdle();
+      expect(records()).toHaveLength(2);
+    });
+
+    it("aborts a hung copy after the quit wait and records a failure", async () => {
+      vi.useFakeTimers({
+        toFake: ["Date", "setInterval", "clearInterval", "setTimeout", "clearTimeout"],
+      });
+      vi.setSystemTime(t0);
+      copy.mockImplementationOnce(
+        ({ signal }) =>
+          new Promise((_resolve, reject) => {
+            signal.addEventListener("abort", () => reject(new Error("Backup was cancelled")));
+          }),
+      );
+      const service = createService();
+      service.runDailyIfDue();
+      await vi.waitFor(() => expect(copy).toHaveBeenCalled());
+
+      const stopped = service.stop();
+      await vi.advanceTimersByTimeAsync(60_000);
+      await stopped;
+
+      expect(records()).toHaveLength(1);
+      expect(records()[0]).toMatchObject({ result: "failed", error: "Backup was cancelled" });
+    });
+  });
 });
