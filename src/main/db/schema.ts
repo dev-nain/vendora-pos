@@ -981,6 +981,111 @@ export const purchaseOrderLines = sqliteTable(
   ],
 );
 
+export const terminalGrnSequences = sqliteTable(
+  "terminal_grn_sequences",
+  {
+    terminalId: text("terminal_id")
+      .primaryKey()
+      .references(() => terminals.id),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    nextSeq: integer("next_seq").notNull().default(1),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check(
+      "terminal_grn_sequences_next_seq_check",
+      sql`${isInteger(t.nextSeq)} AND ${t.nextSeq} >= 1`,
+    ),
+  ],
+);
+
+export const goodsReceivedNotes = sqliteTable(
+  "goods_received_notes",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    grnNo: text("grn_no").notNull(),
+    supplierId: text("supplier_id")
+      .notNull()
+      .references(() => suppliers.id),
+    purchaseOrderId: text("purchase_order_id").references(() => purchaseOrders.id),
+    supplierInvoiceNo: text("supplier_invoice_no").notNull(),
+    totalPaisa: integer("total_paisa").notNull(),
+    actorUserId: text("actor_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check(
+      "goods_received_notes_total_paisa_check",
+      sql`${isInteger(t.totalPaisa)} AND ${t.totalPaisa} >= 0`,
+    ),
+    check("goods_received_notes_grn_no_check", sql`length(${t.grnNo}) > 0`),
+    check(
+      "goods_received_notes_supplier_invoice_no_check",
+      sql`length(${t.supplierInvoiceNo}) > 0`,
+    ),
+    uniqueIndex("goods_received_notes_grn_no_terminal_id_unique").on(t.grnNo, t.terminalId),
+    index("goods_received_notes_store_id_created_at_idx").on(t.storeId, t.createdAt),
+    index("goods_received_notes_supplier_id_idx").on(t.supplierId),
+    index("goods_received_notes_purchase_order_id_idx").on(t.purchaseOrderId),
+  ],
+);
+
+export const goodsReceivedLines = sqliteTable(
+  "goods_received_lines",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    goodsReceivedNoteId: text("goods_received_note_id")
+      .notNull()
+      .references(() => goodsReceivedNotes.id),
+    position: integer("position").notNull(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id),
+    purchaseOrderLineId: text("purchase_order_line_id").references(() => purchaseOrderLines.id),
+    nameEn: text("name_en").notNull(),
+    nameUr: text("name_ur"),
+    unit: text("unit", { enum: productUnits }).notNull(),
+    qtyMilli: integer("qty_milli").notNull(),
+    unitCostPaisa: integer("unit_cost_paisa").notNull(),
+    lineTotalPaisa: integer("line_total_paisa").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check(
+      "goods_received_lines_integers_check",
+      allIntegers([t.position, t.qtyMilli, t.unitCostPaisa, t.lineTotalPaisa]),
+    ),
+    check("goods_received_lines_position_check", sql`${t.position} >= 0`),
+    check("goods_received_lines_qty_milli_check", sql`${t.qtyMilli} > 0`),
+    check("goods_received_lines_unit_cost_paisa_check", sql`${t.unitCostPaisa} >= 0`),
+    check("goods_received_lines_line_total_paisa_check", sql`${t.lineTotalPaisa} >= 0`),
+    check("goods_received_lines_unit_check", inList(t.unit, productUnits)),
+    uniqueIndex("goods_received_lines_goods_received_note_id_position_unique").on(
+      t.goodsReceivedNoteId,
+      t.position,
+    ),
+    index("goods_received_lines_product_id_idx").on(t.productId),
+    index("goods_received_lines_purchase_order_line_id_idx").on(t.purchaseOrderLineId),
+  ],
+);
+
 export const schema = {
   stores,
   terminals,
@@ -1005,4 +1110,7 @@ export const schema = {
   terminalPurchaseOrderSequences,
   purchaseOrders,
   purchaseOrderLines,
+  terminalGrnSequences,
+  goodsReceivedNotes,
+  goodsReceivedLines,
 };
