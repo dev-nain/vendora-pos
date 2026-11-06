@@ -1268,3 +1268,55 @@ describe("backup records schema", () => {
     expect(() => database.sqlite.exec("UPDATE backup_records SET trigger = 'hourly'")).toThrow();
   });
 });
+
+describe("manual and pre-restore backup triggers migration", () => {
+  it("keeps existing backup records and accepts the new triggers", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vendora-backup-triggers-"));
+    const database = openDatabase(join(dir, "vendora.db"));
+    try {
+      const oldFolder = join(dir, "old-migrations");
+      mkdirSync(join(oldFolder, "meta"), { recursive: true });
+      const journal = JSON.parse(
+        readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+      ) as { entries: { tag: string }[] };
+      journal.entries = journal.entries.slice(0, -1);
+      writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
+      for (const entry of journal.entries) {
+        copyFileSync(
+          join(migrationsFolder, `${entry.tag}.sql`),
+          join(oldFolder, `${entry.tag}.sql`),
+        );
+      }
+
+      const backupDir = join(dir, "backups");
+      runMigrations(database, { migrationsFolder: oldFolder, backupDir });
+      database.sqlite.exec(`
+        INSERT INTO stores (id, created_at, updated_at) VALUES ('s1', 1, 2);
+        INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 2);
+        INSERT INTO backup_records (id, store_id, terminal_id, trigger, file_name, size_bytes, result, created_at, updated_at)
+          VALUES ('b1', 's1', 't1', 'daily', 'vendora-x.db', 100, 'ok', 1, 1);
+      `);
+
+      expect(runMigrations(database, { migrationsFolder, backupDir })).toBe("migrated");
+
+      expect(
+        database.sqlite.prepare("SELECT id, trigger, size_bytes FROM backup_records").all(),
+      ).toEqual([{ id: "b1", trigger: "daily", size_bytes: 100 }]);
+      for (const trigger of ["manual", "pre_restore"]) {
+        database.sqlite
+          .prepare(
+            `INSERT INTO backup_records (id, store_id, terminal_id, trigger, file_name, size_bytes, result, created_at, updated_at)
+             VALUES (?, 's1', 't1', ?, 'vendora-y.db', 5, 'ok', 2, 2)`,
+          )
+          .run(`id-${trigger}`, trigger);
+      }
+      expect(() =>
+        database.sqlite.exec("UPDATE backup_records SET trigger = 'hourly' WHERE id = 'b1'"),
+      ).toThrow();
+      expect(database.sqlite.pragma("foreign_key_check")).toEqual([]);
+    } finally {
+      database.sqlite.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
