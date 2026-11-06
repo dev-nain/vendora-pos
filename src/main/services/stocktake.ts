@@ -1,9 +1,28 @@
-import { and, asc, count, eq, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { checkoutMessages } from "../../shared/checkout";
 import { productMessages } from "../../shared/products";
 import {
   stocktakeMessages,
   type CancelStocktakeResult,
+  type PastStocktakesQuery,
+  type PastStocktakesResult,
+  type StocktakeReview,
+  type StocktakeReviewLinesQuery,
+  type StocktakeReviewLinesResult,
+  type StocktakeReviewResult,
   type StartStocktakeInput,
   type RecordCountInput,
   type RecordCountResult,
@@ -32,6 +51,7 @@ import { lookupBarcode } from "./barcode-lookup";
 import { outerProductId, searchTextMatch } from "./product-search";
 import { normalizeSearchText } from "./search-text";
 import type { StockService } from "./stock";
+import { lineVariance, varianceTotals } from "./stocktake-variance";
 
 const LINE_INSERT_CHUNK = 500;
 
@@ -130,6 +150,37 @@ function lineSelect(executor: DbExecutor) {
     .from(stocktakeLines)
     .innerJoin(products, eq(products.id, stocktakeLines.productId))
     .innerJoin(categories, eq(categories.id, products.categoryId));
+}
+
+function countedRows(
+  executor: DbExecutor,
+  stocktakeId: string,
+  cost: typeof products.costPaisa | typeof stocktakeLines.unitCostPaisa,
+) {
+  return executor
+    .select({
+      productId: stocktakeLines.productId,
+      expectedMilli: stocktakeLines.expectedQtyMilli,
+      countedMilli: stocktakeLines.countedQtyMilli,
+      costPaisa: cost,
+    })
+    .from(stocktakeLines)
+    .innerJoin(products, eq(products.id, stocktakeLines.productId))
+    .where(and(eq(stocktakeLines.stocktakeId, stocktakeId), isNotNull(stocktakeLines.countedAt)))
+    .all()
+    .map((row) => {
+      if (row.expectedMilli === null || row.countedMilli === null || row.costPaisa === null) {
+        throw new Error("Counted stocktake line is missing its expected quantity or cost");
+      }
+      return {
+        productId: row.productId,
+        ...lineVariance({
+          countedMilli: row.countedMilli,
+          expectedMilli: row.expectedMilli,
+          costPaisa: row.costPaisa,
+        }),
+      };
+    });
 }
 
 function toLine(
@@ -342,6 +393,161 @@ export function createStocktakeService({
     });
   }
 
-  return { current, start, lines, scan, record, cancel };
+  function review(input: { stocktakeId: string }): StocktakeReviewResult {
+    const session = requireSession(sessions);
+    const postedBy = alias(users, "posted_by_user");
+    const row = db
+      .select({
+        status: stocktakes.status,
+        postedAt: stocktakes.postedAt,
+        postedByName: postedBy.displayName,
+      })
+      .from(stocktakes)
+      .leftJoin(postedBy, eq(postedBy.id, stocktakes.postedBy))
+      .where(and(eq(stocktakes.id, input.stocktakeId), eq(stocktakes.storeId, session.storeId)))
+      .get();
+    const summary = summaryOf(db, session.storeId, input.stocktakeId);
+    if (!row || !summary) return refuse("not-found", stocktakeMessages.notFound);
+
+    const base = {
+      ...summary,
+      status: row.status,
+      postedAt: row.postedAt ? row.postedAt.toISOString() : null,
+      postedByName: row.postedByName,
+      skippedCount: summary.lineCount - summary.countedCount,
+    };
+    if (row.status === "cancelled") {
+      const varianceLineCount =
+        db
+          .select({ n: count() })
+          .from(stocktakeLines)
+          .where(
+            and(
+              eq(stocktakeLines.stocktakeId, input.stocktakeId),
+              sql`${stocktakeLines.countedQtyMilli} <> ${stocktakeLines.expectedQtyMilli}`,
+            ),
+          )
+          .get()?.n ?? 0;
+      const cancelled: StocktakeReview = {
+        ...base,
+        varianceLineCount,
+        shortValuePaisa: null,
+        surplusValuePaisa: null,
+        netValuePaisa: null,
+      };
+      return { ok: true, review: cancelled };
+    }
+
+    const cost = row.status === "open" ? products.costPaisa : stocktakeLines.unitCostPaisa;
+    return {
+      ok: true,
+      review: { ...base, ...varianceTotals(countedRows(db, input.stocktakeId, cost)) },
+    };
+  }
+
+  function reviewLines(query: StocktakeReviewLinesQuery): StocktakeReviewLinesResult {
+    const session = requireSession(sessions);
+    const header = db
+      .select({ status: stocktakes.status })
+      .from(stocktakes)
+      .where(and(eq(stocktakes.id, query.stocktakeId), eq(stocktakes.storeId, session.storeId)))
+      .get();
+    if (!header) return refuse("not-found", stocktakeMessages.notFound);
+
+    const filters: SQL[] = [eq(stocktakeLines.stocktakeId, query.stocktakeId)];
+    if (query.filter === "variance") {
+      filters.push(sql`${stocktakeLines.countedQtyMilli} <> ${stocktakeLines.expectedQtyMilli}`);
+    } else if (query.filter === "uncounted") {
+      filters.push(isNull(stocktakeLines.countedAt));
+    }
+    const where = and(...filters);
+
+    const rows = db
+      .select({
+        id: stocktakeLines.id,
+        productId: products.id,
+        nameEn: products.nameEn,
+        nameUr: products.nameUr,
+        unit: products.unit,
+        isActive: products.isActive,
+        expectedMilli: stocktakeLines.expectedQtyMilli,
+        countedMilli: stocktakeLines.countedQtyMilli,
+        countedAt: stocktakeLines.countedAt,
+        liveCostPaisa: products.costPaisa,
+        frozenCostPaisa: stocktakeLines.unitCostPaisa,
+      })
+      .from(stocktakeLines)
+      .innerJoin(products, eq(products.id, stocktakeLines.productId))
+      .where(where)
+      .orderBy(sql`lower(${products.nameEn})`, asc(products.nameEn), asc(products.id))
+      .limit(query.limit)
+      .offset(query.offset)
+      .all();
+    const total = db.select({ n: count() }).from(stocktakeLines).where(where).get()?.n ?? 0;
+
+    const isOpenCount = header.status === "open";
+    const liveOnHand = isOpenCount
+      ? stock.onHandMany(rows.filter((row) => row.countedAt === null).map((row) => row.productId))
+      : new Map<string, number>();
+
+    const items = rows.map(({ liveCostPaisa, frozenCostPaisa, ...row }) => {
+      const costPaisa = isOpenCount ? liveCostPaisa : frozenCostPaisa;
+      const counted = row.countedMilli !== null && row.expectedMilli !== null;
+      const varianceMilli = counted ? row.countedMilli! - row.expectedMilli! : null;
+      const valued =
+        counted && header.status !== "cancelled" && costPaisa !== null
+          ? lineVariance({
+              countedMilli: row.countedMilli!,
+              expectedMilli: row.expectedMilli!,
+              costPaisa,
+            }).varianceValuePaisa
+          : null;
+      return {
+        ...row,
+        expectedMilli: counted ? row.expectedMilli : (liveOnHand.get(row.productId) ?? null),
+        countedAt: row.countedAt ? row.countedAt.toISOString() : null,
+        varianceMilli,
+        varianceValuePaisa: valued,
+      };
+    });
+    return { ok: true, items, total };
+  }
+
+  function listPast(query: PastStocktakesQuery): PastStocktakesResult {
+    const session = requireSession(sessions);
+    const where = and(
+      eq(stocktakes.storeId, session.storeId),
+      inArray(stocktakes.status, ["posted", "cancelled"]),
+    );
+    const rows = db
+      .select({
+        id: stocktakes.id,
+        scope: stocktakes.scope,
+        categoryName: categories.name,
+        status: stocktakes.status,
+        postedAt: stocktakes.postedAt,
+        createdAt: stocktakes.createdAt,
+      })
+      .from(stocktakes)
+      .leftJoin(categories, eq(categories.id, stocktakes.categoryId))
+      .where(where)
+      .orderBy(desc(stocktakes.createdAt), desc(stocktakes.id))
+      .limit(query.limit)
+      .offset(query.offset)
+      .all();
+    const total = db.select({ n: count() }).from(stocktakes).where(where).get()?.n ?? 0;
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        scope: row.scope,
+        categoryName: row.categoryName,
+        status: row.status,
+        date: (row.postedAt ?? row.createdAt).toISOString(),
+      })),
+      total,
+    };
+  }
+
+  return { current, start, lines, scan, record, cancel, review, reviewLines, listPast };
 }
 export type StocktakeService = ReturnType<typeof createStocktakeService>;

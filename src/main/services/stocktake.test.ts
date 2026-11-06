@@ -79,6 +79,22 @@ describe("createStocktakeService", () => {
   };
   const namesOf = (stocktakeId: string) => linesOf(stocktakeId).items.map((item) => item.nameEn);
 
+  const reviewOf = (stocktakeId: string) => {
+    const result = service.review({ stocktakeId });
+    if (!result.ok) throw new Error(`refused: ${result.reason}`);
+    return result.review;
+  };
+  const reviewLinesOf = (
+    stocktakeId: string,
+    filter: "all" | "variance" | "uncounted" = "all",
+    limit = 50,
+    offset = 0,
+  ) => {
+    const result = service.reviewLines({ stocktakeId, filter, limit, offset });
+    if (!result.ok) throw new Error(`refused: ${result.reason}`);
+    return result;
+  };
+
   describe("start", () => {
     it("takes active products, and archived products with stock either way", () => {
       move(product("Active").id, 1000);
@@ -584,6 +600,179 @@ describe("createStocktakeService", () => {
     });
   });
 
+  describe("review", () => {
+    it("takes variance against the quantity on hand when the line was counted", () => {
+      const tea = product("Tea", { costPaisa: 1000 });
+      move(tea.id, 20000);
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tea"), 20000);
+      move(tea.id, -3000);
+
+      expect(reviewLinesOf(stocktake.id).items[0]).toMatchObject({
+        expectedMilli: 20000,
+        countedMilli: 20000,
+        varianceMilli: 0,
+        varianceValuePaisa: 0,
+      });
+      expect(reviewOf(stocktake.id)).toMatchObject({
+        varianceLineCount: 0,
+        netValuePaisa: 0,
+      });
+    });
+
+    it("reports quantity and value variance with totals that add up", () => {
+      const tapal = product("Tapal", { costPaisa: 105050 });
+      const sugar = product("Sugar", { unit: "kg", costPaisa: 14333 });
+      product("Lux", { costPaisa: 8500 });
+      product("Rice", { costPaisa: 25000 });
+      move(tapal.id, 12000);
+      move(sugar.id, 10000);
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tapal"), 11000);
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Sugar"), 9250);
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Lux"), 2000);
+
+      const items = reviewLinesOf(stocktake.id).items;
+      expect(
+        items.map((item) => [item.nameEn, item.varianceMilli, item.varianceValuePaisa]),
+      ).toEqual([
+        ["Lux", 2000, 17000],
+        ["Rice", null, null],
+        ["Sugar", -750, -10750],
+        ["Tapal", -1000, -105050],
+      ]);
+      expect(reviewOf(stocktake.id)).toMatchObject({
+        status: "open",
+        lineCount: 4,
+        countedCount: 3,
+        skippedCount: 1,
+        varianceLineCount: 3,
+        shortValuePaisa: -115800,
+        surplusValuePaisa: 17000,
+        netValuePaisa: -98800,
+        postedAt: null,
+        postedByName: null,
+      });
+    });
+
+    it("shows live on hand for an uncounted line of an open count", () => {
+      const tea = product("Tea");
+      move(tea.id, 7000);
+      const stocktake = startFull();
+
+      expect(reviewLinesOf(stocktake.id, "uncounted").items[0]).toMatchObject({
+        expectedMilli: 7000,
+        countedMilli: null,
+        varianceMilli: null,
+        varianceValuePaisa: null,
+      });
+    });
+
+    it("filters to variances and to uncounted lines, and pages", () => {
+      const tea = product("Tea");
+      const milk = product("Milk");
+      product("Rice");
+      move(tea.id, 5000);
+      move(milk.id, 5000);
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tea"), 4000);
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Milk"), 5000);
+
+      const variance = reviewLinesOf(stocktake.id, "variance");
+      expect(variance.items.map((item) => item.nameEn)).toEqual(["Tea"]);
+      expect(variance.total).toBe(1);
+      const uncounted = reviewLinesOf(stocktake.id, "uncounted");
+      expect(uncounted.items.map((item) => item.nameEn)).toEqual(["Rice"]);
+      const page = reviewLinesOf(stocktake.id, "all", 1, 1);
+      expect(page.items.map((item) => item.nameEn)).toEqual(["Rice"]);
+      expect(page.total).toBe(3);
+    });
+
+    it("values an open count at the live cost", () => {
+      const tea = product("Tea", { costPaisa: 1000 });
+      move(tea.id, 5000);
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tea"), 4000);
+      expect(reviewOf(stocktake.id).netValuePaisa).toBe(-1000);
+
+      kit.database.db
+        .update(products)
+        .set({ costPaisa: 2000 })
+        .where(eq(products.id, tea.id))
+        .run();
+
+      expect(reviewOf(stocktake.id).netValuePaisa).toBe(-2000);
+      expect(reviewLinesOf(stocktake.id).items[0]?.varianceValuePaisa).toBe(-2000);
+    });
+
+    it("shows a cancelled count with quantities and no values", () => {
+      const tea = product("Tea", { costPaisa: 1000 });
+      move(tea.id, 5000);
+      product("Rice");
+      const stocktake = startFull();
+      recorded(stocktake.id, lineIdOf(stocktake.id, "Tea"), 4000);
+      service.cancel({ stocktakeId: stocktake.id });
+
+      expect(reviewOf(stocktake.id)).toMatchObject({
+        status: "cancelled",
+        varianceLineCount: 1,
+        skippedCount: 1,
+        shortValuePaisa: null,
+        surplusValuePaisa: null,
+        netValuePaisa: null,
+      });
+      const items = reviewLinesOf(stocktake.id).items;
+      expect(items.map((item) => [item.nameEn, item.expectedMilli, item.varianceMilli])).toEqual([
+        ["Rice", null, null],
+        ["Tea", 5000, -1000],
+      ]);
+      expect(items.every((item) => item.varianceValuePaisa === null)).toBe(true);
+    });
+
+    it("answers not-found for an unknown count", () => {
+      expect(service.review({ stocktakeId: UNKNOWN_ID })).toMatchObject({
+        ok: false,
+        reason: "not-found",
+      });
+      expect(
+        service.reviewLines({ stocktakeId: UNKNOWN_ID, filter: "all", limit: 10, offset: 0 }),
+      ).toMatchObject({ ok: false, reason: "not-found" });
+    });
+  });
+
+  describe("listPast", () => {
+    it("lists cancelled counts newest first and leaves out the open one", () => {
+      product("Tea");
+      let clock = new Date("2026-11-01T10:00:00.000Z");
+      service = createStocktakeService({
+        database: kit.database,
+        sessions: kit.sessions,
+        stock: kit.stock,
+        now: () => clock,
+      });
+      const first = startFull();
+      service.cancel({ stocktakeId: first.id });
+      clock = new Date("2026-11-02T10:00:00.000Z");
+      const second = service.start({ scope: "category", categoryId: kit.categoryId });
+      if (!second.ok) throw new Error("refused");
+      service.cancel({ stocktakeId: second.stocktake.id });
+      clock = new Date("2026-11-03T10:00:00.000Z");
+      startFull();
+
+      const result = service.listPast({ limit: 10, offset: 0 });
+
+      expect(result.total).toBe(2);
+      expect(result.items.map((item) => [item.id, item.status, item.scope, item.date])).toEqual([
+        [second.stocktake.id, "cancelled", "category", "2026-11-02T10:00:00.000Z"],
+        [first.id, "cancelled", "full", "2026-11-01T10:00:00.000Z"],
+      ]);
+      expect(result.items[0]?.categoryName).toBe(second.stocktake.categoryName);
+      expect(service.listPast({ limit: 1, offset: 1 }).items.map((item) => item.id)).toEqual([
+        first.id,
+      ]);
+    });
+  });
+
   describe("without a session", () => {
     it("throws UnauthenticatedError for every method", () => {
       kit.sessions.end();
@@ -593,6 +782,11 @@ describe("createStocktakeService", () => {
         service.lines({ stocktakeId: UNKNOWN_ID, query: "", limit: 1, offset: 0 }),
       ).toThrow(UnauthenticatedError);
       expect(() => service.cancel({ stocktakeId: UNKNOWN_ID })).toThrow(UnauthenticatedError);
+      expect(() => service.review({ stocktakeId: UNKNOWN_ID })).toThrow(UnauthenticatedError);
+      expect(() =>
+        service.reviewLines({ stocktakeId: UNKNOWN_ID, filter: "all", limit: 1, offset: 0 }),
+      ).toThrow(UnauthenticatedError);
+      expect(() => service.listPast({ limit: 1, offset: 0 })).toThrow(UnauthenticatedError);
     });
   });
 });
