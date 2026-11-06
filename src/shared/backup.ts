@@ -75,3 +75,35 @@ export const restoreResultSchema = z.discriminatedUnion("ok", [
   z.strictObject({ ok: z.literal(false), reason: z.enum(restoreRefusals), message: z.string() }),
 ]);
 export type RestoreResult = z.infer<typeof restoreResultSchema>;
+
+export const backupPasswordSchema = z
+  .string()
+  .min(8, "Use at least 8 characters.")
+  .max(256, "Use 256 characters or fewer.");
+
+export const turnOnBackupPasswordInputSchema = z.strictObject({ password: backupPasswordSchema });
+export type TurnOnBackupPasswordInput = z.infer<typeof turnOnBackupPasswordInputSchema>;
+
+export const changeBackupPasswordInputSchema = z.strictObject({
+  current: restorePasswordSchema,
+  next: backupPasswordSchema,
+});
+export type ChangeBackupPasswordInput = z.infer<typeof changeBackupPasswordInputSchema>;
+
+export const turnOffBackupPasswordInputSchema = z.strictObject({ current: restorePasswordSchema });
+export type TurnOffBackupPasswordInput = z.infer<typeof turnOffBackupPasswordInputSchema>;
+
+export const backupPasswordStatusSchema = z.strictObject({
+  state: z.enum(["off", "on", "unreadable"]),
+});
+export type BackupPasswordStatus = z.infer<typeof backupPasswordStatusSchema>;
+
+export const backupPasswordResultSchema = z.discriminatedUnion("ok", [
+  z.strictObject({ ok: z.literal(true), status: backupPasswordStatusSchema }),
+  z.strictObject({
+    ok: z.literal(false),
+    reason: z.enum(["wrong-password", "protection-unavailable", "already-on", "already-off"]),
+    message: z.string(),
+  }),
+]);
+export type BackupPasswordResult = z.infer<typeof backupPasswordResultSchema>;
