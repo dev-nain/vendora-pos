@@ -66,6 +66,7 @@ export function StocktakeScreen({ onSessionEnded }: StocktakeScreenProps) {
   return (
     <StocktakeCount
       stocktake={current}
+      onClosed={reload}
       onCancelled={() => {
         setCancelled(true);
         setCurrent(null);
