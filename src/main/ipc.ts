@@ -78,6 +78,7 @@ import {
   printerSettingsSchema,
   receiptSettingsInputSchema,
   receiptSettingsSchema,
+  secondCopyStatusSchema,
   scalePrefixesInputSchema,
   scalePrefixesSettingSchema,
   shiftVarianceInputSchema,
@@ -130,6 +131,7 @@ import type { ProductsService } from "./services/products";
 import type { ReceiptsService } from "./services/receipts";
 import type { ReturnsService } from "./services/returns";
 import type { SalesService } from "./services/sales";
+import type { BackupSettingsService } from "./services/backup-settings";
 import type { SettingsService } from "./services/settings";
 import type { ShiftsService } from "./services/shifts";
 import type { TaxCategoriesService } from "./services/tax-categories";
@@ -150,6 +152,7 @@ function handle(
 
 interface IpcServices {
   auth: AuthService;
+  backupSettings: BackupSettingsService;
   billDrafts: BillDraftsService;
   catalogExport: CatalogExportService;
   categories: CategoriesService;
@@ -165,6 +168,7 @@ interface IpcServices {
 
 export function registerIpcHandlers({
   auth,
+  backupSettings,
   billDrafts,
   catalogExport,
   categories,
@@ -211,6 +215,15 @@ export function registerIpcHandlers({
   handle(ipcChannels.settingsGetReceipt, () => receiptSettingsSchema.parse(settings.getReceipt()));
   handle(ipcChannels.settingsSetReceipt, (_event, input) =>
     receiptSettingsSchema.parse(settings.setReceipt(receiptSettingsInputSchema.parse(input))),
+  );
+  handle(ipcChannels.settingsGetSecondCopy, () =>
+    secondCopyStatusSchema.parse(backupSettings.getSecondCopy()),
+  );
+  handle(ipcChannels.settingsChooseSecondCopyFolder, async () =>
+    secondCopyStatusSchema.parse(await backupSettings.chooseSecondCopyFolder()),
+  );
+  handle(ipcChannels.settingsClearSecondCopyFolder, () =>
+    secondCopyStatusSchema.parse(backupSettings.clearSecondCopyFolder()),
   );
   handle(ipcChannels.printerGetSettings, () => printerSettingsSchema.parse(settings.getPrinter()));
   handle(ipcChannels.printerSetSettings, (_event, input) =>

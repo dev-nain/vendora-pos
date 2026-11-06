@@ -9,6 +9,7 @@ import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
 import { createAuthService } from "./services/auth";
+import { createBackupSettingsService } from "./services/backup-settings";
 import { createBillDraftsService } from "./services/bill-drafts";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createCategoriesService } from "./services/categories";
@@ -59,6 +60,22 @@ void app.whenReady().then(async () => {
   const sessions = createSessionStore();
   const auth = createAuthService({ database, audit, sessions });
   const settings = createSettingsService({ database, audit, sessions });
+  const backupSettings = createBackupSettingsService({
+    database,
+    audit,
+    sessions,
+    chooseFolder: async () => {
+      const options = {
+        title: "Choose a folder for the second backup copy",
+        properties: ["openDirectory" as const],
+      };
+      const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+      const result = parent
+        ? await dialog.showOpenDialog(parent, options)
+        : await dialog.showOpenDialog(options);
+      return result.canceled ? null : (result.filePaths[0] ?? null);
+    },
+  });
   const stock = createStockService({ database, audit });
   const billDrafts = createBillDraftsService({ database, audit, sessions });
   const sales = createSalesService({ database, audit, sessions, stock });
@@ -104,6 +121,7 @@ void app.whenReady().then(async () => {
   });
   registerIpcHandlers({
     auth,
+    backupSettings,
     billDrafts,
     catalogExport,
     categories,

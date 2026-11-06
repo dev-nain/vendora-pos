@@ -16,6 +16,7 @@ import {
   miscItemSettingSchema,
   printerSettingsSchema,
   receiptSettingsSchema,
+  secondCopyStatusSchema,
   scalePrefixesSettingSchema,
   shiftVarianceSettingSchema,
   windowsPrintersSchema,
@@ -118,6 +119,16 @@ const api: VendoraApi = {
       ),
     getReceipt: async () =>
       receiptSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsGetReceipt)),
+    getSecondCopy: async () =>
+      secondCopyStatusSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsGetSecondCopy)),
+    chooseSecondCopyFolder: async () =>
+      secondCopyStatusSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsChooseSecondCopyFolder),
+      ),
+    clearSecondCopyFolder: async () =>
+      secondCopyStatusSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsClearSecondCopyFolder),
+      ),
     setReceipt: async (input) =>
       receiptSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsSetReceipt, input)),
   },
