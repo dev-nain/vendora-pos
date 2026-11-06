@@ -807,6 +807,7 @@ describe("audit log ipc", () => {
       sales: stub,
       settings: stub,
       shifts: stub,
+      suppliers: stub,
       taxCategories: stub,
       users: stub,
     });
