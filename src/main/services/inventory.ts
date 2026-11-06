@@ -1,5 +1,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type {
+  LowStockQuery,
+  LowStockResult,
   StockHistoryQuery,
   StockHistoryResult,
   StockListQuery,
@@ -10,6 +12,7 @@ import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { products, saleLines, sales, users } from "../db/schema";
+import { lowStockProducts } from "./low-stock";
 import { searchProducts } from "./product-search";
 import type { StockService } from "./stock";
 import { stockValuePaisa } from "./stock-value";
@@ -149,6 +152,11 @@ export function createInventoryService({ database, sessions, stock }: InventoryD
     };
   }
 
-  return { list, history };
+  function lowStock(input: LowStockQuery): LowStockResult {
+    const session = requireSession(sessions);
+    return lowStockProducts(database, session.storeId, input);
+  }
+
+  return { list, history, lowStock };
 }
 export type InventoryService = ReturnType<typeof createInventoryService>;

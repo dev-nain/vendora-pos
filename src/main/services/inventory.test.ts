@@ -143,6 +143,22 @@ describe("createInventoryService", () => {
     });
   });
 
+  describe("lowStock", () => {
+    it("lists low products for the session store", () => {
+      const tea = product("Tea", { lowStockThresholdMilli: 5000 });
+      move(tea.id, "opening", 2000);
+      expect(service.lowStock({ limit: 50, offset: 0 })).toMatchObject({
+        total: 1,
+        items: [{ id: tea.id, onHandMilli: 2000, shortfallMilli: 3000 }],
+      });
+    });
+
+    it("throws without a session", () => {
+      kit.sessions.end();
+      expect(() => service.lowStock({ limit: 50, offset: 0 })).toThrow(UnauthenticatedError);
+    });
+  });
+
   describe("history", () => {
     it("lists newest first with user, source, reason and unit cost", () => {
       const sugar = product("Sugar", { unit: "kg", costPaisa: 14333 });
