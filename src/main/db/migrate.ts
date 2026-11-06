@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import type { VendoraDatabase } from "./client";
+import { backupStamp, vacuumInto } from "./vacuum-into";
 
 const MIGRATIONS_TABLE = "__drizzle_migrations";
 
@@ -44,8 +45,7 @@ function hasUserTables({ sqlite }: VendoraDatabase): boolean {
 
 function backupBeforeMigrate({ sqlite }: VendoraDatabase, backupDir: string): void {
   mkdirSync(backupDir, { recursive: true });
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  sqlite.prepare("VACUUM INTO ?").run(join(backupDir, `pre-migrate-${stamp}.db`));
+  vacuumInto(sqlite, join(backupDir, `pre-migrate-${backupStamp(new Date())}.db`));
 }
 
 export function runMigrations(
