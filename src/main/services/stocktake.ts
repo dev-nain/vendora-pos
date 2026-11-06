@@ -1,13 +1,18 @@
 import { and, asc, count, eq, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
+import { checkoutMessages } from "../../shared/checkout";
 import { productMessages } from "../../shared/products";
 import {
   stocktakeMessages,
   type CancelStocktakeResult,
   type StartStocktakeInput,
+  type RecordCountInput,
+  type RecordCountResult,
   type StartStocktakeResult,
   type StocktakeLine,
   type StocktakeLinesQuery,
   type StocktakeLinesResult,
+  type StocktakeScanInput,
+  type StocktakeScanResult,
   type StocktakeSummary,
 } from "../../shared/stocktake";
 import { requireSession } from "../auth/guard";
@@ -23,6 +28,7 @@ import {
 } from "../db/schema";
 import { isUniqueViolation } from "../db/sqlite-errors";
 import { currentTerminal, type DbExecutor } from "../db/terminal";
+import { lookupBarcode } from "./barcode-lookup";
 import { outerProductId, searchTextMatch } from "./product-search";
 import { normalizeSearchText } from "./search-text";
 import type { StockService } from "./stock";
@@ -106,6 +112,31 @@ function isOpen(executor: DbExecutor, storeId: string, stocktakeId: string): boo
       )
       .get() !== undefined
   );
+}
+
+function lineSelect(executor: DbExecutor) {
+  return executor
+    .select({
+      id: stocktakeLines.id,
+      productId: products.id,
+      nameEn: products.nameEn,
+      nameUr: products.nameUr,
+      unit: products.unit,
+      isActive: products.isActive,
+      categoryName: categories.name,
+      countedMilli: stocktakeLines.countedQtyMilli,
+      countedAt: stocktakeLines.countedAt,
+    })
+    .from(stocktakeLines)
+    .innerJoin(products, eq(products.id, stocktakeLines.productId))
+    .innerJoin(categories, eq(categories.id, products.categoryId));
+}
+
+function toLine(
+  row: Omit<StocktakeLine, "countedAt" | "onHandMilli"> & { countedAt: Date | null },
+  onHandMilli: number,
+): StocktakeLine {
+  return { ...row, countedAt: row.countedAt ? row.countedAt.toISOString() : null, onHandMilli };
 }
 
 export function createStocktakeService({
@@ -208,21 +239,7 @@ export function createStocktakeService({
     const terms = normalized === "" ? [] : normalized.split(" ");
     const where = and(eq(stocktakeLines.stocktakeId, input.stocktakeId), searchTextMatch(terms));
 
-    const rows = db
-      .select({
-        id: stocktakeLines.id,
-        productId: products.id,
-        nameEn: products.nameEn,
-        nameUr: products.nameUr,
-        unit: products.unit,
-        isActive: products.isActive,
-        categoryName: categories.name,
-        countedMilli: stocktakeLines.countedQtyMilli,
-        countedAt: stocktakeLines.countedAt,
-      })
-      .from(stocktakeLines)
-      .innerJoin(products, eq(products.id, stocktakeLines.productId))
-      .innerJoin(categories, eq(categories.id, products.categoryId))
+    const rows = lineSelect(db)
       .where(where)
       .orderBy(sql`lower(${products.nameEn})`, asc(products.nameEn), asc(products.id))
       .limit(input.limit)
@@ -237,11 +254,7 @@ export function createStocktakeService({
         .get()?.n ?? 0;
 
     const onHand = stock.onHandMany(rows.map((row) => row.productId));
-    const items: StocktakeLine[] = rows.map((row) => ({
-      ...row,
-      countedAt: row.countedAt ? row.countedAt.toISOString() : null,
-      onHandMilli: onHand.get(row.productId) ?? 0,
-    }));
+    const items = rows.map((row) => toLine(row, onHand.get(row.productId) ?? 0));
     return { ok: true, items, total };
   }
 
@@ -261,6 +274,74 @@ export function createStocktakeService({
     return result.changes === 0 ? refuse("not-open", stocktakeMessages.notOpen) : { ok: true };
   }
 
-  return { current, start, lines, cancel };
+  function scan(input: StocktakeScanInput): StocktakeScanResult {
+    const session = requireSession(sessions);
+    if (!isOpen(db, session.storeId, input.stocktakeId)) {
+      return refuse("not-open", stocktakeMessages.notOpen);
+    }
+
+    const found = lookupBarcode(database, session.storeId, input.barcode, {
+      includeArchived: true,
+    });
+    if (!found) return refuse("unknown-barcode", checkoutMessages.productNotFound);
+
+    const row = lineSelect(db)
+      .where(
+        and(
+          eq(stocktakeLines.stocktakeId, input.stocktakeId),
+          eq(stocktakeLines.productId, found.product.id),
+        ),
+      )
+      .get();
+    if (!row) return refuse("out-of-scope", stocktakeMessages.outOfScope(found.product.nameEn));
+
+    return {
+      ok: true,
+      line: toLine(row, stock.onHand(row.productId)),
+      packQtyMilli: found.source === "barcode" ? found.packQtyMilli : 1000,
+    };
+  }
+
+  function record(input: RecordCountInput): RecordCountResult {
+    const session = requireSession(sessions);
+    return db.transaction((tx) => {
+      if (!isOpen(tx, session.storeId, input.stocktakeId)) {
+        return refuse("not-open", stocktakeMessages.notOpen);
+      }
+
+      const row = lineSelect(tx)
+        .where(
+          and(
+            eq(stocktakeLines.id, input.lineId),
+            eq(stocktakeLines.stocktakeId, input.stocktakeId),
+            eq(stocktakeLines.storeId, session.storeId),
+          ),
+        )
+        .get();
+      if (!row) return refuse("not-found", stocktakeMessages.lineNotFound);
+      if (row.unit === "piece" && input.countedMilli % 1000 !== 0) {
+        return refuse("whole-units", stocktakeMessages.wholeUnits);
+      }
+
+      const expected = stock.onHand(row.productId, tx);
+      const countedAt = now();
+      tx.update(stocktakeLines)
+        .set({
+          expectedQtyMilli: expected,
+          countedQtyMilli: input.countedMilli,
+          countedAt,
+        })
+        .where(eq(stocktakeLines.id, row.id))
+        .run();
+
+      return {
+        ok: true,
+        line: toLine({ ...row, countedMilli: input.countedMilli, countedAt }, expected),
+        countedCount: countedCountOf(tx, input.stocktakeId),
+      };
+    });
+  }
+
+  return { current, start, lines, scan, record, cancel };
 }
 export type StocktakeService = ReturnType<typeof createStocktakeService>;

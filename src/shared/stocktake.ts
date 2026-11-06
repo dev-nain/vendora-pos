@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { refusal } from "./checkout";
-import { PRODUCT_SEARCH_MAX_LIMIT, productUnits } from "./products";
+import { maxQtyMilli, refusal } from "./checkout";
+import { barcodeLookupInputSchema, PRODUCT_SEARCH_MAX_LIMIT, productUnits } from "./products";
 
 export const stocktakeScopes = ["full", "category"] as const;
 export type StocktakeScope = (typeof stocktakeScopes)[number];
@@ -29,6 +29,17 @@ export const stocktakeLinesQuerySchema = z.strictObject({
   query: z.string().max(200),
   limit: z.int().min(1).max(PRODUCT_SEARCH_MAX_LIMIT),
   offset: z.int().min(0).max(Number.MAX_SAFE_INTEGER),
+});
+
+export const stocktakeScanInputSchema = z.strictObject({
+  stocktakeId: z.uuid(),
+  barcode: barcodeLookupInputSchema.shape.barcode,
+});
+
+export const recordCountInputSchema = z.strictObject({
+  stocktakeId: z.uuid(),
+  lineId: z.uuid(),
+  countedMilli: z.int().min(0).max(maxQtyMilli),
 });
 
 export const stocktakeSummarySchema = z.strictObject({
@@ -70,6 +81,28 @@ export const stocktakeLinesResultSchema = z.union([
   refusal("not-open"),
 ]);
 
+export const stocktakeScanResultSchema = z.union([
+  z.strictObject({
+    ok: z.literal(true),
+    line: stocktakeLineSchema,
+    packQtyMilli: z.int(),
+  }),
+  refusal("unknown-barcode"),
+  refusal("out-of-scope"),
+  refusal("not-open"),
+]);
+
+export const recordCountResultSchema = z.union([
+  z.strictObject({
+    ok: z.literal(true),
+    line: stocktakeLineSchema,
+    countedCount: z.int(),
+  }),
+  refusal("not-open"),
+  refusal("not-found"),
+  refusal("whole-units"),
+]);
+
 export const cancelStocktakeResultSchema = z.union([
   z.strictObject({ ok: z.literal(true) }),
   refusal("not-open"),
@@ -77,6 +110,10 @@ export const cancelStocktakeResultSchema = z.union([
 
 export type StartStocktakeInput = z.input<typeof startStocktakeInputSchema>;
 export type StocktakeLinesQuery = z.input<typeof stocktakeLinesQuerySchema>;
+export type StocktakeScanInput = z.input<typeof stocktakeScanInputSchema>;
+export type RecordCountInput = z.input<typeof recordCountInputSchema>;
+export type StocktakeScanResult = z.infer<typeof stocktakeScanResultSchema>;
+export type RecordCountResult = z.infer<typeof recordCountResultSchema>;
 export type StocktakeSummary = z.infer<typeof stocktakeSummarySchema>;
 export type StocktakeLine = z.infer<typeof stocktakeLineSchema>;
 export type StartStocktakeResult = z.infer<typeof startStocktakeResultSchema>;
