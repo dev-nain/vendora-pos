@@ -92,6 +92,7 @@ export function BackupScreen({ onSessionEnded }: BackupScreenProps) {
           input: { kind: "picked", token: chosen.token },
           takenAt: chosen.takenAt,
           pickedFileName: chosen.fileName,
+          encrypted: chosen.encrypted,
         },
         button,
       );
@@ -224,6 +225,7 @@ export function BackupScreen({ onSessionEnded }: BackupScreenProps) {
                           input: { kind: "listed", fileName: file.fileName },
                           takenAt: file.takenAt,
                           pickedFileName: null,
+                          encrypted: file.encrypted,
                         },
                         event.currentTarget,
                       )
