@@ -46,6 +46,13 @@ import {
   salesListQuerySchema,
 } from "@shared/sales";
 import {
+  backupNowResultSchema,
+  backupStatusSchema,
+  chosenBackupSchema,
+  restoreInputSchema,
+  restoreResultSchema,
+} from "@shared/backup";
+import {
   barcodeLookupInputSchema,
   barcodeLookupSchema,
   bulkUpdateProductsInputSchema,
@@ -124,6 +131,7 @@ import { z } from "zod";
 import { toIpcError } from "./ipc-errors";
 import type { AuthService } from "./services/auth";
 import type { BillDraftsService } from "./services/bill-drafts";
+import type { BackupAdminService } from "./services/backup-admin";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { ProductsService } from "./services/products";
@@ -150,6 +158,7 @@ function handle(
 
 interface IpcServices {
   auth: AuthService;
+  backupAdmin: BackupAdminService;
   billDrafts: BillDraftsService;
   catalogExport: CatalogExportService;
   categories: CategoriesService;
@@ -165,6 +174,7 @@ interface IpcServices {
 
 export function registerIpcHandlers({
   auth,
+  backupAdmin,
   billDrafts,
   catalogExport,
   categories,
@@ -425,5 +435,17 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.salesGet, (_event, input) =>
     getOrderResultSchema.parse(sales.get(orderIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.backupStatus, async () =>
+    backupStatusSchema.parse(await backupAdmin.status()),
+  );
+  handle(ipcChannels.backupRun, async () =>
+    backupNowResultSchema.parse(await backupAdmin.backupNow()),
+  );
+  handle(ipcChannels.backupChooseFile, async () =>
+    chosenBackupSchema.parse(await backupAdmin.chooseRestoreFile()),
+  );
+  handle(ipcChannels.backupRestore, async (_event, input) =>
+    restoreResultSchema.parse(await backupAdmin.restore(restoreInputSchema.parse(input))),
   );
 }

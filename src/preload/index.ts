@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { contextBridge, ipcRenderer } from "electron";
 import {
+  backupNowResultSchema,
+  backupStatusSchema,
+  chosenBackupSchema,
+  restoreResultSchema,
+} from "@shared/backup";
+import {
   authResultSchema,
   createFirstUserResultSchema,
   loginUserSchema,
@@ -301,6 +307,15 @@ const api: VendoraApi = {
       orderListSchema.parse(await ipcRenderer.invoke(ipcChannels.salesList, query)),
     get: async (id) =>
       getOrderResultSchema.parse(await ipcRenderer.invoke(ipcChannels.salesGet, { id })),
+  },
+  backup: {
+    status: async () =>
+      backupStatusSchema.parse(await ipcRenderer.invoke(ipcChannels.backupStatus)),
+    run: async () => backupNowResultSchema.parse(await ipcRenderer.invoke(ipcChannels.backupRun)),
+    chooseFile: async () =>
+      chosenBackupSchema.parse(await ipcRenderer.invoke(ipcChannels.backupChooseFile)),
+    restore: async (input) =>
+      restoreResultSchema.parse(await ipcRenderer.invoke(ipcChannels.backupRestore, input)),
   },
 };
 

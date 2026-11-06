@@ -38,6 +38,7 @@ const invoke = async (channel: string, input?: unknown) => {
   return handler({}, input);
 };
 
+const goodBackupName = "vendora-2026-11-06T12-30-00-123Z.db";
 const unknownId = "0192f3a0-0000-7000-8000-000000000099";
 
 describe("products ipc", () => {
@@ -116,6 +117,7 @@ describe("products ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      backupAdmin: stub,
       billDrafts: stub,
       catalogExport,
       categories: stub,
@@ -329,6 +331,7 @@ describe("shifts ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      backupAdmin: stub,
       billDrafts: stub,
       catalogExport: stub,
       categories: stub,
@@ -477,6 +480,7 @@ describe("checkout ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      backupAdmin: stub,
       billDrafts: kit.billDrafts,
       catalogExport: stub,
       categories: stub,
@@ -698,5 +702,75 @@ describe("checkout ipc", () => {
     expect(await invoke("shifts:state")).toMatchObject({
       heldBills: [expect.objectContaining({ lineCount: 1 })],
     });
+  });
+});
+
+describe("backup ipc", () => {
+  const admin = {
+    status: vi.fn(),
+    backupNow: vi.fn(),
+    chooseRestoreFile: vi.fn(),
+    restore: vi.fn(),
+  };
+
+  beforeEach(() => {
+    handlers.clear();
+    vi.clearAllMocks();
+    const stub = {} as never;
+    registerIpcHandlers({
+      auth: stub,
+      backupAdmin: admin as never,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      products: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+  });
+
+  it("parses every output", async () => {
+    admin.status.mockResolvedValue({
+      lastBackupAt: null,
+      lastFailure: null,
+      backups: [],
+      restoreBlock: null,
+    });
+    admin.backupNow.mockResolvedValue({ ok: true });
+    admin.chooseRestoreFile.mockResolvedValue(null);
+    admin.restore.mockResolvedValue({ ok: true });
+
+    expect(await invoke("backup:status")).toMatchObject({ backups: [] });
+    expect(await invoke("backup:run")).toEqual({ ok: true });
+    expect(await invoke("backup:choose-file")).toBeNull();
+    expect(await invoke("backup:restore", { kind: "listed", fileName: goodBackupName })).toEqual({
+      ok: true,
+    });
+    expect(admin.restore).toHaveBeenCalledWith({ kind: "listed", fileName: goodBackupName });
+  });
+
+  it("rejects a malformed service answer", async () => {
+    admin.status.mockResolvedValue({ lastBackupAt: "yesterday" });
+
+    await expect(invoke("backup:status")).rejects.toThrow();
+  });
+
+  it.each([
+    { kind: "listed", fileName: "../vendora.db" },
+    { kind: "listed", fileName: "C:\\Users\\x\\vendora-2026-11-06T12-30-00-123Z.db" },
+    { kind: "listed", fileName: "/etc/passwd" },
+    { kind: "listed", fileName: `sub/${goodBackupName}` },
+    { kind: "picked", token: "not-a-uuid" },
+    { kind: "picked", token: unknownId, path: "/tmp/x.db" },
+    { kind: "other" },
+    { fileName: goodBackupName },
+  ])("rejects restore input %j before the service runs", async (input) => {
+    await expect(invoke("backup:restore", input)).rejects.toThrow();
+    expect(admin.restore).not.toHaveBeenCalled();
   });
 });
