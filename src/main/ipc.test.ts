@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ipcErrorMessages } from "@shared/ipc";
 import { createProductInputSchema } from "@shared/products";
@@ -20,6 +21,7 @@ import {
 } from "./services/purchase-orders";
 import { createShiftsService, type ShiftsService } from "./services/shifts";
 import { createSuppliersService, type SuppliersService } from "./services/suppliers";
+import { createGoodsReceivedService, type GoodsReceivedService } from "./services/goods-received";
 import { createStockService } from "./services/stock";
 import { openMigratedDatabase } from "./db/test-database";
 
@@ -51,6 +53,13 @@ const order = (supplierId: string, productId: string) => ({
   lines: [{ productId, orderedQtyMilli: 2000, unitCostPaisa: 14333 }],
 });
 
+const directGrn = (supplierId: string, productId: string) => ({
+  kind: "direct",
+  supplierId,
+  supplierInvoiceNo: "INV-100",
+  lines: [{ productId, qtyMilli: 10000, unitCostPaisa: 12000 }],
+});
+
 describe("products ipc", () => {
   let dir: string;
   let database: VendoraDatabase;
@@ -58,6 +67,7 @@ describe("products ipc", () => {
   let service: ProductsService;
   let suppliersService: SuppliersService;
   let purchaseOrdersService: PurchaseOrdersService;
+  let goodsReceivedService: GoodsReceivedService;
   let exportPath: string | null;
   let categoryId: string;
   let taxCategoryId: string;
@@ -130,6 +140,12 @@ describe("products ipc", () => {
       audit: createAuditService(database),
       sessions,
     });
+    goodsReceivedService = createGoodsReceivedService({
+      database,
+      audit: createAuditService(database),
+      sessions,
+      stock: createStockService({ database, audit: createAuditService(database) }),
+    });
     exportPath = join(dir, "catalog.csv");
     const catalogExport = createCatalogExportService({
       database,
@@ -142,6 +158,7 @@ describe("products ipc", () => {
       billDrafts: stub,
       catalogExport,
       categories: stub,
+      goodsReceived: goodsReceivedService,
       products: service,
       purchaseOrders: purchaseOrdersService,
       receipts: stub,
@@ -282,6 +299,61 @@ describe("products ipc", () => {
           new Error(ipcErrorMessages.unauthenticated),
         );
       }
+    });
+  });
+
+  describe("goods received", () => {
+    it.each([
+      ["x", [{ productId: unknownId, qtyMilli: 1, unitCostPaisa: 1 }]],
+      [unknownId, []],
+    ] as const)("rejects bad input before the service runs", async (supplierId, lines) => {
+      signIn("owner");
+      const spy = vi.spyOn(goodsReceivedService, "post");
+      await expect(
+        invoke("goods-received:post", {
+          kind: "direct",
+          supplierId,
+          supplierInvoiceNo: "INV-1",
+          lines,
+        }),
+      ).rejects.toThrow();
+      await expect(
+        invoke("goods-received:post", { ...directGrn(unknownId, unknownId), extra: 1 }),
+      ).rejects.toThrow();
+      await expect(invoke("goods-received:post", { kind: "other" })).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("posts a direct note and moves the cost", async () => {
+      signIn("cashier");
+      const product = seedProduct();
+      const created = (await invoke("suppliers:create", {
+        name: "Al-Noor",
+        contactPerson: null,
+        phone: null,
+        ntn: null,
+        notes: null,
+      })) as { supplier: { id: string } };
+
+      const result = await invoke(
+        "goods-received:post",
+        directGrn(created.supplier.id, product.id),
+      );
+
+      expect(result).toMatchObject({
+        ok: true,
+        note: { grnNo: "GRN-T1-000001", totalPaisa: 120000, purchaseOrderId: null },
+      });
+      expect(
+        database.db.select().from(products).where(eq(products.id, product.id)).get()!.costPaisa,
+      ).toBe(12000);
+    });
+
+    it("is refused when signed out", async () => {
+      sessions.end();
+      await expect(invoke("goods-received:post", directGrn(unknownId, unknownId))).rejects.toThrow(
+        new Error(ipcErrorMessages.unauthenticated),
+      );
     });
   });
 
@@ -467,6 +539,7 @@ describe("shifts ipc", () => {
       billDrafts: stub,
       catalogExport: stub,
       categories: stub,
+      goodsReceived: stub,
       products: stub,
       purchaseOrders: stub,
       receipts: receipts as never,
@@ -617,6 +690,7 @@ describe("checkout ipc", () => {
       billDrafts: kit.billDrafts,
       catalogExport: stub,
       categories: stub,
+      goodsReceived: stub,
       products: stub,
       purchaseOrders: stub,
       receipts: receipts as never,

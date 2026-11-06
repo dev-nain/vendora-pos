@@ -12,6 +12,7 @@ import type {
   DeleteCategoryResult,
   RenameCategoryResult,
 } from "./categories";
+import type { PostGoodsReceivedInput, PostGoodsReceivedResult } from "./goods-received";
 import type {
   CancelPurchaseOrderResult,
   ConfirmPurchaseOrderResult,
@@ -293,6 +294,9 @@ export interface VendoraApi {
     update: (input: UpdatePurchaseOrderInput) => Promise<UpdatePurchaseOrderResult>;
     confirm: (id: string) => Promise<ConfirmPurchaseOrderResult>;
     cancel: (id: string) => Promise<CancelPurchaseOrderResult>;
+  };
+  goodsReceived: {
+    post: (input: PostGoodsReceivedInput) => Promise<PostGoodsReceivedResult>;
   };
   shifts: {
     state: () => Promise<ShiftState>;

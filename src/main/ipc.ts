@@ -109,6 +109,10 @@ import {
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
 import {
+  postGoodsReceivedInputSchema,
+  postGoodsReceivedResultSchema,
+} from "@shared/goods-received";
+import {
   cancelPurchaseOrderResultSchema,
   confirmPurchaseOrderResultSchema,
   createPurchaseOrderInputSchema,
@@ -147,6 +151,7 @@ import type { AuthService } from "./services/auth";
 import type { BillDraftsService } from "./services/bill-drafts";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
+import type { GoodsReceivedService } from "./services/goods-received";
 import type { ProductsService } from "./services/products";
 import type { PurchaseOrdersService } from "./services/purchase-orders";
 import type { ReceiptsService } from "./services/receipts";
@@ -185,6 +190,7 @@ interface IpcServices {
   users: UsersService;
   products: ProductsService;
   purchaseOrders: PurchaseOrdersService;
+  goodsReceived: GoodsReceivedService;
   receipts: ReceiptsService;
 }
 
@@ -193,6 +199,7 @@ export function registerIpcHandlers({
   billDrafts,
   catalogExport,
   categories,
+  goodsReceived,
   products,
   purchaseOrders,
   receipts,
@@ -396,6 +403,11 @@ export function registerIpcHandlers({
   handle(ipcChannels.purchaseOrdersCancel, (_event, input) =>
     cancelPurchaseOrderResultSchema.parse(
       purchaseOrders.cancel(purchaseOrderIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.goodsReceivedPost, (_event, input) =>
+    postGoodsReceivedResultSchema.parse(
+      goodsReceived.post(postGoodsReceivedInputSchema.parse(input)),
     ),
   );
   handle(ipcChannels.taxCategoriesList, () =>
