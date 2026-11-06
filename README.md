@@ -48,6 +48,7 @@ Electron, electron-vite, React 19, TypeScript (strict), Tailwind v4, shadcn on B
 - Tokens live in `design/tokens.css` and are used directly; Tailwind maps them to utilities in `src/renderer/src/styles.css`.
 - The renderer has no Node access. It talks to main only through the typed functions on `window.vendora`; main validates every payload with Zod.
 - SQLite runs in WAL mode with `synchronous = FULL`. Pending migrations first back the database up to `backups/pre-migrate-<timestamp>.db` in the user data folder.
+- The app backs the database up automatically once per day (Asia/Karachi) and after every shift close, to `backups/vendora-<timestamp>.db` in the user data folder. The copy runs on a worker thread, so billing does not wait for it. Each attempt is recorded in `backup_records`, and backups older than 30 days are deleted, always keeping the newest good one. `pre-migrate-*` files are never deleted.
 - Tests run under Electron's Node (`ELECTRON_RUN_AS_NODE`), so `better-sqlite3` is built once for Electron.
 - Fonts (Plus Jakarta Sans, JetBrains Mono, Noto Nastaliq Urdu) are bundled; nothing loads from the network.
 
