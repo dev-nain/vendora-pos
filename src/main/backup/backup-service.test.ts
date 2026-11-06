@@ -1,12 +1,13 @@
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { auditLog, backupRecords, users } from "../db/schema";
+import { auditLog, backupRecords, terminals, users } from "../db/schema";
 import { createAuthService } from "../services/auth";
 import { createCheckoutKit, type CheckoutKit } from "../services/checkout-test-kit";
 import { createBackupService } from "./backup-service";
+import type { CopyFile } from "./second-copy";
 import type { CopyDatabase } from "./worker-copy";
 
 function deferred<T = never>() {
@@ -24,6 +25,13 @@ const okCopy: CopyDatabase = async ({ tempFile }) => {
   await writeFile(tempFile, "backup");
   return { sizeBytes: 6 };
 };
+
+const hangUntilAborted: CopyFile = ({ signal }) =>
+  new Promise((_resolve, reject) => {
+    signal.addEventListener("abort", () =>
+      reject(Object.assign(new Error("aborted"), { name: "AbortError" })),
+    );
+  });
 
 const day = 24 * 60 * 60 * 1000;
 const t0 = new Date("2026-03-10T06:00:00Z").getTime();
@@ -56,10 +64,12 @@ describe("createBackupService", () => {
       })
       .run();
   };
+  const setFolder = (path: string | null) =>
+    kit.database.db.update(terminals).set({ secondCopyFolder: path }).run();
   const recordOf = (fileName: string) => records().find((record) => record.fileName === fileName)!;
 
-  const createService = () =>
-    createBackupService({ database: kit.database, audit: kit.audit, backupDir, copy });
+  const createService = (copyFile?: CopyFile) =>
+    createBackupService({ database: kit.database, audit: kit.audit, backupDir, copy, copyFile });
 
   const runDailyAt = async (service: ReturnType<typeof createService>, at: number) => {
     vi.setSystemTime(at);
@@ -411,6 +421,260 @@ describe("createBackupService", () => {
       expect(records()[0]).toMatchObject({ result: "failed", error: "Backup was cancelled" });
     });
   });
+  describe("second copy", () => {
+    let folder: string;
+    const folderFiles = () => (existsSync(folder) ? readdirSync(folder).toSorted() : []);
+    const addOldCopy = (ageMs: number, fileName: string, inFolder = folder, withFile = true) => {
+      if (withFile) writeFileSync(join(inFolder, fileName), "old");
+      kit.database.db
+        .insert(backupRecords)
+        .values({
+          storeId: kit.storeId,
+          terminalId: kit.terminalId,
+          trigger: "daily",
+          fileName,
+          sizeBytes: 3,
+          result: "ok",
+          copyFolder: inFolder,
+          copyResult: "ok",
+          createdAt: new Date(t0 - ageMs),
+        })
+        .run();
+    };
+
+    beforeEach(() => {
+      folder = join(kit.dir, "usb");
+      mkdirSync(folder);
+      setFolder(folder);
+    });
+
+    it("copies the daily backup into the folder", async () => {
+      await runDailyAt(createService(), t0);
+
+      const [record] = records();
+      expect(record).toMatchObject({
+        result: "ok",
+        copyFolder: folder,
+        copyResult: "ok",
+        copyError: null,
+      });
+      expect(folderFiles()).toEqual([record?.fileName]);
+    });
+
+    it("copies a backup started with a user id", async () => {
+      const user = kit.signIn("cashier");
+      const service = createService();
+
+      service.afterShiftClose(user.id);
+      await service.whenIdle();
+
+      expect(records()[0]).toMatchObject({ trigger: "shift_close", copyResult: "ok" });
+      expect(folderFiles()).toHaveLength(1);
+    });
+
+    it("makes no copy when no folder is set", async () => {
+      setFolder(null);
+
+      await runDailyAt(createService(), t0);
+
+      expect(records()[0]).toMatchObject({
+        result: "ok",
+        copyFolder: null,
+        copyResult: null,
+        copyError: null,
+      });
+      expect(folderFiles()).toEqual([]);
+    });
+
+    it("keeps the backup ok and saves the reason when the folder is missing", async () => {
+      renameSync(folder, `${folder}-unplugged`);
+
+      await runDailyAt(createService(), t0);
+
+      const [record] = records();
+      expect(record).toMatchObject({
+        result: "ok",
+        copyResult: "failed",
+        copyError: "Folder not found. If it's on a USB drive, plug it in.",
+      });
+      expect(files()).toEqual([record?.fileName]);
+      expect(existsSync(folder)).toBe(false);
+    });
+
+    it("keeps the backup ok and saves the reason when the disk is full", async () => {
+      const service = createService(({ tempFile }) => {
+        writeFileSync(tempFile, "part");
+        return Promise.reject(Object.assign(new Error("full"), { code: "ENOSPC" }));
+      });
+
+      await runDailyAt(service, t0);
+
+      expect(records()[0]).toMatchObject({
+        result: "ok",
+        copyResult: "failed",
+        copyError: "Not enough free space in the folder.",
+      });
+      expect(folderFiles()).toEqual([]);
+    });
+
+    it("runs no copy after a failed backup", async () => {
+      const copyFile = vi.fn<CopyFile>();
+      copy.mockRejectedValueOnce(new Error("disk full"));
+
+      await runDailyAt(createService(copyFile), t0);
+
+      expect(records()[0]).toMatchObject({ result: "failed", copyFolder: null, copyResult: null });
+      expect(copyFile).not.toHaveBeenCalled();
+    });
+
+    it("tries again with the next backup once the folder is back", async () => {
+      const service = createService();
+      renameSync(folder, `${folder}-unplugged`);
+      await runDailyAt(service, t0);
+      renameSync(`${folder}-unplugged`, folder);
+
+      await runDailyAt(service, t0 + day);
+
+      expect(records().map((record) => record.copyResult)).toEqual(["failed", "ok"]);
+      expect(folderFiles()).toEqual([records()[1]?.fileName]);
+    });
+
+    it("deletes a copy past 30 days and marks it", async () => {
+      addOldCopy(30 * day + 1, "vendora-expired.db");
+
+      await runDailyAt(createService(), t0);
+
+      expect(folderFiles()).not.toContain("vendora-expired.db");
+      expect(recordOf("vendora-expired.db").copyDeletedAt?.getTime()).toBe(t0);
+    });
+
+    it("keeps a copy that is 29 days old", async () => {
+      addOldCopy(29 * day, "vendora-recent.db");
+
+      await runDailyAt(createService(), t0);
+
+      expect(folderFiles()).toContain("vendora-recent.db");
+      expect(recordOf("vendora-recent.db").copyDeletedAt).toBeNull();
+    });
+
+    it("keeps the newest good copy however old it is", async () => {
+      addOldCopy(60 * day, "vendora-older.db");
+      copy.mockImplementationOnce(async (job) => {
+        vi.setSystemTime(t0 + 45 * day);
+        return okCopy(job);
+      });
+
+      await runDailyAt(createService(), t0);
+
+      const fresh = records().find((record) => record.trigger === "daily" && !record.deletedAt)!;
+      expect(folderFiles()).toContain(fresh.fileName);
+      expect(folderFiles()).not.toContain("vendora-older.db");
+    });
+
+    it("never touches files that have no record", async () => {
+      writeFileSync(join(folder, "notes.txt"), "n");
+      writeFileSync(join(folder, "vendora-2020-01-01T00-00-00-000Z.db"), "x");
+      writeFileSync(join(folder, "vendora-2020-01-01T00-00-00-000Z.db.tmp"), "x");
+      addOldCopy(40 * day, "vendora-expired.db");
+
+      await runDailyAt(createService(), t0);
+
+      expect(folderFiles()).toContain("notes.txt");
+      expect(folderFiles()).toContain("vendora-2020-01-01T00-00-00-000Z.db");
+      expect(folderFiles()).toContain("vendora-2020-01-01T00-00-00-000Z.db.tmp");
+      expect(folderFiles()).not.toContain("vendora-expired.db");
+    });
+
+    it("deletes nothing for a row whose copy failed", async () => {
+      addOldCopy(40 * day, "vendora-failed-copy.db");
+      kit.database.db
+        .update(backupRecords)
+        .set({ copyResult: "failed", copyError: "x" })
+        .where(eq(backupRecords.fileName, "vendora-failed-copy.db"))
+        .run();
+
+      await runDailyAt(createService(), t0);
+
+      expect(folderFiles()).toContain("vendora-failed-copy.db");
+      expect(recordOf("vendora-failed-copy.db").copyDeletedAt).toBeNull();
+    });
+
+    it("expires a copy in a previous folder after the folder changes", async () => {
+      const previous = join(kit.dir, "old-usb");
+      mkdirSync(previous);
+      addOldCopy(40 * day, "vendora-expired.db", previous);
+
+      await runDailyAt(createService(), t0);
+
+      expect(readdirSync(previous)).toEqual([]);
+      expect(recordOf("vendora-expired.db").copyDeletedAt).not.toBeNull();
+    });
+
+    it("leaves the row unmarked while the folder is unreachable, then deletes the file", async () => {
+      addOldCopy(40 * day, "vendora-expired.db");
+      renameSync(folder, `${folder}-unplugged`);
+      const service = createService();
+
+      await runDailyAt(service, t0);
+      expect(recordOf("vendora-expired.db").copyDeletedAt).toBeNull();
+      renameSync(`${folder}-unplugged`, folder);
+      await runDailyAt(service, t0 + day);
+
+      expect(folderFiles()).not.toContain("vendora-expired.db");
+      expect(recordOf("vendora-expired.db").copyDeletedAt).not.toBeNull();
+    });
+
+    it("recovers an interrupted copy on start", async () => {
+      writeFileSync(join(folder, "vendora-cut.db.tmp"), "partial");
+      writeFileSync(join(folder, "vendora-other.db.tmp"), "other");
+      kit.database.db
+        .insert(backupRecords)
+        .values({
+          storeId: kit.storeId,
+          terminalId: kit.terminalId,
+          trigger: "daily",
+          fileName: "vendora-cut.db",
+          sizeBytes: 3,
+          result: "ok",
+          copyFolder: folder,
+          createdAt: new Date(t0 - day),
+        })
+        .run();
+      const service = createService();
+
+      service.start();
+      await service.whenIdle();
+      await service.stop();
+
+      expect(folderFiles()).not.toContain("vendora-cut.db.tmp");
+      expect(folderFiles()).toContain("vendora-other.db.tmp");
+      expect(recordOf("vendora-cut.db")).toMatchObject({
+        copyResult: "failed",
+        copyError: "Vendora closed before the copy finished.",
+      });
+    });
+
+    it("aborts a slow copy on stop and records the failure", async () => {
+      vi.useFakeTimers({
+        toFake: ["Date", "setInterval", "clearInterval", "setTimeout", "clearTimeout"],
+      });
+      vi.setSystemTime(t0);
+      const service = createService(hangUntilAborted);
+      service.runDailyIfDue();
+      await vi.waitFor(() => expect(records()).toHaveLength(1));
+
+      const stopped = service.stop();
+      await vi.advanceTimersByTimeAsync(60_000);
+      await stopped;
+
+      expect(records()[0]).toMatchObject({
+        result: "ok",
+        copyResult: "failed",
+        copyError: "Vendora closed before the copy finished.",
+      });
+    });
+  });
+
   describe("shift close trigger", () => {
     it("records the closing user and the shift_close trigger", async () => {
       const user = kit.signIn("cashier");

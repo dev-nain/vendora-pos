@@ -1,11 +1,13 @@
 import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { VendoraDatabase } from "../db/client";
 import { backupRecords, type BackupTrigger } from "../db/schema";
 import { currentTerminal } from "../db/terminal";
 import { backupStamp } from "../db/vacuum-into";
 import type { createAuditService } from "../services/audit";
+import { getSecondCopyFolder } from "../settings/store-settings";
+import { secondCopyReason, streamFile, writeSecondCopy, type CopyFile } from "./second-copy";
 import type { CopyDatabase } from "./worker-copy";
 
 const retentionMs = 30 * 24 * 60 * 60 * 1000;
@@ -21,6 +23,7 @@ interface BackupServiceDeps {
   audit: ReturnType<typeof createAuditService>;
   backupDir: string;
   copy: CopyDatabase;
+  copyFile?: CopyFile | undefined;
   now?: () => Date;
 }
 
@@ -29,6 +32,7 @@ export function createBackupService({
   audit,
   backupDir,
   copy,
+  copyFile = streamFile,
   now = () => new Date(),
 }: BackupServiceDeps) {
   const { db } = database;
@@ -87,6 +91,95 @@ export function createBackupService({
     }
   }
 
+  async function removeExpiredCopies(): Promise<void> {
+    const rows = db
+      .select()
+      .from(backupRecords)
+      .where(
+        and(
+          eq(backupRecords.copyResult, "ok"),
+          isNull(backupRecords.copyDeletedAt),
+          isNotNull(backupRecords.copyFolder),
+        ),
+      )
+      .orderBy(desc(backupRecords.createdAt))
+      .all();
+
+    const fileOf = (row: (typeof rows)[number]) =>
+      join(row.copyFolder ?? "", basename(row.fileName));
+
+    let newestGoodId: string | null = null;
+    for (const row of rows) {
+      const exists = await stat(fileOf(row)).then(
+        () => true,
+        () => false,
+      );
+      if (exists) {
+        newestGoodId = row.id;
+        break;
+      }
+    }
+
+    const current = now().getTime();
+    for (const row of rows) {
+      if (row.id === newestGoodId) continue;
+      if (current - row.createdAt.getTime() <= retentionMs) continue;
+      try {
+        await stat(row.copyFolder ?? "");
+        await rm(fileOf(row), { force: true });
+        db.update(backupRecords)
+          .set({ copyDeletedAt: now() })
+          .where(eq(backupRecords.id, row.id))
+          .run();
+      } catch {
+        continue;
+      }
+    }
+  }
+
+  function saveCopyOutcome(
+    id: string,
+    outcome: { copyResult: "ok" | "failed"; copyError: string | null },
+  ): void {
+    try {
+      db.update(backupRecords).set(outcome).where(eq(backupRecords.id, id)).run();
+    } catch (cause) {
+      console.error(
+        "Backup copy record failed:",
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
+  }
+
+  async function copyToFolder(id: string, folder: string, fileName: string): Promise<void> {
+    try {
+      await writeSecondCopy(
+        { sourceFile: join(backupDir, fileName), folder, fileName, signal: abort.signal },
+        copyFile,
+      );
+      saveCopyOutcome(id, { copyResult: "ok", copyError: null });
+    } catch (cause) {
+      saveCopyOutcome(id, { copyResult: "failed", copyError: secondCopyReason(cause) });
+    }
+  }
+
+  async function recoverInterruptedCopies(): Promise<void> {
+    const rows = db
+      .select()
+      .from(backupRecords)
+      .where(and(isNotNull(backupRecords.copyFolder), isNull(backupRecords.copyResult)))
+      .all();
+    for (const row of rows) {
+      await rm(join(row.copyFolder ?? "", `${basename(row.fileName)}.tmp`), {
+        force: true,
+      }).catch(() => undefined);
+      saveCopyOutcome(row.id, {
+        copyResult: "failed",
+        copyError: "Vendora closed before the copy finished.",
+      });
+    }
+  }
+
   async function attempt(trigger: BackupTrigger, actorUserId: string | null): Promise<void> {
     const startedAt = now();
     const fileName = `vendora-${backupStamp(startedAt)}.db`;
@@ -111,9 +204,11 @@ export function createBackupService({
     }
 
     const result = error === null ? "ok" : "failed";
+    let saved: { id: string; copyFolder: string | null };
     try {
-      db.transaction((tx) => {
+      saved = db.transaction((tx) => {
         const terminal = currentTerminal(tx);
+        const copyFolder = result === "ok" ? getSecondCopyFolder(tx, terminal.id) : null;
         const record = tx
           .insert(backupRecords)
           .values({
@@ -124,6 +219,7 @@ export function createBackupService({
             sizeBytes,
             result,
             error,
+            copyFolder,
             createdAt: startedAt,
             updatedAt: now(),
           })
@@ -139,6 +235,7 @@ export function createBackupService({
           },
           tx,
         );
+        return { id: record.id, copyFolder };
       });
     } catch (cause) {
       console.error(
@@ -148,7 +245,10 @@ export function createBackupService({
       return;
     }
 
-    if (result === "ok") await removeExpired();
+    if (result !== "ok") return;
+    if (saved.copyFolder) await copyToFolder(saved.id, saved.copyFolder, fileName);
+    await removeExpired();
+    await removeExpiredCopies();
   }
 
   function backedUpToday(): boolean {
@@ -183,6 +283,7 @@ export function createBackupService({
   }
 
   function start(): void {
+    enqueue(recoverInterruptedCopies);
     enqueue(sweepTempFiles);
     runDailyIfDue();
     timer = setInterval(runDailyIfDue, dailyCheckMs);
