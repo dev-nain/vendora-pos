@@ -56,6 +56,8 @@ import type {
   UpdateLineInput,
 } from "./checkout";
 import type {
+  NegativeStockQuery,
+  NegativeStockResult,
   StockHistoryQuery,
   StockHistoryResult,
   StockListQuery,
@@ -136,6 +138,7 @@ export const ipcChannels = {
   usersReactivate: "users:reactivate",
   inventoryListStock: "inventory:list-stock",
   inventoryStockHistory: "inventory:stock-history",
+  inventoryNegativeStock: "inventory:negative-stock",
   productsSearch: "products:search",
   productsGet: "products:get",
   productsCreate: "products:create",
@@ -234,6 +237,7 @@ export interface VendoraApi {
   inventory: {
     listStock: (query: StockListQuery) => Promise<StockListResult>;
     stockHistory: (query: StockHistoryQuery) => Promise<StockHistoryResult>;
+    negativeStock: (query: NegativeStockQuery) => Promise<NegativeStockResult>;
   };
   products: {
     getMiscItem: () => Promise<Product | null>;

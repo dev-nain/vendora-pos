@@ -35,6 +35,8 @@ import {
 } from "@shared/checkout";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
 import {
+  negativeStockQuerySchema,
+  negativeStockResultSchema,
   stockHistoryQuerySchema,
   stockHistoryResultSchema,
   stockListQuerySchema,
@@ -300,6 +302,9 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.inventoryStockHistory, (_event, input) =>
     stockHistoryResultSchema.parse(inventory.history(stockHistoryQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.inventoryNegativeStock, (_event, input) =>
+    negativeStockResultSchema.parse(inventory.negativeStock(negativeStockQuerySchema.parse(input))),
   );
   handle(ipcChannels.productsSearch, (_event, input) =>
     productSearchResultSchema.parse(products.search(productSearchInputSchema.parse(input))),

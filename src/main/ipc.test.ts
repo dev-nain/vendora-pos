@@ -745,6 +745,10 @@ describe("inventory ipc", () => {
     ["inventory:list-stock", "list", { query: "", limit: 101, offset: 0 }],
     ["inventory:list-stock", "list", { query: "", limit: 10, offset: 0, extra: 1 }],
     ["inventory:list-stock", "list", { query: "", limit: 10, offset: 0, includeArchived: true }],
+    ["inventory:negative-stock", "negativeStock", { limit: 101, offset: 0 }],
+    ["inventory:negative-stock", "negativeStock", { limit: 0, offset: 0 }],
+    ["inventory:negative-stock", "negativeStock", { limit: 10, offset: -1 }],
+    ["inventory:negative-stock", "negativeStock", { limit: 10, offset: 0, extra: 1 }],
     ["inventory:stock-history", "history", { productId: "x", limit: 10, offset: 0 }],
     ["inventory:stock-history", "history", { productId: unknownId, limit: 101, offset: 0 }],
     [
@@ -771,10 +775,20 @@ describe("inventory ipc", () => {
     ).toMatchObject({ ok: false, reason: "not-found" });
   });
 
+  it("lists negative stock for valid input", async () => {
+    expect(await invoke("inventory:negative-stock", { limit: 10, offset: 0 })).toEqual({
+      items: [],
+      total: 0,
+    });
+  });
+
   it("rejects reads with no session", async () => {
     kit.sessions.end();
     await expect(
       invoke("inventory:list-stock", { query: "", limit: 10, offset: 0 }),
     ).rejects.toThrow(new Error(ipcErrorMessages.unauthenticated));
+    await expect(invoke("inventory:negative-stock", { limit: 10, offset: 0 })).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
   });
 });
