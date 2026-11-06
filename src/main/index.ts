@@ -1,5 +1,6 @@
 import { join } from "node:path";
-import { app, BrowserWindow, dialog } from "electron";
+import { app, BrowserWindow, dialog, safeStorage } from "electron";
+import { createBackupKeyStore } from "./backup/backup-key";
 import { createBackupService, type BackupService } from "./backup/backup-service";
 import { createRestoreService, removeStagedRestore } from "./backup/restore";
 import { createWorkerCopy } from "./backup/worker-copy";
@@ -60,10 +61,19 @@ void app.whenReady().then(async () => {
   database = await startDatabase();
   if (!app.isPackaged && process.env.VENDORA_DEV_USERS === "1") await seedDevUsers(database);
   const audit = createAuditService(database);
+  const keys = createBackupKeyStore({
+    keyFile: join(app.getPath("userData"), "backup-key.json"),
+    protector: {
+      available: () => safeStorage.isAsyncEncryptionAvailable(),
+      protect: (secret) => safeStorage.encryptStringAsync(secret),
+      unprotect: async (blob) => (await safeStorage.decryptStringAsync(blob)).result,
+    },
+  });
   backups = createBackupService({
     database,
     audit,
     backupDir: backupDir(),
+    seal: keys.seal,
     copy: createWorkerCopy(join(__dirname, "backup-worker.js")),
   });
   const sessions = createSessionStore();

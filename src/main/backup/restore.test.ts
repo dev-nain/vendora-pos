@@ -141,6 +141,7 @@ describe("createRestoreService", () => {
       audit: kit.audit,
       backupDir,
       copy: vacuumCopy,
+      seal: async () => null,
     });
     backupCurrent = vi.fn(backups.backupBeforeRestore);
     closeDatabase = vi.fn(async () => {

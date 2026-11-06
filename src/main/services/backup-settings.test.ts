@@ -115,6 +115,7 @@ describe("createBackupSettingsService", () => {
         audit: kit.audit,
         backupDir: join(kit.dir, "backups"),
         copy: okCopy,
+        seal: async () => null,
       });
       renameSync(folder, `${folder}-unplugged`);
       mkdirSync(`${folder}-unplugged`, { recursive: true });
@@ -146,6 +147,7 @@ describe("createBackupSettingsService", () => {
         audit: kit.audit,
         backupDir: join(kit.dir, "backups"),
         copy: okCopy,
+        seal: async () => null,
       });
       backups.runDailyIfDue();
       await backups.whenIdle();

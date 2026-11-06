@@ -7,6 +7,7 @@ import { currentTerminal } from "../db/terminal";
 import { backupStamp } from "../db/vacuum-into";
 import type { createAuditService } from "../services/audit";
 import { getSecondCopyFolder } from "../settings/store-settings";
+import { sealedTempFile, type BackupSeal } from "./backup-cipher";
 import { secondCopyReason, streamFile, writeSecondCopy, type CopyFile } from "./second-copy";
 import type { CopyDatabase } from "./worker-copy";
 
@@ -14,7 +15,7 @@ const retentionMs = 30 * 24 * 60 * 60 * 1000;
 const dailyCheckMs = 60 * 60 * 1000;
 const quitWaitMs = 60 * 1000;
 const maxErrorLength = 500;
-const tempFilePattern = /^(vendora|pre-restore)-.*\.db\.tmp$/;
+const tempFilePattern = /^(vendora|pre-restore)-.*\.db(\.sealed)?\.tmp$/;
 
 const karachiDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" });
 
@@ -25,6 +26,7 @@ interface BackupServiceDeps {
   audit: ReturnType<typeof createAuditService>;
   backupDir: string;
   copy: CopyDatabase;
+  seal: () => Promise<BackupSeal | null>;
   copyFile?: CopyFile | undefined;
   now?: () => Date;
 }
@@ -34,6 +36,7 @@ export function createBackupService({
   audit,
   backupDir,
   copy,
+  seal: getSeal,
   copyFile = streamFile,
   now = () => new Date(),
 }: BackupServiceDeps) {
@@ -210,9 +213,11 @@ export function createBackupService({
     let error: string | null = null;
     try {
       await mkdir(backupDir, { recursive: true });
+      const seal = await getSeal();
       const copied = await copy({
         sourceFile: database.sqlite.name,
         tempFile,
+        seal,
         signal: abort.signal,
       });
       await rename(tempFile, finalFile);
@@ -221,6 +226,7 @@ export function createBackupService({
       const message = cause instanceof Error ? cause.message : String(cause);
       error = (message || "Backup failed").slice(0, maxErrorLength);
       await rm(tempFile, { force: true }).catch(() => undefined);
+      await rm(sealedTempFile(tempFile), { force: true }).catch(() => undefined);
     }
 
     const result = error === null ? "ok" : "failed";
