@@ -35,18 +35,11 @@ describe("checkBackup", () => {
     dir = mkdtempSync(join(tmpdir(), "vendora-restore-check-"));
     const database = openMigratedDatabase(join(dir, "source.db"));
     seedStoreAndTerminal(database);
-    for (let index = 0; index < 400; index += 1) {
-      database.sqlite
-        .prepare(
-          "INSERT INTO audit_log (id, store_id, terminal_id, action, details, created_at) VALUES (?, ?, ?, 'login', ?, 1)",
-        )
-        .run(
-          `a${index}`,
-          (database.sqlite.prepare("SELECT id FROM stores").get() as { id: string }).id,
-          (database.sqlite.prepare("SELECT id FROM terminals").get() as { id: string }).id,
-          "x".repeat(200),
-        );
-    }
+    database.sqlite.exec(`
+      WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 400)
+      INSERT INTO audit_log (id, store_id, terminal_id, action, details, created_at)
+        SELECT 'a' || i, (SELECT id FROM stores), (SELECT id FROM terminals), 'login', hex(zeroblob(100)), 1 FROM n;
+    `);
     good = join(dir, "good.db");
     vacuumInto(database.sqlite, good);
     database.sqlite.close();
