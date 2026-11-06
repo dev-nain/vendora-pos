@@ -13,8 +13,11 @@ import { createStocktakeService } from "./stocktake";
 import { openMigratedDatabase } from "../db/test-database";
 import { stockHistoryResultSchema, stockListResultSchema } from "../../shared/inventory";
 import {
+  postStocktakeResultSchema,
   recordCountResultSchema,
   startStocktakeResultSchema,
+  stocktakeReviewLinesResultSchema,
+  stocktakeReviewResultSchema,
   stocktakeLinesResultSchema,
   stocktakeScanResultSchema,
 } from "../../shared/stocktake";
@@ -310,5 +313,66 @@ describe("stock on-hand benchmark", () => {
     expect(queryP95).toBeLessThan(100);
 
     expect(stocktake.cancel({ stocktakeId })).toEqual({ ok: true });
+  });
+
+  it("reviews and posts a 5,000-line category stocktake in under 2 seconds", () => {
+    const storeId = database.db.select().from(stores).get()!.id;
+    const categoryId = database.db
+      .insert(categories)
+      .values({ storeId, name: "Bench stocktake" })
+      .returning()
+      .get().id;
+    const moved = productIds.slice(0, 5000);
+    database.sqlite
+      .prepare(
+        "UPDATE products SET category_id = @categoryId WHERE id IN (SELECT value FROM json_each(@ids))",
+      )
+      .run({ categoryId, ids: JSON.stringify(moved) });
+
+    const started = startStocktakeResultSchema.parse(
+      stocktake.start({ scope: "category", categoryId }),
+    );
+    if (!started.ok) throw new Error("start refused");
+    expect(started.stocktake.lineCount).toBe(5000);
+    const stocktakeId = started.stocktake.id;
+
+    const onHand = service.onHandMany(moved);
+    const lineIds = database.sqlite
+      .prepare("SELECT id, product_id AS productId FROM stocktake_lines WHERE stocktake_id = ?")
+      .all(stocktakeId) as { id: string; productId: string }[];
+    const counted = new Map<string, number>();
+    for (const line of lineIds) {
+      const expected = onHand.get(line.productId)!;
+      const countedMilli = Math.max(0, Math.floor(expected / 1000) * 1000 + 1000);
+      counted.set(line.productId, countedMilli);
+      const result = recordCountResultSchema.parse(
+        stocktake.record({ stocktakeId, lineId: line.id, countedMilli }),
+      );
+      expect(result.ok).toBe(true);
+    }
+
+    const reviewStart = performance.now();
+    const review = stocktakeReviewResultSchema.parse(stocktake.review({ stocktakeId }));
+    const reviewMs = performance.now() - reviewStart;
+    const pageStart = performance.now();
+    const page = stocktakeReviewLinesResultSchema.parse(
+      stocktake.reviewLines({ stocktakeId, filter: "all", limit: 50, offset: 0 }),
+    );
+    const pageMs = performance.now() - pageStart;
+    console.log(`stocktake review: ${reviewMs.toFixed(0)} ms, first page: ${pageMs.toFixed(0)} ms`);
+    expect(review.ok && review.review.varianceLineCount).toBe(5000);
+    expect(page.ok && page.items.length).toBe(50);
+    expect(reviewMs).toBeLessThan(3000);
+    expect(pageMs).toBeLessThan(3000);
+
+    const postStart = performance.now();
+    const posted = postStocktakeResultSchema.parse(stocktake.post({ stocktakeId }));
+    const postMs = performance.now() - postStart;
+    console.log(`stocktake post (5000 lines, all with a variance): ${postMs.toFixed(0)} ms`);
+    expect(posted).toMatchObject({ ok: true, adjustmentCount: 5000, skippedCount: 0 });
+    expect(postMs).toBeLessThan(2000);
+
+    const after = service.onHandMany(moved.filter((_, i) => i % 500 === 0));
+    for (const [id, value] of after) expect(value).toBe(counted.get(id));
   });
 }, 180_000);

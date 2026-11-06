@@ -131,8 +131,9 @@ const onHandOf = (executor: Executor, productId: string): number =>
     .get()?.total ?? 0;
 
 export function createStockService({ database, audit, now = () => new Date() }: StockDeps) {
+  let terminal: { id: string; storeId: string } | undefined;
   const insertMovement = (tx: Tx, input: NewMovement) => {
-    const terminal = tx
+    terminal ??= tx
       .select({ id: terminals.id, storeId: terminals.storeId })
       .from(terminals)
       .orderBy(asc(terminals.id))
@@ -147,7 +148,9 @@ export function createStockService({ database, audit, now = () => new Date() }: 
       .get();
     if (!product) throw new Error("Product not found");
 
-    const onHandBefore = onHandOf(tx, product.id);
+    const needsOnHandBefore =
+      input.type === "receipt" || input.type === "opening" || input.type === "adjustment";
+    const onHandBefore = needsOnHandBefore ? onHandOf(tx, product.id) : 0;
     const unitCostPaisa = input.unitCostPaisa ?? product.costPaisa;
 
     const row = tx
