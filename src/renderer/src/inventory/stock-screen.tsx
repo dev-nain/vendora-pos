@@ -1,5 +1,12 @@
 import { ChevronLeftIcon, ChevronRightIcon, PackageIcon, SearchIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 
 import type { StockListResult } from "@shared/inventory";
 import { Button } from "@renderer/components/ui/button";
@@ -32,6 +39,7 @@ import {
   type ProductFilters,
 } from "../products/product-list";
 import { ErrorLine } from "../users/form-parts";
+import { StockHistory } from "./stock-history";
 import { onHandText } from "./stock-format";
 
 const SEARCH_DEBOUNCE_MS = 150;
@@ -63,10 +71,12 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [historyIndex, setHistoryIndex] = useState<number | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTableSectionElement>(null);
   const requestId = useRef(0);
+  const restoreFocus = useRef(false);
 
   const fail = useCallback(
     (cause: unknown) => {
@@ -121,6 +131,12 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
 
   const items = result?.items ?? [];
 
+  useLayoutEffect(() => {
+    if (historyIndex !== null || !restoreFocus.current) return;
+    restoreFocus.current = false;
+    bodyRef.current?.querySelectorAll<HTMLElement>("tr")[activeIndex]?.focus();
+  }, [historyIndex, activeIndex]);
+
   const changeFilters = (next: Partial<ProductFilters>) => {
     setFilters((current) => ({ ...current, ...next }));
     setPage(0);
@@ -132,7 +148,18 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
     bodyRef.current?.querySelectorAll<HTMLElement>("tr")[index]?.focus();
   };
 
+  const openHistory = (index: number) => {
+    setActiveIndex(index);
+    setHistoryIndex(index);
+  };
+
+  const closeHistory = () => {
+    restoreFocus.current = true;
+    setHistoryIndex(null);
+  };
+
   useEffect(() => {
+    if (historyIndex !== null) return;
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === "f") {
         event.preventDefault();
@@ -148,7 +175,7 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [historyIndex]);
 
   const onRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
     if (event.target !== event.currentTarget) return;
@@ -166,8 +193,22 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
     if (target !== null) {
       event.preventDefault();
       focusRow(target);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      openHistory(index);
     }
   };
+
+  const historyItem = historyIndex === null ? undefined : items[historyIndex];
+  if (historyIndex !== null && historyItem) {
+    return (
+      <StockHistory
+        productId={historyItem.id}
+        onBack={closeHistory}
+        onSessionEnded={onSessionEnded}
+      />
+    );
+  }
 
   const categoryNames = new Map(categories?.map((category) => [category.id, category.name]));
   const categoryItems = [
@@ -293,9 +334,9 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
                   key={item.id}
                   tabIndex={index === activeIndex ? 0 : -1}
                   aria-selected={index === activeIndex}
-                  className="outline-none focus-visible:shadow-focus"
+                  className="cursor-pointer outline-none focus-visible:shadow-focus"
                   onFocus={() => setActiveIndex(index)}
-                  onClick={() => setActiveIndex(index)}
+                  onClick={() => openHistory(index)}
                   onKeyDown={(event) => onRowKeyDown(event, index)}
                 >
                   <TableCell className="py-100">
