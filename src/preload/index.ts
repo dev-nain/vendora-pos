@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { contextBridge, ipcRenderer } from "electron";
+import { auditPageSchema, auditUsersSchema } from "@shared/audit";
 import {
   authResultSchema,
   createFirstUserResultSchema,
@@ -329,6 +330,11 @@ const api: VendoraApi = {
       orderListSchema.parse(await ipcRenderer.invoke(ipcChannels.salesList, query)),
     get: async (id) =>
       getOrderResultSchema.parse(await ipcRenderer.invoke(ipcChannels.salesGet, { id })),
+  },
+  audit: {
+    list: async (query) =>
+      auditPageSchema.parse(await ipcRenderer.invoke(ipcChannels.auditList, query)),
+    listUsers: async () => auditUsersSchema.parse(await ipcRenderer.invoke(ipcChannels.auditUsers)),
   },
 };
 

@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ipcErrorMessages } from "@shared/ipc";
+import { ipcChannels, ipcErrorMessages } from "@shared/ipc";
 import { createProductInputSchema } from "@shared/products";
 import { createSessionStore, type SessionStore } from "./auth/session";
 import type { VendoraDatabase } from "./db/client";
@@ -10,6 +10,7 @@ import { auditLog, categories, products, stores, taxCategories, users } from "./
 import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
+import { createAuditLogService, type AuditLogService } from "./services/audit-log";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createProductsService, type ProductsService } from "./services/products";
 import { createCheckoutKit, type CheckoutKit } from "./services/checkout-test-kit";
@@ -122,6 +123,7 @@ describe("products ipc", () => {
     });
     const stub = {} as never;
     registerIpcHandlers({
+      auditLog: stub,
       auth: stub,
       billDrafts: stub,
       catalogExport,
@@ -387,6 +389,7 @@ describe("shifts ipc", () => {
     receipts = { openDrawer: vi.fn() };
     const stub = {} as never;
     registerIpcHandlers({
+      auditLog: stub,
       auth: stub,
       billDrafts: stub,
       catalogExport: stub,
@@ -536,6 +539,7 @@ describe("checkout ipc", () => {
     receipts = { startAfterSale: vi.fn() };
     const stub = {} as never;
     registerIpcHandlers({
+      auditLog: stub,
       auth: stub,
       billDrafts: kit.billDrafts,
       catalogExport: stub,
@@ -759,5 +763,102 @@ describe("checkout ipc", () => {
     expect(await invoke("shifts:state")).toMatchObject({
       heldBills: [expect.objectContaining({ lineCount: 1 })],
     });
+  });
+});
+
+describe("audit log ipc", () => {
+  let dir: string;
+  let database: VendoraDatabase;
+  let sessions: SessionStore;
+  let service: AuditLogService;
+  let userId: string;
+  const cursorId = "0192f3a0-0000-7000-8000-000000000098";
+
+  beforeEach(() => {
+    handlers.clear();
+    dir = mkdtempSync(join(tmpdir(), "vendora-ipc-audit-"));
+    database = openMigratedDatabase(join(dir, "vendora.db"));
+    seedStoreAndTerminal(database);
+    userId = database.db
+      .insert(users)
+      .values({ username: "owner", displayName: "Owner", passwordHash: "x", pinHash: "x" })
+      .returning()
+      .get().id;
+    sessions = createSessionStore();
+    sessions.start({
+      userId,
+      storeId: database.db.select().from(stores).get()!.id,
+      loggedInAt: new Date(0),
+    });
+    const audit = createAuditService(database);
+    audit.record({ action: "login", actorUserId: userId });
+    audit.record({ action: "logout", actorUserId: userId });
+    service = createAuditLogService({ database, sessions });
+    const stub = {} as never;
+    registerIpcHandlers({
+      auditLog: service,
+      auth: stub,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      products: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    database.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("returns a filtered page through the schemas", async () => {
+    expect(await invoke("audit:list", { action: "logout", userId })).toMatchObject({
+      entries: [{ action: "logout", actorName: "Owner" }],
+      nextCursor: null,
+    });
+    expect(await invoke("audit:users")).toEqual([{ id: userId, displayName: "Owner" }]);
+  });
+
+  it.each([
+    { sort: "asc" },
+    { userId: "x" },
+    { from: "2026-02-01", to: "2026-01-01" },
+    { before: { createdAt: "2026-01-01T00:00:00.000Z", id: cursorId, extra: 1 } },
+  ])("refuses invalid input %j without calling the service", async (input) => {
+    const spy = vi.spyOn(service, "list");
+    await expect(invoke("audit:list", input)).rejects.toThrow();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("registers only the two read channels", () => {
+    const channels = Object.values(ipcChannels);
+    expect(channels.filter((name) => name.startsWith("audit:")).toSorted()).toEqual([
+      "audit:list",
+      "audit:users",
+    ]);
+    expect([...handlers.keys()].filter((name) => name.startsWith("audit:")).toSorted()).toEqual([
+      "audit:list",
+      "audit:users",
+    ]);
+    const writeVerb = /update|delete|remove|edit|create|write|clear/;
+    expect(
+      [...handlers.keys()].filter((name) => /audit/.test(name) && writeVerb.test(name)),
+    ).toEqual([]);
+  });
+
+  it("refuses both channels with no session", async () => {
+    sessions.end();
+    for (const channel of ["audit:list", "audit:users"]) {
+      await expect(invoke(channel, {})).rejects.toThrow(
+        new Error(ipcErrorMessages.unauthenticated),
+      );
+    }
   });
 });
