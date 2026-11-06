@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export const auditActions = [
   "login",
   "logout",
@@ -52,3 +54,43 @@ export const auditActionLabels: Record<AuditAction, string> = {
   bill_discard: "Bill void",
   sale_complete: "Sale",
 };
+
+export const AUDIT_PAGE_SIZE = 50;
+
+export const auditCursorSchema = z.strictObject({ createdAt: z.iso.datetime(), id: z.uuid() });
+export type AuditCursor = z.infer<typeof auditCursorSchema>;
+
+export const auditListQuerySchema = z
+  .strictObject({
+    userId: z.uuid().optional(),
+    action: z.enum(auditActions).optional(),
+    from: z.iso.date().optional(),
+    to: z.iso.date().optional(),
+    before: auditCursorSchema.optional(),
+  })
+  .refine(({ from, to }) => !from || !to || from <= to, {
+    path: ["to"],
+    message: "From must not be after To",
+  });
+export type AuditListQuery = z.infer<typeof auditListQuerySchema>;
+
+export const auditEntrySchema = z.strictObject({
+  id: z.uuid(),
+  createdAt: z.iso.datetime(),
+  actorName: z.string(),
+  action: z.enum(auditActions),
+  entityType: z.string().nullable(),
+  productName: z.string().nullable(),
+  details: z.record(z.string(), z.json()).nullable(),
+});
+export type AuditEntry = z.infer<typeof auditEntrySchema>;
+
+export const auditPageSchema = z.strictObject({
+  entries: z.array(auditEntrySchema).max(AUDIT_PAGE_SIZE),
+  nextCursor: auditCursorSchema.nullable(),
+});
+export type AuditPage = z.infer<typeof auditPageSchema>;
+
+export const auditUserSchema = z.strictObject({ id: z.uuid(), displayName: z.string() });
+export type AuditUser = z.infer<typeof auditUserSchema>;
+export const auditUsersSchema = z.array(auditUserSchema);
