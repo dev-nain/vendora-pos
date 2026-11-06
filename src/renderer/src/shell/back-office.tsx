@@ -1,4 +1,11 @@
-import { PackageIcon, SettingsIcon, TagsIcon, UsersIcon, type LucideIcon } from "lucide-react";
+import {
+  PackageIcon,
+  SettingsIcon,
+  TagsIcon,
+  TruckIcon,
+  UsersIcon,
+  type LucideIcon,
+} from "lucide-react";
 import { Fragment, useState, type KeyboardEvent } from "react";
 
 import { cn } from "@renderer/lib/utils";
@@ -8,12 +15,14 @@ import { MiscItemSetting } from "../settings/misc-item-setting";
 import { PrinterSetting } from "../settings/printer-setting";
 import { ReceiptSetting } from "../settings/receipt-setting";
 import { ShiftVarianceSetting } from "../settings/shift-variance-setting";
+import { SuppliersScreen } from "../suppliers/suppliers-screen";
 import { UsersScreen } from "../users/users-screen";
 import { backOfficeEntries, type BackOfficePage } from "./back-office-nav";
 
 const icons: Record<BackOfficePage, LucideIcon> = {
   products: PackageIcon,
   categories: TagsIcon,
+  suppliers: TruckIcon,
   users: UsersIcon,
   settings: SettingsIcon,
 };
@@ -78,6 +87,8 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
           <ProductsScreen onSessionEnded={onSessionEnded} />
         ) : page === "categories" ? (
           <CategoriesScreen onSessionEnded={onSessionEnded} />
+        ) : page === "suppliers" ? (
+          <SuppliersScreen onSessionEnded={onSessionEnded} />
         ) : page === "users" ? (
           <UsersScreen currentUserId={currentUserId} onSessionEnded={onSessionEnded} />
         ) : page === "settings" ? (

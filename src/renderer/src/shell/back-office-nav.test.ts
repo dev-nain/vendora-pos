@@ -7,6 +7,7 @@ describe("back office nav", () => {
     expect(backOfficeEntries.map((entry) => entry.page)).toEqual([
       "products",
       "categories",
+      "suppliers",
       "users",
       "settings",
     ]);
@@ -16,5 +17,11 @@ describe("back office nav", () => {
     expect(
       backOfficeEntries.filter((entry) => entry.group === "Catalog").map((entry) => entry.page),
     ).toEqual(["products", "categories"]);
+  });
+
+  it("groups suppliers under Purchasing", () => {
+    expect(
+      backOfficeEntries.filter((entry) => entry.group === "Purchasing").map((entry) => entry.page),
+    ).toEqual(["suppliers"]);
   });
 });

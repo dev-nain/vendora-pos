@@ -64,6 +64,12 @@ import {
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
 import {
+  createSupplierResultSchema,
+  supplierSchema,
+  supplierStatusResultSchema,
+  updateSupplierResultSchema,
+} from "@shared/suppliers";
+import {
   createUserResultSchema,
   deactivateUserResultSchema,
   managedUserSchema,
@@ -233,6 +239,28 @@ const api: VendoraApi = {
     remove: async (id) =>
       deleteTaxCategoryResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.taxCategoriesDelete, { id }),
+      ),
+  },
+  suppliers: {
+    list: async (input) =>
+      z
+        .array(supplierSchema)
+        .parse(await ipcRenderer.invoke(ipcChannels.suppliersList, input ?? {})),
+    create: async (input) =>
+      createSupplierResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.suppliersCreate, input),
+      ),
+    update: async (input) =>
+      updateSupplierResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.suppliersUpdate, input),
+      ),
+    archive: async (id) =>
+      supplierStatusResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.suppliersArchive, { id }),
+      ),
+    restore: async (id) =>
+      supplierStatusResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.suppliersRestore, { id }),
       ),
   },
   shifts: {
