@@ -1,5 +1,7 @@
 import { join } from "node:path";
 import { app, BrowserWindow, dialog } from "electron";
+import { createBackupService, type BackupService } from "./backup/backup-service";
+import { createWorkerCopy } from "./backup/worker-copy";
 import { openDatabase, type VendoraDatabase } from "./db/client";
 import { seedDevUsers } from "./db/dev-users";
 import { runMigrations } from "./db/migrate";
@@ -7,6 +9,7 @@ import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
 import { createAuthService } from "./services/auth";
+import { createBackupSettingsService } from "./services/backup-settings";
 import { createBillDraftsService } from "./services/bill-drafts";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createCategoriesService } from "./services/categories";
@@ -27,6 +30,10 @@ import { createTransport } from "./hardware/printer-transport";
 import { createMainWindow } from "./window";
 
 let database: VendoraDatabase | null = null;
+let backups: BackupService | null = null;
+let backupsStopped = false;
+
+const backupDir = () => join(app.getPath("userData"), "backups");
 
 function startDatabase(): VendoraDatabase {
   const userData = app.getPath("userData");
@@ -35,7 +42,7 @@ function startDatabase(): VendoraDatabase {
     migrationsFolder: app.isPackaged
       ? join(process.resourcesPath, "drizzle")
       : join(app.getAppPath(), "drizzle"),
-    backupDir: join(userData, "backups"),
+    backupDir: backupDir(),
   });
   if (migration !== "no-journal") seedStoreAndTerminal(opened);
   return opened;
@@ -45,9 +52,31 @@ void app.whenReady().then(async () => {
   database = startDatabase();
   if (!app.isPackaged && process.env.VENDORA_DEV_USERS === "1") await seedDevUsers(database);
   const audit = createAuditService(database);
+  backups = createBackupService({
+    database,
+    audit,
+    backupDir: backupDir(),
+    copy: createWorkerCopy(join(__dirname, "backup-worker.js")),
+  });
   const sessions = createSessionStore();
   const auth = createAuthService({ database, audit, sessions });
   const settings = createSettingsService({ database, audit, sessions });
+  const backupSettings = createBackupSettingsService({
+    database,
+    audit,
+    sessions,
+    chooseFolder: async () => {
+      const options = {
+        title: "Choose a folder for the second backup copy",
+        properties: ["openDirectory" as const],
+      };
+      const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+      const result = parent
+        ? await dialog.showOpenDialog(parent, options)
+        : await dialog.showOpenDialog(options);
+      return result.canceled ? null : (result.filePaths[0] ?? null);
+    },
+  });
   const stock = createStockService({ database, audit });
   const billDrafts = createBillDraftsService({ database, audit, sessions });
   const sales = createSalesService({ database, audit, sessions, stock });
@@ -57,6 +86,7 @@ void app.whenReady().then(async () => {
     audit,
     sessions,
     heldBills: billDrafts.heldBillsFor,
+    afterClose: backups.afterShiftClose,
   });
   const users = createUsersService({ database, audit, sessions });
   const products = createProductsService({ database, audit, sessions });
@@ -93,6 +123,7 @@ void app.whenReady().then(async () => {
   });
   registerIpcHandlers({
     auth,
+    backupSettings,
     billDrafts,
     catalogExport,
     categories,
@@ -108,13 +139,22 @@ void app.whenReady().then(async () => {
   });
   void renderWindow.warm().catch(() => undefined);
   createMainWindow();
+  backups.start();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
   });
 });
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
+  if (backups && !backupsStopped) {
+    event.preventDefault();
+    void backups.stop().finally(() => {
+      backupsStopped = true;
+      app.quit();
+    });
+    return;
+  }
   database?.sqlite.close();
   database = null;
 });

@@ -49,6 +49,12 @@ export type DiscountKind = (typeof discountKinds)[number];
 export const linePriceTypes = ["original", "manual"] as const;
 export type LinePriceType = (typeof linePriceTypes)[number];
 
+export const backupTriggers = ["daily", "shift_close"] as const;
+export type BackupTrigger = (typeof backupTriggers)[number];
+
+export const backupResults = ["ok", "failed"] as const;
+export type BackupResult = (typeof backupResults)[number];
+
 export const scaleSources = ["weight", "price"] as const;
 export type ScaleSource = (typeof scaleSources)[number];
 
@@ -113,6 +119,7 @@ export const terminals = sqliteTable(
     printerPort: integer("printer_port"),
     paperWidthMm: integer("paper_width_mm").$type<PaperWidthMm>().notNull().default(80),
     printMode: text("print_mode", { enum: printModes }).notNull().default("print"),
+    secondCopyFolder: text("second_copy_folder"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -147,9 +154,7 @@ export const auditLog = sqliteTable(
     terminalId: text("terminal_id")
       .notNull()
       .references(() => terminals.id),
-    actorUserId: text("actor_user_id")
-      .notNull()
-      .references(() => users.id),
+    actorUserId: text("actor_user_id").references(() => users.id),
     action: text("action").notNull(),
     entityType: text("entity_type"),
     entityId: text("entity_id"),
@@ -850,6 +855,41 @@ export const receiptPrints = sqliteTable(
   (t) => [index("receipt_prints_sale_id_idx").on(t.saleId)],
 );
 
+export const backupRecords = sqliteTable(
+  "backup_records",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    trigger: text("trigger").notNull(),
+    fileName: text("file_name").notNull(),
+    sizeBytes: integer("size_bytes"),
+    result: text("result").notNull(),
+    error: text("error"),
+    copyFolder: text("copy_folder"),
+    copyResult: text("copy_result", { enum: backupResults }),
+    copyError: text("copy_error"),
+    copyDeletedAt: integer("copy_deleted_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    check("backup_records_trigger_check", inList(t.trigger, backupTriggers)),
+    check("backup_records_result_check", inList(t.result, backupResults)),
+    check(
+      "backup_records_outcome_check",
+      sql`(${t.result} = 'ok' AND ${t.sizeBytes} IS NOT NULL AND ${t.error} IS NULL) OR (${t.result} = 'failed' AND ${t.sizeBytes} IS NULL AND ${t.error} IS NOT NULL)`,
+    ),
+    check("backup_records_size_bytes_check", allIntegers([], [t.sizeBytes])),
+    index("backup_records_created_at_idx").on(t.createdAt),
+  ],
+);
+
 export const terminalInvoiceSequences = sqliteTable(
   "terminal_invoice_sequences",
   {
@@ -891,5 +931,6 @@ export const schema = {
   saleLines,
   salePayments,
   receiptPrints,
+  backupRecords,
   terminalInvoiceSequences,
 };

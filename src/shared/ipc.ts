@@ -33,6 +33,7 @@ import type {
   PrinterSettings,
   ReceiptSettings,
   ReceiptSettingsInput,
+  SecondCopyStatus,
   ScalePrefixesInput,
   ScalePrefixesSetting,
   ShiftVarianceSetting,
@@ -118,6 +119,9 @@ export const ipcChannels = {
   settingsSetShiftVarianceWarn: "settings:set-shift-variance-warn",
   settingsGetReceipt: "settings:get-receipt",
   settingsSetReceipt: "settings:set-receipt",
+  settingsGetSecondCopy: "settings:get-second-copy",
+  settingsChooseSecondCopyFolder: "settings:choose-second-copy-folder",
+  settingsClearSecondCopyFolder: "settings:clear-second-copy-folder",
   printerGetSettings: "printer:get-settings",
   printerSetSettings: "printer:set-settings",
   printerListWindows: "printer:list-windows",
@@ -213,6 +217,9 @@ export interface VendoraApi {
     setShiftVarianceWarn: (warnPaisa: number) => Promise<ShiftVarianceSetting>;
     getReceipt: () => Promise<ReceiptSettings>;
     setReceipt: (input: ReceiptSettingsInput) => Promise<ReceiptSettings>;
+    getSecondCopy: () => Promise<SecondCopyStatus>;
+    chooseSecondCopyFolder: () => Promise<SecondCopyStatus>;
+    clearSecondCopyFolder: () => Promise<SecondCopyStatus>;
   };
   printer: {
     getSettings: () => Promise<PrinterSettings>;

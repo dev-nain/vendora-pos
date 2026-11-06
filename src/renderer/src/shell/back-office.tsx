@@ -12,8 +12,11 @@ import { cn } from "@renderer/lib/utils";
 import { CategoriesScreen } from "../categories/categories-screen";
 import { ProductsScreen } from "../products/products-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
+import { BackupSetting } from "../settings/backup-setting";
 import { PrinterSetting } from "../settings/printer-setting";
 import { ReceiptSetting } from "../settings/receipt-setting";
+import { SecondCopyNotice } from "../settings/second-copy-notice";
+import { useSecondCopyStatus } from "../settings/use-second-copy-status";
 import { ShiftVarianceSetting } from "../settings/shift-variance-setting";
 import { SuppliersScreen } from "../suppliers/suppliers-screen";
 import { UsersScreen } from "../users/users-screen";
@@ -45,6 +48,7 @@ interface BackOfficeProps {
 
 export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: BackOfficeProps) {
   const [page, setPage] = useState<BackOfficePage>(focusPrinter ? "settings" : "products");
+  const secondCopy = useSecondCopyStatus();
 
   return (
     <div
@@ -83,6 +87,7 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
         })}
       </nav>
       <section className="min-w-0 overflow-y-auto rounded-tl-300 border-t border-l border-line-card bg-surface px-[36px] py-[28px]">
+        <SecondCopyNotice state={secondCopy.state} />
         {page === "products" ? (
           <ProductsScreen onSessionEnded={onSessionEnded} />
         ) : page === "categories" ? (
@@ -99,6 +104,7 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
             <MiscItemSetting />
             <ShiftVarianceSetting />
             <PrinterSetting focusOnReady={focusPrinter === true} />
+            <BackupSetting {...secondCopy} />
             <ReceiptSetting />
           </div>
         ) : null}

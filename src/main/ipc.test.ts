@@ -10,6 +10,7 @@ import { auditLog, categories, products, stores, taxCategories, users } from "./
 import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
+import { createBackupSettingsService } from "./services/backup-settings";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createProductsService, type ProductsService } from "./services/products";
 import { createCheckoutKit, type CheckoutKit } from "./services/checkout-test-kit";
@@ -123,6 +124,7 @@ describe("products ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      backupSettings: stub,
       billDrafts: stub,
       catalogExport,
       categories: stub,
@@ -388,6 +390,7 @@ describe("shifts ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      backupSettings: stub,
       billDrafts: stub,
       catalogExport: stub,
       categories: stub,
@@ -537,6 +540,7 @@ describe("checkout ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      backupSettings: stub,
       billDrafts: kit.billDrafts,
       catalogExport: stub,
       categories: stub,
@@ -759,5 +763,49 @@ describe("checkout ipc", () => {
     expect(await invoke("shifts:state")).toMatchObject({
       heldBills: [expect.objectContaining({ lineCount: 1 })],
     });
+  });
+});
+
+describe("backup settings ipc", () => {
+  let kit: CheckoutKit;
+  let folder: string;
+
+  beforeEach(() => {
+    handlers.clear();
+    kit = createCheckoutKit();
+    folder = join(kit.dir, "usb");
+    const backupSettings = createBackupSettingsService({
+      database: kit.database,
+      audit: kit.audit,
+      sessions: kit.sessions,
+      chooseFolder: async () => folder,
+    });
+    const stub = {} as never;
+    registerIpcHandlers({
+      auth: stub,
+      backupSettings,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      products: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      suppliers: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+  });
+
+  afterEach(() => kit.close());
+
+  it("ignores a path passed by the caller to the choose channel", async () => {
+    kit.signIn("cashier");
+
+    const status = await invoke("settings:choose-second-copy-folder", "/etc");
+
+    expect(status).toEqual({ folder, lastCopy: null });
   });
 });
