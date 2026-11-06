@@ -14,6 +14,7 @@ import { BackupScreen } from "../backup/backup-screen";
 import { CategoriesScreen } from "../categories/categories-screen";
 import { ProductsScreen } from "../products/products-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
+import { BackupPasswordSetting } from "../settings/backup-password-setting";
 import { BackupSetting } from "../settings/backup-setting";
 import { PrinterSetting } from "../settings/printer-setting";
 import { ReceiptSetting } from "../settings/receipt-setting";
@@ -110,6 +111,7 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
             <ShiftVarianceSetting />
             <PrinterSetting focusOnReady={focusPrinter === true} />
             <BackupSetting {...secondCopy} />
+            <BackupPasswordSetting onSessionEnded={onSessionEnded} />
             <ReceiptSetting />
           </div>
         ) : null}
