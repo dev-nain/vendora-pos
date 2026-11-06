@@ -11,7 +11,7 @@ const movementTypes = [
   "stocktake",
   "damage",
 ] as const;
-const movementReasons = ["damage", "expiry", "theft", "correction"] as const;
+export const movementReasons = ["damage", "expiry", "theft", "correction"] as const;
 
 export const stockListQuerySchema = productSearchInputSchema.omit({ includeArchived: true });
 export type StockListQuery = z.input<typeof stockListQuerySchema>;
