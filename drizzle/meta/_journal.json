@@ -113,6 +113,13 @@
       "when": 1793986671716,
       "tag": "0015_stocktakes",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1793991965994,
+      "tag": "0016_stocktake_posting",
+      "breakpoints": true
     }
   ]
 }
