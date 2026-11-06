@@ -106,6 +106,13 @@
       "when": 1793855812657,
       "tag": "0014_far_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1793986671716,
+      "tag": "0015_stocktakes",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,7 @@ import {
 import { paymentMethods, type PaymentMethod } from "../../shared/checkout";
 import { productUnits, type ProductUnit } from "../../shared/products";
 import { printerKinds, printModes, type PaperWidthMm } from "../../shared/settings";
+import { stocktakeScopes, stocktakeStatuses } from "../../shared/stocktake";
 import { uuidv7 } from "./id";
 
 export { paymentMethods, productUnits, type PaymentMethod, type ProductUnit };
@@ -856,6 +857,77 @@ export const terminalInvoiceSequences = sqliteTable(
   ],
 );
 
+export const stocktakes = sqliteTable(
+  "stocktakes",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    scope: text("scope", { enum: stocktakeScopes }).notNull(),
+    categoryId: text("category_id").references(() => categories.id),
+    status: text("status", { enum: stocktakeStatuses }).notNull().default("open"),
+    startedBy: text("started_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("stocktakes_scope_check", inList(t.scope, stocktakeScopes)),
+    check("stocktakes_status_check", inList(t.status, stocktakeStatuses)),
+    check(
+      "stocktakes_scope_category_check",
+      sql`(${t.scope} = 'category') = (${t.categoryId} IS NOT NULL)`,
+    ),
+    uniqueIndex("stocktakes_store_open_unique")
+      .on(t.storeId)
+      .where(sql`${t.status} = 'open'`),
+  ],
+);
+
+export const stocktakeLines = sqliteTable(
+  "stocktake_lines",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    stocktakeId: text("stocktake_id")
+      .notNull()
+      .references(() => stocktakes.id),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id),
+    expectedQtyMilli: integer("expected_qty_milli"),
+    countedQtyMilli: integer("counted_qty_milli"),
+    countedAt: integer("counted_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check(
+      "stocktake_lines_integers_check",
+      allIntegers([], [t.expectedQtyMilli, t.countedQtyMilli]),
+    ),
+    check(
+      "stocktake_lines_counted_qty_milli_check",
+      sql`${t.countedQtyMilli} IS NULL OR ${t.countedQtyMilli} >= 0`,
+    ),
+    check(
+      "stocktake_lines_counted_set_check",
+      sql`(${t.countedQtyMilli} IS NULL) = (${t.countedAt} IS NULL) AND (${t.expectedQtyMilli} IS NULL) = (${t.countedAt} IS NULL)`,
+    ),
+    uniqueIndex("stocktake_lines_stocktake_product_unique").on(t.stocktakeId, t.productId),
+  ],
+);
+
 export const schema = {
   stores,
   terminals,
@@ -877,4 +949,6 @@ export const schema = {
   salePayments,
   receiptPrints,
   terminalInvoiceSequences,
+  stocktakes,
+  stocktakeLines,
 };
