@@ -1,6 +1,14 @@
 import { z } from "zod";
 import { contextBridge, ipcRenderer } from "electron";
 import {
+  backupNowResultSchema,
+  backupPasswordResultSchema,
+  backupPasswordStatusSchema,
+  backupStatusSchema,
+  chosenBackupSchema,
+  restoreResultSchema,
+} from "@shared/backup";
+import {
   authResultSchema,
   createFirstUserResultSchema,
   loginUserSchema,
@@ -16,6 +24,7 @@ import {
   miscItemSettingSchema,
   printerSettingsSchema,
   receiptSettingsSchema,
+  secondCopyStatusSchema,
   scalePrefixesSettingSchema,
   shiftVarianceSettingSchema,
   windowsPrintersSchema,
@@ -63,6 +72,15 @@ import {
   taxCategorySchema,
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
+import { postGoodsReceivedResultSchema } from "@shared/goods-received";
+import {
+  cancelPurchaseOrderResultSchema,
+  confirmPurchaseOrderResultSchema,
+  createPurchaseOrderResultSchema,
+  getPurchaseOrderResultSchema,
+  purchaseOrderSummarySchema,
+  updatePurchaseOrderResultSchema,
+} from "@shared/purchase-orders";
 import {
   createSupplierResultSchema,
   supplierSchema,
@@ -124,6 +142,16 @@ const api: VendoraApi = {
       ),
     getReceipt: async () =>
       receiptSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsGetReceipt)),
+    getSecondCopy: async () =>
+      secondCopyStatusSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsGetSecondCopy)),
+    chooseSecondCopyFolder: async () =>
+      secondCopyStatusSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsChooseSecondCopyFolder),
+      ),
+    clearSecondCopyFolder: async () =>
+      secondCopyStatusSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsClearSecondCopyFolder),
+      ),
     setReceipt: async (input) =>
       receiptSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsSetReceipt, input)),
   },
@@ -263,6 +291,38 @@ const api: VendoraApi = {
         await ipcRenderer.invoke(ipcChannels.suppliersRestore, { id }),
       ),
   },
+  purchaseOrders: {
+    list: async () =>
+      z
+        .array(purchaseOrderSummarySchema)
+        .parse(await ipcRenderer.invoke(ipcChannels.purchaseOrdersList)),
+    get: async (id) =>
+      getPurchaseOrderResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersGet, { id }),
+      ),
+    create: async (input) =>
+      createPurchaseOrderResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersCreate, input),
+      ),
+    update: async (input) =>
+      updatePurchaseOrderResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersUpdate, input),
+      ),
+    confirm: async (id) =>
+      confirmPurchaseOrderResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersConfirm, { id }),
+      ),
+    cancel: async (id) =>
+      cancelPurchaseOrderResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersCancel, { id }),
+      ),
+  },
+  goodsReceived: {
+    post: async (input) =>
+      postGoodsReceivedResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.goodsReceivedPost, input),
+      ),
+  },
   shifts: {
     state: async () => shiftStateSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsState)),
     open: async (openingFloatPaisa) =>
@@ -329,6 +389,29 @@ const api: VendoraApi = {
       orderListSchema.parse(await ipcRenderer.invoke(ipcChannels.salesList, query)),
     get: async (id) =>
       getOrderResultSchema.parse(await ipcRenderer.invoke(ipcChannels.salesGet, { id })),
+  },
+  backup: {
+    status: async () =>
+      backupStatusSchema.parse(await ipcRenderer.invoke(ipcChannels.backupStatus)),
+    run: async () => backupNowResultSchema.parse(await ipcRenderer.invoke(ipcChannels.backupRun)),
+    chooseFile: async () =>
+      chosenBackupSchema.parse(await ipcRenderer.invoke(ipcChannels.backupChooseFile)),
+    restore: async (input) =>
+      restoreResultSchema.parse(await ipcRenderer.invoke(ipcChannels.backupRestore, input)),
+    passwordStatus: async () =>
+      backupPasswordStatusSchema.parse(await ipcRenderer.invoke(ipcChannels.backupPasswordStatus)),
+    turnOnPassword: async (password) =>
+      backupPasswordResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.backupPasswordTurnOn, { password }),
+      ),
+    changePassword: async (current, next) =>
+      backupPasswordResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.backupPasswordChange, { current, next }),
+      ),
+    turnOffPassword: async (current) =>
+      backupPasswordResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.backupPasswordTurnOff, { current }),
+      ),
   },
 };
 

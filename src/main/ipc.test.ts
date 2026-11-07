@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ipcErrorMessages } from "@shared/ipc";
 import { createProductInputSchema } from "@shared/products";
@@ -10,12 +11,18 @@ import { auditLog, categories, products, stores, taxCategories, users } from "./
 import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
+import { createBackupSettingsService } from "./services/backup-settings";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createProductsService, type ProductsService } from "./services/products";
 import { createCheckoutKit, type CheckoutKit } from "./services/checkout-test-kit";
 import { createSalesService, type SalesService } from "./services/sales";
+import {
+  createPurchaseOrdersService,
+  type PurchaseOrdersService,
+} from "./services/purchase-orders";
 import { createShiftsService, type ShiftsService } from "./services/shifts";
 import { createSuppliersService, type SuppliersService } from "./services/suppliers";
+import { createGoodsReceivedService, type GoodsReceivedService } from "./services/goods-received";
 import { createStockService } from "./services/stock";
 import { openMigratedDatabase } from "./db/test-database";
 
@@ -39,7 +46,21 @@ const invoke = async (channel: string, input?: unknown) => {
   return handler({}, input);
 };
 
+const goodBackupName = "vendora-2026-11-06T12-30-00-123Z.db";
 const unknownId = "0192f3a0-0000-7000-8000-000000000099";
+
+const order = (supplierId: string, productId: string) => ({
+  supplierId,
+  notes: null,
+  lines: [{ productId, orderedQtyMilli: 2000, unitCostPaisa: 14333 }],
+});
+
+const directGrn = (supplierId: string, productId: string) => ({
+  kind: "direct",
+  supplierId,
+  supplierInvoiceNo: "INV-100",
+  lines: [{ productId, qtyMilli: 10000, unitCostPaisa: 12000 }],
+});
 
 describe("products ipc", () => {
   let dir: string;
@@ -47,6 +68,8 @@ describe("products ipc", () => {
   let sessions: SessionStore;
   let service: ProductsService;
   let suppliersService: SuppliersService;
+  let purchaseOrdersService: PurchaseOrdersService;
+  let goodsReceivedService: GoodsReceivedService;
   let exportPath: string | null;
   let categoryId: string;
   let taxCategoryId: string;
@@ -114,6 +137,17 @@ describe("products ipc", () => {
       audit: createAuditService(database),
       sessions,
     });
+    purchaseOrdersService = createPurchaseOrdersService({
+      database,
+      audit: createAuditService(database),
+      sessions,
+    });
+    goodsReceivedService = createGoodsReceivedService({
+      database,
+      audit: createAuditService(database),
+      sessions,
+      stock: createStockService({ database, audit: createAuditService(database) }),
+    });
     exportPath = join(dir, "catalog.csv");
     const catalogExport = createCatalogExportService({
       database,
@@ -123,10 +157,15 @@ describe("products ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      backupPassword: stub,
+      backupSettings: stub,
+      backupAdmin: stub,
       billDrafts: stub,
       catalogExport,
       categories: stub,
+      goodsReceived: goodsReceivedService,
       products: service,
+      purchaseOrders: purchaseOrdersService,
       receipts: stub,
       returns: stub,
       sales: stub,
@@ -268,6 +307,120 @@ describe("products ipc", () => {
     });
   });
 
+  describe("goods received", () => {
+    it.each([
+      ["x", [{ productId: unknownId, qtyMilli: 1, unitCostPaisa: 1 }]],
+      [unknownId, []],
+    ] as const)("rejects bad input before the service runs", async (supplierId, lines) => {
+      signIn("owner");
+      const spy = vi.spyOn(goodsReceivedService, "post");
+      await expect(
+        invoke("goods-received:post", {
+          kind: "direct",
+          supplierId,
+          supplierInvoiceNo: "INV-1",
+          lines,
+        }),
+      ).rejects.toThrow();
+      await expect(
+        invoke("goods-received:post", { ...directGrn(unknownId, unknownId), extra: 1 }),
+      ).rejects.toThrow();
+      await expect(invoke("goods-received:post", { kind: "other" })).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("posts a direct note and moves the cost", async () => {
+      signIn("cashier");
+      const product = seedProduct();
+      const created = (await invoke("suppliers:create", {
+        name: "Al-Noor",
+        contactPerson: null,
+        phone: null,
+        ntn: null,
+        notes: null,
+      })) as { supplier: { id: string } };
+
+      const result = await invoke(
+        "goods-received:post",
+        directGrn(created.supplier.id, product.id),
+      );
+
+      expect(result).toMatchObject({
+        ok: true,
+        note: { grnNo: "GRN-T1-000001", totalPaisa: 120000, purchaseOrderId: null },
+      });
+      expect(
+        database.db.select().from(products).where(eq(products.id, product.id)).get()!.costPaisa,
+      ).toBe(12000);
+    });
+
+    it("is refused when signed out", async () => {
+      sessions.end();
+      await expect(invoke("goods-received:post", directGrn(unknownId, unknownId))).rejects.toThrow(
+        new Error(ipcErrorMessages.unauthenticated),
+      );
+    });
+  });
+
+  describe("purchase orders", () => {
+    it.each([
+      ["purchase-orders:create", "create", { supplierId: "x", notes: null, lines: [] }],
+      ["purchase-orders:create", "create", { supplierId: unknownId, notes: null, lines: [] }],
+      ["purchase-orders:create", "create", { supplierId: unknownId, notes: null, extra: 1 }],
+      ["purchase-orders:update", "update", { id: "x", supplierId: unknownId, notes: null }],
+      ["purchase-orders:get", "get", { id: "x" }],
+      ["purchase-orders:confirm", "confirm", { id: "x" }],
+      ["purchase-orders:cancel", "cancel", { id: "x" }],
+    ] as const)("%s rejects bad input", async (channel, method, input) => {
+      signIn("owner");
+      const spy = vi.spyOn(purchaseOrdersService, method);
+      await expect(invoke(channel, input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("creates, confirms and reads an order", async () => {
+      signIn("cashier");
+      const product = seedProduct();
+      const created = (await invoke("suppliers:create", {
+        name: "Al-Noor",
+        contactPerson: null,
+        phone: null,
+        ntn: null,
+        notes: null,
+      })) as { supplier: { id: string } };
+
+      const result = (await invoke(
+        "purchase-orders:create",
+        order(created.supplier.id, product.id),
+      )) as { ok: true; order: { id: string; status: string; totalPaisa: number } };
+      expect(result).toMatchObject({ ok: true, order: { status: "draft", totalPaisa: 28666 } });
+
+      await invoke("purchase-orders:confirm", { id: result.order.id });
+      expect(await invoke("purchase-orders:get", { id: result.order.id })).toMatchObject({
+        ok: true,
+        order: { status: "confirmed" },
+      });
+      expect(await invoke("purchase-orders:list")).toHaveLength(1);
+    });
+
+    it("is refused when signed out", async () => {
+      sessions.end();
+      const requests: [string, unknown][] = [
+        ["purchase-orders:list", undefined],
+        ["purchase-orders:get", { id: unknownId }],
+        ["purchase-orders:create", order(unknownId, unknownId)],
+        ["purchase-orders:update", { id: unknownId, ...order(unknownId, unknownId) }],
+        ["purchase-orders:confirm", { id: unknownId }],
+        ["purchase-orders:cancel", { id: unknownId }],
+      ];
+      for (const [channel, input] of requests) {
+        await expect(invoke(channel, input)).rejects.toThrow(
+          new Error(ipcErrorMessages.unauthenticated),
+        );
+      }
+    });
+  });
+
   describe("export csv", () => {
     it("saves for a manager and returns the path", async () => {
       seedProduct();
@@ -388,10 +541,15 @@ describe("shifts ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      backupPassword: stub,
+      backupSettings: stub,
+      backupAdmin: stub,
       billDrafts: stub,
       catalogExport: stub,
       categories: stub,
+      goodsReceived: stub,
       products: stub,
+      purchaseOrders: stub,
       receipts: receipts as never,
       returns: stub,
       sales: stub,
@@ -537,10 +695,15 @@ describe("checkout ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      backupPassword: stub,
+      backupSettings: stub,
+      backupAdmin: stub,
       billDrafts: kit.billDrafts,
       catalogExport: stub,
       categories: stub,
+      goodsReceived: stub,
       products: stub,
+      purchaseOrders: stub,
       receipts: receipts as never,
       returns: kit.returns,
       sales,
@@ -759,5 +922,209 @@ describe("checkout ipc", () => {
     expect(await invoke("shifts:state")).toMatchObject({
       heldBills: [expect.objectContaining({ lineCount: 1 })],
     });
+  });
+});
+
+describe("backup settings ipc", () => {
+  let kit: CheckoutKit;
+  let folder: string;
+
+  beforeEach(() => {
+    handlers.clear();
+    kit = createCheckoutKit();
+    folder = join(kit.dir, "usb");
+    const backupSettings = createBackupSettingsService({
+      database: kit.database,
+      audit: kit.audit,
+      sessions: kit.sessions,
+      chooseFolder: async () => folder,
+    });
+    const stub = {} as never;
+    registerIpcHandlers({
+      auth: stub,
+      backupAdmin: stub,
+      backupPassword: stub,
+      backupSettings,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      goodsReceived: stub,
+      products: stub,
+      purchaseOrders: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      suppliers: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+  });
+
+  afterEach(() => kit.close());
+
+  it("ignores a path passed by the caller to the choose channel", async () => {
+    kit.signIn("cashier");
+
+    const status = await invoke("settings:choose-second-copy-folder", "/etc");
+
+    expect(status).toEqual({ folder, lastCopy: null });
+  });
+});
+
+describe("backup ipc", () => {
+  const admin = {
+    status: vi.fn(),
+    backupNow: vi.fn(),
+    chooseRestoreFile: vi.fn(),
+    restore: vi.fn(),
+  };
+
+  beforeEach(() => {
+    handlers.clear();
+    vi.clearAllMocks();
+    const stub = {} as never;
+    registerIpcHandlers({
+      auth: stub,
+      backupAdmin: admin as never,
+      backupPassword: stub,
+      backupSettings: stub,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      goodsReceived: stub,
+      products: stub,
+      purchaseOrders: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      suppliers: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+  });
+
+  it("parses every output", async () => {
+    admin.status.mockResolvedValue({
+      lastBackupAt: null,
+      lastFailure: null,
+      backups: [],
+      restoreBlock: null,
+    });
+    admin.backupNow.mockResolvedValue({ ok: true });
+    admin.chooseRestoreFile.mockResolvedValue(null);
+    admin.restore.mockResolvedValue({ ok: true });
+
+    expect(await invoke("backup:status")).toMatchObject({ backups: [] });
+    expect(await invoke("backup:run")).toEqual({ ok: true });
+    expect(await invoke("backup:choose-file")).toBeNull();
+    expect(await invoke("backup:restore", { kind: "listed", fileName: goodBackupName })).toEqual({
+      ok: true,
+    });
+    expect(admin.restore).toHaveBeenCalledWith({ kind: "listed", fileName: goodBackupName });
+  });
+
+  it("rejects a malformed service answer", async () => {
+    admin.status.mockResolvedValue({ lastBackupAt: "yesterday" });
+
+    await expect(invoke("backup:status")).rejects.toThrow();
+  });
+
+  it.each([
+    { kind: "listed", fileName: "../vendora.db" },
+    { kind: "listed", fileName: "C:\\Users\\x\\vendora-2026-11-06T12-30-00-123Z.db" },
+    { kind: "listed", fileName: "/etc/passwd" },
+    { kind: "listed", fileName: `sub/${goodBackupName}` },
+    { kind: "picked", token: "not-a-uuid" },
+    { kind: "picked", token: unknownId, path: "/tmp/x.db" },
+    { kind: "other" },
+    { fileName: goodBackupName },
+  ])("rejects restore input %j before the service runs", async (input) => {
+    await expect(invoke("backup:restore", input)).rejects.toThrow();
+    expect(admin.restore).not.toHaveBeenCalled();
+  });
+});
+
+describe("backup password ipc", () => {
+  const service = {
+    status: vi.fn(),
+    turnOn: vi.fn(),
+    change: vi.fn(),
+    turnOff: vi.fn(),
+  };
+
+  beforeEach(() => {
+    handlers.clear();
+    vi.clearAllMocks();
+    const stub = {} as never;
+    registerIpcHandlers({
+      auth: stub,
+      backupAdmin: stub,
+      backupPassword: service as never,
+      backupSettings: stub,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      goodsReceived: stub,
+      products: stub,
+      purchaseOrders: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      suppliers: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+  });
+
+  it("parses input and output on all four channels", async () => {
+    service.status.mockResolvedValue({ state: "off" });
+    service.turnOn.mockResolvedValue({ ok: true, status: { state: "on" } });
+    service.change.mockResolvedValue({ ok: true, status: { state: "on" } });
+    service.turnOff.mockResolvedValue({ ok: true, status: { state: "off" } });
+
+    expect(await invoke("backup:password-status")).toEqual({ state: "off" });
+    await invoke("backup:password-turn-on", { password: "blue horse 7" });
+    await invoke("backup:password-change", { current: "blue horse 7", next: "green horse 8" });
+    await invoke("backup:password-turn-off", { current: "green horse 8" });
+
+    expect(service.turnOn).toHaveBeenCalledWith({ password: "blue horse 7" });
+    expect(service.change).toHaveBeenCalledWith({ current: "blue horse 7", next: "green horse 8" });
+    expect(service.turnOff).toHaveBeenCalledWith({ current: "green horse 8" });
+  });
+
+  it.each([
+    ["backup:password-turn-on", { password: "short" }],
+    ["backup:password-turn-on", { password: "blue horse 7", extra: 1 }],
+    ["backup:password-change", { current: "", next: "green horse 8" }],
+    ["backup:password-change", { current: "x", next: "short" }],
+    ["backup:password-turn-off", { current: "" }],
+    ["backup:password-turn-off", {}],
+  ])("rejects %s input %j before the service runs", async (channel, input) => {
+    await expect(invoke(channel, input)).rejects.toThrow();
+
+    expect(service.turnOn).not.toHaveBeenCalled();
+    expect(service.change).not.toHaveBeenCalled();
+    expect(service.turnOff).not.toHaveBeenCalled();
+  });
+
+  it("keeps a rejected password out of the error", async () => {
+    const error = await invoke("backup:password-turn-on", { password: "short7" }).catch(
+      (cause: unknown) => cause,
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    expect(String((error as Error).message)).not.toContain("short7");
+  });
+
+  it("rejects a malformed service answer", async () => {
+    service.status.mockResolvedValue({ state: "maybe" });
+
+    await expect(invoke("backup:password-status")).rejects.toThrow();
   });
 });

@@ -9,6 +9,7 @@ describe("back office nav", () => {
       "categories",
       "suppliers",
       "users",
+      "backup",
       "settings",
     ]);
   });

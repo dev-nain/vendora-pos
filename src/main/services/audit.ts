@@ -31,6 +31,10 @@ export const auditActions = [
   "line_delete",
   "bill_discard",
   "sale_complete",
+  "purchase_order_create",
+  "purchase_order_confirm",
+  "purchase_order_cancel",
+  "goods_received_post",
 ] as const;
 export type AuditAction = (typeof auditActions)[number];
 
@@ -62,7 +66,7 @@ function findForbiddenKeyPath(
 
 export const auditRecordInputSchema = z.strictObject({
   action: z.enum(auditActions),
-  actorUserId: z.uuid(),
+  actorUserId: z.uuid().nullable(),
   entityType: z.string().min(1).max(64).optional(),
   entityId: z.string().min(1).max(64).optional(),
   details: z
