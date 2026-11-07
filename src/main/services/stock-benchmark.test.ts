@@ -363,6 +363,34 @@ describe("stock on-hand benchmark", () => {
     expect(stocktake.cancel({ stocktakeId })).toEqual({ ok: true });
   });
 
+  const negativeStock = (offset: number) =>
+    negativeStockResultSchema.parse(inventory.negativeStock({ limit: 50, offset }));
+  const negativeCount = () => totals.reduce((n, total) => n + (total < 0 ? 1 : 0), 0);
+
+  it("lists negative stock that matches the ledger", () => {
+    const page = negativeStock(0);
+    expect(page.total).toBe(negativeCount());
+    expect(page.total).toBeGreaterThan(0);
+    const last = negativeStock(Math.floor((page.total - 1) / 50) * 50);
+    for (const item of [...page.items, ...last.items]) {
+      expect(item.onHandMilli).toBe(totals[Number(item.nameEn.slice("Item ".length))]);
+    }
+  });
+
+  it("opens the first negative stock page quickly (cold)", () => {
+    const start = performance.now();
+    negativeStock(0);
+    console.log(`negative stock first call (cold): ${(performance.now() - start).toFixed(3)} ms`);
+  });
+
+  it("lists the first and last negative stock pages within the report limit", () => {
+    const lastOffset = Math.floor((negativeCount() - 1) / 50) * 50;
+    const first = measure("negative stock first page", 50, () => negativeStock(0));
+    const last = measure("negative stock last page", 50, () => negativeStock(lastOffset));
+    expect(first).toBeLessThan(3000);
+    expect(last).toBeLessThan(3000);
+  });
+
   it("reviews and posts a 5,000-line category stocktake in under 2 seconds", () => {
     const storeId = database.db.select().from(stores).get()!.id;
     const categoryId = database.db
@@ -422,33 +450,5 @@ describe("stock on-hand benchmark", () => {
 
     const after = service.onHandMany(moved.filter((_, i) => i % 500 === 0));
     for (const [id, value] of after) expect(value).toBe(counted.get(id));
-  });
-
-  const negativeStock = (offset: number) =>
-    negativeStockResultSchema.parse(inventory.negativeStock({ limit: 50, offset }));
-  const negativeCount = () => totals.reduce((n, total) => n + (total < 0 ? 1 : 0), 0);
-
-  it("lists negative stock that matches the ledger", () => {
-    const page = negativeStock(0);
-    expect(page.total).toBe(negativeCount());
-    expect(page.total).toBeGreaterThan(0);
-    const last = negativeStock(Math.floor((page.total - 1) / 50) * 50);
-    for (const item of [...page.items, ...last.items]) {
-      expect(item.onHandMilli).toBe(totals[Number(item.nameEn.slice("Item ".length))]);
-    }
-  });
-
-  it("opens the first negative stock page quickly (cold)", () => {
-    const start = performance.now();
-    negativeStock(0);
-    console.log(`negative stock first call (cold): ${(performance.now() - start).toFixed(3)} ms`);
-  });
-
-  it("lists the first and last negative stock pages within the report limit", () => {
-    const lastOffset = Math.floor((negativeCount() - 1) / 50) * 50;
-    const first = measure("negative stock first page", 50, () => negativeStock(0));
-    const last = measure("negative stock last page", 50, () => negativeStock(lastOffset));
-    expect(first).toBeLessThan(3000);
-    expect(last).toBeLessThan(3000);
   });
 }, 180_000);
