@@ -134,6 +134,36 @@ export const stockMovementsReportResultSchema = z.strictObject({
 });
 export type StockMovementsReportResult = z.infer<typeof stockMovementsReportResultSchema>;
 
+const purchasesBySupplierTotalsSchema = z.strictObject({
+  receiptCount: countSchema,
+  receivedPaisa: countSchema,
+  returnCount: countSchema,
+  returnedPaisa: countSchema,
+  netPaisa: countSchema,
+});
+export type PurchasesBySupplierTotals = z.infer<typeof purchasesBySupplierTotalsSchema>;
+
+const purchasesBySupplierRowSchema = purchasesBySupplierTotalsSchema.extend({
+  supplierId: z.uuid(),
+  supplier: z.string(),
+});
+export type PurchasesBySupplierRow = z.infer<typeof purchasesBySupplierRowSchema>;
+
+export const purchasesBySupplierResultSchema = z.strictObject({
+  rows: z.array(purchasesBySupplierRowSchema),
+  totals: purchasesBySupplierTotalsSchema,
+});
+export type PurchasesBySupplierResult = z.infer<typeof purchasesBySupplierResultSchema>;
+
+export const purchasesBySupplierColumns: ReportColumn<PurchasesBySupplierRow>[] = [
+  { key: "supplier", label: "Supplier", format: "text", width: "336px" },
+  { key: "receiptCount", label: "Receipts", format: "count", width: "100px" },
+  { key: "receivedPaisa", label: "Received", format: "money", width: "170px" },
+  { key: "returnCount", label: "Returns", format: "count", width: "100px" },
+  { key: "returnedPaisa", label: "Returned", format: "money", width: "160px" },
+  { key: "netPaisa", label: "Net purchases", format: "money", width: "170px" },
+];
+
 export const stockMovementsColumns: ReportColumn<StockMovementReportRow>[] = [
   { key: "createdAt", label: "Date", format: "datetime", width: "176px" },
   { key: "type", label: "Type", format: "text", width: "112px" },
