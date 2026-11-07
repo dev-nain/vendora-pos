@@ -30,7 +30,7 @@ Windows desktop app, installed per store. v1 targets Windows 10 and 11 (64-bit).
 - Products, barcodes, pack conversions, categories, suppliers
 - Sales, sale lines, payments, returns, held bills
 - Stock movements, stocktakes
-- Purchase orders, goods receipts
+- Purchase orders, goods receipts, purchase returns
 - Shifts, cash movements
 - Audit log, backup records
 

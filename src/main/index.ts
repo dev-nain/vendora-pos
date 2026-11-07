@@ -10,12 +10,18 @@ import { openAppDatabase, type StartupOutcome } from "./db/startup";
 import { registerIpcHandlers, registerStartupHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
 import { createAuthService } from "./services/auth";
+import { createPurchaseHistoryService } from "./services/purchase-history";
+import { createPurchaseReturnDocumentsService } from "./services/purchase-return-documents";
+import { createPurchaseReturnsService } from "./services/purchase-returns";
 import { createBackupSettingsService } from "./services/backup-settings";
 import { createBackupAdminService } from "./services/backup-admin";
 import { createBackupPasswordService } from "./services/backup-password";
 import { createBillDraftsService } from "./services/bill-drafts";
 import { createCatalogExportService } from "./services/catalog-export";
+import { createAuditLogService } from "./services/audit-log";
 import { createCategoriesService } from "./services/categories";
+import { createSaleInvoicesService } from "./services/sale-invoices";
+import { createPurchaseOrderDocumentsService } from "./services/purchase-order-documents";
 import { createGoodsReceivedService } from "./services/goods-received";
 import { createRecoveryService } from "./services/recovery";
 import { createPurchaseOrdersService } from "./services/purchase-orders";
@@ -24,6 +30,8 @@ import { createReturnsService } from "./services/returns";
 import { createSalesService } from "./services/sales";
 import { createSettingsService } from "./services/settings";
 import { createShiftsService } from "./services/shifts";
+import { createInventoryService } from "./services/inventory";
+import { createStocktakeService } from "./services/stocktake";
 import { createProductsService } from "./services/products";
 import { createStockService } from "./services/stock";
 import { createSuppliersService } from "./services/suppliers";
@@ -31,6 +39,8 @@ import { createTaxCategoriesService } from "./services/tax-categories";
 import { createUsersService } from "./services/users";
 import type { StartupState } from "../shared/recovery";
 import { createSessionStore } from "./auth/session";
+import { createDocumentRenderer } from "./documents/document-window";
+import { runPdfCheck } from "./documents/pdf-check";
 import { createRasteriser } from "./receipts/rasterise";
 import { createRenderWindow } from "./receipts/render-window";
 import { createTransport } from "./hardware/printer-transport";
@@ -44,6 +54,26 @@ const backupDir = () => join(app.getPath("userData"), "backups");
 const databaseFile = () => join(app.getPath("userData"), "vendora.db");
 const migrationsFolder = () =>
   app.isPackaged ? join(process.resourcesPath, "drizzle") : join(app.getAppPath(), "drizzle");
+
+async function chooseSavePath(
+  title: string,
+  filter: { name: string; extensions: string[] },
+  fileName: string,
+): Promise<string | null> {
+  const devSaveDir = process.env["VENDORA_DEV_SAVE_DIR"];
+  // Dev-only: lets the screenshot capture save PDFs without the native dialog.
+  if (devSaveDir && !app.isPackaged) return join(devSaveDir, fileName);
+  const options = {
+    title,
+    defaultPath: join(app.getPath("documents"), fileName),
+    filters: [filter],
+  };
+  const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  const result = parent
+    ? await dialog.showSaveDialog(parent, options)
+    : await dialog.showSaveDialog(options);
+  return result.canceled || !result.filePath ? null : result.filePath;
+}
 
 async function showOnTop(options: Electron.MessageBoxOptions): Promise<void> {
   const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
@@ -78,6 +108,11 @@ function startupStateOf(outcome: StartupOutcome): StartupState {
 }
 
 void app.whenReady().then(async () => {
+  const pdfCheckPath = process.env["VENDORA_PDF_CHECK"];
+  if (!app.isPackaged && pdfCheckPath) {
+    await runPdfCheck(pdfCheckPath);
+    return;
+  }
   const outcome = await openAppDatabase({
     databaseFile: databaseFile(),
     migrationsFolder: migrationsFolder(),
@@ -154,28 +189,47 @@ void app.whenReady().then(async () => {
     heldBills: billDrafts.heldBillsFor,
     afterClose: backups.afterShiftClose,
   });
+  const auditLog = createAuditLogService({ database, sessions });
   const users = createUsersService({ database, audit, sessions });
   const products = createProductsService({ database, audit, sessions });
+  const inventory = createInventoryService({ database, sessions, stock });
+  const stocktake = createStocktakeService({ database, sessions, stock, audit });
   const categories = createCategoriesService({ database, audit, sessions });
   const suppliers = createSuppliersService({ database, audit, sessions });
   const purchaseOrders = createPurchaseOrdersService({ database, audit, sessions });
   const goodsReceived = createGoodsReceivedService({ database, audit, sessions, stock });
+  const purchaseReturns = createPurchaseReturnsService({ database, audit, sessions, stock });
+  const purchaseHistory = createPurchaseHistoryService({ database, sessions });
   const taxCategories = createTaxCategoriesService({ database, audit, sessions });
   const catalogExport = createCatalogExportService({
     database,
     sessions,
-    chooseSavePath: async (fileName) => {
-      const options = {
-        title: "Export catalog",
-        defaultPath: join(app.getPath("documents"), fileName),
-        filters: [{ name: "CSV file", extensions: ["csv"] }],
-      };
-      const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-      const result = parent
-        ? await dialog.showSaveDialog(parent, options)
-        : await dialog.showSaveDialog(options);
-      return result.canceled || !result.filePath ? null : result.filePath;
-    },
+    chooseSavePath: (fileName) =>
+      chooseSavePath("Export catalog", { name: "CSV file", extensions: ["csv"] }, fileName),
+  });
+  const documentRenderer = createDocumentRenderer();
+  const purchaseOrderDocuments = createPurchaseOrderDocumentsService({
+    database,
+    sessions,
+    purchaseOrders,
+    renderer: documentRenderer,
+    chooseSavePath: (fileName) =>
+      chooseSavePath("Save purchase order", { name: "PDF file", extensions: ["pdf"] }, fileName),
+  });
+  const purchaseReturnDocuments = createPurchaseReturnDocumentsService({
+    database,
+    sessions,
+    purchaseReturns,
+    renderer: documentRenderer,
+    chooseSavePath: (fileName) =>
+      chooseSavePath("Save purchase return", { name: "PDF file", extensions: ["pdf"] }, fileName),
+  });
+  const saleInvoices = createSaleInvoicesService({
+    database,
+    sessions,
+    renderer: documentRenderer,
+    chooseSavePath: (fileName) =>
+      chooseSavePath("Save invoice", { name: "PDF file", extensions: ["pdf"] }, fileName),
   });
   const restores = createRestoreService({
     databaseFile: databaseFile(),
@@ -218,6 +272,7 @@ void app.whenReady().then(async () => {
     ...(app.isPackaged ? {} : { log: (entry) => console.info("print job", entry) }),
   });
   registerIpcHandlers({
+    auditLog,
     auth,
     backupSettings,
     backupAdmin,
@@ -226,10 +281,17 @@ void app.whenReady().then(async () => {
     catalogExport,
     categories,
     goodsReceived,
+    inventory,
+    stocktake,
     products,
+    purchaseHistory,
+    purchaseOrderDocuments,
     purchaseOrders,
+    purchaseReturnDocuments,
+    purchaseReturns,
     receipts,
     returns,
+    saleInvoices,
     sales,
     settings,
     shifts,

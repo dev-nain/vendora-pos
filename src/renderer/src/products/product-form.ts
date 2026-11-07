@@ -60,7 +60,7 @@ export type FocusTarget =
 
 export type ProductRefusal = Extract<UpdateProductResult, { ok: false }>;
 
-const amountMessage = "Enter an amount in rupees, up to 2 decimals";
+export const amountMessage = "Enter an amount in rupees, up to 2 decimals";
 const packQtyMessage = "Pack quantity must be more than 0";
 
 const quantityMessages: Record<ProductUnit, string> = {

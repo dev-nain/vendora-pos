@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AuditListQuery, AuditPage, AuditUser } from "./audit";
 import type {
   BackupNowResult,
   BackupPasswordResult,
@@ -22,14 +23,43 @@ import type {
   DeleteCategoryResult,
   RenameCategoryResult,
 } from "./categories";
-import type { PostGoodsReceivedInput, PostGoodsReceivedResult } from "./goods-received";
+import type { PrintInvoiceResult, SaveInvoicePdfResult } from "./invoices";
+import type {
+  GetGoodsReceivedResult,
+  GoodsReceivedLastCostResult,
+  GoodsReceivedListQuery,
+  GoodsReceivedListResult,
+  LowMarginResult,
+  PostGoodsReceivedInput,
+  PostGoodsReceivedResult,
+} from "./goods-received";
+import type {
+  ProductPurchaseHistoryQuery,
+  ProductPurchaseHistoryResult,
+  SupplierPurchaseHistoryQuery,
+  SupplierPurchaseHistoryResult,
+} from "./purchase-history";
+import type {
+  GetPurchaseReturnResult,
+  PostPurchaseReturnInput,
+  PostPurchaseReturnResult,
+  PurchaseReturnListQuery,
+  PrintPurchaseReturnResult,
+  PurchaseReturnListResult,
+  SavePurchaseReturnPdfResult,
+  PurchaseReturnableInput,
+  PurchaseReturnableNoteResult,
+  PurchaseReturnableResult,
+} from "./purchase-returns";
 import type {
   CancelPurchaseOrderResult,
   ConfirmPurchaseOrderResult,
   CreatePurchaseOrderInput,
   CreatePurchaseOrderResult,
   GetPurchaseOrderResult,
+  PrintPurchaseOrderResult,
   PurchaseOrderSummary,
+  SavePurchaseOrderPdfResult,
   UpdatePurchaseOrderInput,
   UpdatePurchaseOrderResult,
 } from "./purchase-orders";
@@ -50,6 +80,7 @@ import type {
   SaleJobResult,
 } from "./receipt";
 import type {
+  MarginThresholdSetting,
   MiscItemSetting,
   PrinterSettings,
   ReceiptSettings,
@@ -86,7 +117,31 @@ import type {
   SetDamagedInput,
   UpdateLineInput,
 } from "./checkout";
+import type {
+  NegativeStockQuery,
+  NegativeStockResult,
+  StockAdjustmentInput,
+  StockAdjustmentResult,
+  LowStockQuery,
+  LowStockResult,
+  StockHistoryQuery,
+  StockHistoryResult,
+  StockListQuery,
+  StockListResult,
+} from "./inventory";
 import type { AddFromSaleInput, ReturnableResult } from "./returns";
+import type {
+  CancelStocktakeResult,
+  RecordCountInput,
+  RecordCountResult,
+  StartStocktakeInput,
+  StartStocktakeResult,
+  StocktakeLinesQuery,
+  StocktakeLinesResult,
+  StocktakeScanInput,
+  StocktakeScanResult,
+  StocktakeSummary,
+} from "./stocktake";
 import type {
   BarcodeLookup,
   BulkUpdateProductsInput,
@@ -138,6 +193,8 @@ export const ipcChannels = {
   settingsSetMiscItemEnabled: "settings:set-misc-item-enabled",
   settingsGetShiftVarianceWarn: "settings:get-shift-variance-warn",
   settingsSetShiftVarianceWarn: "settings:set-shift-variance-warn",
+  settingsGetMarginThreshold: "settings:get-margin-threshold",
+  settingsSetMarginThreshold: "settings:set-margin-threshold",
   settingsGetReceipt: "settings:get-receipt",
   settingsSetReceipt: "settings:set-receipt",
   settingsGetSecondCopy: "settings:get-second-copy",
@@ -162,9 +219,29 @@ export const ipcChannels = {
   usersResetPin: "users:reset-pin",
   usersDeactivate: "users:deactivate",
   usersReactivate: "users:reactivate",
+  inventoryListStock: "inventory:list-stock",
+  inventoryStockHistory: "inventory:stock-history",
+  stocktakeCurrent: "stocktake:current",
+  stocktakeStart: "stocktake:start",
+  stocktakeLines: "stocktake:lines",
+  stocktakeScan: "stocktake:scan",
+  stocktakeRecord: "stocktake:record",
+  stocktakeCancel: "stocktake:cancel",
+  inventoryNegativeStock: "inventory:negative-stock",
+  inventoryAdjustStock: "inventory:adjust-stock",
+  inventoryLowStock: "inventory:low-stock",
   productsSearch: "products:search",
   productsGet: "products:get",
   productsCreate: "products:create",
+  purchaseReturnsPost: "purchase-returns:post",
+  purchaseReturnsList: "purchase-returns:list",
+  purchaseReturnsGet: "purchase-returns:get",
+  purchaseReturnsReturnable: "purchase-returns:returnable",
+  purchaseReturnsFromNote: "purchase-returns:from-note",
+  purchaseReturnsSavePdf: "purchase-returns:save-pdf",
+  purchaseReturnsPrint: "purchase-returns:print",
+  purchaseHistoryProduct: "purchase-history:product",
+  purchaseHistorySupplier: "purchase-history:supplier",
   productsUpdate: "products:update",
   productsArchive: "products:archive",
   productsRestore: "products:restore",
@@ -193,6 +270,14 @@ export const ipcChannels = {
   purchaseOrdersConfirm: "purchase-orders:confirm",
   purchaseOrdersCancel: "purchase-orders:cancel",
   goodsReceivedPost: "goods-received:post",
+  goodsReceivedList: "goods-received:list",
+  goodsReceivedGet: "goods-received:get",
+  goodsReceivedLastCost: "goods-received:last-cost",
+  goodsReceivedLowMargin: "goods-received:low-margin",
+  purchaseOrdersSavePdf: "purchase-orders:save-pdf",
+  purchaseOrdersPrint: "purchase-orders:print",
+  invoicesSavePdf: "invoices:save-pdf",
+  invoicesPrint: "invoices:print",
   shiftsState: "shifts:state",
   shiftsOpen: "shifts:open",
   shiftsAddCashMove: "shifts:add-cash-move",
@@ -218,6 +303,8 @@ export const ipcChannels = {
   returnsAddFromSale: "returns:add-from-sale",
   salesList: "sales:list",
   salesGet: "sales:get",
+  auditList: "audit:list",
+  auditUsers: "audit:users",
   backupStatus: "backup:status",
   backupRun: "backup:run",
   backupChooseFile: "backup:choose-file",
@@ -257,6 +344,8 @@ export interface VendoraApi {
     setMiscItemEnabled: (enabled: boolean) => Promise<MiscItemSetting>;
     getShiftVarianceWarn: () => Promise<ShiftVarianceSetting>;
     setShiftVarianceWarn: (warnPaisa: number) => Promise<ShiftVarianceSetting>;
+    getMarginThreshold: () => Promise<MarginThresholdSetting>;
+    setMarginThreshold: (thresholdBps: number | null) => Promise<MarginThresholdSetting>;
     getReceipt: () => Promise<ReceiptSettings>;
     setReceipt: (input: ReceiptSettingsInput) => Promise<ReceiptSettings>;
     getSecondCopy: () => Promise<SecondCopyStatus>;
@@ -285,6 +374,21 @@ export interface VendoraApi {
     resetPin: (id: string, pin: string) => Promise<UserActionResult>;
     deactivate: (id: string) => Promise<DeactivateUserResult>;
     reactivate: (id: string) => Promise<UserActionResult>;
+  };
+  inventory: {
+    listStock: (query: StockListQuery) => Promise<StockListResult>;
+    stockHistory: (query: StockHistoryQuery) => Promise<StockHistoryResult>;
+    negativeStock: (query: NegativeStockQuery) => Promise<NegativeStockResult>;
+    adjustStock: (input: StockAdjustmentInput) => Promise<StockAdjustmentResult>;
+    lowStock: (query: LowStockQuery) => Promise<LowStockResult>;
+  };
+  stocktake: {
+    current: () => Promise<StocktakeSummary | null>;
+    start: (input: StartStocktakeInput) => Promise<StartStocktakeResult>;
+    lines: (query: StocktakeLinesQuery) => Promise<StocktakeLinesResult>;
+    scan: (input: StocktakeScanInput) => Promise<StocktakeScanResult>;
+    record: (input: RecordCountInput) => Promise<RecordCountResult>;
+    cancel: (stocktakeId: string) => Promise<CancelStocktakeResult>;
   };
   products: {
     getMiscItem: () => Promise<Product | null>;
@@ -325,9 +429,33 @@ export interface VendoraApi {
     update: (input: UpdatePurchaseOrderInput) => Promise<UpdatePurchaseOrderResult>;
     confirm: (id: string) => Promise<ConfirmPurchaseOrderResult>;
     cancel: (id: string) => Promise<CancelPurchaseOrderResult>;
+    savePdf: (id: string) => Promise<SavePurchaseOrderPdfResult>;
+    print: (id: string) => Promise<PrintPurchaseOrderResult>;
   };
+  invoices: {
+    savePdf: (saleId: string) => Promise<SaveInvoicePdfResult>;
+    print: (saleId: string) => Promise<PrintInvoiceResult>;
+  };
+
   goodsReceived: {
     post: (input: PostGoodsReceivedInput) => Promise<PostGoodsReceivedResult>;
+    list: (query: GoodsReceivedListQuery) => Promise<GoodsReceivedListResult>;
+    get: (id: string) => Promise<GetGoodsReceivedResult>;
+    lastCost: (productId: string) => Promise<GoodsReceivedLastCostResult>;
+    lowMargin: (id: string) => Promise<LowMarginResult>;
+  };
+  purchaseReturns: {
+    post: (input: PostPurchaseReturnInput) => Promise<PostPurchaseReturnResult>;
+    list: (query: PurchaseReturnListQuery) => Promise<PurchaseReturnListResult>;
+    get: (id: string) => Promise<GetPurchaseReturnResult>;
+    returnable: (input: PurchaseReturnableInput) => Promise<PurchaseReturnableResult>;
+    fromNote: (goodsReceivedNoteId: string) => Promise<PurchaseReturnableNoteResult>;
+    savePdf: (id: string) => Promise<SavePurchaseReturnPdfResult>;
+    print: (id: string) => Promise<PrintPurchaseReturnResult>;
+  };
+  purchaseHistory: {
+    forProduct: (query: ProductPurchaseHistoryQuery) => Promise<ProductPurchaseHistoryResult>;
+    forSupplier: (query: SupplierPurchaseHistoryQuery) => Promise<SupplierPurchaseHistoryResult>;
   };
   shifts: {
     state: () => Promise<ShiftState>;
@@ -361,6 +489,10 @@ export interface VendoraApi {
   sales: {
     list: (query: SalesListQuery) => Promise<OrderSummary[]>;
     get: (id: string) => Promise<GetOrderResult>;
+  };
+  audit: {
+    list: (query: AuditListQuery) => Promise<AuditPage>;
+    listUsers: () => Promise<AuditUser[]>;
   };
   backup: {
     status: () => Promise<BackupStatus>;

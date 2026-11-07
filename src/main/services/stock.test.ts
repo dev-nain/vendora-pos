@@ -15,13 +15,16 @@ import {
   taxCategories,
   terminals,
   users,
+  stockMovementReasons,
   type ProductUnit,
+  type StockMovementReason,
 } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import { createAuditService } from "./audit";
 import { createProductsService } from "./products";
 import * as stockModule from "./stock";
-import { createStockService, type RecordMovementInput } from "./stock";
+import { movementReasons } from "../../shared/inventory";
+import { createStockService, movementTypeForReason, type RecordMovementInput } from "./stock";
 import { openMigratedDatabase } from "../db/test-database";
 
 describe("createStockService", () => {
@@ -67,9 +70,13 @@ describe("createStockService", () => {
     expect(movementRows()).toEqual([]);
   };
 
-  const setOnHand = (onHandMilli: number, id = productId) =>
+  const setOnHand = (
+    onHandMilli: number,
+    id = productId,
+    reason: StockMovementReason = "correction",
+  ) =>
     database.db.transaction((tx) =>
-      service.setOnHand(tx, { productId: id, onHandMilli, actorUserId: actorId }),
+      service.setOnHand(tx, { productId: id, onHandMilli, reason, actorUserId: actorId }),
     );
 
   const costOf = (id = productId) =>
@@ -283,10 +290,22 @@ describe("createStockService", () => {
     });
   });
 
+  describe("purchase return", () => {
+    it("snapshots the cost and leaves it unchanged", () => {
+      record({ type: "receipt", qtyMilli: 10000, unitCostPaisa: 10000 });
+      record({ type: "receipt", qtyMilli: 10000, unitCostPaisa: 12000 });
+      record({ type: "purchase_return", qtyMilli: -5000 });
+
+      const returned = movementRows().filter((m) => m.type === "purchase_return");
+      expect(returned.map((m) => [m.qtyMilli, m.unitCostPaisa])).toEqual([[-5000, 11000]]);
+      expect(costOf()).toBe(11000);
+    });
+  });
+
   describe("audit", () => {
     it("audits an adjustment", () => {
       record({ type: "receipt", qtyMilli: 5000, unitCostPaisa: 10000 });
-      const movement = record({ type: "adjustment", qtyMilli: -2000, reason: "theft" });
+      const movement = record({ type: "adjustment", qtyMilli: -2000, reason: "correction" });
 
       const rows = auditRows();
       expect(rows).toHaveLength(1);
@@ -298,17 +317,32 @@ describe("createStockService", () => {
           movementId: movement.id,
           type: "adjustment",
           qtyMilli: -2000,
-          reason: "theft",
+          reason: "correction",
           onHandBeforeMilli: 5000,
           onHandAfterMilli: 3000,
         },
       });
     });
 
-    it("does not audit sale, receipt or damage", () => {
+    it("audits a damage movement without a source", () => {
+      const movement = record({ type: "damage", qtyMilli: -100, reason: "expiry" });
+      const rows = auditRows();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        details: { movementId: movement.id, type: "damage", qtyMilli: -100, reason: "expiry" },
+      });
+    });
+
+    it("does not audit sale, receipt or sourced damage", () => {
       record({ type: "sale", qtyMilli: -1000 });
       record({ type: "receipt", qtyMilli: 1000, unitCostPaisa: 100 });
-      record({ type: "damage", qtyMilli: -100, reason: "damage" });
+      record({
+        type: "damage",
+        qtyMilli: -100,
+        reason: "damage",
+        sourceType: "sale_line",
+        sourceId: "l1",
+      });
       expect(auditRows()).toEqual([]);
     });
   });
@@ -320,6 +354,12 @@ describe("createStockService", () => {
     it("refuses a positive damage", () =>
       refused({ type: "damage", qtyMilli: 1000, reason: "damage" }));
     it("refuses a negative return", () => refused({ type: "return", qtyMilli: -1000 }));
+    it("refuses a positive purchase return", () =>
+      refused({ type: "purchase_return", qtyMilli: 1000 }));
+    it("refuses a unit cost on a purchase return", () =>
+      refused({ type: "purchase_return", qtyMilli: -1000, unitCostPaisa: 100 }));
+    it("refuses a reason on a purchase return", () =>
+      refused({ type: "purchase_return", qtyMilli: -1000, reason: "damage" }));
     it("refuses a negative receipt", () =>
       refused({ type: "receipt", qtyMilli: -1000, unitCostPaisa: 100 }));
     it("refuses a fractional quantity", () => refused({ type: "sale", qtyMilli: -1.5 }));
@@ -328,6 +368,26 @@ describe("createStockService", () => {
     it("refuses damage without a reason", () => refused({ type: "damage", qtyMilli: -1000 }));
     it("refuses an unknown reason", () =>
       refused({ type: "adjustment", qtyMilli: -1000, reason: "lost" }));
+    it("refuses theft, expiry and damage on an adjustment", () => {
+      for (const reason of ["theft", "expiry", "damage"]) {
+        refused({ type: "adjustment", qtyMilli: -1000, reason });
+      }
+    });
+    it("refuses correction on damage", () =>
+      refused({ type: "damage", qtyMilli: -1000, reason: "correction" }));
+    it("accepts expiry and theft on damage", () => {
+      expect(record({ type: "damage", qtyMilli: -1000, reason: "expiry" }).type).toBe("damage");
+      expect(record({ type: "damage", qtyMilli: -1000, reason: "theft" }).type).toBe("damage");
+    });
+    it("maps each reason to a movement type", () => {
+      expect(movementTypeForReason("correction")).toBe("adjustment");
+      for (const reason of ["damage", "expiry", "theft"] as const) {
+        expect(movementTypeForReason(reason)).toBe("damage");
+      }
+    });
+    it("keeps the shared reasons in step with the schema", () => {
+      expect([...movementReasons]).toEqual([...stockMovementReasons]);
+    });
     it("refuses a reason on a sale", () =>
       refused({ type: "sale", qtyMilli: -1000, reason: "damage" }));
     it("refuses a receipt without a unit cost", () => refused({ type: "receipt", qtyMilli: 1000 }));
@@ -393,7 +453,7 @@ describe("createStockService", () => {
             actorUserId: actorId,
             type: "adjustment",
             qtyMilli: -1000,
-            reason: "expiry",
+            reason: "correction",
           });
           throw new Error("checkout failed");
         }),
@@ -418,7 +478,7 @@ describe("createStockService", () => {
           actorUserId: actorId,
           type: "adjustment",
           qtyMilli: -1000,
-          reason: "expiry",
+          reason: "correction",
         });
       });
       expect(movementRows()).toHaveLength(2);
@@ -427,30 +487,68 @@ describe("createStockService", () => {
   });
 
   describe("setOnHand", () => {
-    it("records opening stock for a product with no movements", () => {
+    it("records a reasoned adjustment for a product with no movements", () => {
       const result = setOnHand(12000);
       expect(result.onHandMilli).toBe(12000);
-      expect(result.movement).toMatchObject({ type: "opening", qtyMilli: 12000, reason: null });
+      expect(result.movement).toMatchObject({
+        type: "adjustment",
+        qtyMilli: 12000,
+        reason: "correction",
+      });
       expect(costOf()).toBe(10000);
       expect(service.onHand(productId)).toBe(12000);
       expect(auditRows()).toHaveLength(1);
       expect(auditRows()[0]).toMatchObject({
         actorUserId: actorId,
-        details: { type: "opening", onHandBeforeMilli: 0, onHandAfterMilli: 12000 },
+        details: { type: "adjustment", onHandBeforeMilli: 0, onHandAfterMilli: 12000 },
       });
     });
 
-    it("records a negative opening", () => {
-      const result = setOnHand(-2000);
-      expect(result.movement).toMatchObject({ type: "opening", qtyMilli: -2000 });
-      expect(service.onHand(productId)).toBe(-2000);
+    it("records a negative count by reason", () => {
+      expect(setOnHand(-2000).movement).toMatchObject({ type: "adjustment", qtyMilli: -2000 });
+      expect(setOnHand(-4000, productId, "theft").movement).toMatchObject({
+        type: "damage",
+        qtyMilli: -2000,
+        reason: "theft",
+      });
+      expect(service.onHand(productId)).toBe(-4000);
+    });
+
+    it("saves expiry as a damage movement", () => {
+      record({ type: "return", qtyMilli: 3000 });
+      expect(setOnHand(1000, productId, "expiry").movement).toMatchObject({
+        type: "damage",
+        qtyMilli: -2000,
+        reason: "expiry",
+      });
+    });
+
+    it("refuses damage when the target is higher", () => {
+      expect(() => setOnHand(1000, productId, "damage")).toThrow();
+      expect(movementRows()).toEqual([]);
+      expect(auditRows()).toEqual([]);
+    });
+
+    it("refuses a missing or unknown reason", () => {
+      const input = { productId, onHandMilli: 1000, actorUserId: actorId };
+      expect(() =>
+        database.db.transaction((tx) => service.setOnHand(tx, input as never)),
+      ).toThrow();
+      expect(() => setOnHand(1000, productId, "lost" as never)).toThrow();
+      expect(movementRows()).toEqual([]);
     });
 
     it("records a correction adjustment on a product with movements", () => {
       record({ type: "receipt", qtyMilli: 10000, unitCostPaisa: 10000 });
       record({ type: "sale", qtyMilli: -3000 });
       record({ type: "return", qtyMilli: 1000 });
-      record({ type: "damage", qtyMilli: -500, reason: "damage" });
+      record({
+        type: "damage",
+        qtyMilli: -500,
+        reason: "damage",
+        sourceType: "sale_line",
+        sourceId: "l1",
+      });
       record({ type: "stocktake", qtyMilli: -250 });
 
       const result = setOnHand(5000);
@@ -467,15 +565,9 @@ describe("createStockService", () => {
       });
     });
 
-    it("uses an adjustment when movements net to zero", () => {
-      record({ type: "return", qtyMilli: 1000 });
-      record({ type: "sale", qtyMilli: -1000 });
-      expect(setOnHand(500).movement).toMatchObject({ type: "adjustment", qtyMilli: 500 });
-    });
-
     it("writes nothing when the target equals on-hand", () => {
       record({ type: "return", qtyMilli: 1000 });
-      expect(setOnHand(1000)).toEqual({ movement: null, onHandMilli: 1000 });
+      expect(setOnHand(1000, productId, "theft")).toEqual({ movement: null, onHandMilli: 1000 });
       expect(movementRows()).toHaveLength(1);
       expect(auditRows()).toEqual([]);
       expect(setOnHand(0, addProduct().id)).toMatchObject({ movement: null });
