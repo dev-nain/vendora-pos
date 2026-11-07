@@ -4,14 +4,25 @@ import type { DiscountsReturnsVoidsResult } from "@shared/discounts-returns-void
 import {
   grossProfitByCategoryColumns,
   grossProfitByProductColumns,
+  paymentMethodColumns,
+  salesByCashierColumns,
+  salesByCategoryColumns,
   salesByDayColumns,
+  salesByHourColumns,
+  salesByProductColumns,
   salesTaxSummaryColumns,
   type ExportReportResult,
   type GrossProfitByCategoryResult,
   type GrossProfitByProductResult,
   type ReportExportFormat,
+  type PaymentMethodsResult,
   type ReportRange,
+  type ReportShift,
+  type SalesByCashierResult,
+  type SalesByCategoryResult,
   type SalesByDayResult,
+  type SalesByHourResult,
+  type SalesByProductResult,
   type SalesTaxSummaryResult,
 } from "@shared/reports";
 import { formatRupees, signedRupees } from "@shared/money";
@@ -45,6 +56,7 @@ export interface ReportQuery {
   range: ReportRange;
   productId: string | null;
   stocktakeId: string | null;
+  shiftId: string | null;
 }
 
 export interface ReportDefinition<Result> {
@@ -53,7 +65,8 @@ export interface ReportDefinition<Result> {
   emptyTitle: string;
   emptyHint?: string;
   period?: "range" | "today";
-  subject?: "none" | "product" | "stocktake";
+  subject?: "none" | "product" | "stocktake" | "shift";
+  listShifts?: (range: ReportRange) => Promise<ReportShift[]>;
   waitingText?: string;
   load: (query: ReportQuery) => Promise<Result> | null;
   exportTo: (query: ReportQuery, format: ReportExportFormat) => Promise<ExportReportResult> | null;
@@ -74,6 +87,53 @@ function SalesByDayBody({ result, busy }: ReportBodyProps<SalesByDayResult>) {
     />
   );
 }
+
+const reports = () => window.vendora.reports;
+
+const asOfCaption = (asOf: string, suffix = "") => `As of ${formatDateTime(asOf)}${suffix}`;
+
+const pagedBody =
+  <
+    Result extends { rows: Row[]; totals: Record<string, number | null> },
+    Row extends Record<string, string | number>,
+  >(
+    label: string,
+    columns: Parameters<typeof PagedReportTable<Row>>[0]["columns"],
+  ) =>
+  ({ result, busy }: ReportBodyProps<Result>) => (
+    <PagedReportTable
+      label={label}
+      busy={busy}
+      columns={columns}
+      rows={result.rows}
+      totals={result.totals}
+    />
+  );
+
+const noRows = (result: { rows: unknown[] }) => result.rows.length === 0;
+
+const tableBody =
+  <
+    Result extends {
+      rows: Row[];
+      totals: Record<string, number | null>;
+      footer?: { label: string; values: Record<string, number> }[];
+    },
+    Row extends Record<string, string | number>,
+  >(
+    label: string,
+    columns: Parameters<typeof ReportTable<Row>>[0]["columns"],
+  ) =>
+  ({ result, busy }: ReportBodyProps<Result>) => (
+    <ReportTable
+      label={label}
+      busy={busy}
+      columns={columns}
+      rows={result.rows}
+      totals={result.totals}
+      footer={result.footer ?? []}
+    />
+  );
 
 export const salesByDayReport: ReportDefinition<SalesByDayResult> = {
   id: "sales-by-day",
@@ -171,29 +231,61 @@ export const discountsReturnsVoidsReport: ReportDefinition<DiscountsReturnsVoids
   Body: DiscountsReturnsVoidsBody,
 };
 
-const reports = () => window.vendora.reports;
+export const salesByHourReport: ReportDefinition<SalesByHourResult> = {
+  id: "sales-by-hour",
+  label: "Sales by hour",
+  emptyTitle: "No sales in this period",
+  load: ({ range }) => reports().salesByHour(range),
+  exportTo: ({ range }, format) => reports().exportSalesByHour({ range, format }),
+  isEmpty: noRows,
+  Body: tableBody("Sales by hour table", salesByHourColumns),
+};
 
-const asOfCaption = (asOf: string, suffix = "") => `As of ${formatDateTime(asOf)}${suffix}`;
+export const salesByProductReport: ReportDefinition<SalesByProductResult> = {
+  id: "sales-by-product",
+  label: "Sales by product",
+  emptyTitle: "No sales in this period",
+  load: ({ range }) => reports().salesByProduct(range),
+  exportTo: ({ range }, format) => reports().exportSalesByProduct({ range, format }),
+  isEmpty: noRows,
+  Body: tableBody("Sales by product table", salesByProductColumns),
+};
 
-const pagedBody =
-  <
-    Result extends { rows: Row[]; totals: Record<string, number | null> },
-    Row extends Record<string, string | number>,
-  >(
-    label: string,
-    columns: Parameters<typeof PagedReportTable<Row>>[0]["columns"],
-  ) =>
-  ({ result, busy }: ReportBodyProps<Result>) => (
-    <PagedReportTable
-      label={label}
-      busy={busy}
-      columns={columns}
-      rows={result.rows}
-      totals={result.totals}
-    />
-  );
+export const salesByCategoryReport: ReportDefinition<SalesByCategoryResult> = {
+  id: "sales-by-category",
+  label: "Sales by category",
+  emptyTitle: "No sales in this period",
+  load: ({ range }) => reports().salesByCategory(range),
+  exportTo: ({ range }, format) => reports().exportSalesByCategory({ range, format }),
+  isEmpty: noRows,
+  Body: tableBody("Sales by category table", salesByCategoryColumns),
+};
 
-const noRows = (result: { rows: unknown[] }) => result.rows.length === 0;
+export const salesByCashierReport: ReportDefinition<SalesByCashierResult> = {
+  id: "sales-by-cashier",
+  label: "Sales by cashier",
+  emptyTitle: "No sales in this period",
+  load: ({ range }) => reports().salesByCashier(range),
+  exportTo: ({ range }, format) => reports().exportSalesByCashier({ range, format }),
+  isEmpty: noRows,
+  Body: tableBody("Sales by cashier table", salesByCashierColumns),
+};
+
+export const paymentMethodReport: ReportDefinition<PaymentMethodsResult> = {
+  id: "sales-by-payment-method",
+  label: "Sales by payment method",
+  emptyTitle: "No payments in this period",
+  subject: "shift",
+  listShifts: (range) => reports().shifts(range),
+  load: ({ range, shiftId }) =>
+    shiftId === null ? reports().paymentMethods({ range }) : reports().paymentMethods({ shiftId }),
+  exportTo: ({ range, shiftId }, format) =>
+    shiftId === null
+      ? reports().exportPaymentMethods({ range, format })
+      : reports().exportPaymentMethods({ shiftId, format }),
+  isEmpty: noRows,
+  Body: tableBody("Sales by payment method table", paymentMethodColumns),
+};
 
 export const stockOnHandReport: ReportDefinition<StockOnHandResult> = {
   id: "stock-on-hand",

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import { Button } from "@renderer/components/ui/button";
 import { Input } from "@renderer/components/ui/input";
@@ -13,6 +13,7 @@ interface DateRangeControlProps {
   onPreset: (preset: ReportPreset) => void;
   onFromChange: (value: string) => void;
   onToChange: (value: string) => void;
+  children?: ReactNode;
 }
 
 export function DateRangeControl({
@@ -23,6 +24,7 @@ export function DateRangeControl({
   onPreset,
   onFromChange,
   onToChange,
+  children,
 }: DateRangeControlProps) {
   const startRef = useRef<HTMLInputElement>(null);
 
@@ -44,6 +46,7 @@ export function DateRangeControl({
           </Button>
         ))}
       </div>
+      {children}
       {preset === "custom" ? (
         <div className="flex basis-full flex-wrap items-center gap-300">
           <Input
