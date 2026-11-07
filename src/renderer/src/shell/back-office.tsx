@@ -9,13 +9,14 @@ import {
   UsersIcon,
   type LucideIcon,
 } from "lucide-react";
-import { Fragment, useState, type KeyboardEvent } from "react";
+import { Fragment, useCallback, useState, type KeyboardEvent } from "react";
 
 import { cn } from "@renderer/lib/utils";
 import { CategoriesScreen } from "../categories/categories-screen";
 import { LowStockScreen } from "../inventory/low-stock-screen";
 import { StockScreen } from "../inventory/stock-screen";
 import { ProductsScreen } from "../products/products-screen";
+import type { LeaveGuard, OrderSeed } from "../purchasing/order-form-screen";
 import { PurchaseOrdersScreen } from "../purchasing/purchase-orders-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
 import { PrinterSetting } from "../settings/printer-setting";
@@ -50,10 +51,25 @@ interface BackOfficeProps {
   currentUserId: string;
   onSessionEnded: () => void;
   focusPrinter?: boolean;
+  guarded: (go: () => void) => void;
+  registerLeaveGuard: (guard: LeaveGuard | null) => void;
 }
 
-export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: BackOfficeProps) {
+export function BackOffice({
+  currentUserId,
+  onSessionEnded,
+  focusPrinter,
+  guarded,
+  registerLeaveGuard,
+}: BackOfficeProps) {
   const [page, setPage] = useState<BackOfficePage>(focusPrinter ? "settings" : "products");
+  const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
+  const clearOrderSeed = useCallback(() => setOrderSeed(null), []);
+
+  const goTo = (next: BackOfficePage) => {
+    if (next === page) return;
+    guarded(() => setPage(next));
+  };
 
   return (
     <div
@@ -82,7 +98,7 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
                     ? "selection-pill hover:bg-surface-selected"
                     : "hover:bg-surface-hover",
                 )}
-                onClick={() => setPage(id)}
+                onClick={() => goTo(id)}
               >
                 <Icon aria-hidden="true" size={16} strokeWidth={2} className="text-icon-muted" />
                 {label}
@@ -101,7 +117,12 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
         ) : page === "low-stock" ? (
           <LowStockScreen onSessionEnded={onSessionEnded} />
         ) : page === "purchase-orders" ? (
-          <PurchaseOrdersScreen onSessionEnded={onSessionEnded} />
+          <PurchaseOrdersScreen
+            seed={orderSeed}
+            registerLeaveGuard={registerLeaveGuard}
+            onSeedUsed={clearOrderSeed}
+            onSessionEnded={onSessionEnded}
+          />
         ) : page === "suppliers" ? (
           <SuppliersScreen onSessionEnded={onSessionEnded} />
         ) : page === "users" ? (

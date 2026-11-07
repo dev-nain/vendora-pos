@@ -30,30 +30,48 @@ import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { PRODUCT_PAGE_SIZE, isTypingTarget, pageRangeLabel } from "../products/product-list";
 import { ErrorLine } from "../users/form-parts";
 import { filterOrders, supplierOptions } from "./order-list";
+import { OrderFormScreen, type LeaveGuard, type OrderSeed } from "./order-form-screen";
 import { OrderStatusBadge } from "./order-status-badge";
 
 const ALL = "all";
 
-type View = { kind: "list" } | { kind: "form"; orderId: string | null };
+type View = { kind: "list" } | { kind: "form"; orderId: string | null; seed: OrderSeed | null };
 
 interface PurchaseOrdersScreenProps {
+  seed: OrderSeed | null;
+  registerLeaveGuard: (guard: LeaveGuard | null) => void;
+  onSeedUsed: () => void;
   onSessionEnded: () => void;
 }
 
-export function PurchaseOrdersScreen({ onSessionEnded }: PurchaseOrdersScreenProps) {
-  const [view, setView] = useState<View>({ kind: "list" });
+export function PurchaseOrdersScreen({
+  seed,
+  registerLeaveGuard,
+  onSeedUsed,
+  onSessionEnded,
+}: PurchaseOrdersScreenProps) {
+  const [view, setView] = useState<View>(
+    seed ? { kind: "form", orderId: null, seed } : { kind: "list" },
+  );
+
+  useEffect(() => {
+    if (seed) onSeedUsed();
+  }, [seed, onSeedUsed]);
 
   return view.kind === "list" ? (
     <OrderList
       onSessionEnded={onSessionEnded}
-      onNew={() => setView({ kind: "form", orderId: null })}
-      onOpen={(orderId) => setView({ kind: "form", orderId })}
+      onNew={() => setView({ kind: "form", orderId: null, seed: null })}
+      onOpen={(orderId) => setView({ kind: "form", orderId, seed: null })}
     />
   ) : (
-    <Button variant="secondary" autoFocus onClick={() => setView({ kind: "list" })}>
-      <ChevronLeftIcon aria-hidden="true" size={16} strokeWidth={2} />
-      Purchase orders
-    </Button>
+    <OrderFormScreen
+      orderId={view.orderId}
+      seed={view.seed}
+      registerLeaveGuard={registerLeaveGuard}
+      onBack={() => setView({ kind: "list" })}
+      onSessionEnded={onSessionEnded}
+    />
   );
 }
 
