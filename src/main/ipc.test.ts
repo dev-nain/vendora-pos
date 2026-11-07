@@ -1,8 +1,9 @@
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ipcErrorMessages } from "@shared/ipc";
+import { ipcChannels, ipcErrorMessages } from "@shared/ipc";
 import { createProductInputSchema } from "@shared/products";
 import { createSessionStore, type SessionStore } from "./auth/session";
 import type { VendoraDatabase } from "./db/client";
@@ -10,14 +11,22 @@ import { auditLog, categories, products, stores, taxCategories, users } from "./
 import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
+import { createBackupSettingsService } from "./services/backup-settings";
 import { createCatalogExportService } from "./services/catalog-export";
-import { createInventoryService, type InventoryService } from "./services/inventory";
 import { createProductsService, type ProductsService } from "./services/products";
 import { createCheckoutKit, type CheckoutKit } from "./services/checkout-test-kit";
 import { createSalesService, type SalesService } from "./services/sales";
+import {
+  createPurchaseOrdersService,
+  type PurchaseOrdersService,
+} from "./services/purchase-orders";
 import { createShiftsService, type ShiftsService } from "./services/shifts";
+import { createSuppliersService, type SuppliersService } from "./services/suppliers";
+import { createGoodsReceivedService, type GoodsReceivedService } from "./services/goods-received";
 import { createStockService } from "./services/stock";
 import { openMigratedDatabase } from "./db/test-database";
+import { createInventoryService, type InventoryService } from "./services/inventory";
+import { createAuditLogService, type AuditLogService } from "./services/audit-log";
 
 const handlers = vi.hoisted(
   () => new Map<string, (event: unknown, ...args: unknown[]) => unknown>(),
@@ -39,13 +48,30 @@ const invoke = async (channel: string, input?: unknown) => {
   return handler({}, input);
 };
 
+const goodBackupName = "vendora-2026-11-06T12-30-00-123Z.db";
 const unknownId = "0192f3a0-0000-7000-8000-000000000099";
+
+const order = (supplierId: string, productId: string) => ({
+  supplierId,
+  notes: null,
+  lines: [{ productId, orderedQtyMilli: 2000, unitCostPaisa: 14333 }],
+});
+
+const directGrn = (supplierId: string, productId: string) => ({
+  kind: "direct",
+  supplierId,
+  supplierInvoiceNo: "INV-100",
+  lines: [{ productId, qtyMilli: 10000, unitCostPaisa: 12000 }],
+});
 
 describe("products ipc", () => {
   let dir: string;
   let database: VendoraDatabase;
   let sessions: SessionStore;
   let service: ProductsService;
+  let suppliersService: SuppliersService;
+  let purchaseOrdersService: PurchaseOrdersService;
+  let goodsReceivedService: GoodsReceivedService;
   let exportPath: string | null;
   let categoryId: string;
   let taxCategoryId: string;
@@ -108,6 +134,22 @@ describe("products ipc", () => {
     taxCategoryId = database.db.select().from(taxCategories).get()!.id;
     sessions = createSessionStore();
     service = createProductsService({ database, audit: createAuditService(database), sessions });
+    suppliersService = createSuppliersService({
+      database,
+      audit: createAuditService(database),
+      sessions,
+    });
+    purchaseOrdersService = createPurchaseOrdersService({
+      database,
+      audit: createAuditService(database),
+      sessions,
+    });
+    goodsReceivedService = createGoodsReceivedService({
+      database,
+      audit: createAuditService(database),
+      sessions,
+      stock: createStockService({ database, audit: createAuditService(database) }),
+    });
     exportPath = join(dir, "catalog.csv");
     const catalogExport = createCatalogExportService({
       database,
@@ -116,17 +158,24 @@ describe("products ipc", () => {
     });
     const stub = {} as never;
     registerIpcHandlers({
+      auditLog: stub,
       auth: stub,
+      backupAdmin: stub,
+      backupPassword: stub,
+      backupSettings: stub,
       billDrafts: stub,
       catalogExport,
       categories: stub,
+      goodsReceived: goodsReceivedService,
       inventory: stub,
       products: service,
+      purchaseOrders: purchaseOrdersService,
       receipts: stub,
       returns: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
+      suppliers: suppliersService,
       taxCategories: stub,
       users: stub,
     });
@@ -208,6 +257,171 @@ describe("products ipc", () => {
         offset: 0,
       })) as { items: { id: string }[] };
       expect(found.items.map((i) => i.id)).toEqual([product.id]);
+    });
+  });
+
+  describe("suppliers", () => {
+    const supplier = {
+      name: "Al-Noor",
+      contactPerson: null,
+      phone: null,
+      ntn: null,
+      notes: null,
+    };
+
+    it.each([
+      ["suppliers:create", "create", { ...supplier, name: "" }],
+      ["suppliers:create", "create", { ...supplier, extra: 1 }],
+      ["suppliers:update", "update", { ...supplier, id: "x" }],
+      ["suppliers:archive", "archive", { id: "x" }],
+      ["suppliers:restore", "restore", { id: "x" }],
+      ["suppliers:list", "list", { includeArchived: "yes" }],
+    ] as const)("%s rejects bad input", async (channel, method, input) => {
+      signIn("owner");
+      const spy = vi.spyOn(suppliersService, method);
+      await expect(invoke(channel, input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("lists active suppliers when called with no input", async () => {
+      signIn("cashier");
+      const created = (await invoke("suppliers:create", supplier)) as {
+        supplier: { id: string };
+      };
+      await invoke("suppliers:archive", { id: created.supplier.id });
+
+      expect(await invoke("suppliers:list")).toEqual([]);
+      expect(await invoke("suppliers:list", { includeArchived: true })).toHaveLength(1);
+    });
+
+    it("is refused when signed out", async () => {
+      sessions.end();
+      const writes: [string, unknown][] = [
+        ["suppliers:list", undefined],
+        ["suppliers:create", supplier],
+        ["suppliers:update", { ...supplier, id: unknownId }],
+        ["suppliers:archive", { id: unknownId }],
+        ["suppliers:restore", { id: unknownId }],
+      ];
+      for (const [channel, input] of writes) {
+        await expect(invoke(channel, input)).rejects.toThrow(
+          new Error(ipcErrorMessages.unauthenticated),
+        );
+      }
+    });
+  });
+
+  describe("goods received", () => {
+    it.each([
+      ["x", [{ productId: unknownId, qtyMilli: 1, unitCostPaisa: 1 }]],
+      [unknownId, []],
+    ] as const)("rejects bad input before the service runs", async (supplierId, lines) => {
+      signIn("owner");
+      const spy = vi.spyOn(goodsReceivedService, "post");
+      await expect(
+        invoke("goods-received:post", {
+          kind: "direct",
+          supplierId,
+          supplierInvoiceNo: "INV-1",
+          lines,
+        }),
+      ).rejects.toThrow();
+      await expect(
+        invoke("goods-received:post", { ...directGrn(unknownId, unknownId), extra: 1 }),
+      ).rejects.toThrow();
+      await expect(invoke("goods-received:post", { kind: "other" })).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("posts a direct note and moves the cost", async () => {
+      signIn("cashier");
+      const product = seedProduct();
+      const created = (await invoke("suppliers:create", {
+        name: "Al-Noor",
+        contactPerson: null,
+        phone: null,
+        ntn: null,
+        notes: null,
+      })) as { supplier: { id: string } };
+
+      const result = await invoke(
+        "goods-received:post",
+        directGrn(created.supplier.id, product.id),
+      );
+
+      expect(result).toMatchObject({
+        ok: true,
+        note: { grnNo: "GRN-T1-000001", totalPaisa: 120000, purchaseOrderId: null },
+      });
+      expect(
+        database.db.select().from(products).where(eq(products.id, product.id)).get()!.costPaisa,
+      ).toBe(12000);
+    });
+
+    it("is refused when signed out", async () => {
+      sessions.end();
+      await expect(invoke("goods-received:post", directGrn(unknownId, unknownId))).rejects.toThrow(
+        new Error(ipcErrorMessages.unauthenticated),
+      );
+    });
+  });
+
+  describe("purchase orders", () => {
+    it.each([
+      ["purchase-orders:create", "create", { supplierId: "x", notes: null, lines: [] }],
+      ["purchase-orders:create", "create", { supplierId: unknownId, notes: null, lines: [] }],
+      ["purchase-orders:create", "create", { supplierId: unknownId, notes: null, extra: 1 }],
+      ["purchase-orders:update", "update", { id: "x", supplierId: unknownId, notes: null }],
+      ["purchase-orders:get", "get", { id: "x" }],
+      ["purchase-orders:confirm", "confirm", { id: "x" }],
+      ["purchase-orders:cancel", "cancel", { id: "x" }],
+    ] as const)("%s rejects bad input", async (channel, method, input) => {
+      signIn("owner");
+      const spy = vi.spyOn(purchaseOrdersService, method);
+      await expect(invoke(channel, input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("creates, confirms and reads an order", async () => {
+      signIn("cashier");
+      const product = seedProduct();
+      const created = (await invoke("suppliers:create", {
+        name: "Al-Noor",
+        contactPerson: null,
+        phone: null,
+        ntn: null,
+        notes: null,
+      })) as { supplier: { id: string } };
+
+      const result = (await invoke(
+        "purchase-orders:create",
+        order(created.supplier.id, product.id),
+      )) as { ok: true; order: { id: string; status: string; totalPaisa: number } };
+      expect(result).toMatchObject({ ok: true, order: { status: "draft", totalPaisa: 28666 } });
+
+      await invoke("purchase-orders:confirm", { id: result.order.id });
+      expect(await invoke("purchase-orders:get", { id: result.order.id })).toMatchObject({
+        ok: true,
+        order: { status: "confirmed" },
+      });
+      expect(await invoke("purchase-orders:list")).toHaveLength(1);
+    });
+
+    it("is refused when signed out", async () => {
+      sessions.end();
+      const requests: [string, unknown][] = [
+        ["purchase-orders:list", undefined],
+        ["purchase-orders:get", { id: unknownId }],
+        ["purchase-orders:create", order(unknownId, unknownId)],
+        ["purchase-orders:update", { id: unknownId, ...order(unknownId, unknownId) }],
+        ["purchase-orders:confirm", { id: unknownId }],
+        ["purchase-orders:cancel", { id: unknownId }],
+      ];
+      for (const [channel, input] of requests) {
+        await expect(invoke(channel, input)).rejects.toThrow(
+          new Error(ipcErrorMessages.unauthenticated),
+        );
+      }
     });
   });
 
@@ -330,17 +544,24 @@ describe("shifts ipc", () => {
     receipts = { openDrawer: vi.fn() };
     const stub = {} as never;
     registerIpcHandlers({
+      auditLog: stub,
       auth: stub,
+      backupAdmin: stub,
+      backupPassword: stub,
+      backupSettings: stub,
       billDrafts: stub,
       catalogExport: stub,
       categories: stub,
+      goodsReceived: stub,
       inventory: stub,
       products: stub,
+      purchaseOrders: stub,
       receipts: receipts as never,
       returns: stub,
       sales: stub,
       settings: stub,
       shifts: service,
+      suppliers: stub,
       taxCategories: stub,
       users: stub,
     });
@@ -479,17 +700,24 @@ describe("checkout ipc", () => {
     receipts = { startAfterSale: vi.fn() };
     const stub = {} as never;
     registerIpcHandlers({
+      auditLog: stub,
       auth: stub,
+      backupAdmin: stub,
+      backupPassword: stub,
+      backupSettings: stub,
       billDrafts: kit.billDrafts,
       catalogExport: stub,
       categories: stub,
+      goodsReceived: stub,
       inventory: stub,
       products: stub,
+      purchaseOrders: stub,
       receipts: receipts as never,
       returns: kit.returns,
       sales,
       settings: stub,
       shifts: kit.shifts,
+      suppliers: stub,
       taxCategories: stub,
       users: stub,
     });
@@ -705,6 +933,216 @@ describe("checkout ipc", () => {
   });
 });
 
+describe("backup settings ipc", () => {
+  let kit: CheckoutKit;
+  let folder: string;
+
+  beforeEach(() => {
+    handlers.clear();
+    kit = createCheckoutKit();
+    folder = join(kit.dir, "usb");
+    const backupSettings = createBackupSettingsService({
+      database: kit.database,
+      audit: kit.audit,
+      sessions: kit.sessions,
+      chooseFolder: async () => folder,
+    });
+    const stub = {} as never;
+    registerIpcHandlers({
+      auditLog: stub,
+      auth: stub,
+      backupAdmin: stub,
+      backupPassword: stub,
+      backupSettings,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      goodsReceived: stub,
+      inventory: stub,
+      products: stub,
+      purchaseOrders: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      suppliers: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+  });
+
+  afterEach(() => kit.close());
+
+  it("ignores a path passed by the caller to the choose channel", async () => {
+    kit.signIn("cashier");
+
+    const status = await invoke("settings:choose-second-copy-folder", "/etc");
+
+    expect(status).toEqual({ folder, lastCopy: null });
+  });
+});
+
+describe("backup ipc", () => {
+  const admin = {
+    status: vi.fn(),
+    backupNow: vi.fn(),
+    chooseRestoreFile: vi.fn(),
+    restore: vi.fn(),
+  };
+
+  beforeEach(() => {
+    handlers.clear();
+    vi.clearAllMocks();
+    const stub = {} as never;
+    registerIpcHandlers({
+      auditLog: stub,
+      auth: stub,
+      backupAdmin: admin as never,
+      backupPassword: stub,
+      backupSettings: stub,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      goodsReceived: stub,
+      inventory: stub,
+      products: stub,
+      purchaseOrders: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      suppliers: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+  });
+
+  it("parses every output", async () => {
+    admin.status.mockResolvedValue({
+      lastBackupAt: null,
+      lastFailure: null,
+      backups: [],
+      restoreBlock: null,
+    });
+    admin.backupNow.mockResolvedValue({ ok: true });
+    admin.chooseRestoreFile.mockResolvedValue(null);
+    admin.restore.mockResolvedValue({ ok: true });
+
+    expect(await invoke("backup:status")).toMatchObject({ backups: [] });
+    expect(await invoke("backup:run")).toEqual({ ok: true });
+    expect(await invoke("backup:choose-file")).toBeNull();
+    expect(await invoke("backup:restore", { kind: "listed", fileName: goodBackupName })).toEqual({
+      ok: true,
+    });
+    expect(admin.restore).toHaveBeenCalledWith({ kind: "listed", fileName: goodBackupName });
+  });
+
+  it("rejects a malformed service answer", async () => {
+    admin.status.mockResolvedValue({ lastBackupAt: "yesterday" });
+
+    await expect(invoke("backup:status")).rejects.toThrow();
+  });
+
+  it.each([
+    { kind: "listed", fileName: "../vendora.db" },
+    { kind: "listed", fileName: "C:\\Users\\x\\vendora-2026-11-06T12-30-00-123Z.db" },
+    { kind: "listed", fileName: "/etc/passwd" },
+    { kind: "listed", fileName: `sub/${goodBackupName}` },
+    { kind: "picked", token: "not-a-uuid" },
+    { kind: "picked", token: unknownId, path: "/tmp/x.db" },
+    { kind: "other" },
+    { fileName: goodBackupName },
+  ])("rejects restore input %j before the service runs", async (input) => {
+    await expect(invoke("backup:restore", input)).rejects.toThrow();
+    expect(admin.restore).not.toHaveBeenCalled();
+  });
+});
+
+describe("backup password ipc", () => {
+  const service = {
+    status: vi.fn(),
+    turnOn: vi.fn(),
+    change: vi.fn(),
+    turnOff: vi.fn(),
+  };
+
+  beforeEach(() => {
+    handlers.clear();
+    vi.clearAllMocks();
+    const stub = {} as never;
+    registerIpcHandlers({
+      auditLog: stub,
+      auth: stub,
+      backupAdmin: stub,
+      backupPassword: service as never,
+      backupSettings: stub,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      goodsReceived: stub,
+      inventory: stub,
+      products: stub,
+      purchaseOrders: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      suppliers: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+  });
+
+  it("parses input and output on all four channels", async () => {
+    service.status.mockResolvedValue({ state: "off" });
+    service.turnOn.mockResolvedValue({ ok: true, status: { state: "on" } });
+    service.change.mockResolvedValue({ ok: true, status: { state: "on" } });
+    service.turnOff.mockResolvedValue({ ok: true, status: { state: "off" } });
+
+    expect(await invoke("backup:password-status")).toEqual({ state: "off" });
+    await invoke("backup:password-turn-on", { password: "blue horse 7" });
+    await invoke("backup:password-change", { current: "blue horse 7", next: "green horse 8" });
+    await invoke("backup:password-turn-off", { current: "green horse 8" });
+
+    expect(service.turnOn).toHaveBeenCalledWith({ password: "blue horse 7" });
+    expect(service.change).toHaveBeenCalledWith({ current: "blue horse 7", next: "green horse 8" });
+    expect(service.turnOff).toHaveBeenCalledWith({ current: "green horse 8" });
+  });
+
+  it.each([
+    ["backup:password-turn-on", { password: "short" }],
+    ["backup:password-turn-on", { password: "blue horse 7", extra: 1 }],
+    ["backup:password-change", { current: "", next: "green horse 8" }],
+    ["backup:password-change", { current: "x", next: "short" }],
+    ["backup:password-turn-off", { current: "" }],
+    ["backup:password-turn-off", {}],
+  ])("rejects %s input %j before the service runs", async (channel, input) => {
+    await expect(invoke(channel, input)).rejects.toThrow();
+
+    expect(service.turnOn).not.toHaveBeenCalled();
+    expect(service.change).not.toHaveBeenCalled();
+    expect(service.turnOff).not.toHaveBeenCalled();
+  });
+
+  it("keeps a rejected password out of the error", async () => {
+    const error = await invoke("backup:password-turn-on", { password: "short7" }).catch(
+      (cause: unknown) => cause,
+    );
+
+    expect(error).toBeInstanceOf(Error);
+    expect(String((error as Error).message)).not.toContain("short7");
+  });
+
+  it("rejects a malformed service answer", async () => {
+    service.status.mockResolvedValue({ state: "maybe" });
+
+    await expect(invoke("backup:password-status")).rejects.toThrow();
+  });
+});
+
 describe("inventory ipc", () => {
   let kit: CheckoutKit;
   let service: InventoryService;
@@ -719,17 +1157,24 @@ describe("inventory ipc", () => {
     });
     const stub = {} as never;
     registerIpcHandlers({
+      auditLog: stub,
       auth: stub,
+      backupAdmin: stub,
+      backupPassword: stub,
+      backupSettings: stub,
       billDrafts: stub,
       catalogExport: stub,
       categories: stub,
+      goodsReceived: stub,
       inventory: service,
       products: stub,
+      purchaseOrders: stub,
       receipts: stub,
       returns: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
+      suppliers: stub,
       taxCategories: stub,
       users: stub,
     });
@@ -745,6 +1190,10 @@ describe("inventory ipc", () => {
     ["inventory:list-stock", "list", { query: "", limit: 101, offset: 0 }],
     ["inventory:list-stock", "list", { query: "", limit: 10, offset: 0, extra: 1 }],
     ["inventory:list-stock", "list", { query: "", limit: 10, offset: 0, includeArchived: true }],
+    ["inventory:low-stock", "lowStock", { limit: 101, offset: 0 }],
+    ["inventory:low-stock", "lowStock", { limit: 10, offset: 0, extra: 1 }],
+    ["inventory:low-stock", "lowStock", { limit: 10, offset: 0, categoryId: "x" }],
+    ["inventory:low-stock", "lowStock", { limit: 10, offset: 0, query: "" }],
     ["inventory:stock-history", "history", { productId: "x", limit: 10, offset: 0 }],
     ["inventory:stock-history", "history", { productId: unknownId, limit: 101, offset: 0 }],
     [
@@ -756,6 +1205,47 @@ describe("inventory ipc", () => {
     const spy = vi.spyOn(service, method);
     await expect(invoke(channel, input)).rejects.toThrow();
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  describe("adjust stock", () => {
+    const productId = unknownId;
+    const change = { mode: "change", productId, qtyMilli: -1000, reason: "theft" };
+    const count = { mode: "count", productId, countedMilli: 5000, reason: "correction" };
+
+    it.each([
+      ["no reason", { mode: "change", productId, qtyMilli: -1000 }],
+      ["unknown reason", { ...change, reason: "lost" }],
+      ["zero quantity", { ...change, qtyMilli: 0 }],
+      ["fractional quantity", { ...change, qtyMilli: 1.5 }],
+      ["quantity over the limit", { ...change, qtyMilli: 1_000_000_001 }],
+      ["negative count", { ...count, countedMilli: -1 }],
+      ["fractional count", { ...count, countedMilli: 1.5 }],
+      ["unknown mode", { ...change, mode: "set" }],
+      ["bad product id", { ...change, productId: "x" }],
+      ["extra actor", { ...change, actorUserId: unknownId }],
+    ])("rejects %s", async (_name, input) => {
+      const spy = vi.spyOn(service, "adjustStock");
+      await expect(invoke("inventory:adjust-stock", input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("passes both modes to the service", async () => {
+      const spy = vi.spyOn(service, "adjustStock");
+      for (const input of [change, count]) {
+        expect(await invoke("inventory:adjust-stock", input)).toMatchObject({
+          ok: false,
+          reason: "not-found",
+        });
+        expect(spy).toHaveBeenLastCalledWith(input);
+      }
+    });
+
+    it("rejects with no session", async () => {
+      kit.sessions.end();
+      await expect(invoke("inventory:adjust-stock", change)).rejects.toThrow(
+        new Error(ipcErrorMessages.unauthenticated),
+      );
+    });
   });
 
   it("lists stock and returns a refusal for an unknown product", async () => {
@@ -771,10 +1261,129 @@ describe("inventory ipc", () => {
     ).toMatchObject({ ok: false, reason: "not-found" });
   });
 
+  it("lists low-stock products", async () => {
+    const tea = kit.addProduct({
+      nameEn: "Tea",
+      searchText: "tea",
+      lowStockThresholdMilli: 5000,
+    });
+    expect(await invoke("inventory:low-stock", { limit: 10, offset: 0 })).toMatchObject({
+      total: 1,
+      items: [{ id: tea.id, onHandMilli: 0, thresholdMilli: 5000, shortfallMilli: 5000 }],
+    });
+  });
+
   it("rejects reads with no session", async () => {
     kit.sessions.end();
     await expect(
       invoke("inventory:list-stock", { query: "", limit: 10, offset: 0 }),
     ).rejects.toThrow(new Error(ipcErrorMessages.unauthenticated));
+    await expect(invoke("inventory:low-stock", { limit: 10, offset: 0 })).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
+  });
+});
+
+describe("audit log ipc", () => {
+  let dir: string;
+  let database: VendoraDatabase;
+  let sessions: SessionStore;
+  let service: AuditLogService;
+  let userId: string;
+  const cursorId = "0192f3a0-0000-7000-8000-000000000098";
+
+  beforeEach(() => {
+    handlers.clear();
+    dir = mkdtempSync(join(tmpdir(), "vendora-ipc-audit-"));
+    database = openMigratedDatabase(join(dir, "vendora.db"));
+    seedStoreAndTerminal(database);
+    userId = database.db
+      .insert(users)
+      .values({ username: "owner", displayName: "Owner", passwordHash: "x", pinHash: "x" })
+      .returning()
+      .get().id;
+    sessions = createSessionStore();
+    sessions.start({
+      userId,
+      storeId: database.db.select().from(stores).get()!.id,
+      loggedInAt: new Date(0),
+    });
+    const audit = createAuditService(database);
+    audit.record({ action: "login", actorUserId: userId });
+    audit.record({ action: "logout", actorUserId: userId });
+    service = createAuditLogService({ database, sessions });
+    const stub = {} as never;
+    registerIpcHandlers({
+      auditLog: service,
+      auth: stub,
+      backupAdmin: stub,
+      backupPassword: stub,
+      backupSettings: stub,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      goodsReceived: stub,
+      inventory: stub,
+      products: stub,
+      purchaseOrders: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      suppliers: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    database.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("returns a filtered page through the schemas", async () => {
+    expect(await invoke("audit:list", { action: "logout", userId })).toMatchObject({
+      entries: [{ action: "logout", actorName: "Owner" }],
+      nextCursor: null,
+    });
+    expect(await invoke("audit:users")).toEqual([{ id: userId, displayName: "Owner" }]);
+  });
+
+  it.each([
+    { sort: "asc" },
+    { userId: "x" },
+    { from: "2026-02-01", to: "2026-01-01" },
+    { before: { createdAt: "2026-01-01T00:00:00.000Z", id: cursorId, extra: 1 } },
+  ])("refuses invalid input %j without calling the service", async (input) => {
+    const spy = vi.spyOn(service, "list");
+    await expect(invoke("audit:list", input)).rejects.toThrow();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("registers only the two read channels", () => {
+    const channels = Object.values(ipcChannels);
+    expect(channels.filter((name) => name.startsWith("audit:")).toSorted()).toEqual([
+      "audit:list",
+      "audit:users",
+    ]);
+    expect([...handlers.keys()].filter((name) => name.startsWith("audit:")).toSorted()).toEqual([
+      "audit:list",
+      "audit:users",
+    ]);
+    const writeVerb = /update|delete|remove|edit|create|write|clear/;
+    expect(
+      [...handlers.keys()].filter((name) => /audit/.test(name) && writeVerb.test(name)),
+    ).toEqual([]);
+  });
+
+  it("refuses both channels with no session", async () => {
+    sessions.end();
+    for (const channel of ["audit:list", "audit:users"]) {
+      await expect(invoke(channel, {})).rejects.toThrow(
+        new Error(ipcErrorMessages.unauthenticated),
+      );
+    }
   });
 });

@@ -11,7 +11,7 @@ import type { ProductSearchItem } from "@shared/products";
 import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
 
-const itemClasses =
+export const itemClasses =
   "flex min-h-[var(--height-control-md)] cursor-default items-center gap-200 rounded-100 px-300 text-[length:var(--font-size-350)] text-foreground outline-none select-none data-highlighted:selection-pill";
 
 interface ProductRowMenuProps {
