@@ -558,6 +558,62 @@ describe("createPurchaseReturnsService", () => {
     });
   });
 
+  describe("list and get", () => {
+    it("lists newest first with the note number, line count, paging and total", () => {
+      const note = receive(teaId, 10000, 10000);
+      receive(sugarId, 10000, 10000);
+      const first = posted(
+        fromNoteInput(note.id, [{ goodsReceivedLineId: note.lines[0]!.id, qtyMilli: 1000 }]),
+      );
+      const second = posted(
+        fromSupplier([
+          { productId: teaId, qtyMilli: 1000 },
+          { productId: sugarId, qtyMilli: 1000 },
+        ]),
+      );
+
+      const page = service.list({ limit: 1, offset: 0 });
+      expect(page.total).toBe(2);
+      expect(page.items).toEqual([
+        {
+          id: second.id,
+          returnNo: "PRN-T1-000002",
+          supplierId,
+          supplierName: "Al-Noor",
+          grnNo: null,
+          reason: "damaged",
+          lineCount: 2,
+          totalPaisa: 20000,
+          createdAt: second.createdAt,
+        },
+      ]);
+      expect(service.list({ limit: 1, offset: 1 }).items[0]).toMatchObject({
+        id: first.id,
+        grnNo: note.grnNo,
+        lineCount: 1,
+      });
+      expect(service.list({ limit: 10, offset: 5 }).items).toEqual([]);
+    });
+
+    it("gets what post returned and refuses an unknown return", () => {
+      receive(teaId, 10000, 10000);
+      const result = posted(fromSupplier([{ productId: teaId, qtyMilli: 1000 }]));
+
+      expect(service.get({ id: result.id })).toEqual({ ok: true, purchaseReturn: result });
+      expect(service.get({ id: missingId })).toMatchObject({ ok: false, reason: "not-found" });
+    });
+  });
+
+  it("offers no way to edit a posted return", () => {
+    expect(Object.keys(service).toSorted()).toEqual([
+      "fromNote",
+      "get",
+      "list",
+      "post",
+      "returnable",
+    ]);
+  });
+
   it("throws when signed out", () => {
     sessions.end();
     expect(() => service.post(fromSupplier([{ productId: teaId, qtyMilli: 1000 }]))).toThrow(
@@ -567,5 +623,7 @@ describe("createPurchaseReturnsService", () => {
       UnauthenticatedError,
     );
     expect(() => service.fromNote({ id: missingId })).toThrow(UnauthenticatedError);
+    expect(() => service.list({ limit: 10, offset: 0 })).toThrow(UnauthenticatedError);
+    expect(() => service.get({ id: missingId })).toThrow(UnauthenticatedError);
   });
 });

@@ -1,9 +1,12 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { checkoutMessages } from "../../shared/checkout";
 import {
   purchaseReturnMessages,
+  type GetPurchaseReturnResult,
   type PostPurchaseReturnResult,
+  type PurchaseReturnListQuery,
+  type PurchaseReturnListResult,
   type PurchaseReturn,
   type ReturnableInput,
   type ReturnableNoteResult,
@@ -491,6 +494,75 @@ export function createPurchaseReturnsService({
     };
   }
 
-  return { post, returnable, fromNote };
+  function list(query: PurchaseReturnListQuery): PurchaseReturnListResult {
+    const session = requireSession(sessions);
+    const where = eq(purchaseReturns.storeId, session.storeId);
+    const rows = db
+      .select({
+        id: purchaseReturns.id,
+        returnNo: purchaseReturns.returnNo,
+        supplierId: purchaseReturns.supplierId,
+        supplierName: suppliers.name,
+        grnNo: goodsReceivedNotes.grnNo,
+        reason: purchaseReturns.reason,
+        totalPaisa: purchaseReturns.totalPaisa,
+        createdAt: purchaseReturns.createdAt,
+      })
+      .from(purchaseReturns)
+      .innerJoin(suppliers, eq(suppliers.id, purchaseReturns.supplierId))
+      .leftJoin(goodsReceivedNotes, eq(goodsReceivedNotes.id, purchaseReturns.goodsReceivedNoteId))
+      .where(where)
+      .orderBy(desc(purchaseReturns.createdAt), desc(purchaseReturns.id))
+      .limit(query.limit)
+      .offset(query.offset)
+      .all();
+
+    const lineCounts = new Map(
+      rows.length === 0
+        ? []
+        : db
+            .select({ returnId: purchaseReturnLines.purchaseReturnId, lineCount: count() })
+            .from(purchaseReturnLines)
+            .where(
+              inArray(
+                purchaseReturnLines.purchaseReturnId,
+                rows.map((row) => row.id),
+              ),
+            )
+            .groupBy(purchaseReturnLines.purchaseReturnId)
+            .all()
+            .map((row) => [row.returnId, row.lineCount] as const),
+    );
+    const total =
+      db.select({ total: count() }).from(purchaseReturns).where(where).get()?.total ?? 0;
+
+    return {
+      items: rows.map((row) => ({
+        ...row,
+        lineCount: lineCounts.get(row.id) ?? 0,
+        createdAt: row.createdAt.toISOString(),
+      })),
+      total,
+    };
+  }
+
+  function get({ id }: { id: string }): GetPurchaseReturnResult {
+    const session = requireSession(sessions);
+    const header = db
+      .select()
+      .from(purchaseReturns)
+      .where(and(eq(purchaseReturns.id, id), eq(purchaseReturns.storeId, session.storeId)))
+      .get();
+    if (!header) return refuse("not-found", purchaseReturnMessages.notFound);
+    const lines = db
+      .select()
+      .from(purchaseReturnLines)
+      .where(eq(purchaseReturnLines.purchaseReturnId, header.id))
+      .orderBy(asc(purchaseReturnLines.position))
+      .all();
+    return { ok: true, purchaseReturn: toReturn(db, header, lines) };
+  }
+
+  return { post, returnable, fromNote, list, get };
 }
 export type PurchaseReturnsService = ReturnType<typeof createPurchaseReturnsService>;
