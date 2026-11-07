@@ -94,18 +94,31 @@ export function formatRangeLabel(range: ReportRange): string {
     : `${formatStoreDay(range.from)} – ${formatStoreDay(range.to)}`;
 }
 
+export type ReportCellValue = string | number | null;
+
 export type ReportColumn<Row> = {
   key: Extract<keyof Row, string>;
   label: string;
   width?: string;
-} & ({ format: "day" | "text" | "count" | "money" } | { format: "quantity"; unit: ProductUnit });
+} & (
+  | { format: "day" | "text" | "count" | "money" | "percent" }
+  | { format: "quantity"; unit: ProductUnit }
+);
 
 export const isNumericColumn = <Row>(column: ReportColumn<Row>): boolean =>
   column.format !== "day" && column.format !== "text";
 
 const MINUS = "−";
+const EMPTY_CELL = "—";
 
-export function formatReportCell<Row>(column: ReportColumn<Row>, value: string | number): string {
+export function formatPercentBps(bps: number): string {
+  const magnitude = Math.abs(Math.trunc(bps));
+  const hundredths = String(magnitude % 100).padStart(2, "0");
+  return `${bps < 0 ? MINUS : ""}${Math.trunc(magnitude / 100)}.${hundredths}%`;
+}
+
+export function formatReportCell<Row>(column: ReportColumn<Row>, value: ReportCellValue): string {
+  if (value === null) return EMPTY_CELL;
   switch (column.format) {
     case "day":
       return formatStoreDay(String(value));
@@ -118,12 +131,20 @@ export function formatReportCell<Row>(column: ReportColumn<Row>, value: string |
       const grouped = String(Math.abs(count)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
       return count < 0 ? `${MINUS}${grouped}` : grouped;
     }
+    case "percent":
+      return formatPercentBps(Number(value));
     case "text":
       return String(value);
   }
 }
 
 const countSchema = z.number().int();
+
+export const reportFooterRowSchema = z.strictObject({
+  label: z.string(),
+  values: z.record(z.string(), countSchema),
+});
+export type ReportFooterRow = z.infer<typeof reportFooterRowSchema>;
 
 export const salesByDayTotalsSchema = z.strictObject({
   billCount: countSchema,

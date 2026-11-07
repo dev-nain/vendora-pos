@@ -8,7 +8,9 @@ import {
   formatRangeLabel,
   presetRange,
   reportRangeSchema,
+  type ReportCellValue,
   type ReportExportFormat,
+  type ReportFooterRow,
   type ReportPreset,
   type ReportRange,
 } from "@shared/reports";
@@ -19,8 +21,8 @@ import type { ReportDefinition } from "./report-definitions";
 import { ReportTable } from "./report-table";
 
 interface ReportViewProps<
-  Row extends Record<string, string | number>,
-  Totals extends Record<string, number>,
+  Row extends Record<string, ReportCellValue>,
+  Totals extends Record<string, number | null>,
 > {
   definition: ReportDefinition<Row, Totals>;
   picker: ReactNode;
@@ -35,15 +37,19 @@ const rangeError = (from: string, to: string): string =>
 const shortcuts: Record<string, ReportExportFormat> = { e: "csv", p: "pdf" };
 
 export function ReportView<
-  Row extends Record<string, string | number>,
-  Totals extends Record<string, number>,
+  Row extends Record<string, ReportCellValue>,
+  Totals extends Record<string, number | null>,
 >({ definition, picker, onSessionEnded }: ReportViewProps<Row, Totals>) {
   const [preset, setPreset] = useState<ReportPreset>("today");
   const [initial] = useState(() => presetRange("today", new Date()));
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
   const [reloadKey, setReloadKey] = useState(0);
-  const [result, setResult] = useState<{ rows: Row[]; totals: Totals } | null>(null);
+  const [result, setResult] = useState<{
+    rows: Row[];
+    totals: Totals;
+    footer?: ReportFooterRow[];
+  } | null>(null);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -215,6 +221,7 @@ export function ReportView<
             columns={definition.columns}
             rows={rows}
             totals={result.totals}
+            footer={result.footer ?? []}
           />
         )}
       </div>

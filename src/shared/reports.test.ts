@@ -183,9 +183,9 @@ describe("range labels", () => {
 });
 
 describe("formatReportCell", () => {
-  type Row = { a: string | number };
+  type Row = { a: string | number | null };
   type Spec =
-    | { format: "day" | "text" | "count" | "money" }
+    | { format: "day" | "text" | "count" | "money" | "percent" }
     | { format: "quantity"; unit: ProductUnit };
   const column = (spec: Spec): ReportColumn<Row> => ({ key: "a", label: "A", ...spec });
 
@@ -205,6 +205,20 @@ describe("formatReportCell", () => {
     expect(formatReportCell(column({ format: "quantity", unit: "kg" }), -1500)).toBe("−1.500 kg");
     expect(formatReportCell(column({ format: "quantity", unit: "piece" }), -2000)).toBe("−2 pcs");
     expect(formatReportCell(column({ format: "count" }), -3)).toBe("−3");
+  });
+
+  it("formats percent from basis points", () => {
+    expect(formatReportCell(column({ format: "percent" }), 2345)).toBe("23.45%");
+    expect(formatReportCell(column({ format: "percent" }), -500)).toBe("−5.00%");
+    expect(formatReportCell(column({ format: "percent" }), 0)).toBe("0.00%");
+    expect(formatReportCell(column({ format: "percent" }), 7)).toBe("0.07%");
+    expect(formatReportCell(column({ format: "percent" }), -7)).toBe("−0.07%");
+  });
+
+  it("shows an empty cell for null in every format", () => {
+    for (const format of ["day", "text", "count", "money", "percent"] as const)
+      expect(formatReportCell(column({ format }), null)).toBe("—");
+    expect(formatReportCell(column({ format: "quantity", unit: "kg" }), null)).toBe("—");
   });
 
   it("marks day and text columns as not numeric", () => {

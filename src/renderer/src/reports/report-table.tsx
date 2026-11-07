@@ -7,28 +7,36 @@ import {
   TableHeader,
   TableRow,
 } from "@renderer/components/ui/table";
-import { formatReportCell, isNumericColumn, type ReportColumn } from "@shared/reports";
+import {
+  formatReportCell,
+  isNumericColumn,
+  type ReportCellValue,
+  type ReportColumn,
+  type ReportFooterRow,
+} from "@shared/reports";
 import { negativeClass } from "../inventory/stock-format";
 
-interface ReportTableProps<Row extends Record<string, string | number>> {
+interface ReportTableProps<Row extends Record<string, ReportCellValue>> {
   label: string;
   busy: boolean;
   columns: ReportColumn<Row>[];
   rows: Row[];
-  totals: Record<string, number>;
+  totals: Record<string, number | null>;
+  footer: ReportFooterRow[];
 }
 
-const cellClass = (column: { format: string }, value: string | number) =>
+const cellClass = (column: { format: string }, value: ReportCellValue) =>
   `px-200 whitespace-nowrap ${
     column.format === "day" || column.format === "text" ? "" : "text-right tabular-nums"
   } ${typeof value === "number" ? negativeClass(value) : ""}`;
 
-export function ReportTable<Row extends Record<string, string | number>>({
+export function ReportTable<Row extends Record<string, ReportCellValue>>({
   label,
   busy,
   columns,
   rows,
   totals,
+  footer,
 }: ReportTableProps<Row>) {
   return (
     <Table
@@ -61,10 +69,10 @@ export function ReportTable<Row extends Record<string, string | number>>({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {rows.map((row) => (
-          <TableRow key={String(row[columns[0]?.key ?? ""])}>
+        {rows.map((row, rowIndex) => (
+          <TableRow key={rowIndex}>
             {columns.map((column) => {
-              const value = row[column.key] ?? "";
+              const value = row[column.key] ?? null;
               return (
                 <TableCell key={column.key} className={cellClass(column, value)}>
                   {formatReportCell(column, value)}
@@ -74,23 +82,36 @@ export function ReportTable<Row extends Record<string, string | number>>({
           </TableRow>
         ))}
       </TableBody>
-      <TableFooter>
+      <TableFooter className="sticky bottom-0 bg-surface-secondary">
         <TableRow>
           {columns.map((column, index) => {
             const value = totals[column.key];
             return (
               <TableCell
                 key={column.key}
-                className={`sticky bottom-0 bg-surface-secondary font-semibold ${cellClass(
-                  column,
-                  value ?? "",
-                )}`}
+                className={`font-semibold ${cellClass(column, value ?? null)}`}
               >
                 {index === 0 ? "Total" : value === undefined ? "" : formatReportCell(column, value)}
               </TableCell>
             );
           })}
         </TableRow>
+        {footer.map((entry) => (
+          <TableRow key={entry.label}>
+            {columns.map((column, index) => {
+              const value = entry.values[column.key];
+              return (
+                <TableCell key={column.key} className={cellClass(column, value ?? null)}>
+                  {index === 0
+                    ? entry.label
+                    : value === undefined
+                      ? ""
+                      : formatReportCell(column, value)}
+                </TableCell>
+              );
+            })}
+          </TableRow>
+        ))}
       </TableFooter>
     </Table>
   );

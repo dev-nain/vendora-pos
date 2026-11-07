@@ -2,7 +2,9 @@ import {
   salesByDayColumns,
   type ExportReportInput,
   type ExportReportResult,
+  type ReportCellValue,
   type ReportColumn,
+  type ReportFooterRow,
   type ReportRange,
   type SalesByDayResult,
   type SalesByDayRow,
@@ -10,13 +12,15 @@ import {
 } from "@shared/reports";
 
 export interface ReportDefinition<
-  Row extends Record<string, string | number>,
-  Totals extends Record<string, number>,
+  Row extends Record<string, ReportCellValue>,
+  Totals extends Record<string, number | null>,
 > {
   id: string;
   label: string;
   columns: ReportColumn<Row>[];
-  load: (range: ReportRange) => Promise<{ rows: Row[]; totals: Totals }>;
+  load: (
+    range: ReportRange,
+  ) => Promise<{ rows: Row[]; totals: Totals; footer?: ReportFooterRow[] }>;
   exportTo: (input: ExportReportInput) => Promise<ExportReportResult>;
 }
 

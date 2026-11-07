@@ -3,8 +3,10 @@ import {
   salesByDayColumns,
   type ExportReportInput,
   type ExportReportResult,
+  type ReportCellValue,
   type ReportColumn,
   type ReportExportFormat,
+  type ReportFooterRow,
   type ReportRange,
   type SalesByDayResult,
 } from "../../shared/reports";
@@ -25,13 +27,17 @@ interface ReportsDeps {
   chooseSavePath: (fileName: string, format: ReportExportFormat) => Promise<string | null>;
 }
 
-interface ExportTable<Row extends Record<string, string | number>> {
+interface ExportTable<Row extends Record<string, ReportCellValue>> {
   title: string;
   fileStem: string;
   range: ReportRange;
   format: ReportExportFormat;
   columns: ReportColumn<Row>[];
-  read: (storeId: string) => { rows: Row[]; totals: Record<string, number> };
+  read: (storeId: string) => {
+    rows: Row[];
+    totals: Record<string, number | null>;
+    footer?: ReportFooterRow[];
+  };
 }
 
 const exportFailed = {
@@ -60,19 +66,19 @@ export function createReportsService({
     return readSalesByDay(database, session.storeId, range);
   }
 
-  async function exportTable<Row extends Record<string, string | number>>(
+  async function exportTable<Row extends Record<string, ReportCellValue>>(
     table: ExportTable<Row>,
   ): Promise<ExportReportResult> {
     requireSession(sessions);
     const path = await chooseSavePath(fileNameOf(table), table.format);
     if (path === null) return { ok: true, status: "cancelled" };
     const session = requireSession(sessions);
-    const { rows, totals } = table.read(session.storeId);
+    const { rows, totals, footer = [] } = table.read(session.storeId);
     try {
       const bytes =
         table.format === "csv"
           ? Buffer.from(
-              reportCsv({ columns: table.columns, rows, totals, totalsLabel: "Total" }),
+              reportCsv({ columns: table.columns, rows, totals, totalsLabel: "Total", footer }),
               "utf8",
             )
           : await renderer.toPdf(
@@ -83,6 +89,7 @@ export function createReportsService({
                 columns: table.columns,
                 rows,
                 totals,
+                footer,
               }),
             );
       await writeAtomic(path, bytes);
