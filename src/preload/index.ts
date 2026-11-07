@@ -64,6 +64,14 @@ import {
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
 import {
+  cancelPurchaseOrderResultSchema,
+  confirmPurchaseOrderResultSchema,
+  createPurchaseOrderResultSchema,
+  getPurchaseOrderResultSchema,
+  purchaseOrderSummarySchema,
+  updatePurchaseOrderResultSchema,
+} from "@shared/purchase-orders";
+import {
   createSupplierResultSchema,
   supplierSchema,
   supplierStatusResultSchema,
@@ -261,6 +269,32 @@ const api: VendoraApi = {
     restore: async (id) =>
       supplierStatusResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.suppliersRestore, { id }),
+      ),
+  },
+  purchaseOrders: {
+    list: async () =>
+      z
+        .array(purchaseOrderSummarySchema)
+        .parse(await ipcRenderer.invoke(ipcChannels.purchaseOrdersList)),
+    get: async (id) =>
+      getPurchaseOrderResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersGet, { id }),
+      ),
+    create: async (input) =>
+      createPurchaseOrderResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersCreate, input),
+      ),
+    update: async (input) =>
+      updatePurchaseOrderResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersUpdate, input),
+      ),
+    confirm: async (id) =>
+      confirmPurchaseOrderResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersConfirm, { id }),
+      ),
+    cancel: async (id) =>
+      cancelPurchaseOrderResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersCancel, { id }),
       ),
   },
   shifts: {
