@@ -5,6 +5,7 @@ import {
   movementTypeLabels,
   onHandText,
   signedQuantityText,
+  signedValueText,
 } from "./stock-format";
 
 describe("onHandText", () => {
@@ -37,6 +38,22 @@ describe("signedQuantityText", () => {
 
   it("leaves zero unsigned", () => {
     expect(signedQuantityText(0, "kg")).toBe("0.000 kg");
+  });
+});
+
+describe("signedValueText", () => {
+  it("adds a plus for positive values", () => {
+    expect(signedValueText(17000)).toBe("+Rs 170");
+    expect(signedValueText(1)).toBe("+Rs 0.01");
+  });
+
+  it("uses the minus sign for negative values", () => {
+    expect(signedValueText(-10750)).toBe("−Rs 107.50");
+    expect(signedValueText(-98800)).toBe("−Rs 988");
+  });
+
+  it("leaves zero unsigned", () => {
+    expect(signedValueText(0)).toBe("Rs 0");
   });
 });
 
