@@ -1,4 +1,3 @@
-import { rename, rm, writeFile } from "node:fs/promises";
 import { eq } from "drizzle-orm";
 import type { z } from "zod";
 import {
@@ -16,6 +15,7 @@ import {
   buildPurchaseOrderDocument,
   type PurchaseOrderSupplier,
 } from "../documents/purchase-order-document";
+import { writeAtomic } from "../documents/write-atomic";
 import { getReceiptSettings } from "../settings/store-settings";
 import type { PurchaseOrdersService } from "./purchase-orders";
 
@@ -34,17 +34,6 @@ const notFound = {
   reason: "not-found",
   message: purchaseOrderMessages.notFound,
 } as const;
-
-async function writeAtomic(path: string, bytes: Buffer): Promise<void> {
-  const temporary = `${path}.tmp`;
-  try {
-    await writeFile(temporary, bytes);
-    await rename(temporary, path);
-  } catch (error) {
-    await rm(temporary, { force: true }).catch(() => undefined);
-    throw error;
-  }
-}
 
 const pdfFailed = {
   ok: false,
