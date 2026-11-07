@@ -105,3 +105,13 @@ export function getPrinterSettings(executor: DbExecutor, terminalId: string): Pr
         : { kind: "none" };
   return { connection, paperWidthMm: row.paperWidthMm, printMode: row.printMode };
 }
+
+export function getSecondCopyFolder(executor: DbExecutor, terminalId: string): string | null {
+  const row = executor
+    .select({ folder: terminals.secondCopyFolder })
+    .from(terminals)
+    .where(eq(terminals.id, terminalId))
+    .get();
+  if (!row) throw new Error("Terminal not found");
+  return row.folder;
+}
