@@ -1,38 +1,10 @@
 import { z } from "zod";
 import type { VendoraDatabase } from "../db/client";
+import { auditActions, type AuditAction } from "../../shared/audit";
 import { auditLog } from "../db/schema";
 import { currentTerminal, type DbExecutor } from "../db/terminal";
 
-export const auditActions = [
-  "login",
-  "logout",
-  "void",
-  "return",
-  "return_without_receipt",
-  "price_change",
-  "cost_change",
-  "stock_adjustment",
-  "drawer_open_no_sale",
-  "settings_change",
-  "backup",
-  "restore",
-  "user_create",
-  "user_update",
-  "user_deactivate",
-  "user_reactivate",
-  "product_archive",
-  "product_restore",
-  "product_delete",
-  "supplier_archive",
-  "supplier_restore",
-  "shift_open",
-  "shift_close",
-  "cash_move_delete",
-  "line_delete",
-  "bill_discard",
-  "sale_complete",
-] as const;
-export type AuditAction = (typeof auditActions)[number];
+export { auditActions, type AuditAction };
 
 const forbiddenDetailKeys = new Set(["password", "passwordhash", "pin", "pinhash", "licensekey"]);
 
@@ -62,7 +34,7 @@ function findForbiddenKeyPath(
 
 export const auditRecordInputSchema = z.strictObject({
   action: z.enum(auditActions),
-  actorUserId: z.uuid(),
+  actorUserId: z.uuid().nullable(),
   entityType: z.string().min(1).max(64).optional(),
   entityId: z.string().min(1).max(64).optional(),
   details: z

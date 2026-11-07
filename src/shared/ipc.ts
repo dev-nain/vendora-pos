@@ -1,4 +1,14 @@
 import { z } from "zod";
+import type { AuditListQuery, AuditPage, AuditUser } from "./audit";
+import type {
+  BackupNowResult,
+  BackupPasswordResult,
+  BackupPasswordStatus,
+  BackupStatus,
+  ChosenBackup,
+  RestoreInput,
+  RestoreResult,
+} from "./backup";
 import type {
   AuthResult,
   CreateFirstUserInput,
@@ -12,6 +22,17 @@ import type {
   DeleteCategoryResult,
   RenameCategoryResult,
 } from "./categories";
+import type { PostGoodsReceivedInput, PostGoodsReceivedResult } from "./goods-received";
+import type {
+  CancelPurchaseOrderResult,
+  ConfirmPurchaseOrderResult,
+  CreatePurchaseOrderInput,
+  CreatePurchaseOrderResult,
+  GetPurchaseOrderResult,
+  PurchaseOrderSummary,
+  UpdatePurchaseOrderInput,
+  UpdatePurchaseOrderResult,
+} from "./purchase-orders";
 import type {
   CreateSupplierInput,
   CreateSupplierResult,
@@ -33,6 +54,7 @@ import type {
   PrinterSettings,
   ReceiptSettings,
   ReceiptSettingsInput,
+  SecondCopyStatus,
   ScalePrefixesInput,
   ScalePrefixesSetting,
   ShiftVarianceSetting,
@@ -64,6 +86,18 @@ import type {
   SetDamagedInput,
   UpdateLineInput,
 } from "./checkout";
+import type {
+  NegativeStockQuery,
+  NegativeStockResult,
+  StockAdjustmentInput,
+  StockAdjustmentResult,
+  LowStockQuery,
+  LowStockResult,
+  StockHistoryQuery,
+  StockHistoryResult,
+  StockListQuery,
+  StockListResult,
+} from "./inventory";
 import type { AddFromSaleInput, ReturnableResult } from "./returns";
 import type {
   BarcodeLookup,
@@ -118,6 +152,9 @@ export const ipcChannels = {
   settingsSetShiftVarianceWarn: "settings:set-shift-variance-warn",
   settingsGetReceipt: "settings:get-receipt",
   settingsSetReceipt: "settings:set-receipt",
+  settingsGetSecondCopy: "settings:get-second-copy",
+  settingsChooseSecondCopyFolder: "settings:choose-second-copy-folder",
+  settingsClearSecondCopyFolder: "settings:clear-second-copy-folder",
   printerGetSettings: "printer:get-settings",
   printerSetSettings: "printer:set-settings",
   printerListWindows: "printer:list-windows",
@@ -137,6 +174,11 @@ export const ipcChannels = {
   usersResetPin: "users:reset-pin",
   usersDeactivate: "users:deactivate",
   usersReactivate: "users:reactivate",
+  inventoryListStock: "inventory:list-stock",
+  inventoryStockHistory: "inventory:stock-history",
+  inventoryNegativeStock: "inventory:negative-stock",
+  inventoryAdjustStock: "inventory:adjust-stock",
+  inventoryLowStock: "inventory:low-stock",
   productsSearch: "products:search",
   productsGet: "products:get",
   productsCreate: "products:create",
@@ -161,6 +203,13 @@ export const ipcChannels = {
   suppliersUpdate: "suppliers:update",
   suppliersArchive: "suppliers:archive",
   suppliersRestore: "suppliers:restore",
+  purchaseOrdersList: "purchase-orders:list",
+  purchaseOrdersGet: "purchase-orders:get",
+  purchaseOrdersCreate: "purchase-orders:create",
+  purchaseOrdersUpdate: "purchase-orders:update",
+  purchaseOrdersConfirm: "purchase-orders:confirm",
+  purchaseOrdersCancel: "purchase-orders:cancel",
+  goodsReceivedPost: "goods-received:post",
   shiftsState: "shifts:state",
   shiftsOpen: "shifts:open",
   shiftsAddCashMove: "shifts:add-cash-move",
@@ -186,6 +235,16 @@ export const ipcChannels = {
   returnsAddFromSale: "returns:add-from-sale",
   salesList: "sales:list",
   salesGet: "sales:get",
+  auditList: "audit:list",
+  auditUsers: "audit:users",
+  backupStatus: "backup:status",
+  backupRun: "backup:run",
+  backupChooseFile: "backup:choose-file",
+  backupRestore: "backup:restore",
+  backupPasswordStatus: "backup:password-status",
+  backupPasswordTurnOn: "backup:password-turn-on",
+  backupPasswordChange: "backup:password-change",
+  backupPasswordTurnOff: "backup:password-turn-off",
 } as const;
 
 export const ipcErrorMessages = {
@@ -213,6 +272,9 @@ export interface VendoraApi {
     setShiftVarianceWarn: (warnPaisa: number) => Promise<ShiftVarianceSetting>;
     getReceipt: () => Promise<ReceiptSettings>;
     setReceipt: (input: ReceiptSettingsInput) => Promise<ReceiptSettings>;
+    getSecondCopy: () => Promise<SecondCopyStatus>;
+    chooseSecondCopyFolder: () => Promise<SecondCopyStatus>;
+    clearSecondCopyFolder: () => Promise<SecondCopyStatus>;
   };
   printer: {
     getSettings: () => Promise<PrinterSettings>;
@@ -236,6 +298,13 @@ export interface VendoraApi {
     resetPin: (id: string, pin: string) => Promise<UserActionResult>;
     deactivate: (id: string) => Promise<DeactivateUserResult>;
     reactivate: (id: string) => Promise<UserActionResult>;
+  };
+  inventory: {
+    listStock: (query: StockListQuery) => Promise<StockListResult>;
+    stockHistory: (query: StockHistoryQuery) => Promise<StockHistoryResult>;
+    negativeStock: (query: NegativeStockQuery) => Promise<NegativeStockResult>;
+    adjustStock: (input: StockAdjustmentInput) => Promise<StockAdjustmentResult>;
+    lowStock: (query: LowStockQuery) => Promise<LowStockResult>;
   };
   products: {
     getMiscItem: () => Promise<Product | null>;
@@ -269,6 +338,17 @@ export interface VendoraApi {
     archive: (id: string) => Promise<SupplierStatusResult>;
     restore: (id: string) => Promise<SupplierStatusResult>;
   };
+  purchaseOrders: {
+    list: () => Promise<PurchaseOrderSummary[]>;
+    get: (id: string) => Promise<GetPurchaseOrderResult>;
+    create: (input: CreatePurchaseOrderInput) => Promise<CreatePurchaseOrderResult>;
+    update: (input: UpdatePurchaseOrderInput) => Promise<UpdatePurchaseOrderResult>;
+    confirm: (id: string) => Promise<ConfirmPurchaseOrderResult>;
+    cancel: (id: string) => Promise<CancelPurchaseOrderResult>;
+  };
+  goodsReceived: {
+    post: (input: PostGoodsReceivedInput) => Promise<PostGoodsReceivedResult>;
+  };
   shifts: {
     state: () => Promise<ShiftState>;
     open: (openingFloatPaisa: number) => Promise<OpenShiftResult>;
@@ -301,5 +381,19 @@ export interface VendoraApi {
   sales: {
     list: (query: SalesListQuery) => Promise<OrderSummary[]>;
     get: (id: string) => Promise<GetOrderResult>;
+  };
+  audit: {
+    list: (query: AuditListQuery) => Promise<AuditPage>;
+    listUsers: () => Promise<AuditUser[]>;
+  };
+  backup: {
+    status: () => Promise<BackupStatus>;
+    run: () => Promise<BackupNowResult>;
+    chooseFile: () => Promise<ChosenBackup>;
+    restore: (input: RestoreInput) => Promise<RestoreResult>;
+    passwordStatus: () => Promise<BackupPasswordStatus>;
+    turnOnPassword: (password: string) => Promise<BackupPasswordResult>;
+    changePassword: (current: string, next: string) => Promise<BackupPasswordResult>;
+    turnOffPassword: (current: string) => Promise<BackupPasswordResult>;
   };
 }
