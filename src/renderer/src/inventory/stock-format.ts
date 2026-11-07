@@ -7,6 +7,17 @@ export const onHandText = (milli: number, unit: ProductUnit): string =>
 
 export const negativeClass = (value: number): string => (value < 0 ? "text-critical" : "");
 
+export const rowMoveTarget = (key: string, index: number, last: number): number | null =>
+  key === "ArrowDown"
+    ? Math.min(index + 1, last)
+    : key === "ArrowUp"
+      ? Math.max(index - 1, 0)
+      : key === "Home"
+        ? 0
+        : key === "End"
+          ? last
+          : null;
+
 export const signedQuantityText = (milli: number, unit: ProductUnit): string => {
   const text = onHandText(milli, unit);
   return milli > 0 ? `+${text}` : text;
