@@ -16,6 +16,10 @@ import { createProductsService, type ProductsService } from "./services/products
 import { createCheckoutKit, type CheckoutKit } from "./services/checkout-test-kit";
 import { createSalesService, type SalesService } from "./services/sales";
 import {
+  createPurchaseOrderDocumentsService,
+  type PurchaseOrderDocumentsService,
+} from "./services/purchase-order-documents";
+import {
   createPurchaseOrdersService,
   type PurchaseOrdersService,
 } from "./services/purchase-orders";
@@ -59,6 +63,8 @@ describe("products ipc", () => {
   let service: ProductsService;
   let suppliersService: SuppliersService;
   let purchaseOrdersService: PurchaseOrdersService;
+  let purchaseOrderDocumentsService: PurchaseOrderDocumentsService;
+  const renderer = { toPdf: vi.fn(async () => Buffer.from("%PDF-")), print: vi.fn() };
   let exportPath: string | null;
   let categoryId: string;
   let taxCategoryId: string;
@@ -131,6 +137,13 @@ describe("products ipc", () => {
       audit: createAuditService(database),
       sessions,
     });
+    purchaseOrderDocumentsService = createPurchaseOrderDocumentsService({
+      database,
+      sessions,
+      purchaseOrders: purchaseOrdersService,
+      renderer,
+      chooseSavePath: async () => join(dir, "order.pdf"),
+    });
     exportPath = join(dir, "catalog.csv");
     const catalogExport = createCatalogExportService({
       database,
@@ -145,6 +158,7 @@ describe("products ipc", () => {
       categories: stub,
       inventory: stub,
       products: service,
+      purchaseOrderDocuments: purchaseOrderDocumentsService,
       purchaseOrders: purchaseOrdersService,
       receipts: stub,
       returns: stub,
@@ -328,6 +342,18 @@ describe("products ipc", () => {
       expect(await invoke("purchase-orders:list")).toHaveLength(1);
     });
 
+    it.each([
+      ["purchase-orders:save-pdf", "savePdf", { id: "x" }],
+      ["purchase-orders:save-pdf", "savePdf", { id: unknownId, extra: 1 }],
+      ["purchase-orders:print", "print", { id: "x" }],
+      ["purchase-orders:print", "print", {}],
+    ] as const)("%s rejects bad input", async (channel, method, input) => {
+      signIn("owner");
+      const spy = vi.spyOn(purchaseOrderDocumentsService, method);
+      await expect(invoke(channel, input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
     it("is refused when signed out", async () => {
       sessions.end();
       const requests: [string, unknown][] = [
@@ -337,6 +363,8 @@ describe("products ipc", () => {
         ["purchase-orders:update", { id: unknownId, ...order(unknownId, unknownId) }],
         ["purchase-orders:confirm", { id: unknownId }],
         ["purchase-orders:cancel", { id: unknownId }],
+        ["purchase-orders:save-pdf", { id: unknownId }],
+        ["purchase-orders:print", { id: unknownId }],
       ];
       for (const [channel, input] of requests) {
         await expect(invoke(channel, input)).rejects.toThrow(
@@ -471,6 +499,7 @@ describe("shifts ipc", () => {
       categories: stub,
       inventory: stub,
       products: stub,
+      purchaseOrderDocuments: stub,
       purchaseOrders: stub,
       receipts: receipts as never,
       returns: stub,
@@ -622,6 +651,7 @@ describe("checkout ipc", () => {
       categories: stub,
       inventory: stub,
       products: stub,
+      purchaseOrderDocuments: stub,
       purchaseOrders: stub,
       receipts: receipts as never,
       returns: kit.returns,
@@ -864,6 +894,7 @@ describe("inventory ipc", () => {
       categories: stub,
       inventory: service,
       products: stub,
+      purchaseOrderDocuments: stub,
       purchaseOrders: stub,
       receipts: stub,
       returns: stub,

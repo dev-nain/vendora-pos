@@ -10,6 +10,7 @@ import { createAuthService } from "./services/auth";
 import { createBillDraftsService } from "./services/bill-drafts";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createCategoriesService } from "./services/categories";
+import { createPurchaseOrderDocumentsService } from "./services/purchase-order-documents";
 import { createPurchaseOrdersService } from "./services/purchase-orders";
 import { createReceiptsService } from "./services/receipts";
 import { createReturnsService } from "./services/returns";
@@ -23,6 +24,7 @@ import { createSuppliersService } from "./services/suppliers";
 import { createTaxCategoriesService } from "./services/tax-categories";
 import { createUsersService } from "./services/users";
 import { createSessionStore } from "./auth/session";
+import { createDocumentRenderer } from "./documents/document-window";
 import { runPdfCheck } from "./documents/pdf-check";
 import { createRasteriser } from "./receipts/rasterise";
 import { createRenderWindow } from "./receipts/render-window";
@@ -42,6 +44,23 @@ function startDatabase(): VendoraDatabase {
   });
   if (migration !== "no-journal") seedStoreAndTerminal(opened);
   return opened;
+}
+
+async function chooseSavePath(
+  title: string,
+  filter: { name: string; extensions: string[] },
+  fileName: string,
+): Promise<string | null> {
+  const options = {
+    title,
+    defaultPath: join(app.getPath("documents"), fileName),
+    filters: [filter],
+  };
+  const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  const result = parent
+    ? await dialog.showSaveDialog(parent, options)
+    : await dialog.showSaveDialog(options);
+  return result.canceled || !result.filePath ? null : result.filePath;
 }
 
 void app.whenReady().then(async () => {
@@ -76,18 +95,16 @@ void app.whenReady().then(async () => {
   const catalogExport = createCatalogExportService({
     database,
     sessions,
-    chooseSavePath: async (fileName) => {
-      const options = {
-        title: "Export catalog",
-        defaultPath: join(app.getPath("documents"), fileName),
-        filters: [{ name: "CSV file", extensions: ["csv"] }],
-      };
-      const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-      const result = parent
-        ? await dialog.showSaveDialog(parent, options)
-        : await dialog.showSaveDialog(options);
-      return result.canceled || !result.filePath ? null : result.filePath;
-    },
+    chooseSavePath: (fileName) =>
+      chooseSavePath("Export catalog", { name: "CSV file", extensions: ["csv"] }, fileName),
+  });
+  const purchaseOrderDocuments = createPurchaseOrderDocumentsService({
+    database,
+    sessions,
+    purchaseOrders,
+    renderer: createDocumentRenderer(),
+    chooseSavePath: (fileName) =>
+      chooseSavePath("Save purchase order", { name: "PDF file", extensions: ["pdf"] }, fileName),
   });
   const fakePrinterDir = process.env["VENDORA_FAKE_PRINTER"];
   const renderWindow = createRenderWindow();
@@ -108,6 +125,7 @@ void app.whenReady().then(async () => {
     categories,
     inventory,
     products,
+    purchaseOrderDocuments,
     purchaseOrders,
     receipts,
     returns,

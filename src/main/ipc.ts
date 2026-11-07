@@ -123,7 +123,9 @@ import {
   createPurchaseOrderResultSchema,
   getPurchaseOrderResultSchema,
   purchaseOrderIdInputSchema,
+  printPurchaseOrderResultSchema,
   purchaseOrderSummarySchema,
+  savePurchaseOrderPdfResultSchema,
   updatePurchaseOrderInputSchema,
   updatePurchaseOrderResultSchema,
 } from "@shared/purchase-orders";
@@ -157,6 +159,7 @@ import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { InventoryService } from "./services/inventory";
 import type { ProductsService } from "./services/products";
+import type { PurchaseOrderDocumentsService } from "./services/purchase-order-documents";
 import type { PurchaseOrdersService } from "./services/purchase-orders";
 import type { ReceiptsService } from "./services/receipts";
 import type { ReturnsService } from "./services/returns";
@@ -194,6 +197,7 @@ interface IpcServices {
   taxCategories: TaxCategoriesService;
   users: UsersService;
   products: ProductsService;
+  purchaseOrderDocuments: PurchaseOrderDocumentsService;
   purchaseOrders: PurchaseOrdersService;
   receipts: ReceiptsService;
 }
@@ -205,6 +209,7 @@ export function registerIpcHandlers({
   categories,
   inventory,
   products,
+  purchaseOrderDocuments,
   purchaseOrders,
   receipts,
   returns,
@@ -416,6 +421,16 @@ export function registerIpcHandlers({
   handle(ipcChannels.purchaseOrdersCancel, (_event, input) =>
     cancelPurchaseOrderResultSchema.parse(
       purchaseOrders.cancel(purchaseOrderIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseOrdersSavePdf, async (_event, input) =>
+    savePurchaseOrderPdfResultSchema.parse(
+      await purchaseOrderDocuments.savePdf(purchaseOrderIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseOrdersPrint, async (_event, input) =>
+    printPurchaseOrderResultSchema.parse(
+      await purchaseOrderDocuments.print(purchaseOrderIdInputSchema.parse(input)),
     ),
   );
   handle(ipcChannels.taxCategoriesList, () =>

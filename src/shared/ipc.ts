@@ -18,7 +18,9 @@ import type {
   CreatePurchaseOrderInput,
   CreatePurchaseOrderResult,
   GetPurchaseOrderResult,
+  PrintPurchaseOrderResult,
   PurchaseOrderSummary,
+  SavePurchaseOrderPdfResult,
   UpdatePurchaseOrderInput,
   UpdatePurchaseOrderResult,
 } from "./purchase-orders";
@@ -188,6 +190,8 @@ export const ipcChannels = {
   purchaseOrdersUpdate: "purchase-orders:update",
   purchaseOrdersConfirm: "purchase-orders:confirm",
   purchaseOrdersCancel: "purchase-orders:cancel",
+  purchaseOrdersSavePdf: "purchase-orders:save-pdf",
+  purchaseOrdersPrint: "purchase-orders:print",
   shiftsState: "shifts:state",
   shiftsOpen: "shifts:open",
   shiftsAddCashMove: "shifts:add-cash-move",
@@ -308,6 +312,8 @@ export interface VendoraApi {
     update: (input: UpdatePurchaseOrderInput) => Promise<UpdatePurchaseOrderResult>;
     confirm: (id: string) => Promise<ConfirmPurchaseOrderResult>;
     cancel: (id: string) => Promise<CancelPurchaseOrderResult>;
+    savePdf: (id: string) => Promise<SavePurchaseOrderPdfResult>;
+    print: (id: string) => Promise<PrintPurchaseOrderResult>;
   };
   shifts: {
     state: () => Promise<ShiftState>;
