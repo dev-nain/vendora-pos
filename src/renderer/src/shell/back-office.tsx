@@ -1,7 +1,9 @@
 import {
   BoxesIcon,
   ClipboardListIcon,
+  DatabaseBackupIcon,
   PackageIcon,
+  ScrollTextIcon,
   SettingsIcon,
   TagsIcon,
   TriangleAlertIcon,
@@ -12,14 +14,22 @@ import {
 import { Fragment, useState, type KeyboardEvent } from "react";
 
 import { cn } from "@renderer/lib/utils";
+import { AuditLogScreen } from "../audit/audit-log-screen";
+import { BackupScreen } from "../backup/backup-screen";
 import { CategoriesScreen } from "../categories/categories-screen";
+import { NegativeStockScreen } from "../inventory/negative-stock-screen";
 import { LowStockScreen } from "../inventory/low-stock-screen";
 import { StockScreen } from "../inventory/stock-screen";
+import { StocktakeScreen } from "../inventory/stocktake-screen";
 import { ProductsScreen } from "../products/products-screen";
 import { PurchaseOrdersScreen } from "../purchasing/purchase-orders-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
+import { BackupPasswordSetting } from "../settings/backup-password-setting";
+import { BackupSetting } from "../settings/backup-setting";
 import { PrinterSetting } from "../settings/printer-setting";
 import { ReceiptSetting } from "../settings/receipt-setting";
+import { SecondCopyNotice } from "../settings/second-copy-notice";
+import { useSecondCopyStatus } from "../settings/use-second-copy-status";
 import { ShiftVarianceSetting } from "../settings/shift-variance-setting";
 import { SuppliersScreen } from "../suppliers/suppliers-screen";
 import { UsersScreen } from "../users/users-screen";
@@ -29,10 +39,14 @@ const icons: Record<BackOfficePage, LucideIcon> = {
   products: PackageIcon,
   categories: TagsIcon,
   stock: BoxesIcon,
+  stocktake: ClipboardListIcon,
+  "negative-stock": TriangleAlertIcon,
   "low-stock": TriangleAlertIcon,
   "purchase-orders": ClipboardListIcon,
   suppliers: TruckIcon,
   users: UsersIcon,
+  audit: ScrollTextIcon,
+  backup: DatabaseBackupIcon,
   settings: SettingsIcon,
 };
 
@@ -54,6 +68,7 @@ interface BackOfficeProps {
 
 export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: BackOfficeProps) {
   const [page, setPage] = useState<BackOfficePage>(focusPrinter ? "settings" : "products");
+  const secondCopy = useSecondCopyStatus();
 
   return (
     <div
@@ -92,12 +107,17 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
         })}
       </nav>
       <section className="min-w-0 overflow-y-auto rounded-tl-300 border-t border-l border-line-card bg-surface px-[36px] py-[28px]">
+        <SecondCopyNotice state={secondCopy.state} />
         {page === "products" ? (
           <ProductsScreen onSessionEnded={onSessionEnded} />
         ) : page === "categories" ? (
           <CategoriesScreen onSessionEnded={onSessionEnded} />
         ) : page === "stock" ? (
           <StockScreen onSessionEnded={onSessionEnded} />
+        ) : page === "stocktake" ? (
+          <StocktakeScreen onSessionEnded={onSessionEnded} />
+        ) : page === "negative-stock" ? (
+          <NegativeStockScreen onSessionEnded={onSessionEnded} />
         ) : page === "low-stock" ? (
           <LowStockScreen onSessionEnded={onSessionEnded} />
         ) : page === "purchase-orders" ? (
@@ -106,6 +126,10 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
           <SuppliersScreen onSessionEnded={onSessionEnded} />
         ) : page === "users" ? (
           <UsersScreen currentUserId={currentUserId} onSessionEnded={onSessionEnded} />
+        ) : page === "audit" ? (
+          <AuditLogScreen onSessionEnded={onSessionEnded} />
+        ) : page === "backup" ? (
+          <BackupScreen onSessionEnded={onSessionEnded} />
         ) : page === "settings" ? (
           <div className="grid gap-500">
             <h1 className="m-0 font-display text-[length:var(--font-size-700)] leading-[36px] font-semibold text-foreground">
@@ -114,6 +138,8 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
             <MiscItemSetting />
             <ShiftVarianceSetting />
             <PrinterSetting focusOnReady={focusPrinter === true} />
+            <BackupSetting {...secondCopy} />
+            <BackupPasswordSetting onSessionEnded={onSessionEnded} />
             <ReceiptSetting />
           </div>
         ) : null}
