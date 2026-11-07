@@ -67,7 +67,7 @@ const orderLineUnavailable = refuse(
   goodsReceivedMessages.orderLineUnavailable,
 );
 
-function findLiveSupplier(tx: DbExecutor, storeId: string, supplierId: string) {
+export function findLiveSupplier(tx: DbExecutor, storeId: string, supplierId: string) {
   return tx
     .select({ id: suppliers.id, name: suppliers.name })
     .from(suppliers)
