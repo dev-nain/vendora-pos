@@ -1029,6 +1029,16 @@ describe("reports ipc", () => {
       { range: { from: "2026-11-08", to: "2026-11-07" }, format: "pdf" },
     ],
     ["reports:export-sales-by-day", "exportSalesByDay", { range }],
+    ["reports:sales-tax-summary", "salesTaxSummary", { from: "2026-13-01", to: "2026-11-07" }],
+    ["reports:sales-tax-summary", "salesTaxSummary", { from: "2026-11-08", to: "2026-11-07" }],
+    ["reports:sales-tax-summary", "salesTaxSummary", { ...range, extra: 1 }],
+    ["reports:export-sales-tax-summary", "exportSalesTaxSummary", { range, format: "xlsx" }],
+    [
+      "reports:export-sales-tax-summary",
+      "exportSalesTaxSummary",
+      { range, format: "csv", extra: 1 },
+    ],
+    ["reports:export-sales-tax-summary", "exportSalesTaxSummary", { range }],
   ] as const)("%s rejects bad input", async (channel, method, input) => {
     const spy = vi.spyOn(service, method);
     await expect(invoke(channel, input)).rejects.toThrow();
@@ -1045,6 +1055,15 @@ describe("reports ipc", () => {
       status: "saved",
       path: join(kit.dir, "sales-by-day-2026-11-01-to-2026-11-07.csv"),
     });
+    expect(await invoke("reports:sales-tax-summary", range)).toEqual({
+      rows: [],
+      totals: { taxablePaisa: 0, taxPaisa: 0, totalPaisa: 0 },
+    });
+    expect(await invoke("reports:export-sales-tax-summary", { range, format: "csv" })).toEqual({
+      ok: true,
+      status: "saved",
+      path: join(kit.dir, "sales-tax-summary-2026-11-01-to-2026-11-07.csv"),
+    });
   });
 
   it("is refused when signed out", async () => {
@@ -1055,5 +1074,11 @@ describe("reports ipc", () => {
     await expect(invoke("reports:export-sales-by-day", { range, format: "pdf" })).rejects.toThrow(
       new Error(ipcErrorMessages.unauthenticated),
     );
+    await expect(invoke("reports:sales-tax-summary", range)).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
+    await expect(
+      invoke("reports:export-sales-tax-summary", { range, format: "pdf" }),
+    ).rejects.toThrow(new Error(ipcErrorMessages.unauthenticated));
   });
 });
