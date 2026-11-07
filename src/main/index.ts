@@ -52,6 +52,9 @@ async function chooseSavePath(
   filter: { name: string; extensions: string[] },
   fileName: string,
 ): Promise<string | null> {
+  const devSaveDir = process.env["VENDORA_DEV_SAVE_DIR"];
+  // Dev-only: lets the screenshot capture save PDFs without the native dialog.
+  if (devSaveDir && !app.isPackaged) return join(devSaveDir, fileName);
   const options = {
     title,
     defaultPath: join(app.getPath("documents"), fileName),

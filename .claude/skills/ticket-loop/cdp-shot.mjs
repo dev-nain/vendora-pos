@@ -1,7 +1,8 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const [port, outDir, shotsFile] = process.argv.slice(2);
+const [port, outDir, shotsFile, saveDir] = process.argv.slice(2);
 
 const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
 const page = targets.find((t) => t.type === "page");
@@ -74,6 +75,31 @@ const signInAs = async (username) => {
     if (!result?.ok) throw new Error(`as=${username}: login failed (${result?.message})`);
   }
   await reload();
+};
+
+const waitForFile = async (file) => {
+  let lastSize = -1;
+  for (let i = 0; i < 75; i++) {
+    const size = statSync(file, { throwIfNoEntry: false })?.size ?? -1;
+    if (size > 0 && size === lastSize) return;
+    lastSize = size;
+    await wait(200);
+  }
+  throw new Error(`pdf=${file}: not written within 15 s`);
+};
+
+const rasterisePdf = async (fileName, name, width, height) => {
+  if (!saveDir) throw new Error("pdf= needs the save folder from screenshots.sh");
+  const pdf = join(saveDir, fileName);
+  await waitForFile(pdf);
+  const base = join(outDir, name);
+  const result = spawnSync("pdftoppm", [
+    "-png", "-f", "1", "-l", "1", "-singlefile",
+    "-scale-to-x", String(width), "-scale-to-y", String(height), pdf, base,
+  ]);
+  if (result.error?.code === "ENOENT") throw new Error("pdf= needs pdftoppm (poppler-utils)");
+  if (result.status !== 0) throw new Error(`pdftoppm failed: ${result.stderr}`);
+  return `${base}.png`;
 };
 
 let saleSeeded = false;
@@ -176,6 +202,11 @@ for (const line of lines) {
   if (options.js) {
     await evaluate(options.js);
     await settle();
+  }
+
+  if (options.pdf) {
+    console.log(await rasterisePdf(options.pdf, name, width, height));
+    continue;
   }
 
   const { data } = await send("Page.captureScreenshot", { format: "png" });

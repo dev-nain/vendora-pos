@@ -49,9 +49,15 @@ capture() {
 	local dev_users=0
 	grep -q '|as=' "$shots" && dev_users=1
 
+	local save_dir=""
+	if grep -q '|pdf=' "$shots"; then
+		save_dir=$out/files
+		mkdir -p "$save_dir"
+	fi
+
 	# setsid gives Electron its own process group, so one kill stops it and its
 	# helper processes without matching this script.
-	VENDORA_DEV_USERS=$dev_users XDG_CONFIG_HOME=$profile HOME=$profile setsid "${run[@]}" pnpm exec electron . \
+	VENDORA_DEV_USERS=$dev_users VENDORA_DEV_SAVE_DIR=$save_dir XDG_CONFIG_HOME=$profile HOME=$profile setsid "${run[@]}" pnpm exec electron . \
 		--remote-debugging-port="$PORT" --user-data-dir="$profile/chromium" \
 		--force-prefers-reduced-motion >"$out/electron.log" 2>&1 &
 	local pgid=$!
@@ -64,7 +70,7 @@ capture() {
 	curl -sf "http://127.0.0.1:$PORT/json/list" | grep -q '"type": *"page"' ||
 		{ echo "app window did not open; see $out/electron.log" >&2; exit 1; }
 
-	node "$HERE/cdp-shot.mjs" "$PORT" "$out" "$shots"
+	node "$HERE/cdp-shot.mjs" "$PORT" "$out" "$shots" "$save_dir"
 }
 
 publish() {
