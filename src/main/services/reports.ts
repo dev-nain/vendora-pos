@@ -1,6 +1,7 @@
 import {
   exportReportFailedMessage,
   salesByDayColumns,
+  salesByHourColumns,
   type ExportReportInput,
   type ExportReportResult,
   type ReportColumn,
@@ -8,6 +9,7 @@ import {
   type ReportFooterRow,
   type ReportRange,
   type SalesByDayResult,
+  type SalesByHourResult,
 } from "../../shared/reports";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
@@ -16,7 +18,7 @@ import type { DocumentRenderer } from "../documents/document-window";
 import { writeAtomic } from "../documents/write-atomic";
 import { reportCsv } from "../reports/report-csv";
 import { buildReportDocument } from "../reports/report-document";
-import { readSalesByDay } from "../reports/sales-by-day";
+import { readSalesByDay, readSalesByHour } from "../reports/sales-by-day";
 import { getReceiptSettings } from "../settings/store-settings";
 
 interface ReportsDeps {
@@ -67,6 +69,11 @@ export function createReportsService({
     return readSalesByDay(database, session.storeId, range);
   }
 
+  function salesByHour(range: ReportRange): SalesByHourResult {
+    const session = requireSession(sessions);
+    return readSalesByHour(database, session.storeId, range);
+  }
+
   async function exportTable<Row extends Record<string, string | number>>(
     table: ExportTable<Row>,
   ): Promise<ExportReportResult> {
@@ -103,6 +110,16 @@ export function createReportsService({
 
   return {
     salesByDay,
+    salesByHour,
+    exportSalesByHour: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Sales by hour",
+        fileStem: "sales-by-hour",
+        range,
+        format,
+        columns: salesByHourColumns,
+        read: (storeId) => readSalesByHour(database, storeId, range),
+      }),
     exportSalesByDay: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Sales by day",

@@ -5,10 +5,12 @@ import {
   formatRangeLabel,
   formatReportCell,
   formatStoreDay,
+  hourLabel,
   isNumericColumn,
   presetRange,
   reportRangeSchema,
   salesByDayColumns,
+  salesByHourColumns,
   storeDayBounds,
   storeDayOfBucket,
   storeToday,
@@ -210,15 +212,14 @@ describe("formatReportCell", () => {
   it("marks day and text columns as not numeric", () => {
     expect(salesByDayColumns.map(isNumericColumn)).toEqual([
       false,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
+      ...Array.from({ length: 8 }, () => true),
     ]);
+  });
+
+  it("labels hours and marks the hour column as text", () => {
+    expect(hourLabel(0)).toBe("00:00");
+    expect(hourLabel(9)).toBe("09:00");
+    expect(hourLabel(23)).toBe("23:00");
+    expect(salesByHourColumns.map(isNumericColumn)[0]).toBe(false);
   });
 });

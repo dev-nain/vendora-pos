@@ -7,7 +7,7 @@ import {
   type ReportRange,
   type SalesByDayResult,
   type SalesByDayRow,
-  type SalesByDayTotals,
+  type SalesByPeriodTotals,
 } from "@shared/reports";
 
 export interface ReportDefinition<
@@ -23,7 +23,7 @@ export interface ReportDefinition<
   exportTo: (input: ExportReportInput) => Promise<ExportReportResult>;
 }
 
-export const salesByDayReport: ReportDefinition<SalesByDayRow, SalesByDayTotals> = {
+export const salesByDayReport: ReportDefinition<SalesByDayRow, SalesByPeriodTotals> = {
   id: "sales-by-day",
   label: "Sales by day",
   columns: salesByDayColumns,

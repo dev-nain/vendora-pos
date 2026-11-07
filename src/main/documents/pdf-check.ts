@@ -44,9 +44,8 @@ function reportModel(): DocumentModel {
   const rows: SalesByDayRow[] = Array.from({ length: 31 }, (_, index) => ({
     day: `2026-10-${String(index + 1).padStart(2, "0")}`,
     billCount: 120 + index,
-    pieceQtyMilli: 480_000 + index * 1000,
-    kgQtyMilli: 62_500,
-    litreQtyMilli: 18_250,
+    grossPaisa: 4_220_000,
+    returnsPaisa: 100_000,
     discountPaisa: 12_500,
     netPaisa: 4_120_000,
     taxPaisa: 741_600,
@@ -71,9 +70,8 @@ function reportModel(): DocumentModel {
     rows,
     totals: {
       billCount: 4_000,
-      pieceQtyMilli: 15_000_000,
-      kgQtyMilli: 1_937_500,
-      litreQtyMilli: 565_750,
+      grossPaisa: 130_820_000,
+      returnsPaisa: 3_100_000,
       discountPaisa: 387_500,
       netPaisa: 127_720_000,
       taxPaisa: 22_989_600,
