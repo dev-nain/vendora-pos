@@ -32,6 +32,7 @@ import { BackupPasswordSetting } from "../settings/backup-password-setting";
 import { BackupSetting } from "../settings/backup-setting";
 import { PrinterSetting } from "../settings/printer-setting";
 import { ReceiptSetting } from "../settings/receipt-setting";
+import { MarginThresholdSetting } from "../settings/margin-threshold-setting";
 import { SecondCopyNotice } from "../settings/second-copy-notice";
 import { useSecondCopyStatus } from "../settings/use-second-copy-status";
 import { ShiftVarianceSetting } from "../settings/shift-variance-setting";
@@ -171,6 +172,7 @@ export function BackOffice({
             </h1>
             <MiscItemSetting />
             <ShiftVarianceSetting />
+            <MarginThresholdSetting />
             <PrinterSetting focusOnReady={focusPrinter === true} />
             <BackupSetting {...secondCopy} />
             <BackupPasswordSetting onSessionEnded={onSessionEnded} />
