@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Fragment, useCallback, useState, type KeyboardEvent } from "react";
 
+import type { LowStockItem } from "@shared/inventory";
 import { cn } from "@renderer/lib/utils";
 import { CategoriesScreen } from "../categories/categories-screen";
 import { LowStockScreen } from "../inventory/low-stock-screen";
@@ -65,6 +66,10 @@ export function BackOffice({
   const [page, setPage] = useState<BackOfficePage>(focusPrinter ? "settings" : "products");
   const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
   const clearOrderSeed = useCallback(() => setOrderSeed(null), []);
+  const createOrder = useCallback((items: LowStockItem[]) => {
+    setOrderSeed(items);
+    setPage("purchase-orders");
+  }, []);
 
   const goTo = (next: BackOfficePage) => {
     if (next === page) return;
@@ -115,7 +120,7 @@ export function BackOffice({
         ) : page === "stock" ? (
           <StockScreen onSessionEnded={onSessionEnded} />
         ) : page === "low-stock" ? (
-          <LowStockScreen onSessionEnded={onSessionEnded} />
+          <LowStockScreen onSessionEnded={onSessionEnded} onCreateOrder={createOrder} />
         ) : page === "purchase-orders" ? (
           <PurchaseOrdersScreen
             seed={orderSeed}
