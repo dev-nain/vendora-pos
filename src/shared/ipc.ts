@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AuditListQuery, AuditPage, AuditUser } from "./audit";
 import type {
   BackupNowResult,
   BackupPasswordResult,
@@ -225,6 +226,8 @@ export const ipcChannels = {
   returnsAddFromSale: "returns:add-from-sale",
   salesList: "sales:list",
   salesGet: "sales:get",
+  auditList: "audit:list",
+  auditUsers: "audit:users",
   backupStatus: "backup:status",
   backupRun: "backup:run",
   backupChooseFile: "backup:choose-file",
@@ -366,6 +369,10 @@ export interface VendoraApi {
   sales: {
     list: (query: SalesListQuery) => Promise<OrderSummary[]>;
     get: (id: string) => Promise<GetOrderResult>;
+  };
+  audit: {
+    list: (query: AuditListQuery) => Promise<AuditPage>;
+    listUsers: () => Promise<AuditUser[]>;
   };
   backup: {
     status: () => Promise<BackupStatus>;

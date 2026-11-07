@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ipcErrorMessages } from "@shared/ipc";
+import { ipcChannels, ipcErrorMessages } from "@shared/ipc";
 import { createProductInputSchema } from "@shared/products";
 import { createSessionStore, type SessionStore } from "./auth/session";
 import type { VendoraDatabase } from "./db/client";
@@ -26,6 +26,7 @@ import { createGoodsReceivedService, type GoodsReceivedService } from "./service
 import { createStockService } from "./services/stock";
 import { openMigratedDatabase } from "./db/test-database";
 import { createInventoryService, type InventoryService } from "./services/inventory";
+import { createAuditLogService, type AuditLogService } from "./services/audit-log";
 
 const handlers = vi.hoisted(
   () => new Map<string, (event: unknown, ...args: unknown[]) => unknown>(),
@@ -157,6 +158,7 @@ describe("products ipc", () => {
     });
     const stub = {} as never;
     registerIpcHandlers({
+      auditLog: stub,
       auth: stub,
       backupAdmin: stub,
       backupPassword: stub,
@@ -542,6 +544,7 @@ describe("shifts ipc", () => {
     receipts = { openDrawer: vi.fn() };
     const stub = {} as never;
     registerIpcHandlers({
+      auditLog: stub,
       auth: stub,
       backupAdmin: stub,
       backupPassword: stub,
@@ -697,6 +700,7 @@ describe("checkout ipc", () => {
     receipts = { startAfterSale: vi.fn() };
     const stub = {} as never;
     registerIpcHandlers({
+      auditLog: stub,
       auth: stub,
       backupAdmin: stub,
       backupPassword: stub,
@@ -945,6 +949,7 @@ describe("backup settings ipc", () => {
     });
     const stub = {} as never;
     registerIpcHandlers({
+      auditLog: stub,
       auth: stub,
       backupAdmin: stub,
       backupPassword: stub,
@@ -991,6 +996,7 @@ describe("backup ipc", () => {
     vi.clearAllMocks();
     const stub = {} as never;
     registerIpcHandlers({
+      auditLog: stub,
       auth: stub,
       backupAdmin: admin as never,
       backupPassword: stub,
@@ -1067,6 +1073,7 @@ describe("backup password ipc", () => {
     vi.clearAllMocks();
     const stub = {} as never;
     registerIpcHandlers({
+      auditLog: stub,
       auth: stub,
       backupAdmin: stub,
       backupPassword: service as never,
@@ -1150,6 +1157,7 @@ describe("inventory ipc", () => {
     });
     const stub = {} as never;
     registerIpcHandlers({
+      auditLog: stub,
       auth: stub,
       backupAdmin: stub,
       backupPassword: stub,
@@ -1213,5 +1221,109 @@ describe("inventory ipc", () => {
     await expect(
       invoke("inventory:list-stock", { query: "", limit: 10, offset: 0 }),
     ).rejects.toThrow(new Error(ipcErrorMessages.unauthenticated));
+  });
+});
+
+describe("audit log ipc", () => {
+  let dir: string;
+  let database: VendoraDatabase;
+  let sessions: SessionStore;
+  let service: AuditLogService;
+  let userId: string;
+  const cursorId = "0192f3a0-0000-7000-8000-000000000098";
+
+  beforeEach(() => {
+    handlers.clear();
+    dir = mkdtempSync(join(tmpdir(), "vendora-ipc-audit-"));
+    database = openMigratedDatabase(join(dir, "vendora.db"));
+    seedStoreAndTerminal(database);
+    userId = database.db
+      .insert(users)
+      .values({ username: "owner", displayName: "Owner", passwordHash: "x", pinHash: "x" })
+      .returning()
+      .get().id;
+    sessions = createSessionStore();
+    sessions.start({
+      userId,
+      storeId: database.db.select().from(stores).get()!.id,
+      loggedInAt: new Date(0),
+    });
+    const audit = createAuditService(database);
+    audit.record({ action: "login", actorUserId: userId });
+    audit.record({ action: "logout", actorUserId: userId });
+    service = createAuditLogService({ database, sessions });
+    const stub = {} as never;
+    registerIpcHandlers({
+      auditLog: service,
+      auth: stub,
+      backupAdmin: stub,
+      backupPassword: stub,
+      backupSettings: stub,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      goodsReceived: stub,
+      inventory: stub,
+      products: stub,
+      purchaseOrders: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      suppliers: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    database.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("returns a filtered page through the schemas", async () => {
+    expect(await invoke("audit:list", { action: "logout", userId })).toMatchObject({
+      entries: [{ action: "logout", actorName: "Owner" }],
+      nextCursor: null,
+    });
+    expect(await invoke("audit:users")).toEqual([{ id: userId, displayName: "Owner" }]);
+  });
+
+  it.each([
+    { sort: "asc" },
+    { userId: "x" },
+    { from: "2026-02-01", to: "2026-01-01" },
+    { before: { createdAt: "2026-01-01T00:00:00.000Z", id: cursorId, extra: 1 } },
+  ])("refuses invalid input %j without calling the service", async (input) => {
+    const spy = vi.spyOn(service, "list");
+    await expect(invoke("audit:list", input)).rejects.toThrow();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("registers only the two read channels", () => {
+    const channels = Object.values(ipcChannels);
+    expect(channels.filter((name) => name.startsWith("audit:")).toSorted()).toEqual([
+      "audit:list",
+      "audit:users",
+    ]);
+    expect([...handlers.keys()].filter((name) => name.startsWith("audit:")).toSorted()).toEqual([
+      "audit:list",
+      "audit:users",
+    ]);
+    const writeVerb = /update|delete|remove|edit|create|write|clear/;
+    expect(
+      [...handlers.keys()].filter((name) => /audit/.test(name) && writeVerb.test(name)),
+    ).toEqual([]);
+  });
+
+  it("refuses both channels with no session", async () => {
+    sessions.end();
+    for (const channel of ["audit:list", "audit:users"]) {
+      await expect(invoke(channel, {})).rejects.toThrow(
+        new Error(ipcErrorMessages.unauthenticated),
+      );
+    }
   });
 });

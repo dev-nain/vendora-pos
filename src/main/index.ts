@@ -16,6 +16,7 @@ import { createBackupAdminService } from "./services/backup-admin";
 import { createBackupPasswordService } from "./services/backup-password";
 import { createBillDraftsService } from "./services/bill-drafts";
 import { createCatalogExportService } from "./services/catalog-export";
+import { createAuditLogService } from "./services/audit-log";
 import { createCategoriesService } from "./services/categories";
 import { createGoodsReceivedService } from "./services/goods-received";
 import { createPurchaseOrdersService } from "./services/purchase-orders";
@@ -111,6 +112,7 @@ void app.whenReady().then(async () => {
     heldBills: billDrafts.heldBillsFor,
     afterClose: backups.afterShiftClose,
   });
+  const auditLog = createAuditLogService({ database, sessions });
   const users = createUsersService({ database, audit, sessions });
   const products = createProductsService({ database, audit, sessions });
   const inventory = createInventoryService({ database, sessions, stock });
@@ -194,6 +196,7 @@ void app.whenReady().then(async () => {
     ...(app.isPackaged ? {} : { log: (entry) => console.info("print job", entry) }),
   });
   registerIpcHandlers({
+    auditLog,
     auth,
     backupSettings,
     backupAdmin,
