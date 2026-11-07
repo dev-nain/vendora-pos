@@ -42,6 +42,7 @@ export function buildPurchaseReturnDocument({
   return {
     title: "Purchase return",
     reference: purchaseReturn.returnNo,
+    header: [],
     panels: storeDetails.lines.length > 0 ? [storeDetails, supplierPanel] : [supplierPanel],
     facts,
     columns: [
@@ -59,6 +60,8 @@ export function buildPurchaseReturnDocument({
       { text: formatRupees(line.lineTotalPaisa) },
     ]),
     totals: [{ label: "Total", value: formatRupees(purchaseReturn.totalPaisa) }],
+    summaries: [],
     notes: present(purchaseReturn.notes) ? purchaseReturn.notes : null,
+    footer: [],
   };
 }

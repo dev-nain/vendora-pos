@@ -90,6 +90,17 @@ function grossFor(line: TotalsLine): number {
   return sign * magnitude;
 }
 
+export function salesTaxPaisa(
+  netPaisa: number,
+  rateBps: number,
+  pricesIncludeTax: boolean,
+): number {
+  const rate = BigInt(rateBps);
+  return pricesIncludeTax
+    ? divRoundHalfUp(BigInt(netPaisa) * rate, 10000n + rate)
+    : divRoundHalfUp(BigInt(netPaisa) * rate, 10000n);
+}
+
 export function computeBill(input: {
   lines: readonly TotalsLine[];
   billDiscount: Discount | null;
@@ -135,10 +146,7 @@ export function computeBill(input: {
     if (fixed) return { id: s.line.id, ...fixed };
     const billDiscountPaisa = shareById.get(s.line.id) ?? 0;
     const net = s.netPaisa - billDiscountPaisa;
-    const rate = BigInt(s.line.taxRateBps);
-    const taxPaisa = input.pricesIncludeTax
-      ? divRoundHalfUp(BigInt(net) * rate, 10000n + rate)
-      : divRoundHalfUp(BigInt(net) * rate, 10000n);
+    const taxPaisa = salesTaxPaisa(net, s.line.taxRateBps, input.pricesIncludeTax);
     return {
       id: s.line.id,
       grossPaisa: s.grossPaisa,
