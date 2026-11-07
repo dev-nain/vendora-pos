@@ -68,12 +68,16 @@ export function ReportTable<Row extends Record<string, string | number>>({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {rows.map((row) => (
-          <TableRow key={String(row[columns[0]?.key ?? ""])}>
+        {rows.map((row, rowIndex) => (
+          <TableRow key={rowIndex}>
             {columns.map((column) => {
               const value = row[column.key] ?? "";
               return (
-                <TableCell key={column.key} className={cellClass(column, value)}>
+                <TableCell
+                  key={column.key}
+                  className={`${cellClass(column, value)} ${column.format === "text" ? "truncate" : ""}`}
+                  title={column.format === "text" ? String(value) : undefined}
+                >
                   {formatReportCell(column, value)}
                 </TableCell>
               );
