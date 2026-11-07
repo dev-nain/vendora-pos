@@ -19,6 +19,14 @@ export interface DocumentPair {
   value: string;
 }
 
+export interface DocumentSection {
+  heading: string;
+  columns: DocumentColumn[];
+  rows: DocumentCell[][];
+  totals: DocumentPair[];
+  note: string | null;
+}
+
 export interface DocumentModel {
   title: string;
   reference: string;
@@ -27,6 +35,7 @@ export interface DocumentModel {
   columns: DocumentColumn[];
   rows: DocumentCell[][];
   totals: DocumentPair[];
+  sections?: DocumentSection[];
   notes: string | null;
   landscape?: boolean;
 }

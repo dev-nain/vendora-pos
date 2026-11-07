@@ -1,7 +1,7 @@
 import "@fontsource/noto-nastaliq-urdu/400.css";
 import "@fontsource/noto-nastaliq-urdu/700.css";
 import "./document-page.css";
-import type { DocumentModel, DocumentPair } from "@shared/document";
+import type { DocumentModel, DocumentPair, DocumentSection } from "@shared/document";
 
 declare global {
   interface Window {
@@ -22,6 +22,53 @@ function pair(className: string, { label, value }: DocumentPair): HTMLElement {
   return node;
 }
 
+function tableNodes({
+  columns,
+  rows,
+  totals,
+}: Pick<DocumentSection, "columns" | "rows" | "totals">): HTMLElement[] {
+  const headRow = element("tr", "");
+  for (const column of columns) {
+    const th = element("th", column.align === "right" ? "right" : "", column.label);
+    if (column.width) th.style.width = column.width;
+    headRow.append(th);
+  }
+  const thead = element("thead", "");
+  thead.append(headRow);
+  const tbody = element("tbody", "");
+  for (const row of rows) {
+    const tr = element("tr", "");
+    row.forEach((cell, index) => {
+      const td = element("td", columns[index]?.align === "right" ? "right" : "");
+      td.append(element("div", "", cell.text));
+      if (cell.urdu) {
+        const urdu = element("div", "ur", cell.urdu);
+        urdu.dir = "rtl";
+        urdu.lang = "ur";
+        td.append(urdu);
+      }
+      tr.append(td);
+    });
+    tbody.append(tr);
+  }
+  const table = element("table", "");
+  table.append(thead, tbody);
+
+  const totalsNode = element("div", "totals");
+  for (const total of totals) {
+    const row = element("div", "total");
+    row.append(element("span", "", total.label), element("span", "", total.value));
+    totalsNode.append(row);
+  }
+  return [table, totalsNode];
+}
+
+function sectionNodes(section: DocumentSection): HTMLElement[] {
+  const nodes = [element("h2", "section-heading", section.heading), ...tableNodes(section)];
+  if (section.note) nodes.push(element("div", "section-note", section.note));
+  return nodes;
+}
+
 function build(model: DocumentModel): HTMLElement[] {
   const head = element("div", "head");
   head.append(element("h1", "title", model.title), element("div", "reference", model.reference));
@@ -37,41 +84,10 @@ function build(model: DocumentModel): HTMLElement[] {
   const facts = element("div", "facts");
   facts.append(...model.facts.map((fact) => pair("fact", fact)));
 
-  const headRow = element("tr", "");
-  for (const column of model.columns) {
-    const th = element("th", column.align === "right" ? "right" : "", column.label);
-    if (column.width) th.style.width = column.width;
-    headRow.append(th);
-  }
-  const thead = element("thead", "");
-  thead.append(headRow);
-  const tbody = element("tbody", "");
-  for (const row of model.rows) {
-    const tr = element("tr", "");
-    row.forEach((cell, index) => {
-      const td = element("td", model.columns[index]?.align === "right" ? "right" : "");
-      td.append(element("div", "", cell.text));
-      if (cell.urdu) {
-        const urdu = element("div", "ur", cell.urdu);
-        urdu.dir = "rtl";
-        urdu.lang = "ur";
-        td.append(urdu);
-      }
-      tr.append(td);
-    });
-    tbody.append(tr);
-  }
-  const table = element("table", "");
-  table.append(thead, tbody);
+  const main = model.columns.length > 0 ? tableNodes(model) : [];
+  const sections = (model.sections ?? []).flatMap(sectionNodes);
 
-  const totals = element("div", "totals");
-  for (const total of model.totals) {
-    const row = element("div", "total");
-    row.append(element("span", "", total.label), element("span", "", total.value));
-    totals.append(row);
-  }
-
-  const nodes = [head, panels, facts, table, totals];
+  const nodes = [head, panels, facts, ...main, ...sections];
   if (model.landscape) nodes.push(element("style", "", "@page { size: A4 landscape; }"));
   if (model.notes) {
     const notes = element("div", "notes");
