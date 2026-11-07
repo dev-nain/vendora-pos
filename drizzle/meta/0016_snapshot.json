@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b9d3e14b-e3c1-4986-8b67-351d2fb14ab9",
+  "id": "6b9f0c69-608b-438b-b4bb-cdfa1a3a1851",
   "prevId": "da59bf89-e748-41ff-be67-54933194f1f6",
   "tables": {
     "audit_log": {
@@ -32,7 +32,7 @@
           "name": "actor_user_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "action": {
@@ -140,173 +140,6 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
-    },
-    "backup_records": {
-      "name": "backup_records",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "store_id": {
-          "name": "store_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "terminal_id": {
-          "name": "terminal_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "trigger": {
-          "name": "trigger",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "file_name": {
-          "name": "file_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "size_bytes": {
-          "name": "size_bytes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "result": {
-          "name": "result",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "copy_folder": {
-          "name": "copy_folder",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "copy_result": {
-          "name": "copy_result",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "copy_error": {
-          "name": "copy_error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "copy_deleted_at": {
-          "name": "copy_deleted_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "backup_records_created_at_idx": {
-          "name": "backup_records_created_at_idx",
-          "columns": [
-            "created_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {
-        "backup_records_store_id_stores_id_fk": {
-          "name": "backup_records_store_id_stores_id_fk",
-          "tableFrom": "backup_records",
-          "tableTo": "stores",
-          "columnsFrom": [
-            "store_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "backup_records_terminal_id_terminals_id_fk": {
-          "name": "backup_records_terminal_id_terminals_id_fk",
-          "tableFrom": "backup_records",
-          "tableTo": "terminals",
-          "columnsFrom": [
-            "terminal_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "backup_records_trigger_check": {
-          "name": "backup_records_trigger_check",
-          "value": "\"backup_records\".\"trigger\" IN ('daily', 'shift_close', 'manual', 'pre_restore')"
-        },
-        "backup_records_result_check": {
-          "name": "backup_records_result_check",
-          "value": "\"backup_records\".\"result\" IN ('ok', 'failed')"
-        },
-        "backup_records_outcome_check": {
-          "name": "backup_records_outcome_check",
-          "value": "(\"backup_records\".\"result\" = 'ok' AND \"backup_records\".\"size_bytes\" IS NOT NULL AND \"backup_records\".\"error\" IS NULL) OR (\"backup_records\".\"result\" = 'failed' AND \"backup_records\".\"size_bytes\" IS NULL AND \"backup_records\".\"error\" IS NOT NULL)"
-        },
-        "backup_records_size_bytes_check": {
-          "name": "backup_records_size_bytes_check",
-          "value": "(\"backup_records\".\"size_bytes\" IS NULL OR \"backup_records\".\"size_bytes\" = CAST(\"backup_records\".\"size_bytes\" AS INTEGER))"
-        }
-      }
     },
     "bill_draft_lines": {
       "name": "bill_draft_lines",
@@ -1386,6 +1219,406 @@
         "products_mrp_paisa_check": {
           "name": "products_mrp_paisa_check",
           "value": "\"products\".\"mrp_paisa\" IS NULL OR \"products\".\"mrp_paisa\" >= 0"
+        }
+      }
+    },
+    "purchase_order_lines": {
+      "name": "purchase_order_lines",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "store_id": {
+          "name": "store_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "terminal_id": {
+          "name": "terminal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "purchase_order_id": {
+          "name": "purchase_order_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name_ur": {
+          "name": "name_ur",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "unit": {
+          "name": "unit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ordered_qty_milli": {
+          "name": "ordered_qty_milli",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "unit_cost_paisa": {
+          "name": "unit_cost_paisa",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "line_total_paisa": {
+          "name": "line_total_paisa",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "received_qty_milli": {
+          "name": "received_qty_milli",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "purchase_order_lines_purchase_order_id_position_unique": {
+          "name": "purchase_order_lines_purchase_order_id_position_unique",
+          "columns": [
+            "purchase_order_id",
+            "position"
+          ],
+          "isUnique": true,
+          "where": "\"purchase_order_lines\".\"deleted_at\" IS NULL"
+        },
+        "purchase_order_lines_product_id_idx": {
+          "name": "purchase_order_lines_product_id_idx",
+          "columns": [
+            "product_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "purchase_order_lines_store_id_stores_id_fk": {
+          "name": "purchase_order_lines_store_id_stores_id_fk",
+          "tableFrom": "purchase_order_lines",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "purchase_order_lines_terminal_id_terminals_id_fk": {
+          "name": "purchase_order_lines_terminal_id_terminals_id_fk",
+          "tableFrom": "purchase_order_lines",
+          "tableTo": "terminals",
+          "columnsFrom": [
+            "terminal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "purchase_order_lines_purchase_order_id_purchase_orders_id_fk": {
+          "name": "purchase_order_lines_purchase_order_id_purchase_orders_id_fk",
+          "tableFrom": "purchase_order_lines",
+          "tableTo": "purchase_orders",
+          "columnsFrom": [
+            "purchase_order_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "purchase_order_lines_product_id_products_id_fk": {
+          "name": "purchase_order_lines_product_id_products_id_fk",
+          "tableFrom": "purchase_order_lines",
+          "tableTo": "products",
+          "columnsFrom": [
+            "product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "purchase_order_lines_integers_check": {
+          "name": "purchase_order_lines_integers_check",
+          "value": "\"purchase_order_lines\".\"position\" = CAST(\"purchase_order_lines\".\"position\" AS INTEGER) AND \"purchase_order_lines\".\"ordered_qty_milli\" = CAST(\"purchase_order_lines\".\"ordered_qty_milli\" AS INTEGER) AND \"purchase_order_lines\".\"unit_cost_paisa\" = CAST(\"purchase_order_lines\".\"unit_cost_paisa\" AS INTEGER) AND \"purchase_order_lines\".\"line_total_paisa\" = CAST(\"purchase_order_lines\".\"line_total_paisa\" AS INTEGER) AND \"purchase_order_lines\".\"received_qty_milli\" = CAST(\"purchase_order_lines\".\"received_qty_milli\" AS INTEGER)"
+        },
+        "purchase_order_lines_position_check": {
+          "name": "purchase_order_lines_position_check",
+          "value": "\"purchase_order_lines\".\"position\" >= 0"
+        },
+        "purchase_order_lines_ordered_qty_milli_check": {
+          "name": "purchase_order_lines_ordered_qty_milli_check",
+          "value": "\"purchase_order_lines\".\"ordered_qty_milli\" > 0"
+        },
+        "purchase_order_lines_unit_cost_paisa_check": {
+          "name": "purchase_order_lines_unit_cost_paisa_check",
+          "value": "\"purchase_order_lines\".\"unit_cost_paisa\" >= 0"
+        },
+        "purchase_order_lines_line_total_paisa_check": {
+          "name": "purchase_order_lines_line_total_paisa_check",
+          "value": "\"purchase_order_lines\".\"line_total_paisa\" >= 0"
+        },
+        "purchase_order_lines_received_qty_milli_check": {
+          "name": "purchase_order_lines_received_qty_milli_check",
+          "value": "\"purchase_order_lines\".\"received_qty_milli\" >= 0"
+        },
+        "purchase_order_lines_unit_check": {
+          "name": "purchase_order_lines_unit_check",
+          "value": "\"purchase_order_lines\".\"unit\" IN ('piece', 'kg', 'litre')"
+        }
+      }
+    },
+    "purchase_orders": {
+      "name": "purchase_orders",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "store_id": {
+          "name": "store_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "terminal_id": {
+          "name": "terminal_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "order_no": {
+          "name": "order_no",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "supplier_id": {
+          "name": "supplier_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'draft'"
+        },
+        "total_paisa": {
+          "name": "total_paisa",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "purchase_orders_order_no_terminal_id_unique": {
+          "name": "purchase_orders_order_no_terminal_id_unique",
+          "columns": [
+            "order_no",
+            "terminal_id"
+          ],
+          "isUnique": true
+        },
+        "purchase_orders_store_id_created_at_idx": {
+          "name": "purchase_orders_store_id_created_at_idx",
+          "columns": [
+            "store_id",
+            "created_at"
+          ],
+          "isUnique": false
+        },
+        "purchase_orders_supplier_id_idx": {
+          "name": "purchase_orders_supplier_id_idx",
+          "columns": [
+            "supplier_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "purchase_orders_store_id_stores_id_fk": {
+          "name": "purchase_orders_store_id_stores_id_fk",
+          "tableFrom": "purchase_orders",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "purchase_orders_terminal_id_terminals_id_fk": {
+          "name": "purchase_orders_terminal_id_terminals_id_fk",
+          "tableFrom": "purchase_orders",
+          "tableTo": "terminals",
+          "columnsFrom": [
+            "terminal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "purchase_orders_supplier_id_suppliers_id_fk": {
+          "name": "purchase_orders_supplier_id_suppliers_id_fk",
+          "tableFrom": "purchase_orders",
+          "tableTo": "suppliers",
+          "columnsFrom": [
+            "supplier_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "purchase_orders_created_by_user_id_users_id_fk": {
+          "name": "purchase_orders_created_by_user_id_users_id_fk",
+          "tableFrom": "purchase_orders",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "purchase_orders_status_check": {
+          "name": "purchase_orders_status_check",
+          "value": "\"purchase_orders\".\"status\" IN ('draft', 'confirmed', 'cancelled')"
+        },
+        "purchase_orders_total_paisa_check": {
+          "name": "purchase_orders_total_paisa_check",
+          "value": "\"purchase_orders\".\"total_paisa\" = CAST(\"purchase_orders\".\"total_paisa\" AS INTEGER) AND \"purchase_orders\".\"total_paisa\" >= 0"
+        },
+        "purchase_orders_order_no_check": {
+          "name": "purchase_orders_order_no_check",
+          "value": "length(\"purchase_orders\".\"order_no\") > 0"
         }
       }
     },
@@ -3558,6 +3791,84 @@
         }
       }
     },
+    "terminal_purchase_order_sequences": {
+      "name": "terminal_purchase_order_sequences",
+      "columns": {
+        "terminal_id": {
+          "name": "terminal_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "store_id": {
+          "name": "store_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "next_seq": {
+          "name": "next_seq",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "terminal_purchase_order_sequences_terminal_id_terminals_id_fk": {
+          "name": "terminal_purchase_order_sequences_terminal_id_terminals_id_fk",
+          "tableFrom": "terminal_purchase_order_sequences",
+          "tableTo": "terminals",
+          "columnsFrom": [
+            "terminal_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "terminal_purchase_order_sequences_store_id_stores_id_fk": {
+          "name": "terminal_purchase_order_sequences_store_id_stores_id_fk",
+          "tableFrom": "terminal_purchase_order_sequences",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "terminal_purchase_order_sequences_next_seq_check": {
+          "name": "terminal_purchase_order_sequences_next_seq_check",
+          "value": "\"terminal_purchase_order_sequences\".\"next_seq\" = CAST(\"terminal_purchase_order_sequences\".\"next_seq\" AS INTEGER) AND \"terminal_purchase_order_sequences\".\"next_seq\" >= 1"
+        }
+      }
+    },
     "terminals": {
       "name": "terminals",
       "columns": {
@@ -3633,13 +3944,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'print'"
-        },
-        "second_copy_folder": {
-          "name": "second_copy_folder",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         },
         "created_at": {
           "name": "created_at",
