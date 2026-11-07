@@ -1,3 +1,4 @@
+import { reportDetailLimit } from "../../shared/discounts-returns-voids";
 import {
   exportReportFailedMessage,
   salesByDayColumns,
@@ -13,6 +14,7 @@ import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import type { DocumentRenderer } from "../documents/document-window";
 import { writeAtomic } from "../documents/write-atomic";
+import { readDiscountsReturnsVoids } from "../reports/discounts-returns-voids";
 import { reportCsv } from "../reports/report-csv";
 import { buildReportDocument } from "../reports/report-document";
 import { readSalesByDay } from "../reports/sales-by-day";
@@ -60,6 +62,13 @@ export function createReportsService({
     return readSalesByDay(database, session.storeId, range);
   }
 
+  function discountsReturnsVoids(range: ReportRange) {
+    const session = requireSession(sessions);
+    return readDiscountsReturnsVoids(database, session.storeId, range, {
+      limit: reportDetailLimit,
+    });
+  }
+
   async function exportTable<Row extends Record<string, string | number>>(
     table: ExportTable<Row>,
   ): Promise<ExportReportResult> {
@@ -94,6 +103,7 @@ export function createReportsService({
 
   return {
     salesByDay,
+    discountsReturnsVoids,
     exportSalesByDay: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Sales by day",
