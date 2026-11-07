@@ -1,21 +1,23 @@
 import { Worker } from "node:worker_threads";
+import type { BackupSeal } from "./backup-cipher";
 
 export interface CopyJob {
   sourceFile: string;
   tempFile: string;
+  seal: BackupSeal | null;
   signal: AbortSignal;
 }
 
 export type CopyDatabase = (job: CopyJob) => Promise<{ sizeBytes: number }>;
 
 export function createWorkerCopy(workerFile: string): CopyDatabase {
-  return ({ sourceFile, tempFile, signal }) =>
+  return ({ sourceFile, tempFile, seal, signal }) =>
     new Promise((resolve, reject) => {
       if (signal.aborted) {
         reject(new Error("Backup was cancelled"));
         return;
       }
-      const worker = new Worker(workerFile, { workerData: { sourceFile, tempFile } });
+      const worker = new Worker(workerFile, { workerData: { sourceFile, tempFile, seal } });
       let settled = false;
       const settle = (finish: () => void) => {
         if (settled) return;

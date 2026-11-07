@@ -1,6 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { backupFileNameSchema, type BackupFile, type BackupKind } from "../../shared/backup";
+import { isEncryptedBackup } from "./backup-cipher";
 
 const kindByPrefix: Record<string, BackupKind> = {
   vendora: "backup",
@@ -28,7 +29,16 @@ export async function listBackupFiles(backupDir: string): Promise<BackupFile[]> 
       if (!parsed) return null;
       const info = await stat(join(backupDir, fileName)).catch(() => null);
       if (!info?.isFile()) return null;
-      return { fileName, kind: parsed.kind, takenAt: parsed.takenAt, sizeBytes: info.size };
+      const file = join(backupDir, fileName);
+      const encrypted = await isEncryptedBackup(file).catch(() => null);
+      if (encrypted === null) return null;
+      return {
+        fileName,
+        kind: parsed.kind,
+        takenAt: parsed.takenAt,
+        sizeBytes: info.size,
+        encrypted,
+      };
     }),
   );
   return found

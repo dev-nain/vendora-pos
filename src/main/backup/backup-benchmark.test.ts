@@ -4,8 +4,15 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { backupRecords, saleLines } from "../db/schema";
 import { createCheckoutKit, type CheckoutKit } from "../services/checkout-test-kit";
+import type { BackupSeal } from "./backup-cipher";
 import { createBackupService } from "./backup-service";
 import { createWorkerCopy } from "./worker-copy";
+
+const benchmarkSeal: BackupSeal = {
+  key: Buffer.alloc(32, 1),
+  salt: Buffer.alloc(16, 2),
+  kdf: { memoryKiB: 65_536, iterations: 3, parallelism: 1 },
+};
 
 const saleLineCount = 500_000;
 const productCount = 2_000;
@@ -154,6 +161,7 @@ describe("backup benchmark", () => {
       audit: kit.audit,
       backupDir,
       copy: createWorkerCopy(resolve(process.cwd(), "src/main/backup/backup-worker.ts")),
+      seal: async () => benchmarkSeal,
     });
 
     const addDuring: number[] = [];

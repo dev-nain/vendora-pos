@@ -1,7 +1,9 @@
+import { randomBytes } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { sealBackupFile } from "./backup-cipher";
 import { listBackupFiles, parseBackupName } from "./backup-files";
 
 describe("parseBackupName", () => {
@@ -47,14 +49,32 @@ describe("listBackupFiles", () => {
         kind: "before-restore",
         takenAt: "2026-11-06T01:00:00.000Z",
         sizeBytes: 6,
+        encrypted: false,
       },
       {
         fileName: "vendora-2026-11-05T01-00-00-000Z.db",
         kind: "backup",
         takenAt: "2026-11-05T01:00:00.000Z",
         sizeBytes: 3,
+        encrypted: false,
       },
     ]);
+  });
+
+  it("marks a sealed file as encrypted and a plain one as not", async () => {
+    const plain = join(dir, "plain.tmp");
+    writeFileSync(
+      plain,
+      Buffer.concat([Buffer.from("SQLite format 3\0", "latin1"), randomBytes(64)]),
+    );
+    sealBackupFile(plain, join(dir, "vendora-2026-11-05T01-00-00-000Z.db"), {
+      key: randomBytes(32),
+      salt: randomBytes(16),
+      kdf: { memoryKiB: 64, iterations: 1, parallelism: 1 },
+    });
+    writeFileSync(join(dir, "vendora-2026-11-06T01-00-00-000Z.db"), "SQLite format 3\0 rest");
+
+    expect((await listBackupFiles(dir)).map((file) => file.encrypted)).toEqual([false, true]);
   });
 
   it("returns an empty list for a missing folder", async () => {

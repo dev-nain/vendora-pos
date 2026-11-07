@@ -1,4 +1,13 @@
-import { existsSync, mkdirSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
@@ -6,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { auditLog, backupRecords, terminals, users } from "../db/schema";
 import { createAuthService } from "../services/auth";
 import { createCheckoutKit, type CheckoutKit } from "../services/checkout-test-kit";
+import { sealBackupFile, type BackupSeal } from "./backup-cipher";
 import { createBackupService } from "./backup-service";
 import type { CopyFile } from "./second-copy";
 import type { CopyDatabase } from "./worker-copy";
@@ -68,8 +78,18 @@ describe("createBackupService", () => {
     kit.database.db.update(terminals).set({ secondCopyFolder: path }).run();
   const recordOf = (fileName: string) => records().find((record) => record.fileName === fileName)!;
 
-  const createService = (copyFile?: CopyFile) =>
-    createBackupService({ database: kit.database, audit: kit.audit, backupDir, copy, copyFile });
+  const createService = (
+    copyFile?: CopyFile,
+    seal: () => Promise<BackupSeal | null> = async () => null,
+  ) =>
+    createBackupService({
+      database: kit.database,
+      audit: kit.audit,
+      backupDir,
+      copy,
+      seal,
+      copyFile,
+    });
 
   const runDailyAt = async (service: ReturnType<typeof createService>, at: number) => {
     vi.setSystemTime(at);
@@ -822,6 +842,91 @@ describe("createBackupService", () => {
 
       expect(records()).toHaveLength(1);
       await expect(pending).resolves.toMatchObject({ ok: true });
+    });
+  });
+  describe("encryption", () => {
+    const seal: BackupSeal = {
+      key: Buffer.alloc(32, 3),
+      salt: Buffer.alloc(16, 4),
+      kdf: { memoryKiB: 64, iterations: 1, parallelism: 1 },
+    };
+    const unreadable =
+      "This PC can't read the backup password. Go to Settings and choose Change password.";
+
+    it("hands the seal to the copy when on and null when off", async () => {
+      await runDailyAt(
+        createService(undefined, async () => seal),
+        t0,
+      );
+      await runDailyAt(createService(), t0 + day);
+
+      expect(copy.mock.calls.map(([job]) => job.seal)).toEqual([seal, null]);
+    });
+
+    it("records a failure and writes nothing when the key can't be read", async () => {
+      const service = createService(undefined, async () => {
+        throw new Error(unreadable);
+      });
+
+      await runDailyAt(service, t0);
+
+      expect(copy).not.toHaveBeenCalled();
+      expect(files()).toEqual([]);
+      expect(records()).toHaveLength(1);
+      expect(records()[0]).toMatchObject({ result: "failed", error: unreadable });
+    });
+
+    it("still queues a later shift close backup after a key failure", async () => {
+      const user = kit.signIn("cashier");
+      const service = createService(undefined, async () => {
+        throw new Error(unreadable);
+      });
+
+      await runDailyAt(service, t0);
+      expect(() => service.afterShiftClose(user.id)).not.toThrow();
+      await service.whenIdle();
+
+      expect(records().map((record) => record.trigger)).toEqual(["daily", "shift_close"]);
+      expect(records().every((record) => record.result === "failed")).toBe(true);
+    });
+
+    it("sweeps a sealed temp file left by a crash on start", async () => {
+      mkdirSync(backupDir, { recursive: true });
+      writeFileSync(join(backupDir, "vendora-2020-01-01T00-00-00-000Z.db.sealed.tmp"), "partial");
+      const service = createService();
+
+      service.start();
+      await service.whenIdle();
+      await service.stop();
+
+      expect(files()).not.toContain("vendora-2020-01-01T00-00-00-000Z.db.sealed.tmp");
+    });
+
+    it("copies the sealed file to the second folder", async () => {
+      const folder = join(kit.dir, "usb");
+      mkdirSync(folder);
+      setFolder(folder);
+      copy.mockImplementation(async ({ tempFile, seal: job }) => {
+        await mkdir(join(tempFile, ".."), { recursive: true });
+        const plain = `${tempFile}.plain`;
+        writeFileSync(
+          plain,
+          Buffer.concat([Buffer.from("SQLite format 3\0", "latin1"), Buffer.alloc(64)]),
+        );
+        if (job) sealBackupFile(plain, tempFile, job);
+        else renameSync(plain, tempFile);
+        rmSync(plain, { force: true });
+        return { sizeBytes: statSync(tempFile).size };
+      });
+
+      await runDailyAt(
+        createService(undefined, async () => seal),
+        t0,
+      );
+
+      const copied = readFileSync(join(folder, records()[0]!.fileName));
+      expect(copied.subarray(0, 8).toString("ascii")).toBe("VNDBKENC");
+      expect(copied.includes(Buffer.from("SQLite format 3"))).toBe(false);
     });
   });
 });
