@@ -152,3 +152,31 @@ td.right {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.doc-header,
+.doc-footer {
+  text-align: center;
+  break-inside: avoid;
+}
+
+.doc-header {
+  margin-top: 10pt;
+}
+
+.doc-footer {
+  margin-top: 14pt;
+}
+
+.summary {
+  margin: 14pt 0 0 auto;
+  width: 50%;
+  break-inside: avoid;
+}
+
+.summary .label {
+  font-weight: 600;
+}
+
+.summary table {
+  margin-top: 4pt;
+}

@@ -4,7 +4,7 @@
 #   screenshots.sh capture <out_dir> <shots_file>
 #       Builds the app, launches Electron against a throwaway profile with
 #       remote debugging, captures every shot over CDP, then quits.
-#       shots_file lines: name|route|WIDTHxHEIGHT|light|dark[|as=<user>][|js=<expr>]
+#       shots_file lines: name|route|WIDTHxHEIGHT|light|dark[|as=<user>][|fixture=sale][|pdf=<file>][|js=<expr>]
 #         login|/|1366x768|light
 #         shell-dark|/|1366x768|dark|as=owner
 #         approval|/|1366x768|light|as=cashier|js=<renderer expression>
@@ -13,6 +13,12 @@
 #       password is looked up there); a shot without as= is taken signed out.
 #       js= is evaluated in the page (awaited) before the capture, e.g. to click
 #       a button; it can't contain "|".
+#       fixture=sale (needs as=) creates once per run, through the app API, store
+#       settings, two products, an open shift, a completed sale T1-000001 with
+#       buyer details and split payments, and an open bill with one line.
+#       pdf=<file> rasterises page 1 of <file> from the save folder (written by
+#       js=, e.g. invoices.savePdf) to <name>.png at the shot size, instead of
+#       capturing the window. Needs pdftoppm; a 794x1123 shot is A4 at 96 dpi.
 #       The fixture users are seeded only when some shot uses as=, so a
 #       signed-out run still starts from a fresh, empty database.
 #
@@ -43,9 +49,15 @@ capture() {
 	local dev_users=0
 	grep -q '|as=' "$shots" && dev_users=1
 
+	local save_dir=""
+	if grep -q '|pdf=' "$shots"; then
+		save_dir=$out/files
+		mkdir -p "$save_dir"
+	fi
+
 	# setsid gives Electron its own process group, so one kill stops it and its
 	# helper processes without matching this script.
-	VENDORA_DEV_USERS=$dev_users XDG_CONFIG_HOME=$profile HOME=$profile setsid "${run[@]}" pnpm exec electron . \
+	VENDORA_DEV_USERS=$dev_users VENDORA_DEV_SAVE_DIR=$save_dir XDG_CONFIG_HOME=$profile HOME=$profile setsid "${run[@]}" pnpm exec electron . \
 		--remote-debugging-port="$PORT" --user-data-dir="$profile/chromium" \
 		--force-prefers-reduced-motion >"$out/electron.log" 2>&1 &
 	local pgid=$!
@@ -58,7 +70,7 @@ capture() {
 	curl -sf "http://127.0.0.1:$PORT/json/list" | grep -q '"type": *"page"' ||
 		{ echo "app window did not open; see $out/electron.log" >&2; exit 1; }
 
-	node "$HERE/cdp-shot.mjs" "$PORT" "$out" "$shots"
+	node "$HERE/cdp-shot.mjs" "$PORT" "$out" "$shots" "$save_dir"
 }
 
 publish() {
@@ -92,5 +104,5 @@ publish() {
 case ${1:-} in
 capture) capture "$2" "$3" ;;
 publish) publish "$2" "$3" ;;
-*) sed -n '2,17p' "$0"; exit 1 ;;
+*) sed -n '2,27p' "$0"; exit 1 ;;
 esac
