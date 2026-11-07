@@ -26,6 +26,14 @@ describe("onHandText", () => {
   });
 });
 
+describe("negativeClass", () => {
+  it("marks only values below zero as critical", () => {
+    expect(negativeClass(-1)).toBe("text-critical");
+    expect(negativeClass(0)).toBe("");
+    expect(negativeClass(1)).toBe("");
+  });
+});
+
 describe("signedQuantityText", () => {
   it("adds a plus for positive amounts", () => {
     expect(signedQuantityText(1250, "kg")).toBe("+1.250 kg");

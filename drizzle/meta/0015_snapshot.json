@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "eae039c0-5ca0-4d93-a16e-410a659de228",
+  "id": "da59bf89-e748-41ff-be67-54933194f1f6",
   "prevId": "ff571c19-3d5c-4ba0-850e-96009f0c2240",
   "tables": {
     "audit_log": {
@@ -2845,12 +2845,10 @@
         }
       },
       "indexes": {
-        "stock_movements_product_id_qty_created_at_idx": {
-          "name": "stock_movements_product_id_qty_created_at_idx",
+        "stock_movements_product_id_idx": {
+          "name": "stock_movements_product_id_idx",
           "columns": [
-            "product_id",
-            "qty_milli",
-            "created_at"
+            "product_id"
           ],
           "isUnique": false
         },
@@ -3124,6 +3122,100 @@
           "value": "length(\"stores\".\"scale_price_prefix\") = 2 AND substr(\"stores\".\"scale_price_prefix\", 1, 1) BETWEEN '0' AND '9' AND substr(\"stores\".\"scale_price_prefix\", 2, 1) BETWEEN '0' AND '9'"
         }
       }
+    },
+    "suppliers": {
+      "name": "suppliers",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "store_id": {
+          "name": "store_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "contact_person": {
+          "name": "contact_person",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ntn": {
+          "name": "ntn",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "suppliers_store_id_stores_id_fk": {
+          "name": "suppliers_store_id_stores_id_fk",
+          "tableFrom": "suppliers",
+          "tableTo": "stores",
+          "columnsFrom": [
+            "store_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "tax_categories": {
       "name": "tax_categories",

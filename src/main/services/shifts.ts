@@ -52,6 +52,7 @@ interface ShiftsDeps {
   audit: ReturnType<typeof createAuditService>;
   sessions: SessionStore;
   heldBills: (shiftId: string) => HeldBillSummary[];
+  afterClose?: (userId: string) => void;
   now?: () => Date;
 }
 
@@ -223,6 +224,7 @@ export function createShiftsService({
   audit,
   sessions,
   heldBills,
+  afterClose,
   now = () => new Date(),
 }: ShiftsDeps) {
   const { db } = database;
@@ -402,7 +404,7 @@ export function createShiftsService({
 
   function close(input: CloseShiftInput): CloseShiftResult {
     const session = requireSession(sessions);
-    return db.transaction((tx) => {
+    const result = db.transaction((tx): CloseShiftResult => {
       const shift = tx.select().from(shifts).where(eq(shifts.id, input.shiftId)).get();
       if (!shift || shift.closedAt) return notOpen;
 
@@ -505,6 +507,14 @@ export function createShiftsService({
       const closedShift = tx.select().from(shifts).where(eq(shifts.id, shift.id)).get() ?? shift;
       return { ok: true, report: buildReport(tx, closedShift, "z") };
     });
+    if (result.ok) {
+      try {
+        afterClose?.(session.userId);
+      } catch {
+        // A backup problem must never fail a shift close.
+      }
+    }
+    return result;
   }
 
   return { state, open, addCashMove, deleteCashMove, report, listDenominations, close };

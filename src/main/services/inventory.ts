@@ -1,11 +1,17 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
-import type {
-  NegativeStockQuery,
-  NegativeStockResult,
-  StockHistoryQuery,
-  StockHistoryResult,
-  StockListQuery,
-  StockListResult,
+import {
+  canRaiseStock,
+  stockAdjustmentMessages,
+  type LowStockQuery,
+  type LowStockResult,
+  type NegativeStockQuery,
+  type NegativeStockResult,
+  type StockAdjustmentInput,
+  type StockAdjustmentResult,
+  type StockHistoryQuery,
+  type StockHistoryResult,
+  type StockListQuery,
+  type StockListResult,
 } from "../../shared/inventory";
 import { productMessages } from "../../shared/products";
 import { requireSession } from "../auth/guard";
@@ -13,8 +19,9 @@ import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { products, saleLines, sales, users } from "../db/schema";
 import { listNegativeStock } from "./negative-stock";
+import { lowStockProducts } from "./low-stock";
 import { searchProducts } from "./product-search";
-import type { StockService } from "./stock";
+import { movementTypeForReason, type StockService } from "./stock";
 import { stockValuePaisa } from "./stock-value";
 
 interface InventoryDeps {
@@ -58,9 +65,8 @@ export function createInventoryService({ database, sessions, stock }: InventoryD
     };
   }
 
-  function history(input: StockHistoryQuery): StockHistoryResult {
-    const session = requireSession(sessions);
-    const product = db
+  function findProduct(storeId: string, productId: string) {
+    return db
       .select({
         id: products.id,
         nameEn: products.nameEn,
@@ -71,13 +77,18 @@ export function createInventoryService({ database, sessions, stock }: InventoryD
       .from(products)
       .where(
         and(
-          eq(products.id, input.productId),
-          eq(products.storeId, session.storeId),
+          eq(products.id, productId),
+          eq(products.storeId, storeId),
           isNull(products.deletedAt),
           eq(products.isSystem, false),
         ),
       )
       .get();
+  }
+
+  function history(input: StockHistoryQuery): StockHistoryResult {
+    const session = requireSession(sessions);
+    const product = findProduct(session.storeId, input.productId);
     if (!product) {
       return { ok: false, reason: "not-found", message: productMessages.notFound };
     }
@@ -158,6 +169,49 @@ export function createInventoryService({ database, sessions, stock }: InventoryD
     return { items: all.slice(input.offset, input.offset + input.limit), total: all.length };
   }
 
-  return { list, history, negativeStock };
+  function adjustStock(input: StockAdjustmentInput): StockAdjustmentResult {
+    const session = requireSession(sessions);
+    const product = findProduct(session.storeId, input.productId);
+    if (!product) {
+      return { ok: false, reason: "not-found", message: productMessages.notFound };
+    }
+
+    return db.transaction((tx): StockAdjustmentResult => {
+      const onHand = stock.onHand(product.id, tx);
+      const change = input.mode === "change" ? input.qtyMilli : input.countedMilli - onHand;
+      if (change > 0 && !canRaiseStock(input.reason)) {
+        return {
+          ok: false,
+          reason: "raise-needs-correction",
+          message: stockAdjustmentMessages.raiseNeedsCorrection,
+        };
+      }
+
+      if (input.mode === "change") {
+        stock.record(tx, {
+          productId: product.id,
+          type: movementTypeForReason(input.reason),
+          qtyMilli: input.qtyMilli,
+          reason: input.reason,
+          actorUserId: session.userId,
+        });
+      } else {
+        stock.setOnHand(tx, {
+          productId: product.id,
+          onHandMilli: input.countedMilli,
+          reason: input.reason,
+          actorUserId: session.userId,
+        });
+      }
+      return { ok: true, changed: change !== 0, onHandMilli: onHand + change };
+    });
+  }
+
+  function lowStock(input: LowStockQuery): LowStockResult {
+    const session = requireSession(sessions);
+    return lowStockProducts(database, session.storeId, input);
+  }
+
+  return { list, history, lowStock, negativeStock, adjustStock };
 }
 export type InventoryService = ReturnType<typeof createInventoryService>;
