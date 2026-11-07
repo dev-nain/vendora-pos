@@ -1,0 +1,154 @@
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+@page {
+  size: A4;
+  margin: 15mm;
+
+  @bottom-right {
+    content: "Page " counter(page) " of " counter(pages);
+    font:
+      9pt "Segoe UI",
+      system-ui,
+      sans-serif;
+    color: black;
+  }
+}
+
+html,
+body {
+  margin: 0;
+  background: white;
+  color: black;
+}
+
+body {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 10pt;
+  line-height: 1.35;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16pt;
+}
+
+.title {
+  margin: 0;
+  font-size: 18pt;
+  font-weight: 600;
+}
+
+.reference {
+  font-size: 12pt;
+  font-variant-numeric: tabular-nums;
+}
+
+.panels {
+  display: flex;
+  gap: 24pt;
+  margin-top: 12pt;
+}
+
+.panel {
+  flex: 1;
+}
+
+.panel .label {
+  font-weight: 600;
+  margin-bottom: 2pt;
+}
+
+.panel div,
+.fact {
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4pt 24pt;
+  margin-top: 12pt;
+}
+
+.fact .label {
+  font-weight: 600;
+}
+
+table {
+  width: 100%;
+  margin-top: 14pt;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 9.5pt;
+}
+
+thead {
+  display: table-header-group;
+}
+
+th,
+td {
+  padding: 4pt 5pt;
+  border-bottom: 0.5pt solid black;
+  vertical-align: top;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+th {
+  font-weight: 600;
+  border-bottom-width: 1pt;
+}
+
+tr {
+  break-inside: avoid;
+}
+
+th.right,
+td.right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ur {
+  font-family: "Noto Nastaliq Urdu", serif;
+  line-height: 1.9;
+  direction: rtl;
+}
+
+.totals {
+  margin: 10pt 0 0 auto;
+  width: 50%;
+  break-inside: avoid;
+}
+
+.total {
+  display: flex;
+  justify-content: space-between;
+  gap: 12pt;
+  padding: 2pt 5pt;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.notes {
+  margin-top: 14pt;
+  break-inside: avoid;
+}
+
+.notes .label {
+  font-weight: 600;
+}
+
+.notes .body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
