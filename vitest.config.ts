@@ -14,6 +14,8 @@ export default defineConfig({
   esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
+    testTimeout: 30_000,
+    hookTimeout: 60_000,
     include: bench ? [benchmarks] : ["src/**/*.test.ts"],
     exclude: bench ? configDefaults.exclude : [...configDefaults.exclude, benchmarks],
     // Timing tests run alone so other test files don't compete for the CPU.

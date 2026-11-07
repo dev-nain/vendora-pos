@@ -8,7 +8,7 @@ import {
   type ReportRange,
 } from "../../shared/reports";
 import type { ReceiptSettings } from "../../shared/settings";
-import { buildStorePanel } from "../documents/store-panel";
+import { storePanel as buildStorePanel } from "../documents/document-parts";
 
 type CellValue = string | number;
 
@@ -60,9 +60,12 @@ function frame(title: string, range: ReportRange, store: ReceiptSettings) {
   return {
     title,
     reference: formatRangeLabel(range),
+    header: [],
     panels: storePanel.lines.length > 0 ? [storePanel] : [],
     facts: [{ label: "Times", value: "Asia/Karachi" }],
+    summaries: [],
     notes: null,
+    footer: [],
     landscape: true,
   };
 }

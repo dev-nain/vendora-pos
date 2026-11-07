@@ -1,6 +1,8 @@
 import { isDeepStrictEqual } from "node:util";
 import { eq } from "drizzle-orm";
 import type {
+  MarginThresholdInput,
+  MarginThresholdSetting,
   MiscItemInput,
   MiscItemSetting,
   PrinterSettings,
@@ -17,6 +19,7 @@ import type { VendoraDatabase } from "../db/client";
 import { stores, terminals } from "../db/schema";
 import { currentTerminal } from "../db/terminal";
 import {
+  getMarginThresholdBps,
   getMiscItemEnabled,
   getPrinterSettings,
   getReceiptSettings,
@@ -115,6 +118,34 @@ export function createSettingsService({ database, audit, sessions }: SettingsDep
     return { warnPaisa: input.warnPaisa };
   }
 
+  function getMarginThreshold(): MarginThresholdSetting {
+    const session = requireSession(sessions);
+    return { thresholdBps: getMarginThresholdBps(db, session.storeId) };
+  }
+
+  function setMarginThreshold(input: MarginThresholdInput): MarginThresholdSetting {
+    const session = requireSession(sessions);
+    db.transaction((tx) => {
+      const from = getMarginThresholdBps(tx, session.storeId);
+      if (from === input.thresholdBps) return;
+      tx.update(stores)
+        .set({ marginThresholdBps: input.thresholdBps })
+        .where(eq(stores.id, session.storeId))
+        .run();
+      audit.record(
+        {
+          action: "settings_change",
+          actorUserId: session.userId,
+          entityType: "store",
+          entityId: session.storeId,
+          details: { setting: "marginThresholdBps", from, to: input.thresholdBps },
+        },
+        tx,
+      );
+    });
+    return { thresholdBps: input.thresholdBps };
+  }
+
   function getReceipt(): ReceiptSettings {
     const session = requireSession(sessions);
     return getReceiptSettings(db, session.storeId);
@@ -206,6 +237,8 @@ export function createSettingsService({ database, audit, sessions }: SettingsDep
     setScalePrefixes,
     getShiftVarianceWarn,
     setShiftVarianceWarn,
+    getMarginThreshold,
+    setMarginThreshold,
     getMiscItemEnabled: getMiscItemSetting,
     setMiscItemEnabled,
   };

@@ -48,6 +48,10 @@ Electron, electron-vite, React 19, TypeScript (strict), Tailwind v4, shadcn on B
 - Tokens live in `design/tokens.css` and are used directly; Tailwind maps them to utilities in `src/renderer/src/styles.css`.
 - The renderer has no Node access. It talks to main only through the typed functions on `window.vendora`; main validates every payload with Zod.
 - SQLite runs in WAL mode with `synchronous = FULL`. Pending migrations first back the database up to `backups/pre-migrate-<timestamp>.db` in the user data folder.
+- The app backs the database up automatically once per day (Asia/Karachi) and after every shift close, to `backups/vendora-<timestamp>.db` in the user data folder. The copy runs on a worker thread, so billing does not wait for it. Each attempt is recorded in `backup_records`, and backups older than 30 days are deleted, always keeping the newest good one. `pre-migrate-*` files are never deleted. Each backup is also copied to a second folder chosen in Settings (a USB drive or a synced folder). That folder is per PC and saved in `terminals`, the copy outcome and its failure reason are saved on `backup_records`, and copy retention only deletes files named in those records. A failed copy never fails the backup or shows on the billing screen.
+- The app backs the database up automatically once per day (Asia/Karachi) and after every shift close, to `backups/vendora-<timestamp>.db` in the user data folder. The copy runs on a worker thread, so billing does not wait for it. Each attempt is recorded in `backup_records`, and backups older than 30 days are deleted, always keeping the newest good one. `pre-migrate-*` files are never deleted.
+- The Backup page in the back office lists the files in `backups/`, runs a backup on demand, and restores a backup from the list or from a file picked in a native dialog. A restore checks the file, copies it next to the database, runs the normal migrations on that copy, takes a `backups/pre-restore-<timestamp>.db` backup of the current data, records itself in the copy's audit log, and swaps it in with one rename before restarting. A failure leaves the current data in place. It is refused while a shift is open or bills are on hold.
+- An optional backup password (Settings) encrypts every backup the app writes, including the second copy. Files use AES-256-GCM with a key derived by argon2id (64 MiB, 3 passes) and keep the `.db` name; the first bytes are `VNDBKENC`, and restore detects that and asks for the password. The app keeps a derived key protected by Windows DPAPI in `backup-key.json` in the user data folder, never the raw password. It lives beside the database, not in it, so restoring a backup never changes the password setting, and a restore onto a new PC shows the password as off until it is turned on again there. If this PC can't read the key, backups fail and say so rather than being written unencrypted, and Change password fixes it. `pre-migrate-*` files are not encrypted: they stay on this PC and a key failure must never block a migration. A lost password can't be recovered. If both the password and the key are lost, deleting `backup-key.json` by hand is the only way out.
 - Tests run under Electron's Node (`ELECTRON_RUN_AS_NODE`), so `better-sqlite3` is built once for Electron.
 - Fonts (Plus Jakarta Sans, JetBrains Mono, Noto Nastaliq Urdu) are bundled; nothing loads from the network.
 
@@ -136,6 +140,8 @@ Target printers: Xprinter XP-58, Xprinter XP-80, Epson TM-T82 and Black Copper B
 - **Settings.** Back office, Settings, "Receipt printer": connection, paper width, print mode, Test print and Test drawer. "Receipt": store name, address, phone, NTN, STRN and the English and Urdu header and footer.
 - **Drawer.** It opens for any sale with a cash payment row (tendered, change or refund), on cash in and cash out, and when the opening and closing counts begin. Every open without a sale is audit-logged with its reason. There is no free "open drawer" button.
 - **Fake printer.** Run `VENDORA_FAKE_PRINTER=/tmp/vendora-prints pnpm dev` (or set the variable first on Windows). Each job writes `<time>-<n>-<kind>.bin` and `.png` to that folder, and each drawer kick adds a line to `drawer.log`. The variable is ignored in a packaged build.
+- **Dev save folder.** `VENDORA_DEV_SAVE_DIR=<dir>` saves PDFs and exports straight into `<dir>` under their default names, skipping the save dialog. It is ignored in a packaged build.
+- **A4 invoice.** Any sale can be saved as an A4 invoice PDF (native save dialog, file `Invoice T1-000231.pdf`) or printed on A4 through the Windows print dialog, from Orders or the receipt screen. It is built on request from the saved sale lines, with the current store header, and has the buyer block (name, NTN, CNIC, phone, each only when entered), every line with tax, a tax summary, totals and payments. Refunds are titled "Credit note" and show the original invoice, bills with return lines are "Exchange". The thermal receipt stays the default and is unchanged. `pnpm test:pdf` renders a purchase order and an invoice without a printer.
 - **Reprints.** Orders (Ctrl+O) lists the current shift. Reprints are rebuilt from the saved sale with the current header, are counted, and are not marked as duplicates.
 
 | Key (Orders) | Action                                               |
@@ -146,9 +152,11 @@ Target printers: Xprinter XP-58, Xprinter XP-80, Epson TM-T82 and Black Copper B
 | Up / Down    | Select a sale                                        |
 | Ctrl+P       | Reprint the selected sale                            |
 | Ctrl+R       | Return items from the selected sale                  |
+| Ctrl+Shift+P | Print the selected sale as an A4 invoice             |
+| Ctrl+Shift+S | Save the selected sale as an A4 invoice PDF          |
 | Esc          | Back to the bill, unchanged                          |
 
-Ctrl+P also prints or retries on the receipt screen and prints the X-report and Z-report.
+Ctrl+P also prints or retries on the receipt screen and prints the X-report and Z-report. Ctrl+Shift+P and Ctrl+Shift+S print and save the A4 invoice on the receipt screen too.
 
 ## Not included yet
 

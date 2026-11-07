@@ -29,7 +29,7 @@ export const checkoutMessages = {
 } as const;
 
 export const maxPaisa = 100_000_000_00;
-const maxQtyMilli = 1_000_000_000;
+export const maxQtyMilli = 1_000_000_000;
 
 export const refusal = <Reason extends string>(reason: Reason) =>
   z.strictObject({ ok: z.literal(false), reason: z.literal(reason), message: z.string() });
