@@ -1,7 +1,11 @@
 import {
   BoxesIcon,
   ClipboardListIcon,
+  PackageCheckIcon,
+  DatabaseBackupIcon,
   PackageIcon,
+  PackageMinusIcon,
+  ScrollTextIcon,
   SettingsIcon,
   TagsIcon,
   TriangleAlertIcon,
@@ -13,15 +17,26 @@ import { Fragment, useCallback, useState, type KeyboardEvent } from "react";
 
 import type { LowStockItem } from "@shared/inventory";
 import { cn } from "@renderer/lib/utils";
+import { AuditLogScreen } from "../audit/audit-log-screen";
+import { BackupScreen } from "../backup/backup-screen";
 import { CategoriesScreen } from "../categories/categories-screen";
+import { NegativeStockScreen } from "../inventory/negative-stock-screen";
 import { LowStockScreen } from "../inventory/low-stock-screen";
 import { StockScreen } from "../inventory/stock-screen";
+import { GoodsReceivedScreen } from "../purchasing/goods-received-screen";
+import { StocktakeScreen } from "../inventory/stocktake-screen";
 import { ProductsScreen } from "../products/products-screen";
 import type { LeaveGuard, OrderSeed } from "../purchasing/order-form-screen";
 import { PurchaseOrdersScreen } from "../purchasing/purchase-orders-screen";
+import { PurchaseReturnsScreen } from "../purchasing/purchase-returns-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
+import { BackupPasswordSetting } from "../settings/backup-password-setting";
+import { BackupSetting } from "../settings/backup-setting";
 import { PrinterSetting } from "../settings/printer-setting";
 import { ReceiptSetting } from "../settings/receipt-setting";
+import { MarginThresholdSetting } from "../settings/margin-threshold-setting";
+import { SecondCopyNotice } from "../settings/second-copy-notice";
+import { useSecondCopyStatus } from "../settings/use-second-copy-status";
 import { ShiftVarianceSetting } from "../settings/shift-variance-setting";
 import { SuppliersScreen } from "../suppliers/suppliers-screen";
 import { UsersScreen } from "../users/users-screen";
@@ -31,10 +46,16 @@ const icons: Record<BackOfficePage, LucideIcon> = {
   products: PackageIcon,
   categories: TagsIcon,
   stock: BoxesIcon,
+  stocktake: ClipboardListIcon,
+  "negative-stock": TriangleAlertIcon,
   "low-stock": TriangleAlertIcon,
   "purchase-orders": ClipboardListIcon,
+  "goods-received": PackageCheckIcon,
+  "purchase-returns": PackageMinusIcon,
   suppliers: TruckIcon,
   users: UsersIcon,
+  audit: ScrollTextIcon,
+  backup: DatabaseBackupIcon,
   settings: SettingsIcon,
 };
 
@@ -66,6 +87,12 @@ export function BackOffice({
   const [page, setPage] = useState<BackOfficePage>(focusPrinter ? "settings" : "products");
   const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
   const clearOrderSeed = useCallback(() => setOrderSeed(null), []);
+  const [returnSeed, setReturnSeed] = useState<string | null>(null);
+  const clearReturnSeed = useCallback(() => setReturnSeed(null), []);
+  const returnToSupplier = useCallback((noteId: string) => {
+    setReturnSeed(noteId);
+    setPage("purchase-returns");
+  }, []);
   const createOrder = useCallback((items: LowStockItem[]) => {
     setOrderSeed(items);
     setPage("purchase-orders");
@@ -75,6 +102,7 @@ export function BackOffice({
     if (next === page) return;
     guarded(() => setPage(next));
   };
+  const secondCopy = useSecondCopyStatus();
 
   return (
     <div
@@ -113,12 +141,17 @@ export function BackOffice({
         })}
       </nav>
       <section className="min-w-0 overflow-y-auto rounded-tl-300 border-t border-l border-line-card bg-surface px-[36px] py-[28px]">
+        <SecondCopyNotice state={secondCopy.state} />
         {page === "products" ? (
           <ProductsScreen onSessionEnded={onSessionEnded} />
         ) : page === "categories" ? (
           <CategoriesScreen onSessionEnded={onSessionEnded} />
         ) : page === "stock" ? (
           <StockScreen onSessionEnded={onSessionEnded} />
+        ) : page === "stocktake" ? (
+          <StocktakeScreen onSessionEnded={onSessionEnded} />
+        ) : page === "negative-stock" ? (
+          <NegativeStockScreen onSessionEnded={onSessionEnded} />
         ) : page === "low-stock" ? (
           <LowStockScreen onSessionEnded={onSessionEnded} onCreateOrder={createOrder} />
         ) : page === "purchase-orders" ? (
@@ -128,10 +161,27 @@ export function BackOffice({
             onSeedUsed={clearOrderSeed}
             onSessionEnded={onSessionEnded}
           />
+        ) : page === "goods-received" ? (
+          <GoodsReceivedScreen
+            registerLeaveGuard={registerLeaveGuard}
+            onReturn={returnToSupplier}
+            onSessionEnded={onSessionEnded}
+          />
+        ) : page === "purchase-returns" ? (
+          <PurchaseReturnsScreen
+            seed={returnSeed}
+            registerLeaveGuard={registerLeaveGuard}
+            onSeedUsed={clearReturnSeed}
+            onSessionEnded={onSessionEnded}
+          />
         ) : page === "suppliers" ? (
           <SuppliersScreen onSessionEnded={onSessionEnded} />
         ) : page === "users" ? (
           <UsersScreen currentUserId={currentUserId} onSessionEnded={onSessionEnded} />
+        ) : page === "audit" ? (
+          <AuditLogScreen onSessionEnded={onSessionEnded} />
+        ) : page === "backup" ? (
+          <BackupScreen onSessionEnded={onSessionEnded} />
         ) : page === "settings" ? (
           <div className="grid gap-500">
             <h1 className="m-0 font-display text-[length:var(--font-size-700)] leading-[36px] font-semibold text-foreground">
@@ -139,7 +189,10 @@ export function BackOffice({
             </h1>
             <MiscItemSetting />
             <ShiftVarianceSetting />
+            <MarginThresholdSetting />
             <PrinterSetting focusOnReady={focusPrinter === true} />
+            <BackupSetting {...secondCopy} />
+            <BackupPasswordSetting onSessionEnded={onSessionEnded} />
             <ReceiptSetting />
           </div>
         ) : null}

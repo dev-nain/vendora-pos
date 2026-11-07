@@ -1,7 +1,13 @@
 import "@fontsource/noto-nastaliq-urdu/400.css";
 import "@fontsource/noto-nastaliq-urdu/700.css";
 import "./document-page.css";
-import type { DocumentModel, DocumentPair } from "@shared/document";
+import type {
+  DocumentColumn,
+  DocumentCell,
+  DocumentModel,
+  DocumentPair,
+  DocumentText,
+} from "@shared/document";
 
 declare global {
   interface Window {
@@ -22,6 +28,50 @@ function pair(className: string, { label, value }: DocumentPair): HTMLElement {
   return node;
 }
 
+function textLines(className: string, lines: DocumentText[]): HTMLElement | null {
+  if (lines.length === 0) return null;
+  const node = element("div", className);
+  for (const line of lines) {
+    const row = element("div", line.lang === "ur" ? "ur" : "", line.text);
+    if (line.lang === "ur") {
+      row.dir = "rtl";
+      row.lang = "ur";
+    }
+    node.append(row);
+  }
+  return node;
+}
+
+function buildTable(columns: DocumentColumn[], rows: DocumentCell[][]): HTMLElement {
+  const headRow = element("tr", "");
+  for (const column of columns) {
+    const th = element("th", column.align === "right" ? "right" : "", column.label);
+    if (column.width) th.style.width = column.width;
+    headRow.append(th);
+  }
+  const thead = element("thead", "");
+  thead.append(headRow);
+  const tbody = element("tbody", "");
+  for (const row of rows) {
+    const tr = element("tr", "");
+    row.forEach((cell, index) => {
+      const td = element("td", columns[index]?.align === "right" ? "right" : "");
+      td.append(element("div", "", cell.text));
+      if (cell.urdu) {
+        const urdu = element("div", "ur", cell.urdu);
+        urdu.dir = "rtl";
+        urdu.lang = "ur";
+        td.append(urdu);
+      }
+      tr.append(td);
+    });
+    tbody.append(tr);
+  }
+  const table = element("table", "");
+  table.append(thead, tbody);
+  return table;
+}
+
 function build(model: DocumentModel): HTMLElement[] {
   const head = element("div", "head");
   head.append(element("h1", "title", model.title), element("div", "reference", model.reference));
@@ -37,32 +87,7 @@ function build(model: DocumentModel): HTMLElement[] {
   const facts = element("div", "facts");
   facts.append(...model.facts.map((fact) => pair("fact", fact)));
 
-  const headRow = element("tr", "");
-  for (const column of model.columns) {
-    const th = element("th", column.align === "right" ? "right" : "", column.label);
-    if (column.width) th.style.width = column.width;
-    headRow.append(th);
-  }
-  const thead = element("thead", "");
-  thead.append(headRow);
-  const tbody = element("tbody", "");
-  for (const row of model.rows) {
-    const tr = element("tr", "");
-    row.forEach((cell, index) => {
-      const td = element("td", model.columns[index]?.align === "right" ? "right" : "");
-      td.append(element("div", "", cell.text));
-      if (cell.urdu) {
-        const urdu = element("div", "ur", cell.urdu);
-        urdu.dir = "rtl";
-        urdu.lang = "ur";
-        td.append(urdu);
-      }
-      tr.append(td);
-    });
-    tbody.append(tr);
-  }
-  const table = element("table", "");
-  table.append(thead, tbody);
+  const table = buildTable(model.columns, model.rows);
 
   const totals = element("div", "totals");
   for (const total of model.totals) {
@@ -71,12 +96,28 @@ function build(model: DocumentModel): HTMLElement[] {
     totals.append(row);
   }
 
-  const nodes = [head, panels, facts, table, totals];
+  const summaries = model.summaries.map((summary) => {
+    const node = element("div", "summary");
+    node.append(element("div", "label", summary.label), buildTable(summary.columns, summary.rows));
+    return node;
+  });
+
+  const nodes = [
+    head,
+    textLines("doc-header", model.header),
+    panels,
+    facts,
+    table,
+    totals,
+    ...summaries,
+  ].filter((node): node is HTMLElement => node !== null);
   if (model.notes) {
     const notes = element("div", "notes");
     notes.append(element("div", "label", "Notes"), element("div", "body", model.notes));
     nodes.push(notes);
   }
+  const footer = textLines("doc-footer", model.footer);
+  if (footer) nodes.push(footer);
   return nodes;
 }
 
