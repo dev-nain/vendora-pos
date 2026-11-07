@@ -350,6 +350,7 @@ describe("refunds and exchanges", () => {
         ["return", 1000, null],
         ["damage", -1000, "damage"],
       ]);
+      expect(auditRows("stock_adjustment")).toEqual([]);
       const teaMoves = movements(tea.id).filter((m) => m.type !== "sale");
       const teaRefundLine = refundLines.find((row) => row.nameEn === "Tea")!;
       expect(teaMoves.every((m) => m.sourceId === teaRefundLine.id)).toBe(true);

@@ -9,10 +9,17 @@ import {
 import { normalizeSearchText } from "./search-text";
 
 // Drizzle drops the table qualifier in single-table selects, so the correlated outer id must be qualified by hand.
-const outerProductId = sql`${sql.identifier(getTableName(products))}.${sql.identifier("id")}`;
+export const outerProductId = sql`${sql.identifier(getTableName(products))}.${sql.identifier("id")}`;
 
 function escapeLike(term: string): string {
   return term.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+export function searchTextMatch(terms: string[]): SQL | undefined {
+  // ESCAPE makes the backslash-escaped %, _ and \ in the pattern literal.
+  return and(
+    ...terms.map((term) => sql`${products.searchText} LIKE ${`%${escapeLike(term)}%`} ESCAPE '\\'`),
+  );
 }
 
 export function searchProducts(
@@ -49,10 +56,7 @@ export function searchProducts(
           .get()?.id
       : undefined;
 
-  // ESCAPE makes the backslash-escaped %, _ and \ in the pattern literal.
-  const textMatch = and(
-    ...terms.map((term) => sql`${products.searchText} LIKE ${`%${escapeLike(term)}%`} ESCAPE '\\'`),
-  );
+  const textMatch = searchTextMatch(terms);
   const match = barcodeProductId ? or(textMatch, eq(products.id, barcodeProductId)) : textMatch;
   const where = and(...filters, match);
 

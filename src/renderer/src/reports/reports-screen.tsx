@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import {
   Select,
@@ -7,19 +7,43 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@renderer/components/ui/select";
-import { reportDefinitions } from "./report-definitions";
+import {
+  salesByDayReport,
+  salesTaxSummaryReport,
+  type ReportDefinition,
+} from "./report-definitions";
 import { ReportView } from "./report-view";
 
 interface ReportsScreenProps {
   onSessionEnded: () => void;
 }
 
-const reportItems = reportDefinitions.map((report) => ({ value: report.id, label: report.label }));
+function reportEntry<
+  Row extends Record<string, string | number>,
+  Totals extends Record<string, number>,
+>(definition: ReportDefinition<Row, Totals>) {
+  return {
+    id: definition.id,
+    label: definition.label,
+    render: (picker: ReactNode, onSessionEnded: () => void) => (
+      <ReportView
+        key={definition.id}
+        definition={definition}
+        picker={picker}
+        onSessionEnded={onSessionEnded}
+      />
+    ),
+  };
+}
+
+const reportEntries = [reportEntry(salesByDayReport), reportEntry(salesTaxSummaryReport)];
+
+const reportItems = reportEntries.map((report) => ({ value: report.id, label: report.label }));
 
 export function ReportsScreen({ onSessionEnded }: ReportsScreenProps) {
-  const [reportId, setReportId] = useState<string>(reportDefinitions[0].id);
-  const definition = reportDefinitions.find((report) => report.id === reportId);
-  if (!definition) return null;
+  const [reportId, setReportId] = useState<string>(reportEntries[0]!.id);
+  const entry = reportEntries.find((report) => report.id === reportId);
+  if (!entry) return null;
 
   const picker = (
     <Select
@@ -42,12 +66,5 @@ export function ReportsScreen({ onSessionEnded }: ReportsScreenProps) {
     </Select>
   );
 
-  return (
-    <ReportView
-      key={definition.id}
-      definition={definition}
-      picker={picker}
-      onSessionEnded={onSessionEnded}
-    />
-  );
+  return entry.render(picker, onSessionEnded);
 }

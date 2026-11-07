@@ -6,6 +6,7 @@ import {
   type StockHistoryResult,
   type StockMovementRow,
 } from "@shared/inventory";
+import type { ProductPurchaseHistoryResult } from "@shared/purchase-history";
 import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
 import {
@@ -18,11 +19,14 @@ import {
 } from "@renderer/components/ui/table";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { signedRupees } from "../billing/bill-format";
-import { formatDateTime } from "../lib/date-time";
+import { formatDate, formatDateTime } from "../lib/date-time";
+import { formatRupees } from "../lib/money";
+import { PurchaseHistoryTable } from "../purchasing/purchase-history-table";
 import { ErrorLine } from "../users/form-parts";
 import {
   movementReasonLabels,
   movementTypeLabels,
+  negativeClass,
   onHandText,
   signedQuantityText,
 } from "./stock-format";
@@ -31,19 +35,23 @@ const HISTORY_PAGE_SIZE = Math.min(50, STOCK_HISTORY_MAX_LIMIT);
 
 interface StockHistoryProps {
   productId: string;
+  backLabel: string;
   onBack: () => void;
   onSessionEnded: () => void;
 }
+
+type View = "movements" | "purchases";
 
 type Loaded = Extract<StockHistoryResult, { ok: true }> | { ok: false; message: string };
 
 const dash = <span className="text-tertiary">—</span>;
 
-const negativeClass = (value: number): string => (value < 0 ? "text-critical" : "");
-
-export function StockHistory({ productId, onBack, onSessionEnded }: StockHistoryProps) {
+export function StockHistory({ productId, backLabel, onBack, onSessionEnded }: StockHistoryProps) {
+  const [view, setView] = useState<View>("movements");
   const [page, setPage] = useState(0);
+  const [purchasePage, setPurchasePage] = useState(0);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [purchases, setPurchases] = useState<ProductPurchaseHistoryResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const requestId = useRef(0);
 
@@ -69,6 +77,27 @@ export function StockHistory({ productId, onBack, onSessionEnded }: StockHistory
   useEffect(load, [load]);
 
   useEffect(() => {
+    let current = true;
+    window.vendora.purchaseHistory
+      .forProduct({
+        productId,
+        limit: HISTORY_PAGE_SIZE,
+        offset: purchasePage * HISTORY_PAGE_SIZE,
+      })
+      .then((fetched) => {
+        if (current) setPurchases(fetched);
+      })
+      .catch((cause: unknown) => {
+        if (!current) return;
+        if (isSessionError(cause)) onSessionEnded();
+        else setError(serviceErrorMessage);
+      });
+    return () => {
+      current = false;
+    };
+  }, [productId, purchasePage, onSessionEnded]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
       event.preventDefault();
@@ -81,13 +110,18 @@ export function StockHistory({ productId, onBack, onSessionEnded }: StockHistory
   const product = loaded?.ok ? loaded.product : null;
   const movements: StockMovementRow[] = loaded?.ok ? loaded.movements : [];
   const hasMore = loaded?.ok ? loaded.hasMore : false;
+  const purchaseList = purchases?.ok ? purchases : null;
+  const purchasesView = view === "purchases";
+  const currentPage = purchasesView ? purchasePage : page;
+  const currentHasMore = purchasesView ? (purchaseList?.hasMore ?? false) : hasMore;
+  const setCurrentPage = purchasesView ? setPurchasePage : setPage;
 
   return (
     <div className="flex flex-col gap-500">
       <div>
         <Button variant="secondary" autoFocus onClick={onBack}>
           <ChevronLeftIcon aria-hidden="true" size={16} strokeWidth={2} />
-          Back to stock
+          {backLabel}
           <Kbd>Esc</Kbd>
         </Button>
       </div>
@@ -116,12 +150,31 @@ export function StockHistory({ productId, onBack, onSessionEnded }: StockHistory
               {signedRupees(product.stockValuePaisa)}
             </span>
           </p>
+          {purchaseList ? (
+            <p className="m-0 text-[length:var(--font-size-350)] text-secondary tabular-nums">
+              {purchaseList.lastReceipt
+                ? `Last cost ${formatRupees(purchaseList.lastReceipt.unitCostPaisa)} from ${purchaseList.lastReceipt.supplierName} · ${purchaseList.lastReceipt.grnNo} · ${formatDate(purchaseList.lastReceipt.receivedAt)}`
+                : "Not received from a supplier yet"}
+            </p>
+          ) : null}
         </div>
       ) : (
         <h1 className="m-0 font-display text-[length:var(--font-size-700)] leading-[36px] font-semibold text-foreground">
           Movements
         </h1>
       )}
+      <div className="flex items-center gap-200">
+        {(["movements", "purchases"] as const).map((next) => (
+          <Button
+            key={next}
+            variant={view === next ? "default" : "secondary"}
+            aria-pressed={view === next}
+            onClick={() => setView(next)}
+          >
+            {next === "movements" ? "Movements" : "Purchases"}
+          </Button>
+        ))}
+      </div>
       {error ? (
         <div className="flex items-center gap-300">
           <ErrorLine>{error}</ErrorLine>
@@ -130,7 +183,23 @@ export function StockHistory({ productId, onBack, onSessionEnded }: StockHistory
           </Button>
         </div>
       ) : null}
-      {loaded === null ? (
+      {purchasesView ? (
+        purchases === null ? (
+          error ? null : (
+            <p className="m-0 text-secondary">Loading…</p>
+          )
+        ) : !purchases.ok ? (
+          <ErrorLine>{purchases.message}</ErrorLine>
+        ) : purchases.items.length === 0 ? (
+          <p className="m-0 text-secondary">No purchases yet.</p>
+        ) : (
+          <PurchaseHistoryTable
+            items={purchases.items}
+            subject="product"
+            label="Purchase history"
+          />
+        )
+      ) : loaded === null ? (
         error ? null : (
           <p className="m-0 text-secondary">Loading…</p>
         )
@@ -187,22 +256,22 @@ export function StockHistory({ productId, onBack, onSessionEnded }: StockHistory
           </TableBody>
         </Table>
       )}
-      {page > 0 || hasMore ? (
+      {currentPage > 0 || currentHasMore ? (
         <div className="flex items-center justify-end gap-200">
           <Button
             variant="secondary"
-            disabled={page === 0}
+            disabled={currentPage === 0}
             focusableWhenDisabled
-            onClick={() => setPage(page - 1)}
+            onClick={() => setCurrentPage(currentPage - 1)}
           >
             <ChevronLeftIcon aria-hidden="true" size={16} strokeWidth={2} />
             Previous
           </Button>
           <Button
             variant="secondary"
-            disabled={!hasMore}
+            disabled={!currentHasMore}
             focusableWhenDisabled
-            onClick={() => setPage(page + 1)}
+            onClick={() => setCurrentPage(currentPage + 1)}
           >
             Next
             <ChevronRightIcon aria-hidden="true" size={16} strokeWidth={2} />

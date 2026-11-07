@@ -1,7 +1,14 @@
 import "@fontsource/noto-nastaliq-urdu/400.css";
 import "@fontsource/noto-nastaliq-urdu/700.css";
 import "./document-page.css";
-import type { DocumentModel, DocumentPair, DocumentSection } from "@shared/document";
+import type {
+  DocumentColumn,
+  DocumentCell,
+  DocumentModel,
+  DocumentPair,
+  DocumentSection,
+  DocumentText,
+} from "@shared/document";
 
 declare global {
   interface Window {
@@ -22,11 +29,21 @@ function pair(className: string, { label, value }: DocumentPair): HTMLElement {
   return node;
 }
 
-function tableNodes({
-  columns,
-  rows,
-  totals,
-}: Pick<DocumentSection, "columns" | "rows" | "totals">): HTMLElement[] {
+function textLines(className: string, lines: DocumentText[]): HTMLElement | null {
+  if (lines.length === 0) return null;
+  const node = element("div", className);
+  for (const line of lines) {
+    const row = element("div", line.lang === "ur" ? "ur" : "", line.text);
+    if (line.lang === "ur") {
+      row.dir = "rtl";
+      row.lang = "ur";
+    }
+    node.append(row);
+  }
+  return node;
+}
+
+function buildTable(columns: DocumentColumn[], rows: DocumentCell[][]): HTMLElement {
   const headRow = element("tr", "");
   for (const column of columns) {
     const th = element("th", column.align === "right" ? "right" : "", column.label);
@@ -53,18 +70,25 @@ function tableNodes({
   }
   const table = element("table", "");
   table.append(thead, tbody);
+  return table;
+}
 
-  const totalsNode = element("div", "totals");
+function buildTotals(totals: DocumentPair[]): HTMLElement {
+  const node = element("div", "totals");
   for (const total of totals) {
     const row = element("div", "total");
     row.append(element("span", "", total.label), element("span", "", total.value));
-    totalsNode.append(row);
+    node.append(row);
   }
-  return [table, totalsNode];
+  return node;
 }
 
 function sectionNodes(section: DocumentSection): HTMLElement[] {
-  const nodes = [element("h2", "section-heading", section.heading), ...tableNodes(section)];
+  const nodes = [
+    element("h2", "section-heading", section.heading),
+    buildTable(section.columns, section.rows),
+    buildTotals(section.totals),
+  ];
   if (section.note) nodes.push(element("div", "section-note", section.note));
   return nodes;
 }
@@ -84,16 +108,34 @@ function build(model: DocumentModel): HTMLElement[] {
   const facts = element("div", "facts");
   facts.append(...model.facts.map((fact) => pair("fact", fact)));
 
-  const main = model.columns.length > 0 ? tableNodes(model) : [];
-  const sections = (model.sections ?? []).flatMap(sectionNodes);
+  const main =
+    model.columns.length > 0
+      ? [buildTable(model.columns, model.rows), buildTotals(model.totals)]
+      : [];
 
-  const nodes = [head, panels, facts, ...main, ...sections];
+  const summaries = model.summaries.map((summary) => {
+    const node = element("div", "summary");
+    node.append(element("div", "label", summary.label), buildTable(summary.columns, summary.rows));
+    return node;
+  });
+
+  const nodes = [
+    head,
+    textLines("doc-header", model.header),
+    panels,
+    facts,
+    ...main,
+    ...summaries,
+    ...(model.sections ?? []).flatMap(sectionNodes),
+  ].filter((node): node is HTMLElement => node !== null);
   if (model.landscape) nodes.push(element("style", "", "@page { size: A4 landscape; }"));
   if (model.notes) {
     const notes = element("div", "notes");
     notes.append(element("div", "label", "Notes"), element("div", "body", model.notes));
     nodes.push(notes);
   }
+  const footer = textLines("doc-footer", model.footer);
+  if (footer) nodes.push(footer);
   return nodes;
 }
 
