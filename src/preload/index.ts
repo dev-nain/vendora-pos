@@ -48,6 +48,7 @@ import {
 } from "@shared/shifts";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 import {
+  negativeStockResultSchema,
   stockAdjustmentResultSchema,
   lowStockResultSchema,
   stockHistoryResultSchema,
@@ -218,6 +219,10 @@ const api: VendoraApi = {
     stockHistory: async (query) =>
       stockHistoryResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.inventoryStockHistory, query),
+      ),
+    negativeStock: async (query) =>
+      negativeStockResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.inventoryNegativeStock, query),
       ),
     adjustStock: async (input) =>
       stockAdjustmentResultSchema.parse(

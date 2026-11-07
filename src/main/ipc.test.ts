@@ -1194,6 +1194,10 @@ describe("inventory ipc", () => {
     ["inventory:low-stock", "lowStock", { limit: 10, offset: 0, extra: 1 }],
     ["inventory:low-stock", "lowStock", { limit: 10, offset: 0, categoryId: "x" }],
     ["inventory:low-stock", "lowStock", { limit: 10, offset: 0, query: "" }],
+    ["inventory:negative-stock", "negativeStock", { limit: 101, offset: 0 }],
+    ["inventory:negative-stock", "negativeStock", { limit: 0, offset: 0 }],
+    ["inventory:negative-stock", "negativeStock", { limit: 10, offset: -1 }],
+    ["inventory:negative-stock", "negativeStock", { limit: 10, offset: 0, extra: 1 }],
     ["inventory:stock-history", "history", { productId: "x", limit: 10, offset: 0 }],
     ["inventory:stock-history", "history", { productId: unknownId, limit: 101, offset: 0 }],
     [
@@ -1261,6 +1265,13 @@ describe("inventory ipc", () => {
     ).toMatchObject({ ok: false, reason: "not-found" });
   });
 
+  it("lists negative stock for valid input", async () => {
+    expect(await invoke("inventory:negative-stock", { limit: 10, offset: 0 })).toEqual({
+      items: [],
+      total: 0,
+    });
+  });
+
   it("lists low-stock products", async () => {
     const tea = kit.addProduct({
       nameEn: "Tea",
@@ -1279,6 +1290,9 @@ describe("inventory ipc", () => {
       invoke("inventory:list-stock", { query: "", limit: 10, offset: 0 }),
     ).rejects.toThrow(new Error(ipcErrorMessages.unauthenticated));
     await expect(invoke("inventory:low-stock", { limit: 10, offset: 0 })).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
+    await expect(invoke("inventory:negative-stock", { limit: 10, offset: 0 })).rejects.toThrow(
       new Error(ipcErrorMessages.unauthenticated),
     );
   });

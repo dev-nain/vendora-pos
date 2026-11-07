@@ -47,7 +47,7 @@ import {
 import { ErrorLine } from "../users/form-parts";
 import { StockAdjustDialog } from "./stock-adjust-dialog";
 import { StockHistory } from "./stock-history";
-import { negativeClass, onHandText } from "./stock-format";
+import { negativeClass, onHandText, rowMoveTarget } from "./stock-format";
 
 const SEARCH_DEBOUNCE_MS = 150;
 const ALL_CATEGORIES = "all";
@@ -197,17 +197,7 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
 
   const onRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
     if (event.target !== event.currentTarget) return;
-    const last = items.length - 1;
-    const target =
-      event.key === "ArrowDown"
-        ? Math.min(index + 1, last)
-        : event.key === "ArrowUp"
-          ? Math.max(index - 1, 0)
-          : event.key === "Home"
-            ? 0
-            : event.key === "End"
-              ? last
-              : null;
+    const target = rowMoveTarget(event.key, index, items.length - 1);
     if (target !== null) {
       event.preventDefault();
       focusRow(target);
@@ -230,6 +220,7 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
     return (
       <StockHistory
         productId={historyItem.id}
+        backLabel="Back to stock"
         onBack={closeHistory}
         onSessionEnded={onSessionEnded}
       />
