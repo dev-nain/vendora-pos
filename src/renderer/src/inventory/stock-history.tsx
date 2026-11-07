@@ -26,6 +26,7 @@ import { ErrorLine } from "../users/form-parts";
 import {
   movementReasonLabels,
   movementTypeLabels,
+  negativeClass,
   onHandText,
   signedQuantityText,
 } from "./stock-format";
@@ -34,6 +35,7 @@ const HISTORY_PAGE_SIZE = Math.min(50, STOCK_HISTORY_MAX_LIMIT);
 
 interface StockHistoryProps {
   productId: string;
+  backLabel: string;
   onBack: () => void;
   onSessionEnded: () => void;
 }
@@ -44,9 +46,7 @@ type Loaded = Extract<StockHistoryResult, { ok: true }> | { ok: false; message: 
 
 const dash = <span className="text-tertiary">—</span>;
 
-const negativeClass = (value: number): string => (value < 0 ? "text-critical" : "");
-
-export function StockHistory({ productId, onBack, onSessionEnded }: StockHistoryProps) {
+export function StockHistory({ productId, backLabel, onBack, onSessionEnded }: StockHistoryProps) {
   const [view, setView] = useState<View>("movements");
   const [page, setPage] = useState(0);
   const [purchasePage, setPurchasePage] = useState(0);
@@ -121,7 +121,7 @@ export function StockHistory({ productId, onBack, onSessionEnded }: StockHistory
       <div>
         <Button variant="secondary" autoFocus onClick={onBack}>
           <ChevronLeftIcon aria-hidden="true" size={16} strokeWidth={2} />
-          Back to stock
+          {backLabel}
           <Kbd>Esc</Kbd>
         </Button>
       </div>
