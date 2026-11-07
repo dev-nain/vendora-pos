@@ -11,7 +11,12 @@ import { createInventoryService } from "./inventory";
 import { createStockService } from "./stock";
 import { createStocktakeService } from "./stocktake";
 import { openMigratedDatabase } from "../db/test-database";
-import { stockHistoryResultSchema, stockListResultSchema } from "../../shared/inventory";
+import {
+  lowStockResultSchema,
+  negativeStockResultSchema,
+  stockHistoryResultSchema,
+  stockListResultSchema,
+} from "../../shared/inventory";
 import {
   recordCountResultSchema,
   startStocktakeResultSchema,
@@ -22,8 +27,11 @@ import {
 const productCount = 30_000;
 const movementCount = 1_000_000;
 const hotMovements = 10_000;
+const lowThresholdMilli = 5000;
 
 const productId = (i: number) => `00000000-0000-7000-8000-${String(i).padStart(12, "0")}`;
+
+const itemIndex = (item: { nameEn: string }) => Number(item.nameEn.slice("Item ".length));
 
 const percentile = (sorted: number[], p: number) =>
   sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))]!;
@@ -86,10 +94,10 @@ describe("stock on-hand benchmark", () => {
       database.sqlite
         .prepare(
           `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < @count - 1)
-           INSERT INTO products (id, store_id, name_en, search_text, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, created_at, updated_at)
+           INSERT INTO products (id, store_id, name_en, search_text, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, low_stock_threshold_milli, created_at, updated_at)
            SELECT printf('00000000-0000-7000-8000-%012d', i), @storeId, 'Item ' || i, 'item ' || i,
                   CASE WHEN i % 2 = 0 THEN @categoryId ELSE @secondCategoryId END,
-                  @taxCategoryId, 'piece', 1000 + i, 1500 + i, @base, @base
+                  @taxCategoryId, 'piece', 1000 + i, 1500 + i, @threshold, @base, @base
            FROM n`,
         )
         .run({
@@ -98,6 +106,7 @@ describe("stock on-hand benchmark", () => {
           categoryId,
           secondCategoryId: secondCategory,
           taxCategoryId,
+          threshold: lowThresholdMilli,
           base,
         });
       database.sqlite
@@ -236,6 +245,45 @@ describe("stock on-hand benchmark", () => {
     expect(p95).toBeLessThan(100);
   });
 
+  const lowIndexes = (parity?: number) =>
+    Array.from({ length: productCount }, (_, i) => i).filter(
+      (i) => totals[i]! <= lowThresholdMilli && (parity === undefined || i % 2 === parity),
+    );
+  const lowStock = (offset = 0, categoryId?: string) =>
+    lowStockResultSchema.parse(
+      inventory.lowStock({ limit: 50, offset, ...(categoryId ? { categoryId } : {}) }),
+    );
+
+  it("lists low stock that matches the ledger", () => {
+    const expected = lowIndexes();
+    expect(expected.length).toBeGreaterThan(50);
+
+    const first = lowStock();
+    expect(first.total).toBe(expected.length);
+    for (const item of first.items) {
+      const index = itemIndex(item);
+      expect(item.onHandMilli).toBe(totals[index]);
+      expect(item.shortfallMilli).toBe(lowThresholdMilli - totals[index]!);
+    }
+
+    const secondOnly = lowStock(0, secondCategoryId);
+    expect(secondOnly.total).toBe(lowIndexes(1).length);
+    expect(secondOnly.items.every((item) => itemIndex(item) % 2 === 1)).toBe(true);
+
+    const lastOffset = Math.floor((expected.length - 1) / 50) * 50;
+    expect(lowStock(lastOffset).items).toHaveLength(expected.length - lastOffset);
+  });
+
+  it("opens the low-stock list quickly (cold)", () => {
+    const start = performance.now();
+    lowStock();
+    console.log(`low stock first call (cold): ${(performance.now() - start).toFixed(3)} ms`);
+  });
+
+  it("lists low stock within the report budget", () => {
+    expect(measure("low stock list", 20, () => lowStock())).toBeLessThan(3000);
+  });
+
   it("opens a normal product history page quickly", () => {
     const p95 = measure("stock history normal product", 200, (n) => {
       const result = stockHistory(1 + (n % 1000));
@@ -309,5 +357,33 @@ describe("stock on-hand benchmark", () => {
     expect(queryP95).toBeLessThan(100);
 
     expect(stocktake.cancel({ stocktakeId })).toEqual({ ok: true });
+  });
+
+  const negativeStock = (offset: number) =>
+    negativeStockResultSchema.parse(inventory.negativeStock({ limit: 50, offset }));
+  const negativeCount = () => totals.reduce((n, total) => n + (total < 0 ? 1 : 0), 0);
+
+  it("lists negative stock that matches the ledger", () => {
+    const page = negativeStock(0);
+    expect(page.total).toBe(negativeCount());
+    expect(page.total).toBeGreaterThan(0);
+    const last = negativeStock(Math.floor((page.total - 1) / 50) * 50);
+    for (const item of [...page.items, ...last.items]) {
+      expect(item.onHandMilli).toBe(totals[Number(item.nameEn.slice("Item ".length))]);
+    }
+  });
+
+  it("opens the first negative stock page quickly (cold)", () => {
+    const start = performance.now();
+    negativeStock(0);
+    console.log(`negative stock first call (cold): ${(performance.now() - start).toFixed(3)} ms`);
+  });
+
+  it("lists the first and last negative stock pages within the report limit", () => {
+    const lastOffset = Math.floor((negativeCount() - 1) / 50) * 50;
+    const first = measure("negative stock first page", 50, () => negativeStock(0));
+    const last = measure("negative stock last page", 50, () => negativeStock(lastOffset));
+    expect(first).toBeLessThan(3000);
+    expect(last).toBeLessThan(3000);
   });
 }, 180_000);
