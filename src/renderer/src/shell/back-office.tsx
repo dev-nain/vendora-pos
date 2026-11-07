@@ -1,7 +1,9 @@
 import {
+  BoxesIcon,
   PackageIcon,
   SettingsIcon,
   TagsIcon,
+  TriangleAlertIcon,
   TruckIcon,
   UsersIcon,
   type LucideIcon,
@@ -10,6 +12,8 @@ import { Fragment, useState, type KeyboardEvent } from "react";
 
 import { cn } from "@renderer/lib/utils";
 import { CategoriesScreen } from "../categories/categories-screen";
+import { LowStockScreen } from "../inventory/low-stock-screen";
+import { StockScreen } from "../inventory/stock-screen";
 import { ProductsScreen } from "../products/products-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
 import { PrinterSetting } from "../settings/printer-setting";
@@ -22,6 +26,8 @@ import { backOfficeEntries, type BackOfficePage } from "./back-office-nav";
 const icons: Record<BackOfficePage, LucideIcon> = {
   products: PackageIcon,
   categories: TagsIcon,
+  stock: BoxesIcon,
+  "low-stock": TriangleAlertIcon,
   suppliers: TruckIcon,
   users: UsersIcon,
   settings: SettingsIcon,
@@ -87,6 +93,10 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
           <ProductsScreen onSessionEnded={onSessionEnded} />
         ) : page === "categories" ? (
           <CategoriesScreen onSessionEnded={onSessionEnded} />
+        ) : page === "stock" ? (
+          <StockScreen onSessionEnded={onSessionEnded} />
+        ) : page === "low-stock" ? (
+          <LowStockScreen onSessionEnded={onSessionEnded} />
         ) : page === "suppliers" ? (
           <SuppliersScreen onSessionEnded={onSessionEnded} />
         ) : page === "users" ? (

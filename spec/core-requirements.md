@@ -145,7 +145,7 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 - **Stocktake:** start a count (full or by category), enter counted quantities with the scanner, review variance and its value, post all adjustments in one step
 - Low-stock threshold per product, a **low-stock list**, and a badge on the dashboard
 - Negative stock is allowed (a sale is never blocked) and listed in a negative-stock report
-- Stock valued at weighted average cost
+- Stock value is on hand × the product's current cost, which receipts keep at the weighted average. A manual cost edit revalues all stock on hand and is audit-logged.
 
 ---
 

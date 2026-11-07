@@ -35,6 +35,14 @@ import {
 } from "@shared/checkout";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
 import {
+  lowStockQuerySchema,
+  lowStockResultSchema,
+  stockHistoryQuerySchema,
+  stockHistoryResultSchema,
+  stockListQuerySchema,
+  stockListResultSchema,
+} from "@shared/inventory";
+import {
   addFromSaleInputSchema,
   returnableInputSchema,
   returnableResultSchema,
@@ -147,6 +155,7 @@ import type { AuthService } from "./services/auth";
 import type { BillDraftsService } from "./services/bill-drafts";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
+import type { InventoryService } from "./services/inventory";
 import type { ProductsService } from "./services/products";
 import type { PurchaseOrdersService } from "./services/purchase-orders";
 import type { ReceiptsService } from "./services/receipts";
@@ -176,6 +185,7 @@ interface IpcServices {
   billDrafts: BillDraftsService;
   catalogExport: CatalogExportService;
   categories: CategoriesService;
+  inventory: InventoryService;
   returns: ReturnsService;
   sales: SalesService;
   settings: SettingsService;
@@ -193,6 +203,7 @@ export function registerIpcHandlers({
   billDrafts,
   catalogExport,
   categories,
+  inventory,
   products,
   purchaseOrders,
   receipts,
@@ -312,6 +323,15 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.usersReactivate, (_event, input) =>
     userActionResultSchema.parse(users.reactivate(userIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.inventoryListStock, (_event, input) =>
+    stockListResultSchema.parse(inventory.list(stockListQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.inventoryLowStock, (_event, input) =>
+    lowStockResultSchema.parse(inventory.lowStock(lowStockQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.inventoryStockHistory, (_event, input) =>
+    stockHistoryResultSchema.parse(inventory.history(stockHistoryQuerySchema.parse(input))),
   );
   handle(ipcChannels.productsSearch, (_event, input) =>
     productSearchResultSchema.parse(products.search(productSearchInputSchema.parse(input))),

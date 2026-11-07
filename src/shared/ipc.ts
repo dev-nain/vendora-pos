@@ -74,6 +74,14 @@ import type {
   SetDamagedInput,
   UpdateLineInput,
 } from "./checkout";
+import type {
+  LowStockQuery,
+  LowStockResult,
+  StockHistoryQuery,
+  StockHistoryResult,
+  StockListQuery,
+  StockListResult,
+} from "./inventory";
 import type { AddFromSaleInput, ReturnableResult } from "./returns";
 import type {
   BarcodeLookup,
@@ -147,6 +155,9 @@ export const ipcChannels = {
   usersResetPin: "users:reset-pin",
   usersDeactivate: "users:deactivate",
   usersReactivate: "users:reactivate",
+  inventoryListStock: "inventory:list-stock",
+  inventoryStockHistory: "inventory:stock-history",
+  inventoryLowStock: "inventory:low-stock",
   productsSearch: "products:search",
   productsGet: "products:get",
   productsCreate: "products:create",
@@ -252,6 +263,11 @@ export interface VendoraApi {
     resetPin: (id: string, pin: string) => Promise<UserActionResult>;
     deactivate: (id: string) => Promise<DeactivateUserResult>;
     reactivate: (id: string) => Promise<UserActionResult>;
+  };
+  inventory: {
+    listStock: (query: StockListQuery) => Promise<StockListResult>;
+    stockHistory: (query: StockHistoryQuery) => Promise<StockHistoryResult>;
+    lowStock: (query: LowStockQuery) => Promise<LowStockResult>;
   };
   products: {
     getMiscItem: () => Promise<Product | null>;
