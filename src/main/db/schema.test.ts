@@ -205,7 +205,7 @@ describe("catalog schema", () => {
       .get("margin_threshold_bps");
     expect(column).toEqual({ nn: 0 });
     expect(database.db.select().from(stores).get()?.marginThresholdBps).toBeNull();
-    const sqlText = readFileSync(join(migrationsFolder, "0018_medical_genesis.sql"), "utf8");
+    const sqlText = readFileSync(join(migrationsFolder, "0022_margin_prompt.sql"), "utf8");
     expect(sqlText).not.toContain("__new_stores");
     expect(sqlText).toContain("ALTER TABLE `stores` ADD `margin_threshold_bps`");
   });
