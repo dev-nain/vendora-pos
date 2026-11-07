@@ -9,7 +9,10 @@ describe("back office nav", () => {
       "categories",
       "stock",
       "low-stock",
+      "suppliers",
       "users",
+      "audit",
+      "backup",
       "settings",
     ]);
   });
@@ -22,7 +25,13 @@ describe("back office nav", () => {
 
   it("groups stock and low stock under Inventory", () => {
     expect(
-      backOfficeEntries.filter((entry) => entry.group === "Inventory").map((entry) => entry.label),
-    ).toEqual(["Stock", "Low stock"]);
+      backOfficeEntries.filter((entry) => entry.group === "Inventory").map((entry) => entry.page),
+    ).toEqual(["stock", "low-stock"]);
+  });
+
+  it("groups suppliers under Purchasing", () => {
+    expect(
+      backOfficeEntries.filter((entry) => entry.group === "Purchasing").map((entry) => entry.page),
+    ).toEqual(["suppliers"]);
   });
 });
