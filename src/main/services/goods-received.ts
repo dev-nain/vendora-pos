@@ -4,6 +4,7 @@ import { checkoutMessages } from "../../shared/checkout";
 import {
   goodsReceivedMessages,
   type GetGoodsReceivedResult,
+  type GoodsReceivedLastCostResult,
   type GoodsReceivedListQuery,
   type GoodsReceivedListResult,
   type GoodsReceivedNote,
@@ -374,6 +375,23 @@ export function createGoodsReceivedService({
     return { ok: true, note: toNote(db, note, lines) };
   }
 
-  return { post, list, get };
+  function lastCost({ productId }: { productId: string }): GoodsReceivedLastCostResult {
+    const session = requireSession(sessions);
+    const row = db
+      .select({ unitCostPaisa: goodsReceivedLines.unitCostPaisa })
+      .from(goodsReceivedLines)
+      .where(
+        and(
+          eq(goodsReceivedLines.storeId, session.storeId),
+          eq(goodsReceivedLines.productId, productId),
+        ),
+      )
+      .orderBy(desc(goodsReceivedLines.createdAt), desc(goodsReceivedLines.position))
+      .limit(1)
+      .get();
+    return { unitCostPaisa: row?.unitCostPaisa ?? null };
+  }
+
+  return { post, list, get, lastCost };
 }
 export type GoodsReceivedService = ReturnType<typeof createGoodsReceivedService>;

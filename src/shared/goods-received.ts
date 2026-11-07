@@ -101,6 +101,8 @@ export const goodsReceivedListQuerySchema = z.strictObject({
 });
 export const goodsReceivedIdInputSchema = z.strictObject({ id: z.uuid() });
 
+export const goodsReceivedLastCostInputSchema = z.strictObject({ productId: z.uuid() });
+
 export const goodsReceivedSummarySchema = z.strictObject({
   id: z.string(),
   grnNo: z.string(),
@@ -124,6 +126,10 @@ export const getGoodsReceivedResultSchema = z.union([
   refusal("not-found"),
 ]);
 
+export const goodsReceivedLastCostResultSchema = z.strictObject({
+  unitCostPaisa: z.int().nullable(),
+});
+
 export type GoodsReceivedLine = z.infer<typeof goodsReceivedLineSchema>;
 export type GoodsReceivedNote = z.infer<typeof goodsReceivedNoteSchema>;
 export type PostGoodsReceivedInput = z.input<typeof postGoodsReceivedInputSchema>;
@@ -132,3 +138,4 @@ export type GoodsReceivedSummary = z.infer<typeof goodsReceivedSummarySchema>;
 export type GoodsReceivedListQuery = z.input<typeof goodsReceivedListQuerySchema>;
 export type GoodsReceivedListResult = z.infer<typeof goodsReceivedListResultSchema>;
 export type GetGoodsReceivedResult = z.infer<typeof getGoodsReceivedResultSchema>;
+export type GoodsReceivedLastCostResult = z.infer<typeof goodsReceivedLastCostResultSchema>;

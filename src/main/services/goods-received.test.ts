@@ -649,7 +649,7 @@ describe("createGoodsReceivedService", () => {
 
   describe("no edit path", () => {
     it("exposes only post and the reads", () => {
-      expect(Object.keys(service)).toEqual(["post", "list", "get"]);
+      expect(Object.keys(service)).toEqual(["post", "list", "get", "lastCost"]);
       expect(
         Object.values(ipcChannels).filter((name) => name.startsWith("goods-received:")),
       ).toEqual(["goods-received:post"]);
@@ -779,10 +779,37 @@ describe("createGoodsReceivedService", () => {
     });
   });
 
+  describe("lastCost", () => {
+    it("is null when the product was never received", () => {
+      expect(service.lastCost({ productId: sugarId })).toEqual({ unitCostPaisa: null });
+    });
+
+    it("returns the newest note's cost, not the weighted average", () => {
+      posted(direct([{ productId: teaId, qtyMilli: 10000, unitCostPaisa: 100 }]));
+      posted(direct([{ productId: teaId, qtyMilli: 10000, unitCostPaisa: 300 }]));
+      posted(direct([{ productId: sugarId, qtyMilli: 1000, unitCostPaisa: 999 }]));
+
+      expect(costOf(teaId)).toBe(200);
+      expect(service.lastCost({ productId: teaId })).toEqual({ unitCostPaisa: 300 });
+    });
+
+    it("takes the later position within one note", () => {
+      posted(
+        direct([
+          { productId: teaId, qtyMilli: 1000, unitCostPaisa: 100 },
+          { productId: teaId, qtyMilli: 1000, unitCostPaisa: 700 },
+        ]),
+      );
+
+      expect(service.lastCost({ productId: teaId })).toEqual({ unitCostPaisa: 700 });
+    });
+  });
+
   it("throws when a read is called signed out", () => {
     sessions.end();
     expect(() => service.list({ limit: 10, offset: 0 })).toThrow(UnauthenticatedError);
     expect(() => service.get({ id: missingId })).toThrow(UnauthenticatedError);
+    expect(() => service.lastCost({ productId: sugarId })).toThrow(UnauthenticatedError);
   });
 
   it("throws when signed out and writes nothing", () => {
