@@ -116,7 +116,7 @@ describe("createAuditService", () => {
   it("leaves no row when the transaction rolls back", () => {
     expect(() =>
       database.db.transaction((tx) => {
-        audit.record({ action: "void", actorUserId: ownerId }, tx);
+        audit.record({ action: "login", actorUserId: ownerId }, tx);
         tx.rollback();
       }),
     ).toThrow();
@@ -125,7 +125,7 @@ describe("createAuditService", () => {
 
   it("keeps the row when the transaction commits", () => {
     database.db.transaction((tx) => {
-      audit.record({ action: "void", actorUserId: ownerId }, tx);
+      audit.record({ action: "login", actorUserId: ownerId }, tx);
     });
     expect(rows()).toHaveLength(1);
   });
@@ -143,7 +143,7 @@ describe("auditRecordInputSchema", () => {
     for (const action of auditActions) {
       expect(auditRecordInputSchema.safeParse({ action, actorUserId: actor }).success).toBe(true);
     }
-    expect(auditActions).toHaveLength(31);
+    expect(auditActions).toHaveLength(30);
     expect(
       auditRecordInputSchema.safeParse({ action: "override", actorUserId: actor }).success,
     ).toBe(false);
