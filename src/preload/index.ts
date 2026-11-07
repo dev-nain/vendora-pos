@@ -2,6 +2,8 @@ import { z } from "zod";
 import { contextBridge, ipcRenderer } from "electron";
 import {
   backupNowResultSchema,
+  backupPasswordResultSchema,
+  backupPasswordStatusSchema,
   backupStatusSchema,
   chosenBackupSchema,
   restoreResultSchema,
@@ -396,6 +398,20 @@ const api: VendoraApi = {
       chosenBackupSchema.parse(await ipcRenderer.invoke(ipcChannels.backupChooseFile)),
     restore: async (input) =>
       restoreResultSchema.parse(await ipcRenderer.invoke(ipcChannels.backupRestore, input)),
+    passwordStatus: async () =>
+      backupPasswordStatusSchema.parse(await ipcRenderer.invoke(ipcChannels.backupPasswordStatus)),
+    turnOnPassword: async (password) =>
+      backupPasswordResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.backupPasswordTurnOn, { password }),
+      ),
+    changePassword: async (current, next) =>
+      backupPasswordResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.backupPasswordChange, { current, next }),
+      ),
+    turnOffPassword: async (current) =>
+      backupPasswordResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.backupPasswordTurnOff, { current }),
+      ),
   },
 };
 

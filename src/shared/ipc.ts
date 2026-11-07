@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type {
   BackupNowResult,
+  BackupPasswordResult,
+  BackupPasswordStatus,
   BackupStatus,
   ChosenBackup,
   RestoreInput,
@@ -219,6 +221,10 @@ export const ipcChannels = {
   backupRun: "backup:run",
   backupChooseFile: "backup:choose-file",
   backupRestore: "backup:restore",
+  backupPasswordStatus: "backup:password-status",
+  backupPasswordTurnOn: "backup:password-turn-on",
+  backupPasswordChange: "backup:password-change",
+  backupPasswordTurnOff: "backup:password-turn-off",
 } as const;
 
 export const ipcErrorMessages = {
@@ -354,5 +360,9 @@ export interface VendoraApi {
     run: () => Promise<BackupNowResult>;
     chooseFile: () => Promise<ChosenBackup>;
     restore: (input: RestoreInput) => Promise<RestoreResult>;
+    passwordStatus: () => Promise<BackupPasswordStatus>;
+    turnOnPassword: (password: string) => Promise<BackupPasswordResult>;
+    changePassword: (current: string, next: string) => Promise<BackupPasswordResult>;
+    turnOffPassword: (current: string) => Promise<BackupPasswordResult>;
   };
 }
