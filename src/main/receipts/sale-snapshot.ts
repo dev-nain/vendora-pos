@@ -44,6 +44,8 @@ export interface SaleSnapshot {
     totalPaisa: number;
     buyerName: string | null;
     buyerNtn: string | null;
+    buyerCnic: string | null;
+    buyerPhone: string | null;
   };
   cashierName: string;
   lines: SnapshotLine[];
@@ -128,6 +130,8 @@ export function loadSaleSnapshot(executor: DbExecutor, saleId: string): SaleSnap
       totalPaisa: sale.totalPaisa,
       buyerName: sale.buyerName,
       buyerNtn: sale.buyerNtn,
+      buyerCnic: sale.buyerCnic,
+      buyerPhone: sale.buyerPhone,
     },
     cashierName: found.cashierName,
     lines,

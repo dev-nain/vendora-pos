@@ -3,10 +3,12 @@ import type { ComponentType } from "react";
 import type { DiscountsReturnsVoidsResult } from "@shared/discounts-returns-voids";
 import {
   salesByDayColumns,
+  salesTaxSummaryColumns,
   type ExportReportInput,
   type ExportReportResult,
   type ReportRange,
   type SalesByDayResult,
+  type SalesTaxSummaryResult,
 } from "@shared/reports";
 import { DiscountsReturnsVoidsBody } from "./discounts-returns-voids-view";
 import { ReportTable } from "./report-table";
@@ -50,6 +52,29 @@ export const salesByDayReport: ReportDefinition<SalesByDayResult> = {
   Body: SalesByDayBody,
 };
 
+function SalesTaxSummaryBody({ result, busy }: ReportBodyProps<SalesTaxSummaryResult>) {
+  return (
+    <ReportTable
+      label="Sales tax summary table"
+      busy={busy}
+      columns={salesTaxSummaryColumns}
+      rows={result.rows}
+      rowKey="rate"
+      totals={result.totals}
+    />
+  );
+}
+
+export const salesTaxSummaryReport: ReportDefinition<SalesTaxSummaryResult> = {
+  id: "sales-tax-summary",
+  label: "Sales tax summary",
+  emptyTitle: "No sales in this period",
+  load: (range) => window.vendora.reports.salesTaxSummary(range),
+  exportTo: (input) => window.vendora.reports.exportSalesTaxSummary(input),
+  isEmpty: (result) => result.rows.length === 0,
+  Body: SalesTaxSummaryBody,
+};
+
 export const discountsReturnsVoidsReport: ReportDefinition<DiscountsReturnsVoidsResult> = {
   id: "discounts-returns-voids",
   label: "Discounts, returns and voids",
@@ -64,4 +89,8 @@ export const discountsReturnsVoidsReport: ReportDefinition<DiscountsReturnsVoids
   Body: DiscountsReturnsVoidsBody,
 };
 
-export const reportDefinitions = [salesByDayReport, discountsReturnsVoidsReport] as const;
+export const reportDefinitions = [
+  salesByDayReport,
+  salesTaxSummaryReport,
+  discountsReturnsVoidsReport,
+] as const;

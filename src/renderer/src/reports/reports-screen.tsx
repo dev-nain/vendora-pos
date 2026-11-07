@@ -11,6 +11,7 @@ import {
   discountsReturnsVoidsReport,
   reportDefinitions,
   salesByDayReport,
+  salesTaxSummaryReport,
 } from "./report-definitions";
 import { ReportView } from "./report-view";
 
@@ -45,15 +46,28 @@ export function ReportsScreen({ onSessionEnded, onOpenSale }: ReportsScreenProps
     </Select>
   );
 
-  return reportId === discountsReturnsVoidsReport.id ? (
-    <ReportView
-      key={reportId}
-      definition={discountsReturnsVoidsReport}
-      picker={picker}
-      onSessionEnded={onSessionEnded}
-      onOpenSale={onOpenSale}
-    />
-  ) : (
+  if (reportId === discountsReturnsVoidsReport.id) {
+    return (
+      <ReportView
+        key={reportId}
+        definition={discountsReturnsVoidsReport}
+        picker={picker}
+        onSessionEnded={onSessionEnded}
+        onOpenSale={onOpenSale}
+      />
+    );
+  }
+  if (reportId === salesTaxSummaryReport.id) {
+    return (
+      <ReportView
+        key={reportId}
+        definition={salesTaxSummaryReport}
+        picker={picker}
+        onSessionEnded={onSessionEnded}
+      />
+    );
+  }
+  return (
     <ReportView
       key={reportId}
       definition={salesByDayReport}
