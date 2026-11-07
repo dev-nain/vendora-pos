@@ -94,7 +94,9 @@ import {
   confirmPurchaseOrderResultSchema,
   createPurchaseOrderResultSchema,
   getPurchaseOrderResultSchema,
+  printPurchaseOrderResultSchema,
   purchaseOrderSummarySchema,
+  savePurchaseOrderPdfResultSchema,
   updatePurchaseOrderResultSchema,
 } from "@shared/purchase-orders";
 import {
@@ -367,6 +369,14 @@ const api: VendoraApi = {
     cancel: async (id) =>
       cancelPurchaseOrderResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.purchaseOrdersCancel, { id }),
+      ),
+    savePdf: async (id) =>
+      savePurchaseOrderPdfResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersSavePdf, { id }),
+      ),
+    print: async (id) =>
+      printPurchaseOrderResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersPrint, { id }),
       ),
   },
   goodsReceived: {
