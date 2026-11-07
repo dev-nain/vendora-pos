@@ -4,10 +4,13 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { VendoraDatabase } from "../db/client";
 import { categories, stores, taxCategories, terminals, users } from "../db/schema";
+import { createSessionStore } from "../auth/session";
 import { seedStoreAndTerminal } from "../db/seed";
 import { createAuditService } from "./audit";
+import { createInventoryService } from "./inventory";
 import { createStockService } from "./stock";
 import { openMigratedDatabase } from "../db/test-database";
+import { stockHistoryResultSchema, stockListResultSchema } from "../../shared/inventory";
 
 const productCount = 30_000;
 const movementCount = 1_000_000;
@@ -39,6 +42,8 @@ describe("stock on-hand benchmark", () => {
   let dir: string;
   let database: VendoraDatabase;
   let service: ReturnType<typeof createStockService>;
+  let inventory: ReturnType<typeof createInventoryService>;
+  let secondCategoryId: string;
   const productIds: string[] = [];
   const totals = new Float64Array(productCount);
 
@@ -50,6 +55,12 @@ describe("stock on-hand benchmark", () => {
     const terminalId = database.db.select().from(terminals).get()!.id;
     const categoryId = database.db.select().from(categories).get()!.id;
     const taxCategoryId = database.db.select().from(taxCategories).get()!.id;
+    const secondCategory = database.db
+      .insert(categories)
+      .values({ storeId, name: "Bench second" })
+      .returning()
+      .get().id;
+    secondCategoryId = secondCategory;
     const actorId = database.db
       .insert(users)
       .values({ username: "owner", displayName: "Owner", passwordHash: "x", pinHash: "x" })
@@ -69,10 +80,27 @@ describe("stock on-hand benchmark", () => {
           `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < @count - 1)
            INSERT INTO products (id, store_id, name_en, search_text, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, created_at, updated_at)
            SELECT printf('00000000-0000-7000-8000-%012d', i), @storeId, 'Item ' || i, 'item ' || i,
-                  @categoryId, @taxCategoryId, 'piece', 1000 + i, 1500 + i, @base, @base
+                  CASE WHEN i % 2 = 0 THEN @categoryId ELSE @secondCategoryId END,
+                  @taxCategoryId, 'piece', 1000 + i, 1500 + i, @base, @base
            FROM n`,
         )
-        .run({ count: productCount, storeId, categoryId, taxCategoryId, base });
+        .run({
+          count: productCount,
+          storeId,
+          categoryId,
+          secondCategoryId: secondCategory,
+          taxCategoryId,
+          base,
+        });
+      database.sqlite
+        .prepare(
+          `WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < @count - 1)
+           INSERT INTO product_barcodes (id, store_id, product_id, barcode, created_at, updated_at)
+           SELECT printf('00000000-0000-7000-a000-%012d', i), @storeId,
+                  printf('00000000-0000-7000-8000-%012d', i), printf('89%011d', i), @base, @base
+           FROM n`,
+        )
+        .run({ count: productCount, storeId, base });
       database.sqlite
         .prepare(
           `WITH RECURSIVE n(m) AS (SELECT 0 UNION ALL SELECT m + 1 FROM n WHERE m < @count - 1)
@@ -96,6 +124,9 @@ describe("stock on-hand benchmark", () => {
     })();
 
     service = createStockService({ database, audit: createAuditService(database) });
+    const sessions = createSessionStore();
+    sessions.start({ userId: actorId, storeId, loggedInAt: new Date(0) });
+    inventory = createInventoryService({ database, sessions, stock: service });
   }, 180_000);
 
   afterAll(() => {
@@ -133,5 +164,87 @@ describe("stock on-hand benchmark", () => {
       service.onHand(productIds[0]!);
     });
     expect(p95).toBeLessThan(50);
+  });
+
+  const listStock = (query: string, offset = 0, categoryId?: string) =>
+    stockListResultSchema.parse(
+      inventory.list({ query, limit: 50, offset, ...(categoryId ? { categoryId } : {}) }),
+    );
+  const stockHistory = (index: number, offset = 0) =>
+    stockHistoryResultSchema.parse(
+      inventory.history({ productId: productIds[index]!, limit: 50, offset }),
+    );
+
+  it("lists stock with values that match the ledger", () => {
+    const page = listStock("");
+    expect(page.total).toBe(productCount);
+    for (const item of page.items) {
+      const index = Number(item.nameEn.slice("Item ".length));
+      expect(item.onHandMilli).toBe(totals[index]);
+      expect(item.costPaisa).toBe(1000 + index);
+    }
+  });
+
+  it("opens the first stock list page quickly (cold)", () => {
+    const start = performance.now();
+    listStock("");
+    const cold = performance.now() - start;
+    console.log(`stock list first call (cold): ${cold.toFixed(3)} ms`);
+  });
+
+  it("lists the first page quickly", () => {
+    expect(measure("stock list first page", 200, () => listStock(""))).toBeLessThan(100);
+  });
+
+  it("lists the first page of a category quickly", () => {
+    const p95 = measure("stock list by category", 200, () => {
+      expect(listStock("", 0, secondCategoryId).total).toBe(productCount / 2);
+    });
+    expect(p95).toBeLessThan(100);
+  });
+
+  it("lists a text query quickly", () => {
+    const p95 = measure("stock list text query", 200, (n) => {
+      expect(listStock(`item 1${n % 10}`).items.length).toBeGreaterThan(0);
+    });
+    expect(p95).toBeLessThan(100);
+  });
+
+  it("finds a product by barcode quickly", () => {
+    const p95 = measure("stock list barcode", 200, (n) => {
+      const index = (n * 7919) % productCount;
+      expect(listStock(`89${String(index).padStart(11, "0")}`).items[0]?.id).toBe(
+        productIds[index],
+      );
+    });
+    expect(p95).toBeLessThan(100);
+  });
+
+  it("lists the last page quickly", () => {
+    const p95 = measure("stock list last page", 200, () => {
+      expect(listStock("", productCount - 50).items).toHaveLength(50);
+    });
+    expect(p95).toBeLessThan(100);
+  });
+
+  it("opens a normal product history page quickly", () => {
+    const p95 = measure("stock history normal product", 200, (n) => {
+      const result = stockHistory(1 + (n % 1000));
+      expect(result.ok && result.movements.length).toBeGreaterThan(0);
+    });
+    expect(p95).toBeLessThan(100);
+  });
+
+  it("opens the first and last history pages of the hot product quickly", () => {
+    const first = measure("stock history hot first page", 200, () => {
+      const result = stockHistory(0);
+      expect(result.ok && result.hasMore).toBe(true);
+    });
+    const last = measure("stock history hot last page", 200, () => {
+      const result = stockHistory(0, hotMovements - 50 + 1);
+      expect(result.ok && result.movements.length).toBeGreaterThan(0);
+    });
+    expect(first).toBeLessThan(100);
+    expect(last).toBeLessThan(100);
   });
 }, 180_000);

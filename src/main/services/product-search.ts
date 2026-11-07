@@ -1,4 +1,4 @@
-import { and, asc, count, eq, getTableName, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, getTableName, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { VendoraDatabase } from "../db/client";
 import { productBarcodes, products, stockMovements } from "../db/schema";
 import {
@@ -65,7 +65,17 @@ export function searchProducts(
   }
   order.push(sql`lower(${products.nameEn})`, asc(products.nameEn), asc(products.id));
 
-  const items = db
+  const pageIds = db
+    .select({ id: products.id })
+    .from(products)
+    .where(where)
+    .orderBy(...order)
+    .limit(limit)
+    .offset(offset)
+    .all()
+    .map((row) => row.id);
+
+  const details = db
     .select({
       id: products.id,
       nameEn: products.nameEn,
@@ -82,11 +92,10 @@ export function searchProducts(
       onHandMilli: sql<number>`coalesce((SELECT sum(${stockMovements.qtyMilli}) FROM ${stockMovements} WHERE ${stockMovements.productId} = ${outerProductId}), 0)`,
     })
     .from(products)
-    .where(where)
-    .orderBy(...order)
-    .limit(limit)
-    .offset(offset)
+    .where(inArray(products.id, pageIds))
     .all();
+  const byId = new Map(details.map((row) => [row.id, row]));
+  const items = pageIds.flatMap((id) => byId.get(id) ?? []);
 
   const totalRow = db.select({ total: count() }).from(products).where(where).get();
 

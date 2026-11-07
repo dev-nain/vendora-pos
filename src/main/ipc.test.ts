@@ -25,6 +25,7 @@ import { createSuppliersService, type SuppliersService } from "./services/suppli
 import { createGoodsReceivedService, type GoodsReceivedService } from "./services/goods-received";
 import { createStockService } from "./services/stock";
 import { openMigratedDatabase } from "./db/test-database";
+import { createInventoryService, type InventoryService } from "./services/inventory";
 
 const handlers = vi.hoisted(
   () => new Map<string, (event: unknown, ...args: unknown[]) => unknown>(),
@@ -157,13 +158,14 @@ describe("products ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      backupAdmin: stub,
       backupPassword: stub,
       backupSettings: stub,
-      backupAdmin: stub,
       billDrafts: stub,
       catalogExport,
       categories: stub,
       goodsReceived: goodsReceivedService,
+      inventory: stub,
       products: service,
       purchaseOrders: purchaseOrdersService,
       receipts: stub,
@@ -541,13 +543,14 @@ describe("shifts ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      backupAdmin: stub,
       backupPassword: stub,
       backupSettings: stub,
-      backupAdmin: stub,
       billDrafts: stub,
       catalogExport: stub,
       categories: stub,
       goodsReceived: stub,
+      inventory: stub,
       products: stub,
       purchaseOrders: stub,
       receipts: receipts as never,
@@ -695,13 +698,14 @@ describe("checkout ipc", () => {
     const stub = {} as never;
     registerIpcHandlers({
       auth: stub,
+      backupAdmin: stub,
       backupPassword: stub,
       backupSettings: stub,
-      backupAdmin: stub,
       billDrafts: kit.billDrafts,
       catalogExport: stub,
       categories: stub,
       goodsReceived: stub,
+      inventory: stub,
       products: stub,
       purchaseOrders: stub,
       receipts: receipts as never,
@@ -949,6 +953,7 @@ describe("backup settings ipc", () => {
       catalogExport: stub,
       categories: stub,
       goodsReceived: stub,
+      inventory: stub,
       products: stub,
       purchaseOrders: stub,
       receipts: stub,
@@ -994,6 +999,7 @@ describe("backup ipc", () => {
       catalogExport: stub,
       categories: stub,
       goodsReceived: stub,
+      inventory: stub,
       products: stub,
       purchaseOrders: stub,
       receipts: stub,
@@ -1069,6 +1075,7 @@ describe("backup password ipc", () => {
       catalogExport: stub,
       categories: stub,
       goodsReceived: stub,
+      inventory: stub,
       products: stub,
       purchaseOrders: stub,
       receipts: stub,
@@ -1126,5 +1133,85 @@ describe("backup password ipc", () => {
     service.status.mockResolvedValue({ state: "maybe" });
 
     await expect(invoke("backup:password-status")).rejects.toThrow();
+  });
+});
+
+describe("inventory ipc", () => {
+  let kit: CheckoutKit;
+  let service: InventoryService;
+
+  beforeEach(() => {
+    handlers.clear();
+    kit = createCheckoutKit();
+    service = createInventoryService({
+      database: kit.database,
+      sessions: kit.sessions,
+      stock: kit.stock,
+    });
+    const stub = {} as never;
+    registerIpcHandlers({
+      auth: stub,
+      backupAdmin: stub,
+      backupPassword: stub,
+      backupSettings: stub,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      goodsReceived: stub,
+      inventory: service,
+      products: stub,
+      purchaseOrders: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      suppliers: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+    kit.signIn("cashier");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    kit.close();
+  });
+
+  it.each([
+    ["inventory:list-stock", "list", { query: "", limit: 101, offset: 0 }],
+    ["inventory:list-stock", "list", { query: "", limit: 10, offset: 0, extra: 1 }],
+    ["inventory:list-stock", "list", { query: "", limit: 10, offset: 0, includeArchived: true }],
+    ["inventory:stock-history", "history", { productId: "x", limit: 10, offset: 0 }],
+    ["inventory:stock-history", "history", { productId: unknownId, limit: 101, offset: 0 }],
+    [
+      "inventory:stock-history",
+      "history",
+      { productId: unknownId, limit: 10, offset: 0, extra: 1 },
+    ],
+  ] as const)("%s rejects bad input", async (channel, method, input) => {
+    const spy = vi.spyOn(service, method);
+    await expect(invoke(channel, input)).rejects.toThrow();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("lists stock and returns a refusal for an unknown product", async () => {
+    const tea = kit.addProduct({ nameEn: "Tea", searchText: "tea", costPaisa: 1000 });
+    expect(await invoke("inventory:list-stock", { query: "", limit: 10, offset: 0 })).toMatchObject(
+      {
+        total: 1,
+        items: [{ id: tea.id, onHandMilli: 0, costPaisa: 1000, stockValuePaisa: 0 }],
+      },
+    );
+    expect(
+      await invoke("inventory:stock-history", { productId: unknownId, limit: 10, offset: 0 }),
+    ).toMatchObject({ ok: false, reason: "not-found" });
+  });
+
+  it("rejects reads with no session", async () => {
+    kit.sessions.end();
+    await expect(
+      invoke("inventory:list-stock", { query: "", limit: 10, offset: 0 }),
+    ).rejects.toThrow(new Error(ipcErrorMessages.unauthenticated));
   });
 });
