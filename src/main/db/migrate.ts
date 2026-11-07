@@ -1,7 +1,9 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type Database from "better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import type { VendoraDatabase } from "./client";
+import { backupStamp, vacuumInto } from "./vacuum-into";
 
 const MIGRATIONS_TABLE = "__drizzle_migrations";
 
@@ -22,7 +24,13 @@ function readJournal(migrationsFolder: string): Journal | null {
   return JSON.parse(readFileSync(file, "utf8")) as Journal;
 }
 
-function lastAppliedAt({ sqlite }: VendoraDatabase): number {
+export function latestMigrationAt(migrationsFolder: string): number | null {
+  const journal = readJournal(migrationsFolder);
+  if (!journal || journal.entries.length === 0) return null;
+  return Math.max(...journal.entries.map((entry) => entry.when));
+}
+
+export function lastAppliedAt(sqlite: Database.Database): number {
   const table = sqlite
     .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
     .get(MIGRATIONS_TABLE);
@@ -44,8 +52,7 @@ function hasUserTables({ sqlite }: VendoraDatabase): boolean {
 
 function backupBeforeMigrate({ sqlite }: VendoraDatabase, backupDir: string): void {
   mkdirSync(backupDir, { recursive: true });
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  sqlite.prepare("VACUUM INTO ?").run(join(backupDir, `pre-migrate-${stamp}.db`));
+  vacuumInto(sqlite, join(backupDir, `pre-migrate-${backupStamp(new Date())}.db`));
 }
 
 export function runMigrations(
@@ -55,7 +62,7 @@ export function runMigrations(
   const journal = readJournal(migrationsFolder);
   if (!journal) return "no-journal";
 
-  const applied = lastAppliedAt(database);
+  const applied = lastAppliedAt(database.sqlite);
   if (!journal.entries.some((entry) => entry.when > applied)) return "up-to-date";
 
   if (hasUserTables(database)) backupBeforeMigrate(database, backupDir);
