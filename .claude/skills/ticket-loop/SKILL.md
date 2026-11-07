@@ -155,7 +155,7 @@ pass the last commit of each group: each must pass typecheck, lint and
 
 1. **Screenshots — every PR has them.** Use `screenshots.sh` (next to this
    file) with the prompt's **Screenshots** section written as a shots file
-   (`name|route|size|theme[|as=<user>][|js=<expr>]` per line; the header of
+   (`name|route|size|theme[|as=<user>][|fixture=sale][|pdf=<file>][|js=<expr>]` per line; the header of
    `screenshots.sh` explains the fields). `S` is a fresh directory in the
    scratchpad.
    - Before: `git switch --detach origin/develop`, `pnpm install --frozen-lockfile`,

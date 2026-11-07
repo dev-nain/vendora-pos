@@ -152,7 +152,7 @@ export function orderTotal(lines: readonly OrderLineDraft[]): number {
   return lines.reduce((sum, line) => sum + (lineTotal(line) ?? 0), 0);
 }
 
-const lineProjection = (line: OrderLineDraft) =>
+export const lineProjection = (line: OrderLineDraft) =>
   [line.productId, line.qtyText, line.costText] as const;
 
 export function isOrderFormDirty(initial: OrderFormValues, current: OrderFormValues): boolean {
@@ -164,7 +164,7 @@ export function isOrderFormDirty(initial: OrderFormValues, current: OrderFormVal
   );
 }
 
-function quantityError(line: OrderLineDraft): string | null {
+export function quantityError(line: OrderLineDraft): string | null {
   if (line.qtyText.trim() === "") return orderFormMessages.qtyEmpty;
   const parsed = parseQuantityMilli(line.qtyText, line.unit);
   if (!parsed.ok) {
@@ -173,7 +173,7 @@ function quantityError(line: OrderLineDraft): string | null {
   return parsed.milli === 0 ? orderFormMessages.qtyPositive : null;
 }
 
-function costError(line: OrderLineDraft): string | null {
+export function costError(line: OrderLineDraft): string | null {
   return parseRupees(line.costText).ok ? null : orderFormMessages.costInvalid;
 }
 

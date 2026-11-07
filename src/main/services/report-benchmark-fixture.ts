@@ -92,7 +92,9 @@ export function seedReportFixture(kit: CheckoutKit): ReportRange {
            SELECT *,
                   CASE WHEN p % 10 < 2 THEN 500 * (1 + k % 4) ELSE 1000 * (1 + k % 3) END AS qty,
                   1500 + p % 500 AS price,
-                  CASE p % 10 WHEN 0 THEN 'kg' WHEN 1 THEN 'litre' ELSE 'piece' END AS unit
+                  CASE p % 10 WHEN 0 THEN 'kg' WHEN 1 THEN 'litre' ELSE 'piece' END AS unit,
+                  CASE p % 10 WHEN 3 THEN 0 WHEN 4 THEN 500 ELSE 1800 END AS rate,
+                  p % 10 = 5 AS third
            FROM a
          ),
          c AS (SELECT *, qty * price / 1000 AS gross FROM b),
@@ -104,8 +106,8 @@ export function seedReportFixture(kit: CheckoutKit): ReportRange {
          SELECT printf('00000000-0000-7000-8002-%012d', i), @storeId, @terminalId,
                 printf('00000000-0000-7000-8001-%012d', s), k,
                 printf('00000000-0000-7000-8000-%012d', p), 'Item ' || p, unit, sign * qty, sign < 0,
-                price, 1000 + p % 500, 1800, 0, sign * gross, sign * disc, 0, sign * disc,
-                sign * (total * 1800 / 11800), sign * total,
+                price, 1000 + p % 500, rate, third, sign * gross, sign * disc, 0, sign * disc,
+                sign * (total * rate / (10000 + rate)), sign * total,
                 printf('00000000-0000-7000-a000-%012d', p % @categoryCount), 'Category ' || (p % @categoryCount),
                 @start + s * @step
          FROM e`),

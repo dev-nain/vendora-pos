@@ -3,7 +3,11 @@ import {
   discountsReturnsVoidsResultSchema,
   reportDetailLimit,
 } from "../../shared/discounts-returns-voids";
-import { salesByDayResultSchema, type ReportRange } from "../../shared/reports";
+import {
+  salesByDayResultSchema,
+  salesTaxSummaryResultSchema,
+  type ReportRange,
+} from "../../shared/reports";
 import { fixtureCounts, seedReportFixture } from "./report-benchmark-fixture";
 import { createCheckoutKit, type CheckoutKit } from "./checkout-test-kit";
 import { createReportsService } from "./reports";
@@ -15,6 +19,22 @@ const percentile = (sorted: number[], p: number) =>
 
 const rowCount = (kit: CheckoutKit, table: string) =>
   (kit.database.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number }).n;
+
+function timeReport<Result>(label: string, run: () => Result) {
+  const durations: number[] = [];
+  let last = run();
+  for (let i = 0; i < runs; i++) {
+    const start = performance.now();
+    last = run();
+    durations.push(performance.now() - start);
+  }
+  const sorted = durations.toSorted((a, b) => a - b);
+  const p95 = percentile(sorted, 0.95);
+  console.log(
+    `${label}, full year: p50 ${percentile(sorted, 0.5).toFixed(1)} ms / p95 ${p95.toFixed(1)} ms / max ${sorted.at(-1)!.toFixed(1)} ms`,
+  );
+  return { last, p95 };
+}
 
 describe("reports benchmark", () => {
   let kit: CheckoutKit;
@@ -33,24 +53,18 @@ describe("reports benchmark", () => {
     expect(rowCount(kit, "sale_payments")).toBe(fixtureCounts.sales);
   });
 
-  it("renders sales by day for a full year in under 3 seconds", () => {
-    const service = createReportsService({
+  const reportsService = () =>
+    createReportsService({
       database: kit.database,
       sessions: kit.sessions,
       renderer: { toPdf: async () => Buffer.alloc(0), print: async () => "printed" },
       chooseSavePath: async () => null,
     });
-    const durations: number[] = [];
-    let last = salesByDayResultSchema.parse(service.salesByDay(range));
-    for (let run = 0; run < runs; run++) {
-      const start = performance.now();
-      last = salesByDayResultSchema.parse(service.salesByDay(range));
-      durations.push(performance.now() - start);
-    }
-    const sorted = durations.toSorted((a, b) => a - b);
-    const p95 = percentile(sorted, 0.95);
-    console.log(
-      `sales by day, full year: p50 ${percentile(sorted, 0.5).toFixed(1)} ms / p95 ${p95.toFixed(1)} ms / max ${sorted.at(-1)!.toFixed(1)} ms`,
+
+  it("renders sales by day for a full year in under 3 seconds", () => {
+    const service = reportsService();
+    const { last, p95 } = timeReport("sales by day", () =>
+      salesByDayResultSchema.parse(service.salesByDay(range)),
     );
 
     const direct = kit.database.sqlite
@@ -59,6 +73,26 @@ describe("reports benchmark", () => {
     expect(last.rows).toHaveLength(365);
     expect(last.totals.totalPaisa).toBe(direct.total);
     expect(last.totals.billCount).toBe(direct.bills);
+    expect(p95).toBeLessThan(3000);
+  }, 120_000);
+
+  it("renders the sales tax summary for a full year in under 3 seconds", () => {
+    const service = reportsService();
+    const { last, p95 } = timeReport("sales tax summary", () =>
+      salesTaxSummaryResultSchema.parse(service.salesTaxSummary(range)),
+    );
+
+    const direct = kit.database.sqlite
+      .prepare(
+        "SELECT sum(total_paisa - tax_paisa) AS taxable, sum(tax_paisa) AS tax, sum(total_paisa) AS total FROM sale_lines",
+      )
+      .get() as { taxable: number; tax: number; total: number };
+    expect(last.rows.map((row) => row.rate)).toEqual(["18%", "18% · Third Schedule", "5%", "0%"]);
+    expect(last.totals).toEqual({
+      taxablePaisa: direct.taxable,
+      taxPaisa: direct.tax,
+      totalPaisa: direct.total,
+    });
     expect(p95).toBeLessThan(3000);
   }, 120_000);
 
@@ -124,6 +158,9 @@ describe("reports benchmark", () => {
     );
     console.log(
       `plan, line aggregate: ${planOf(`SELECT ${bucket}, sum(sale_lines.qty_milli) FROM sale_lines INNER JOIN sales ON sales.id = sale_lines.sale_id WHERE ${where} GROUP BY ${bucket}`)}`,
+    );
+    console.log(
+      `plan, tax summary aggregate: ${planOf(`SELECT sale_lines.tax_rate_bps, sale_lines.is_third_schedule, sum(sale_lines.total_paisa - sale_lines.tax_paisa), sum(sale_lines.tax_paisa), sum(sale_lines.total_paisa) FROM sale_lines INNER JOIN sales ON sales.id = sale_lines.sale_id WHERE ${where} GROUP BY sale_lines.tax_rate_bps, sale_lines.is_third_schedule`)}`,
     );
     console.log(
       `plan, returned lines: ${planOf(`WITH damaged AS (SELECT DISTINCT source_id FROM stock_movements WHERE type = 'damage' AND source_type = 'sale_line') SELECT count(*), sum(sale_lines.total_paisa) FROM sale_lines JOIN sales ON sales.id = sale_lines.sale_id JOIN products ON products.id = sale_lines.product_id LEFT JOIN damaged ON damaged.source_id = sale_lines.id WHERE ${where} AND sale_lines.is_return = 1`)}`,

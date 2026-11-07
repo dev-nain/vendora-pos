@@ -48,6 +48,8 @@ const snapshot = (patch: Partial<SaleSnapshot> = {}): SaleSnapshot => ({
     totalPaisa: 23600,
     buyerName: null,
     buyerNtn: null,
+    buyerCnic: null,
+    buyerPhone: null,
   },
   cashierName: "Ayesha",
   lines: [line()],

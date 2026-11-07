@@ -2,12 +2,14 @@ import { reportDetailLimit } from "../../shared/discounts-returns-voids";
 import {
   exportReportFailedMessage,
   salesByDayColumns,
+  salesTaxSummaryColumns,
   type ExportReportInput,
   type ExportReportResult,
   type ReportColumn,
   type ReportExportFormat,
   type ReportRange,
   type SalesByDayResult,
+  type SalesTaxSummaryResult,
 } from "../../shared/reports";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
@@ -18,6 +20,7 @@ import { readDiscountsReturnsVoids } from "../reports/discounts-returns-voids";
 import { reportCsv } from "../reports/report-csv";
 import { buildReportDocument } from "../reports/report-document";
 import { readSalesByDay } from "../reports/sales-by-day";
+import { readSalesTaxSummary } from "../reports/sales-tax-summary";
 import { getReceiptSettings } from "../settings/store-settings";
 
 interface ReportsDeps {
@@ -62,6 +65,11 @@ export function createReportsService({
     return readSalesByDay(database, session.storeId, range);
   }
 
+  function salesTaxSummary(range: ReportRange): SalesTaxSummaryResult {
+    const session = requireSession(sessions);
+    return readSalesTaxSummary(database, session.storeId, range);
+  }
+
   function discountsReturnsVoids(range: ReportRange) {
     const session = requireSession(sessions);
     return readDiscountsReturnsVoids(database, session.storeId, range, {
@@ -104,6 +112,7 @@ export function createReportsService({
   return {
     salesByDay,
     discountsReturnsVoids,
+    salesTaxSummary,
     exportSalesByDay: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Sales by day",
@@ -112,6 +121,15 @@ export function createReportsService({
         format,
         columns: salesByDayColumns,
         read: (storeId) => readSalesByDay(database, storeId, range),
+      }),
+    exportSalesTaxSummary: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Sales tax summary",
+        fileStem: "sales-tax-summary",
+        range,
+        format,
+        columns: salesTaxSummaryColumns,
+        read: (storeId) => readSalesTaxSummary(database, storeId, range),
       }),
   };
 }
