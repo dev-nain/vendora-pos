@@ -140,6 +140,7 @@ Target printers: Xprinter XP-58, Xprinter XP-80, Epson TM-T82 and Black Copper B
 - **Settings.** Back office, Settings, "Receipt printer": connection, paper width, print mode, Test print and Test drawer. "Receipt": store name, address, phone, NTN, STRN and the English and Urdu header and footer.
 - **Drawer.** It opens for any sale with a cash payment row (tendered, change or refund), on cash in and cash out, and when the opening and closing counts begin. Every open without a sale is audit-logged with its reason. There is no free "open drawer" button.
 - **Fake printer.** Run `VENDORA_FAKE_PRINTER=/tmp/vendora-prints pnpm dev` (or set the variable first on Windows). Each job writes `<time>-<n>-<kind>.bin` and `.png` to that folder, and each drawer kick adds a line to `drawer.log`. The variable is ignored in a packaged build.
+- **A4 invoice.** Any sale can be saved as an A4 invoice PDF (native save dialog, file `Invoice T1-000231.pdf`) or printed on A4 through the Windows print dialog, from Orders or the receipt screen. It is built on request from the saved sale lines, with the current store header, and has the buyer block (name, NTN, CNIC, phone, each only when entered), every line with tax, a tax summary, totals and payments. Refunds are titled "Credit note" and show the original invoice, bills with return lines are "Exchange". The thermal receipt stays the default and is unchanged. `pnpm test:pdf` renders a purchase order and an invoice without a printer.
 - **Reprints.** Orders (Ctrl+O) lists the current shift. Reprints are rebuilt from the saved sale with the current header, are counted, and are not marked as duplicates.
 
 | Key (Orders) | Action                                               |
@@ -150,9 +151,11 @@ Target printers: Xprinter XP-58, Xprinter XP-80, Epson TM-T82 and Black Copper B
 | Up / Down    | Select a sale                                        |
 | Ctrl+P       | Reprint the selected sale                            |
 | Ctrl+R       | Return items from the selected sale                  |
+| Ctrl+Shift+P | Print the selected sale as an A4 invoice             |
+| Ctrl+Shift+S | Save the selected sale as an A4 invoice PDF          |
 | Esc          | Back to the bill, unchanged                          |
 
-Ctrl+P also prints or retries on the receipt screen and prints the X-report and Z-report.
+Ctrl+P also prints or retries on the receipt screen and prints the X-report and Z-report. Ctrl+Shift+P and Ctrl+Shift+S print and save the A4 invoice on the receipt screen too.
 
 ## Not included yet
 
