@@ -22,6 +22,8 @@ import {
   products,
   purchaseOrderLines,
   purchaseOrders,
+  purchaseReturnLines,
+  purchaseReturns,
   stores,
   suppliers,
   taxCategories,
@@ -197,6 +199,17 @@ describe("catalog schema", () => {
     for (const rate of [-1, 10001]) {
       expect(() => database.db.insert(stores).values({ standardTaxRateBps: rate }).run()).toThrow();
     }
+  });
+
+  it("adds a nullable margin threshold that is off by default, without rebuilding stores", () => {
+    const column = database.sqlite
+      .prepare("SELECT \"notnull\" AS nn FROM pragma_table_info('stores') WHERE name = ?")
+      .get("margin_threshold_bps");
+    expect(column).toEqual({ nn: 0 });
+    expect(database.db.select().from(stores).get()?.marginThresholdBps).toBeNull();
+    const sqlText = readFileSync(join(migrationsFolder, "0022_margin_prompt.sql"), "utf8");
+    expect(sqlText).not.toContain("__new_stores");
+    expect(sqlText).toContain("ALTER TABLE `stores` ADD `margin_threshold_bps`");
   });
 });
 
@@ -1073,6 +1086,7 @@ describe("remove roles and lock migration on an existing database", () => {
         "receipt_header_ur",
         "receipt_footer_en",
         "receipt_footer_ur",
+        "margin_threshold_bps",
       ]);
       expect(columnsOf(database, "users")).not.toContain("role");
       expect(columnsOf(database, "audit_log")).not.toContain("approver_user_id");
@@ -1100,6 +1114,7 @@ describe("remove roles and lock migration on an existing database", () => {
           receipt_header_ur: null,
           receipt_footer_en: null,
           receipt_footer_ur: null,
+          margin_threshold_bps: null,
         },
       ]);
       expect(database.sqlite.prepare("SELECT * FROM users ORDER BY id").all()).toEqual([
@@ -1489,6 +1504,19 @@ describe("stock movement schema", () => {
       ),
     ).toContain("stock_movements_product_id");
   });
+
+  it("reads ledger totals from a covering index", () => {
+    const detail = (
+      database.sqlite
+        .prepare(
+          "EXPLAIN QUERY PLAN SELECT product_id, sum(qty_milli), max(created_at) FROM stock_movements GROUP BY product_id",
+        )
+        .all() as { detail: string }[]
+    )
+      .map((row) => row.detail)
+      .join(" ");
+    expect(detail).toContain("COVERING INDEX stock_movements_product_id_qty_created_at_idx");
+  });
 });
 
 describe("stock movements migration on an existing database", () => {
@@ -1549,7 +1577,7 @@ describe("stock movements migration on an existing database", () => {
         .all();
       expect(indexes).toEqual([
         { name: "stock_movements_product_id_created_at_idx" },
-        { name: "stock_movements_product_id_idx" },
+        { name: "stock_movements_product_id_qty_created_at_idx" },
       ]);
     } finally {
       database.sqlite.close();
@@ -1697,7 +1725,7 @@ describe("backup tables migration on an existing database", () => {
       const journal = JSON.parse(
         readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
       ) as { entries: { tag: string }[] };
-      journal.entries = journal.entries.slice(0, -1);
+      journal.entries = journal.entries.slice(0, 18);
       writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
       for (const entry of journal.entries) {
         copyFileSync(
@@ -1741,5 +1769,432 @@ describe("backup tables migration on an existing database", () => {
       database.sqlite.close();
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("stocktake schema", () => {
+  let dir: string;
+  let database: VendoraDatabase;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vendora-stocktake-schema-"));
+    database = openDatabase(join(dir, "vendora.db"));
+    runMigrations(database, { migrationsFolder, backupDir: join(dir, "backups") });
+    database.sqlite.exec(`
+      INSERT INTO stores (id, created_at, updated_at) VALUES ('s1', 1, 2);
+      INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 2);
+      INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at) VALUES ('u1', 'owner', 'Owner', 'p', 'q', 1, 2);
+      INSERT INTO categories (id, store_id, name, created_at, updated_at) VALUES ('c1', 's1', 'Tea', 1, 2);
+      INSERT INTO tax_categories (id, store_id, name, rate_bps, created_at, updated_at) VALUES ('x1', 's1', 'Standard', 1800, 1, 2);
+      INSERT INTO products (id, store_id, name_en, search_text, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, created_at, updated_at)
+        VALUES ('p1', 's1', 'Tapal', 'tapal', 'c1', 'x1', 'piece', 100, 150, 1, 2);
+    `);
+  });
+
+  afterEach(() => {
+    database.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const insertStocktake = (id: string, scope: string, categoryId: string | null, status = "open") =>
+    database.sqlite
+      .prepare(
+        "INSERT INTO stocktakes (id, store_id, terminal_id, scope, category_id, status, started_by, posted_at, posted_by, created_at, updated_at) VALUES (?, 's1', 't1', ?, ?, ?, 'u1', ?, ?, 1, 2)",
+      )
+      .run(
+        id,
+        scope,
+        categoryId,
+        status,
+        status === "posted" ? 5 : null,
+        status === "posted" ? "u1" : null,
+      );
+
+  const insertLine = (
+    id: string,
+    counted: number | null,
+    expected: number | null,
+    countedAt: number | null,
+  ) =>
+    database.sqlite
+      .prepare(
+        "INSERT INTO stocktake_lines (id, store_id, terminal_id, stocktake_id, product_id, expected_qty_milli, counted_qty_milli, counted_at, created_at, updated_at) VALUES (?, 's1', 't1', 'st1', 'p1', ?, ?, ?, 1, 2)",
+      )
+      .run(id, expected, counted, countedAt);
+
+  it("ties the category to a category count", () => {
+    expect(() => insertStocktake("a", "full", "c1")).toThrow(/stocktakes_scope_category_check/);
+    expect(() => insertStocktake("b", "category", null)).toThrow(/stocktakes_scope_category_check/);
+    expect(() => insertStocktake("c", "category", "c1", "cancelled")).not.toThrow();
+  });
+
+  it("allows one open count per store", () => {
+    insertStocktake("a", "full", null);
+    expect(() => insertStocktake("b", "full", null)).toThrow(/UNIQUE/);
+    expect(() => insertStocktake("c", "full", null, "cancelled")).not.toThrow();
+    expect(() => insertStocktake("d", "full", null, "bogus")).toThrow(/stocktakes_status_check/);
+  });
+
+  it("keeps counted quantity, expected quantity and time together", () => {
+    insertStocktake("st1", "full", null);
+    expect(() => insertLine("l1", null, null, null)).not.toThrow();
+    database.sqlite.prepare("DELETE FROM stocktake_lines").run();
+    expect(() => insertLine("l2", 0, -500, 5)).not.toThrow();
+    database.sqlite.prepare("DELETE FROM stocktake_lines").run();
+    expect(() => insertLine("l3", 1000, null, 5)).toThrow(/stocktake_lines_counted_set_check/);
+    expect(() => insertLine("l4", 1000, 0, null)).toThrow(/stocktake_lines_counted_set_check/);
+    expect(() => insertLine("l5", -1, 0, 5)).toThrow(/stocktake_lines_counted_qty_milli_check/);
+    expect(() => insertLine("l6", 1.5, 0, 5)).toThrow(/stocktake_lines_integers_check/);
+  });
+
+  const insertPosting = (
+    id: string,
+    status: string,
+    postedAt: number | null,
+    postedBy: string | null,
+  ) =>
+    database.sqlite
+      .prepare(
+        "INSERT INTO stocktakes (id, store_id, terminal_id, scope, status, started_by, posted_at, posted_by, created_at, updated_at) VALUES (?, 's1', 't1', 'full', ?, 'u1', ?, ?, 1, 2)",
+      )
+      .run(id, status, postedAt, postedBy);
+
+  const insertLineCost = (id: string, cost: number | null) =>
+    database.sqlite
+      .prepare(
+        "INSERT INTO stocktake_lines (id, store_id, terminal_id, stocktake_id, product_id, unit_cost_paisa, created_at, updated_at) VALUES (?, 's1', 't1', 'st1', 'p1', ?, 1, 2)",
+      )
+      .run(id, cost);
+
+  it("ties posted status to who posted it and when", () => {
+    expect(() => insertStocktake("a", "full", null, "posted")).not.toThrow();
+    expect(() => insertPosting("b", "posted", null, null)).toThrow(/stocktakes_posted_check/);
+    expect(() => insertPosting("c", "cancelled", 5, "u1")).toThrow(/stocktakes_posted_check/);
+    expect(() => insertPosting("d", "posted", 5, null)).toThrow(/stocktakes_posted_check/);
+    expect(() => insertPosting("e", "cancelled", null, null)).not.toThrow();
+  });
+
+  it("keeps the frozen line cost a non-negative integer", () => {
+    insertStocktake("st1", "full", null);
+    expect(() => insertLineCost("l1", -1)).toThrow(/stocktake_lines_unit_cost_paisa_check/);
+    expect(() => insertLineCost("l2", 1.5)).toThrow(/stocktake_lines_integers_check/);
+    expect(() => insertLineCost("l3", 0)).not.toThrow();
+  });
+
+  it("allows one line per product in a count", () => {
+    insertStocktake("st1", "full", null);
+    insertLine("l1", null, null, null);
+    expect(() => insertLine("l2", null, null, null)).toThrow(/UNIQUE/);
+  });
+});
+
+describe("stocktake posting migration on an existing database", () => {
+  it("keeps open and cancelled counts and their lines", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vendora-posting-upgrade-"));
+    const database = openDatabase(join(dir, "vendora.db"));
+    try {
+      const oldFolder = join(dir, "old-migrations");
+      mkdirSync(join(oldFolder, "meta"), { recursive: true });
+      const journal = JSON.parse(
+        readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+      ) as { entries: { tag: string }[] };
+      journal.entries = journal.entries.slice(0, 21);
+      writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
+      for (const entry of journal.entries) {
+        copyFileSync(
+          join(migrationsFolder, `${entry.tag}.sql`),
+          join(oldFolder, `${entry.tag}.sql`),
+        );
+      }
+
+      const backupDir = join(dir, "backups");
+      runMigrations(database, { migrationsFolder: oldFolder, backupDir });
+      database.sqlite.exec(`
+        INSERT INTO stores (id, created_at, updated_at) VALUES ('s1', 1, 2);
+        INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 2);
+        INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at) VALUES ('u1', 'owner', 'Owner', 'p', 'q', 1, 2);
+        INSERT INTO categories (id, store_id, name, created_at, updated_at) VALUES ('c1', 's1', 'Tea', 1, 2);
+        INSERT INTO tax_categories (id, store_id, name, rate_bps, created_at, updated_at) VALUES ('x1', 's1', 'Standard', 1800, 1, 2);
+        INSERT INTO products (id, store_id, name_en, search_text, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, created_at, updated_at)
+          VALUES ('p1', 's1', 'Tapal', 'tapal', 'c1', 'x1', 'piece', 100, 150, 1, 2);
+        INSERT INTO stocktakes (id, store_id, terminal_id, scope, status, started_by, created_at, updated_at) VALUES ('a', 's1', 't1', 'full', 'cancelled', 'u1', 1, 2);
+        INSERT INTO stocktakes (id, store_id, terminal_id, scope, status, started_by, created_at, updated_at) VALUES ('b', 's1', 't1', 'full', 'open', 'u1', 3, 4);
+        INSERT INTO stocktake_lines (id, store_id, terminal_id, stocktake_id, product_id, expected_qty_milli, counted_qty_milli, counted_at, created_at, updated_at)
+          VALUES ('l1', 's1', 't1', 'b', 'p1', 1000, 2000, 5, 1, 2);
+      `);
+
+      expect(runMigrations(database, { migrationsFolder, backupDir })).toBe("migrated");
+
+      expect(
+        database.sqlite
+          .prepare("SELECT id, status, posted_at, posted_by FROM stocktakes ORDER BY id")
+          .all(),
+      ).toEqual([
+        { id: "a", status: "cancelled", posted_at: null, posted_by: null },
+        { id: "b", status: "open", posted_at: null, posted_by: null },
+      ]);
+      expect(
+        database.sqlite
+          .prepare(
+            "SELECT expected_qty_milli, counted_qty_milli, unit_cost_paisa FROM stocktake_lines",
+          )
+          .all(),
+      ).toEqual([{ expected_qty_milli: 1000, counted_qty_milli: 2000, unit_cost_paisa: null }]);
+      expect(database.sqlite.pragma("foreign_key_check")).toEqual([]);
+    } finally {
+      database.sqlite.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("stocktake migration on an existing database", () => {
+  it("adds empty tables and keeps existing rows", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vendora-stocktake-upgrade-"));
+    const database = openDatabase(join(dir, "vendora.db"));
+    try {
+      const oldFolder = join(dir, "old-migrations");
+      mkdirSync(join(oldFolder, "meta"), { recursive: true });
+      const journal = JSON.parse(
+        readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+      ) as { entries: { tag: string }[] };
+      journal.entries = journal.entries.slice(0, 20);
+      writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
+      for (const entry of journal.entries) {
+        copyFileSync(
+          join(migrationsFolder, `${entry.tag}.sql`),
+          join(oldFolder, `${entry.tag}.sql`),
+        );
+      }
+
+      const backupDir = join(dir, "backups");
+      runMigrations(database, { migrationsFolder: oldFolder, backupDir });
+      database.sqlite.exec(`
+        INSERT INTO stores (id, created_at, updated_at) VALUES ('s1', 1, 2);
+        INSERT INTO categories (id, store_id, name, created_at, updated_at) VALUES ('c1', 's1', 'Tea', 1, 2);
+        INSERT INTO tax_categories (id, store_id, name, rate_bps, created_at, updated_at) VALUES ('x1', 's1', 'Standard', 1800, 1, 2);
+        INSERT INTO products (id, store_id, name_en, search_text, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, created_at, updated_at)
+          VALUES ('p1', 's1', 'Tapal', 'tapal', 'c1', 'x1', 'piece', 100, 150, 1, 2);
+      `);
+      const before = database.sqlite.prepare("SELECT * FROM products").all();
+
+      expect(runMigrations(database, { migrationsFolder, backupDir })).toBe("migrated");
+
+      expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
+      expect(database.sqlite.prepare("SELECT * FROM products").all()).toEqual(before);
+      expect(database.sqlite.prepare("SELECT count(*) AS n FROM stocktakes").get()).toEqual({
+        n: 0,
+      });
+      expect(database.sqlite.prepare("SELECT count(*) AS n FROM stocktake_lines").get()).toEqual({
+        n: 0,
+      });
+      expect(database.sqlite.pragma("foreign_key_check")).toEqual([]);
+    } finally {
+      database.sqlite.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("purchase returns migration on an existing database", () => {
+  it("backs up, keeps existing rows and adds the purchase return tables", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vendora-upgrade-"));
+    const database = openDatabase(join(dir, "vendora.db"));
+    try {
+      const oldFolder = join(dir, "old-migrations");
+      mkdirSync(join(oldFolder, "meta"), { recursive: true });
+      const journal = JSON.parse(
+        readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+      ) as { entries: { tag: string }[] };
+      journal.entries = journal.entries.slice(0, 23);
+      writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
+      for (const entry of journal.entries) {
+        copyFileSync(
+          join(migrationsFolder, `${entry.tag}.sql`),
+          join(oldFolder, `${entry.tag}.sql`),
+        );
+      }
+
+      const backupDir = join(dir, "backups");
+      runMigrations(database, { migrationsFolder: oldFolder, backupDir });
+      database.sqlite.exec(`
+        INSERT INTO stores (id, name, created_at, updated_at) VALUES ('s1', 'Existing', 0, 0);
+        INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 0, 0);
+        INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at)
+          VALUES ('u1', 'bilal', 'Bilal', 'h', 'h', 0, 0);
+        INSERT INTO categories (id, store_id, name, created_at, updated_at) VALUES ('c1', 's1', 'General', 0, 0);
+        INSERT INTO tax_categories (id, store_id, name, created_at, updated_at) VALUES ('x1', 's1', 'Standard', 0, 0);
+        INSERT INTO products (id, store_id, name_en, search_text, category_id, tax_category_id, unit, cost_paisa, sale_price_paisa, created_at, updated_at)
+          VALUES ('g1', 's1', 'Sugar', 'sugar', 'c1', 'x1', 'kg', 100, 120, 0, 0);
+        INSERT INTO suppliers (id, store_id, name, created_at, updated_at) VALUES ('p1', 's1', 'Al-Noor', 0, 0);
+        INSERT INTO goods_received_notes (id, store_id, terminal_id, grn_no, supplier_id, supplier_invoice_no, total_paisa, actor_user_id, created_at)
+          VALUES ('n1', 's1', 't1', 'GRN-T1-000001', 'p1', 'INV-1', 1000, 'u1', 0);
+        INSERT INTO goods_received_lines (id, store_id, terminal_id, goods_received_note_id, position, product_id, name_en, unit, qty_milli, unit_cost_paisa, line_total_paisa, created_at)
+          VALUES ('l1', 's1', 't1', 'n1', 0, 'g1', 'Sugar', 'kg', 10000, 100, 1000, 0);
+        INSERT INTO stock_movements (id, store_id, terminal_id, product_id, type, qty_milli, unit_cost_paisa, actor_user_id, created_at)
+          VALUES ('m1', 's1', 't1', 'g1', 'opening', 5000, 100, 'u1', 0);
+        INSERT INTO stock_movements (id, store_id, terminal_id, product_id, type, qty_milli, unit_cost_paisa, source_type, source_id, actor_user_id, created_at)
+          VALUES ('m2', 's1', 't1', 'g1', 'receipt', 10000, 100, 'goods_received_line', 'l1', 'u1', 1);
+      `);
+      const rows = (table: string) =>
+        database.sqlite.prepare(`SELECT * FROM ${table} ORDER BY id`).all();
+      const movementsBefore = rows("stock_movements");
+      const notesBefore = rows("goods_received_notes");
+      const linesBefore = rows("goods_received_lines");
+
+      expect(runMigrations(database, { migrationsFolder, backupDir })).toBe("migrated");
+
+      expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
+      expect(rows("stock_movements")).toEqual(movementsBefore);
+      expect(rows("goods_received_notes")).toEqual(notesBefore);
+      expect(rows("goods_received_lines")).toEqual(linesBefore);
+      const names = (type: string, like: string) =>
+        database.sqlite
+          .prepare("SELECT name FROM sqlite_master WHERE type = ? AND name LIKE ?")
+          .all(type, like)
+          .map((row) => (row as { name: string }).name)
+          .toSorted();
+      expect(names("table", "purchase_return%")).toEqual([
+        "purchase_return_lines",
+        "purchase_returns",
+      ]);
+      expect(names("table", "terminal_purchase_return%")).toEqual([
+        "terminal_purchase_return_sequences",
+      ]);
+      expect(names("index", "stock_movements_%")).toEqual([
+        "stock_movements_product_id_created_at_idx",
+        "stock_movements_product_id_qty_created_at_idx",
+      ]);
+    } finally {
+      database.sqlite.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("purchase returns schema", () => {
+  let dir: string;
+  let database: VendoraDatabase;
+  let productId: string;
+  let supplierId: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vendora-prn-"));
+    database = openDatabase(join(dir, "vendora.db"));
+    runMigrations(database, { migrationsFolder, backupDir: join(dir, "backups") });
+    database.sqlite.exec(`
+      INSERT INTO stores (id, created_at, updated_at) VALUES ('s1', 1, 1);
+      INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 1);
+      INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at)
+        VALUES ('u1', 'bilal', 'Bilal', 'h', 'h', 1, 1);
+    `);
+    const categoryId = database.db
+      .insert(categories)
+      .values({ storeId: "s1", name: "General" })
+      .returning()
+      .get().id;
+    const taxCategoryId = database.db
+      .insert(taxCategories)
+      .values({ storeId: "s1", name: "Standard" })
+      .returning()
+      .get().id;
+    productId = database.db
+      .insert(products)
+      .values({
+        storeId: "s1",
+        nameEn: "Sugar",
+        searchText: "sugar",
+        categoryId,
+        taxCategoryId,
+        unit: "kg",
+        costPaisa: 100,
+        salePricePaisa: 120,
+      })
+      .returning()
+      .get().id;
+    supplierId = database.db
+      .insert(suppliers)
+      .values({ storeId: "s1", name: "Al-Noor" })
+      .returning()
+      .get().id;
+  });
+
+  afterEach(() => {
+    database.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const insertReturn = (overrides: Partial<typeof purchaseReturns.$inferInsert> = {}) =>
+    database.db
+      .insert(purchaseReturns)
+      .values({
+        storeId: "s1",
+        terminalId: "t1",
+        returnNo: "PRN-T1-000001",
+        supplierId,
+        reason: "damaged",
+        totalPaisa: 0,
+        actorUserId: "u1",
+        ...overrides,
+      })
+      .returning()
+      .get();
+
+  const insertLine = (
+    returnId: string,
+    overrides: Partial<typeof purchaseReturnLines.$inferInsert> = {},
+  ) =>
+    database.db
+      .insert(purchaseReturnLines)
+      .values({
+        storeId: "s1",
+        terminalId: "t1",
+        purchaseReturnId: returnId,
+        position: 0,
+        productId,
+        nameEn: "Sugar",
+        unit: "kg",
+        qtyMilli: 1000,
+        unitCostPaisa: 100,
+        lineTotalPaisa: 100,
+        ...overrides,
+      })
+      .returning()
+      .get();
+
+  const insertMovement = (reason: string | null) =>
+    database.sqlite
+      .prepare(
+        `INSERT INTO stock_movements (id, store_id, terminal_id, product_id, type, qty_milli, unit_cost_paisa, reason, actor_user_id, created_at)
+         VALUES ('m1', 's1', 't1', ?, 'purchase_return', -1000, 100, ?, 'u1', 1)`,
+      )
+      .run(productId, reason);
+
+  it("accepts a purchase return movement without a reason and rejects one with a reason", () => {
+    expect(() => insertMovement(null)).not.toThrow();
+    database.sqlite.exec("DELETE FROM stock_movements");
+    expect(() => insertMovement("damage")).toThrow();
+  });
+
+  it("stores a return with no goods received note", () => {
+    expect(insertReturn().goodsReceivedNoteId).toBeNull();
+  });
+
+  it("rejects an unknown reason and a negative total", () => {
+    expect(() => insertReturn({ reason: "lost" as "damaged" })).toThrow();
+    expect(() => insertReturn({ totalPaisa: -1 })).toThrow();
+  });
+
+  it("keeps a return number unique per terminal", () => {
+    insertReturn();
+    expect(() => insertReturn()).toThrow();
+  });
+
+  it.each([
+    ["zero quantity", { qtyMilli: 0 }],
+    ["fractional quantity", { qtyMilli: 1.5 }],
+  ])("rejects a line with %s", (_, overrides) => {
+    const { id } = insertReturn();
+    expect(() => insertLine(id, overrides)).toThrow();
   });
 });

@@ -129,7 +129,7 @@ function invoiceMatch(terminalCode: string, text: string): string | null {
   return formatInvoiceNo(terminalCode, Number(text));
 }
 
-function localDayBounds(date: string): { start: Date; end: Date } {
+export function localDayBounds(date: string): { start: Date; end: Date } {
   const [year = 0, month = 1, day = 1] = date.split("-").map(Number);
   return { start: new Date(year, month - 1, day), end: new Date(year, month - 1, day + 1) };
 }

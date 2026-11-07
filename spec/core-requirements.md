@@ -114,7 +114,7 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 - The whole receipt is rendered as one image and printed as raster at 384 px (58 mm) or 576 px (80 mm), so Urdu prints correctly (printer fonts lack Urdu)
 - Any past receipt can be reprinted from the Orders screen (Ctrl+O): find it in the current shift, by invoice number (typed or scanned, digits only works) or by day. A reprint is rebuilt from the sale with the current store header and is not marked as a duplicate; every successful print is counted ("Printed N times")
 - Print modes per terminal: print the receipt, ask first, or don't print. They do not apply to a bill with return lines: its credit note ("Credit note", or "Exchange" when the bill nets to zero or more) always prints, with the original invoice number and negative quantities. With no printer set up the sale completes and the receipt screen and the shift strip say "No printer set up"
-- The A4 invoice PDF for business customers is deferred to its own ticket
+- Any sale can be saved as an A4 invoice PDF or printed on A4 from Orders or the receipt screen (Ctrl+Shift+P print, Ctrl+Shift+S save); refunds are credit notes pointing to the original invoice
 
 ---
 
@@ -140,12 +140,12 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 
 **Acceptance criteria:**
 
-- Stock on hand per product, derived from an append-only **stock movement ledger** (sale, return, receipt, adjustment, stocktake, damage)
+- Stock on hand per product, derived from an append-only **stock movement ledger** (sale, return, receipt, adjustment, stocktake, damage, purchase return)
 - Stock adjustments require a reason (damage, expiry, theft, correction)
 - **Stocktake:** start a count (full or by category), enter counted quantities with the scanner, review variance and its value, post all adjustments in one step
 - Low-stock threshold per product, a **low-stock list**, and a badge on the dashboard
-- Negative stock is allowed (a sale is never blocked) and listed in a negative-stock report
-- Stock valued at weighted average cost
+- Negative stock is allowed (a sale is never blocked), listed on a Negative stock screen under Inventory and in the negative-stock report
+- Stock value is on hand × the product's current cost, which receipts keep at the weighted average. A manual cost edit revalues all stock on hand and is audit-logged.
 
 ---
 

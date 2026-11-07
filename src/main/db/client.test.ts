@@ -51,7 +51,9 @@ describe("openDatabase", () => {
       env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
       cwd: process.cwd(),
     });
-    expect(child.signal).toBe("SIGKILL");
+    // Windows has no signals: a self-kill is TerminateProcess with exit code 1.
+    if (process.platform === "win32") expect(child.status).toBe(1);
+    else expect(child.signal).toBe("SIGKILL");
 
     const reopened = openDatabase(file);
     try {
