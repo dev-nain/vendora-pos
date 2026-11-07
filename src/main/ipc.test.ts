@@ -1029,6 +1029,30 @@ describe("reports ipc", () => {
       { range: { from: "2026-11-08", to: "2026-11-07" }, format: "pdf" },
     ],
     ["reports:export-sales-by-day", "exportSalesByDay", { range }],
+    [
+      "reports:gross-profit-by-product",
+      "grossProfitByProduct",
+      { from: "2026-13-01", to: range.to },
+    ],
+    ["reports:gross-profit-by-product", "grossProfitByProduct", { ...range, extra: 1 }],
+    [
+      "reports:gross-profit-by-category",
+      "grossProfitByCategory",
+      { from: range.to, to: range.from },
+    ],
+    ["reports:gross-profit-by-category", "grossProfitByCategory", { ...range, extra: 1 }],
+    [
+      "reports:export-gross-profit-by-product",
+      "exportGrossProfitByProduct",
+      { range, format: "xlsx" },
+    ],
+    ["reports:export-gross-profit-by-product", "exportGrossProfitByProduct", { range }],
+    [
+      "reports:export-gross-profit-by-category",
+      "exportGrossProfitByCategory",
+      { range, format: "csv", extra: 1 },
+    ],
+    ["reports:export-gross-profit-by-category", "exportGrossProfitByCategory", { range }],
   ] as const)("%s rejects bad input", async (channel, method, input) => {
     const spy = vi.spyOn(service, method);
     await expect(invoke(channel, input)).rejects.toThrow();
@@ -1047,6 +1071,19 @@ describe("reports ipc", () => {
     });
   });
 
+  it.each(["product", "category"])("returns an empty gross profit by %s report", async (by) => {
+    expect(await invoke(`reports:gross-profit-by-${by}`, range)).toMatchObject({
+      rows: [],
+      totals: { netPaisa: 0, marginBps: null },
+      footer: [],
+    });
+    expect(await invoke(`reports:export-gross-profit-by-${by}`, { range, format: "csv" })).toEqual({
+      ok: true,
+      status: "saved",
+      path: join(kit.dir, `gross-profit-by-${by}-2026-11-01-to-2026-11-07.csv`),
+    });
+  });
+
   it("is refused when signed out", async () => {
     kit.sessions.end();
     await expect(invoke("reports:sales-by-day", range)).rejects.toThrow(
@@ -1055,5 +1092,13 @@ describe("reports ipc", () => {
     await expect(invoke("reports:export-sales-by-day", { range, format: "pdf" })).rejects.toThrow(
       new Error(ipcErrorMessages.unauthenticated),
     );
+    for (const by of ["product", "category"]) {
+      await expect(invoke(`reports:gross-profit-by-${by}`, range)).rejects.toThrow(
+        new Error(ipcErrorMessages.unauthenticated),
+      );
+      await expect(
+        invoke(`reports:export-gross-profit-by-${by}`, { range, format: "pdf" }),
+      ).rejects.toThrow(new Error(ipcErrorMessages.unauthenticated));
+    }
   });
 });

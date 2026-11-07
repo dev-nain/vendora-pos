@@ -104,6 +104,8 @@ import type {
 import type {
   ExportReportInput,
   ExportReportResult,
+  GrossProfitByCategoryResult,
+  GrossProfitByProductResult,
   ReportRange,
   SalesByDayResult,
 } from "./reports";
@@ -200,6 +202,10 @@ export const ipcChannels = {
   purchaseOrdersPrint: "purchase-orders:print",
   reportsSalesByDay: "reports:sales-by-day",
   reportsExportSalesByDay: "reports:export-sales-by-day",
+  reportsGrossProfitByProduct: "reports:gross-profit-by-product",
+  reportsExportGrossProfitByProduct: "reports:export-gross-profit-by-product",
+  reportsGrossProfitByCategory: "reports:gross-profit-by-category",
+  reportsExportGrossProfitByCategory: "reports:export-gross-profit-by-category",
   shiftsState: "shifts:state",
   shiftsOpen: "shifts:open",
   shiftsAddCashMove: "shifts:add-cash-move",
@@ -326,6 +332,10 @@ export interface VendoraApi {
   reports: {
     salesByDay: (range: ReportRange) => Promise<SalesByDayResult>;
     exportSalesByDay: (input: ExportReportInput) => Promise<ExportReportResult>;
+    grossProfitByProduct: (range: ReportRange) => Promise<GrossProfitByProductResult>;
+    exportGrossProfitByProduct: (input: ExportReportInput) => Promise<ExportReportResult>;
+    grossProfitByCategory: (range: ReportRange) => Promise<GrossProfitByCategoryResult>;
+    exportGrossProfitByCategory: (input: ExportReportInput) => Promise<ExportReportResult>;
   };
   shifts: {
     state: () => Promise<ShiftState>;
