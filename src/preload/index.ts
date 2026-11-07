@@ -12,7 +12,16 @@ import {
   printResultSchema,
   saleJobResultSchema,
 } from "@shared/receipt";
-import { exportReportResultSchema, salesByDayResultSchema } from "@shared/reports";
+import {
+  exportReportResultSchema,
+  paymentMethodsResultSchema,
+  reportShiftListSchema,
+  salesByCashierResultSchema,
+  salesByCategoryResultSchema,
+  salesByDayResultSchema,
+  salesByHourResultSchema,
+  salesByProductResultSchema,
+} from "@shared/reports";
 import {
   miscItemSettingSchema,
   printerSettingsSchema,
@@ -330,6 +339,48 @@ const api: VendoraApi = {
       exportReportResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.reportsExportSalesByDay, input),
       ),
+    salesByHour: async (range) =>
+      salesByHourResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsSalesByHour, range),
+      ),
+    exportSalesByHour: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportSalesByHour, input),
+      ),
+    salesByProduct: async (range) =>
+      salesByProductResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsSalesByProduct, range),
+      ),
+    exportSalesByProduct: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportSalesByProduct, input),
+      ),
+    salesByCategory: async (range) =>
+      salesByCategoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsSalesByCategory, range),
+      ),
+    exportSalesByCategory: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportSalesByCategory, input),
+      ),
+    salesByCashier: async (range) =>
+      salesByCashierResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsSalesByCashier, range),
+      ),
+    exportSalesByCashier: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportSalesByCashier, input),
+      ),
+    paymentMethods: async (query) =>
+      paymentMethodsResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsPaymentMethods, query),
+      ),
+    exportPaymentMethods: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportPaymentMethods, input),
+      ),
+    shifts: async (range) =>
+      reportShiftListSchema.parse(await ipcRenderer.invoke(ipcChannels.reportsShifts, range)),
   },
   shifts: {
     state: async () => shiftStateSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsState)),

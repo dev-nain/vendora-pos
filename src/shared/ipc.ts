@@ -102,10 +102,18 @@ import type {
   UpdateProductResult,
 } from "./products";
 import type {
+  ExportPaymentMethodsInput,
   ExportReportInput,
   ExportReportResult,
+  PaymentMethodsQuery,
+  PaymentMethodsResult,
   ReportRange,
+  ReportShift,
+  SalesByCashierResult,
+  SalesByCategoryResult,
   SalesByDayResult,
+  SalesByHourResult,
+  SalesByProductResult,
 } from "./reports";
 import type { GetOrderResult, OrderSummary, SalesListQuery } from "./sales";
 import type {
@@ -200,6 +208,17 @@ export const ipcChannels = {
   purchaseOrdersPrint: "purchase-orders:print",
   reportsSalesByDay: "reports:sales-by-day",
   reportsExportSalesByDay: "reports:export-sales-by-day",
+  reportsSalesByHour: "reports:sales-by-hour",
+  reportsExportSalesByHour: "reports:export-sales-by-hour",
+  reportsSalesByProduct: "reports:sales-by-product",
+  reportsExportSalesByProduct: "reports:export-sales-by-product",
+  reportsSalesByCategory: "reports:sales-by-category",
+  reportsExportSalesByCategory: "reports:export-sales-by-category",
+  reportsSalesByCashier: "reports:sales-by-cashier",
+  reportsExportSalesByCashier: "reports:export-sales-by-cashier",
+  reportsPaymentMethods: "reports:payment-methods",
+  reportsExportPaymentMethods: "reports:export-payment-methods",
+  reportsShifts: "reports:shifts",
   shiftsState: "shifts:state",
   shiftsOpen: "shifts:open",
   shiftsAddCashMove: "shifts:add-cash-move",
@@ -326,6 +345,17 @@ export interface VendoraApi {
   reports: {
     salesByDay: (range: ReportRange) => Promise<SalesByDayResult>;
     exportSalesByDay: (input: ExportReportInput) => Promise<ExportReportResult>;
+    salesByHour: (range: ReportRange) => Promise<SalesByHourResult>;
+    exportSalesByHour: (input: ExportReportInput) => Promise<ExportReportResult>;
+    salesByProduct: (range: ReportRange) => Promise<SalesByProductResult>;
+    exportSalesByProduct: (input: ExportReportInput) => Promise<ExportReportResult>;
+    salesByCategory: (range: ReportRange) => Promise<SalesByCategoryResult>;
+    exportSalesByCategory: (input: ExportReportInput) => Promise<ExportReportResult>;
+    salesByCashier: (range: ReportRange) => Promise<SalesByCashierResult>;
+    exportSalesByCashier: (input: ExportReportInput) => Promise<ExportReportResult>;
+    paymentMethods: (query: PaymentMethodsQuery) => Promise<PaymentMethodsResult>;
+    exportPaymentMethods: (input: ExportPaymentMethodsInput) => Promise<ExportReportResult>;
+    shifts: (range: ReportRange) => Promise<ReportShift[]>;
   };
   shifts: {
     state: () => Promise<ShiftState>;
