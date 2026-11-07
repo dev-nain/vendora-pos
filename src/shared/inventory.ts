@@ -19,6 +19,24 @@ const movementTypes = [
 export const movementReasons = ["damage", "expiry", "theft", "correction"] as const;
 export type StockMovementReason = (typeof movementReasons)[number];
 
+export const movementTypeLabels: Record<(typeof movementTypes)[number], string> = {
+  opening: "Opening",
+  sale: "Sale",
+  return: "Return",
+  receipt: "Receipt",
+  adjustment: "Adjustment",
+  stocktake: "Stocktake",
+  damage: "Damage",
+  purchase_return: "Purchase return",
+};
+
+export const movementReasonLabels: Record<StockMovementReason, string> = {
+  damage: "Damage",
+  expiry: "Expiry",
+  theft: "Theft",
+  correction: "Correction",
+};
+
 export const canRaiseStock = (reason: StockMovementReason): boolean => reason === "correction";
 
 export const stockAdjustmentMessages = {
