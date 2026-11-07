@@ -5,6 +5,7 @@ export type BackOfficePage =
   | "low-stock"
   | "purchase-orders"
   | "goods-received"
+  | "purchase-returns"
   | "suppliers"
   | "users"
   | "settings";
@@ -22,6 +23,7 @@ export const backOfficeEntries: readonly BackOfficeEntry[] = [
   { page: "low-stock", label: "Low stock", group: "Inventory" },
   { page: "purchase-orders", label: "Purchase orders", group: "Purchasing" },
   { page: "goods-received", label: "Goods received", group: "Purchasing" },
+  { page: "purchase-returns", label: "Purchase returns", group: "Purchasing" },
   { page: "suppliers", label: "Suppliers", group: "Purchasing" },
   { page: "users", label: "Users" },
   { page: "settings", label: "Settings" },
