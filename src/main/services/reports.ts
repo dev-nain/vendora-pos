@@ -11,7 +11,10 @@ import {
   type GrossProfitByCategoryResult,
   type GrossProfitByProductResult,
   salesByDayColumns,
+  salesByCashierColumns,
+  salesByCategoryColumns,
   salesByHourColumns,
+  salesByProductColumns,
   storeToday,
   salesTaxSummaryColumns,
   type ExportReportInput,
@@ -21,8 +24,11 @@ import {
   type ReportExportFormat,
   type ReportFooterRow,
   type ReportRange,
+  type SalesByCashierResult,
+  type SalesByCategoryResult,
   type SalesByDayResult,
   type SalesByHourResult,
+  type SalesByProductResult,
   type SalesTaxSummaryResult,
 } from "../../shared/reports";
 import {
@@ -56,6 +62,11 @@ import { reportCsv, reportCsvSections } from "../reports/report-csv";
 import { buildReportDocument, buildSectionedReportDocument } from "../reports/report-document";
 import { readGrossProfitByCategory, readGrossProfitByProduct } from "../reports/gross-profit";
 import { readSalesByDay, readSalesByHour } from "../reports/sales-by-day";
+import {
+  readSalesByCashier,
+  readSalesByCategory,
+  readSalesByProduct,
+} from "../reports/sales-by-line";
 import { readPurchasesBySupplier } from "../reports/purchases-by-supplier";
 import { readPostedStocktakes, readStocktakeVariance } from "../reports/stocktake-variance-report";
 import { readStockMovements } from "../reports/stock-movements";
@@ -112,6 +123,22 @@ export function createReportsService({
     const session = requireSession(sessions);
     return readSalesByHour(database, session.storeId, range);
   }
+
+  function salesByProduct(range: ReportRange): SalesByProductResult {
+    const session = requireSession(sessions);
+    return readSalesByProduct(database, session.storeId, range);
+  }
+
+  function salesByCategory(range: ReportRange): SalesByCategoryResult {
+    const session = requireSession(sessions);
+    return readSalesByCategory(database, session.storeId, range);
+  }
+
+  function salesByCashier(range: ReportRange): SalesByCashierResult {
+    const session = requireSession(sessions);
+    return readSalesByCashier(database, session.storeId, range);
+  }
+
   function stockOnHand(): StockOnHandResult {
     const session = requireSession(sessions);
     return readStockOnHand(database, session.storeId, now());
@@ -270,6 +297,36 @@ export function createReportsService({
     discountsReturnsVoids,
     salesTaxSummary,
     exportDiscountsReturnsVoids,
+    salesByProduct,
+    exportSalesByProduct: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Sales by product",
+        fileName: fileNameOf("sales-by-product", range, format),
+        reference: () => formatRangeLabel(range),
+        format,
+        columns: salesByProductColumns,
+        read: (storeId) => readSalesByProduct(database, storeId, range),
+      }),
+    salesByCategory,
+    exportSalesByCategory: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Sales by category",
+        fileName: fileNameOf("sales-by-category", range, format),
+        reference: () => formatRangeLabel(range),
+        format,
+        columns: salesByCategoryColumns,
+        read: (storeId) => readSalesByCategory(database, storeId, range),
+      }),
+    salesByCashier,
+    exportSalesByCashier: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Sales by cashier",
+        fileName: fileNameOf("sales-by-cashier", range, format),
+        reference: () => formatRangeLabel(range),
+        format,
+        columns: salesByCashierColumns,
+        read: (storeId) => readSalesByCashier(database, storeId, range),
+      }),
     exportSalesByDay: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Sales by day",

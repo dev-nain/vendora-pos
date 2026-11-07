@@ -347,6 +347,84 @@ export const grossProfitByCategoryColumns: ReportColumn<GrossProfitByCategoryRow
   ...grossProfitNumericColumns,
 ];
 
+export const miscSalesLabel = "Misc items";
+export const noCategoryLabel = "No category";
+
+const salesByLineTotalsSchema = z.strictObject({
+  pieceQtyMilli: countSchema,
+  kgQtyMilli: countSchema,
+  litreQtyMilli: countSchema,
+  grossPaisa: countSchema,
+  returnsPaisa: countSchema,
+  netPaisa: countSchema,
+});
+export type SalesByLineTotals = z.infer<typeof salesByLineTotalsSchema>;
+
+export const salesByProductRowSchema = salesByLineTotalsSchema.extend({ product: z.string() });
+export type SalesByProductRow = z.infer<typeof salesByProductRowSchema>;
+
+export const salesByProductResultSchema = z.strictObject({
+  rows: z.array(salesByProductRowSchema),
+  totals: salesByLineTotalsSchema,
+  footer: z.array(reportFooterRowSchema),
+});
+export type SalesByProductResult = z.infer<typeof salesByProductResultSchema>;
+
+export const salesByCategoryRowSchema = salesByLineTotalsSchema.extend({ category: z.string() });
+export type SalesByCategoryRow = z.infer<typeof salesByCategoryRowSchema>;
+
+export const salesByCategoryResultSchema = z.strictObject({
+  rows: z.array(salesByCategoryRowSchema),
+  totals: salesByLineTotalsSchema,
+  footer: z.array(reportFooterRowSchema),
+});
+export type SalesByCategoryResult = z.infer<typeof salesByCategoryResultSchema>;
+
+export const salesByCashierTotalsSchema = z.strictObject({
+  billCount: countSchema,
+  grossPaisa: countSchema,
+  returnsPaisa: countSchema,
+  netPaisa: countSchema,
+});
+export type SalesByCashierTotals = z.infer<typeof salesByCashierTotalsSchema>;
+
+export const salesByCashierRowSchema = salesByCashierTotalsSchema.extend({ cashier: z.string() });
+export type SalesByCashierRow = z.infer<typeof salesByCashierRowSchema>;
+
+export const salesByCashierResultSchema = z.strictObject({
+  rows: z.array(salesByCashierRowSchema),
+  totals: salesByCashierTotalsSchema,
+  footer: z.array(reportFooterRowSchema),
+});
+export type SalesByCashierResult = z.infer<typeof salesByCashierResultSchema>;
+
+const salesByLineColumns = [
+  { key: "pieceQtyMilli", label: "Pieces", format: "quantity", unit: "piece", width: "96px" },
+  { key: "kgQtyMilli", label: "Kg", format: "quantity", unit: "kg", width: "104px" },
+  { key: "litreQtyMilli", label: "Litres", format: "quantity", unit: "litre", width: "96px" },
+  { key: "grossPaisa", label: "Gross sales", format: "money", width: "160px" },
+  { key: "returnsPaisa", label: "Returns", format: "money", width: "144px" },
+  { key: "netPaisa", label: "Net sales", format: "money", width: "176px" },
+] as const;
+
+export const salesByProductColumns: ReportColumn<SalesByProductRow>[] = [
+  { key: "product", label: "Product", format: "text", width: "260px" },
+  ...salesByLineColumns,
+];
+
+export const salesByCategoryColumns: ReportColumn<SalesByCategoryRow>[] = [
+  { key: "category", label: "Category", format: "text", width: "260px" },
+  ...salesByLineColumns,
+];
+
+export const salesByCashierColumns: ReportColumn<SalesByCashierRow>[] = [
+  { key: "cashier", label: "Cashier", format: "text", width: "340px" },
+  { key: "billCount", label: "Bills", format: "count", width: "120px" },
+  { key: "grossPaisa", label: "Gross sales", format: "money", width: "192px" },
+  { key: "returnsPaisa", label: "Returns", format: "money", width: "192px" },
+  { key: "netPaisa", label: "Net sales", format: "money", width: "192px" },
+];
+
 export const exportReportFailedMessage =
   "Couldn't save the report. Check the folder and try again.";
 
