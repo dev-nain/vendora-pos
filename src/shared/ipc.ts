@@ -166,12 +166,20 @@ import type {
 } from "./products";
 import type { DiscountsReturnsVoidsResult } from "./discounts-returns-voids";
 import type {
+  ExportPaymentMethodsInput,
   ExportReportInput,
   ExportReportResult,
+  PaymentMethodsQuery,
+  PaymentMethodsResult,
   GrossProfitByCategoryResult,
   GrossProfitByProductResult,
   ReportRange,
+  ReportShift,
+  SalesByCashierResult,
+  SalesByCategoryResult,
   SalesByDayResult,
+  SalesByHourResult,
+  SalesByProductResult,
   SalesTaxSummaryResult,
 } from "./reports";
 import type { GetOrderResult, OrderSummary, SalesListQuery } from "./sales";
@@ -285,6 +293,17 @@ export const ipcChannels = {
   productsExportCsv: "products:export-csv",
   reportsSalesByDay: "reports:sales-by-day",
   reportsExportSalesByDay: "reports:export-sales-by-day",
+  reportsSalesByHour: "reports:sales-by-hour",
+  reportsExportSalesByHour: "reports:export-sales-by-hour",
+  reportsSalesByProduct: "reports:sales-by-product",
+  reportsExportSalesByProduct: "reports:export-sales-by-product",
+  reportsSalesByCategory: "reports:sales-by-category",
+  reportsExportSalesByCategory: "reports:export-sales-by-category",
+  reportsSalesByCashier: "reports:sales-by-cashier",
+  reportsExportSalesByCashier: "reports:export-sales-by-cashier",
+  reportsPaymentMethods: "reports:payment-methods",
+  reportsExportPaymentMethods: "reports:export-payment-methods",
+  reportsShifts: "reports:shifts",
   reportsStockOnHand: "reports:stock-on-hand",
   reportsLowStock: "reports:low-stock",
   reportsNegativeStock: "reports:negative-stock",
@@ -521,6 +540,17 @@ export interface VendoraApi {
   reports: {
     salesByDay: (range: ReportRange) => Promise<SalesByDayResult>;
     exportSalesByDay: (input: ExportReportInput) => Promise<ExportReportResult>;
+    salesByHour: (range: ReportRange) => Promise<SalesByHourResult>;
+    exportSalesByHour: (input: ExportReportInput) => Promise<ExportReportResult>;
+    salesByProduct: (range: ReportRange) => Promise<SalesByProductResult>;
+    exportSalesByProduct: (input: ExportReportInput) => Promise<ExportReportResult>;
+    salesByCategory: (range: ReportRange) => Promise<SalesByCategoryResult>;
+    exportSalesByCategory: (input: ExportReportInput) => Promise<ExportReportResult>;
+    salesByCashier: (range: ReportRange) => Promise<SalesByCashierResult>;
+    exportSalesByCashier: (input: ExportReportInput) => Promise<ExportReportResult>;
+    paymentMethods: (query: PaymentMethodsQuery) => Promise<PaymentMethodsResult>;
+    exportPaymentMethods: (input: ExportPaymentMethodsInput) => Promise<ExportReportResult>;
+    shifts: (range: ReportRange) => Promise<ReportShift[]>;
     stockOnHand: () => Promise<StockOnHandResult>;
     lowStock: () => Promise<LowStockReportResult>;
     negativeStock: () => Promise<NegativeStockReportResult>;

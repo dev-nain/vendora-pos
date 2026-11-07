@@ -51,12 +51,20 @@ import {
 } from "@shared/inventory";
 import { discountsReturnsVoidsResultSchema } from "@shared/discounts-returns-voids";
 import {
+  exportPaymentMethodsInputSchema,
   exportReportInputSchema,
   exportReportResultSchema,
+  paymentMethodsQuerySchema,
+  paymentMethodsResultSchema,
   grossProfitByCategoryResultSchema,
   grossProfitByProductResultSchema,
   reportRangeSchema,
+  reportShiftListSchema,
+  salesByCashierResultSchema,
+  salesByCategoryResultSchema,
   salesByDayResultSchema,
+  salesByHourResultSchema,
+  salesByProductResultSchema,
   salesTaxSummaryResultSchema,
 } from "@shared/reports";
 import {
@@ -712,6 +720,51 @@ export function registerIpcHandlers({
     exportReportResultSchema.parse(
       await reports.exportSalesByDay(exportReportInputSchema.parse(input)),
     ),
+  );
+  handle(ipcChannels.reportsSalesByHour, (_event, input) =>
+    salesByHourResultSchema.parse(reports.salesByHour(reportRangeSchema.parse(input))),
+  );
+  handle(ipcChannels.reportsExportSalesByHour, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportSalesByHour(exportReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsSalesByProduct, (_event, input) =>
+    salesByProductResultSchema.parse(reports.salesByProduct(reportRangeSchema.parse(input))),
+  );
+  handle(ipcChannels.reportsExportSalesByProduct, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportSalesByProduct(exportReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsSalesByCategory, (_event, input) =>
+    salesByCategoryResultSchema.parse(reports.salesByCategory(reportRangeSchema.parse(input))),
+  );
+  handle(ipcChannels.reportsExportSalesByCategory, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportSalesByCategory(exportReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsSalesByCashier, (_event, input) =>
+    salesByCashierResultSchema.parse(reports.salesByCashier(reportRangeSchema.parse(input))),
+  );
+  handle(ipcChannels.reportsExportSalesByCashier, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportSalesByCashier(exportReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsPaymentMethods, (_event, input) =>
+    paymentMethodsResultSchema.parse(
+      reports.paymentMethods(paymentMethodsQuerySchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportPaymentMethods, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportPaymentMethods(exportPaymentMethodsInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsShifts, (_event, input) =>
+    reportShiftListSchema.parse(reports.reportShifts(reportRangeSchema.parse(input))),
   );
   handle(ipcChannels.reportsSalesTaxSummary, (_event, input) =>
     salesTaxSummaryResultSchema.parse(reports.salesTaxSummary(reportRangeSchema.parse(input))),
