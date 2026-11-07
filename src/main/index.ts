@@ -23,6 +23,7 @@ import { createSuppliersService } from "./services/suppliers";
 import { createTaxCategoriesService } from "./services/tax-categories";
 import { createUsersService } from "./services/users";
 import { createSessionStore } from "./auth/session";
+import { runPdfCheck } from "./documents/pdf-check";
 import { createRasteriser } from "./receipts/rasterise";
 import { createRenderWindow } from "./receipts/render-window";
 import { createTransport } from "./hardware/printer-transport";
@@ -44,6 +45,11 @@ function startDatabase(): VendoraDatabase {
 }
 
 void app.whenReady().then(async () => {
+  const pdfCheckPath = process.env["VENDORA_PDF_CHECK"];
+  if (!app.isPackaged && pdfCheckPath) {
+    await runPdfCheck(pdfCheckPath);
+    return;
+  }
   database = startDatabase();
   if (!app.isPackaged && process.env.VENDORA_DEV_USERS === "1") await seedDevUsers(database);
   const audit = createAuditService(database);
