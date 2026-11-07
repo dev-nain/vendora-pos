@@ -81,6 +81,29 @@ export function findLiveSupplier(tx: DbExecutor, storeId: string, supplierId: st
     .get();
 }
 
+export function lastReceipt(tx: DbExecutor, storeId: string, productId: string) {
+  return tx
+    .select({
+      unitCostPaisa: goodsReceivedLines.unitCostPaisa,
+      supplierId: goodsReceivedNotes.supplierId,
+      supplierName: suppliers.name,
+      grnNo: goodsReceivedNotes.grnNo,
+      receivedAt: goodsReceivedLines.createdAt,
+    })
+    .from(goodsReceivedLines)
+    .innerJoin(
+      goodsReceivedNotes,
+      eq(goodsReceivedNotes.id, goodsReceivedLines.goodsReceivedNoteId),
+    )
+    .innerJoin(suppliers, eq(suppliers.id, goodsReceivedNotes.supplierId))
+    .where(
+      and(eq(goodsReceivedLines.storeId, storeId), eq(goodsReceivedLines.productId, productId)),
+    )
+    .orderBy(desc(goodsReceivedLines.createdAt), desc(goodsReceivedLines.position))
+    .limit(1)
+    .get();
+}
+
 function resolveOrder(tx: DbExecutor, storeId: string, input: PostInput & { kind: "order" }) {
   const order = tx
     .select()
@@ -377,19 +400,7 @@ export function createGoodsReceivedService({
 
   function lastCost({ productId }: { productId: string }): GoodsReceivedLastCostResult {
     const session = requireSession(sessions);
-    const row = db
-      .select({ unitCostPaisa: goodsReceivedLines.unitCostPaisa })
-      .from(goodsReceivedLines)
-      .where(
-        and(
-          eq(goodsReceivedLines.storeId, session.storeId),
-          eq(goodsReceivedLines.productId, productId),
-        ),
-      )
-      .orderBy(desc(goodsReceivedLines.createdAt), desc(goodsReceivedLines.position))
-      .limit(1)
-      .get();
-    return { unitCostPaisa: row?.unitCostPaisa ?? null };
+    return { unitCostPaisa: lastReceipt(db, session.storeId, productId)?.unitCostPaisa ?? null };
   }
 
   return { post, list, get, lastCost };
