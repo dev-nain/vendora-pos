@@ -1,7 +1,9 @@
 import {
   exportReportFailedMessage,
   formatRangeLabel,
+  formatStoreDateTime,
   salesByDayColumns,
+  storeToday,
   type ExportReportInput,
   type ExportReportResult,
   type ReportColumn,
@@ -9,6 +11,15 @@ import {
   type ReportRange,
   type SalesByDayResult,
 } from "../../shared/reports";
+import {
+  lowStockReportColumns,
+  negativeStockReportColumns,
+  stockOnHandColumns,
+  type ExportTodayReportInput,
+  type LowStockReportResult,
+  type NegativeStockReportResult,
+  type StockOnHandResult,
+} from "../../shared/stock-reports";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
@@ -17,6 +28,7 @@ import { writeAtomic } from "../documents/write-atomic";
 import { reportCsv } from "../reports/report-csv";
 import { buildReportDocument } from "../reports/report-document";
 import { readSalesByDay } from "../reports/sales-by-day";
+import { readLowStock, readNegativeStock, readStockOnHand } from "../reports/stock-position";
 import { getReceiptSettings } from "../settings/store-settings";
 
 interface ReportsDeps {
@@ -56,11 +68,31 @@ export function createReportsService({
   sessions,
   renderer,
   chooseSavePath,
+  now = () => new Date(),
 }: ReportsDeps) {
   function salesByDay(range: ReportRange): SalesByDayResult {
     const session = requireSession(sessions);
     return readSalesByDay(database, session.storeId, range);
   }
+
+  function stockOnHand(): StockOnHandResult {
+    const session = requireSession(sessions);
+    return readStockOnHand(database, session.storeId, now());
+  }
+
+  function lowStock(): LowStockReportResult {
+    const session = requireSession(sessions);
+    return readLowStock(database, session.storeId, now());
+  }
+
+  function negativeStock(): NegativeStockReportResult {
+    const session = requireSession(sessions);
+    return readNegativeStock(database, session.storeId, now());
+  }
+
+  const asOfReference = () => `As of ${formatStoreDateTime(now().toISOString())}`;
+  const todayFileName = (stem: string, format: ReportExportFormat) =>
+    `${stem}-${storeToday(now())}.${format}`;
 
   async function exportTable<Row extends Record<string, string | number>>(
     table: ExportTable<Row>,
@@ -105,6 +137,39 @@ export function createReportsService({
         format,
         columns: salesByDayColumns,
         read: (storeId) => readSalesByDay(database, storeId, range),
+      }),
+    stockOnHand,
+    lowStock,
+    negativeStock,
+    exportStockOnHand: ({ format }: ExportTodayReportInput) =>
+      exportTable({
+        title: "Stock on hand and valuation",
+        fileName: todayFileName("stock-on-hand", format),
+        reference: asOfReference,
+        format,
+        columns: stockOnHandColumns,
+        read: (storeId) => ({
+          ...readStockOnHand(database, storeId, now()),
+          facts: [{ label: "Valued at", value: "Current average cost" }],
+        }),
+      }),
+    exportLowStock: ({ format }: ExportTodayReportInput) =>
+      exportTable({
+        title: "Low stock",
+        fileName: todayFileName("low-stock", format),
+        reference: asOfReference,
+        format,
+        columns: lowStockReportColumns,
+        read: (storeId) => readLowStock(database, storeId, now()),
+      }),
+    exportNegativeStock: ({ format }: ExportTodayReportInput) =>
+      exportTable({
+        title: "Negative stock",
+        fileName: todayFileName("negative-stock", format),
+        reference: asOfReference,
+        format,
+        columns: negativeStockReportColumns,
+        read: (storeId) => readNegativeStock(database, storeId, now()),
       }),
   };
 }
