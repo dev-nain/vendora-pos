@@ -1,5 +1,5 @@
 import { Trash2Icon } from "lucide-react";
-import { useRef, type KeyboardEvent } from "react";
+import { useRef, type KeyboardEvent, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 
 import { Button } from "@renderer/components/ui/button";
@@ -22,13 +22,15 @@ type Column = "qty" | "cost";
 
 const unitSuffix = { piece: "pcs", kg: "kg", litre: "L" } as const;
 
-interface OrderLinesProps {
-  lines: readonly OrderLineDraft[];
+interface OrderLinesProps<Line extends OrderLineDraft> {
+  lines: readonly Line[];
   editable: boolean;
   errors: Record<string, OrderLineErrors>;
   onChange: (key: string, patch: Partial<Pick<OrderLineDraft, "qtyText" | "costText">>) => void;
   onRemove: (key: string) => void;
   onReturnToScan: () => void;
+  label?: string;
+  qtyNote?: (line: Line) => ReactNode;
 }
 
 const money = (text: string): string => {
@@ -41,14 +43,16 @@ const quantity = (line: OrderLineDraft): string => {
   return parsed.ok ? formatQuantity(parsed.milli, line.unit) : line.qtyText;
 };
 
-export function OrderLines({
+export function OrderLines<Line extends OrderLineDraft>({
   lines,
   editable,
   errors,
   onChange,
   onRemove,
   onReturnToScan,
-}: OrderLinesProps) {
+  label = "Order lines",
+  qtyNote,
+}: OrderLinesProps<Line>) {
   const bodyRef = useRef<HTMLTableSectionElement>(null);
   const focusColumn = (column: Column, index: number) => {
     const input = bodyRef.current?.querySelectorAll<HTMLInputElement>(
@@ -96,7 +100,7 @@ export function OrderLines({
   }
 
   return (
-    <Table className="table-fixed" aria-label="Order lines">
+    <Table className="table-fixed" aria-label={label}>
       <colgroup>
         <col />
         <col className="w-[148px]" />
@@ -133,6 +137,7 @@ export function OrderLines({
                       <Input
                         data-column="qty"
                         data-product-id={line.productId}
+                        data-line-key={line.key}
                         aria-label={`Quantity of ${line.nameEn}`}
                         aria-invalid={lineErrors?.qty !== undefined}
                         inputMode="decimal"
@@ -151,6 +156,7 @@ export function OrderLines({
                         <ErrorLine>{lineErrors.qty}</ErrorLine>
                       </div>
                     ) : null}
+                    {qtyNote?.(line)}
                   </div>
                 ) : (
                   <span className="text-foreground">{quantity(line)}</span>
