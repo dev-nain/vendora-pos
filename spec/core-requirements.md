@@ -140,7 +140,7 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 
 **Acceptance criteria:**
 
-- Stock on hand per product, derived from an append-only **stock movement ledger** (sale, return, receipt, adjustment, stocktake, damage)
+- Stock on hand per product, derived from an append-only **stock movement ledger** (sale, return, receipt, adjustment, stocktake, damage, purchase return)
 - Stock adjustments require a reason (damage, expiry, theft, correction)
 - **Stocktake:** start a count (full or by category), enter counted quantities with the scanner, review variance and its value, post all adjustments in one step
 - Low-stock threshold per product, a **low-stock list**, and a badge on the dashboard

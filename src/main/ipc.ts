@@ -160,9 +160,34 @@ import {
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
 import {
+  getGoodsReceivedResultSchema,
+  goodsReceivedIdInputSchema,
+  goodsReceivedLastCostInputSchema,
+  goodsReceivedLastCostResultSchema,
+  goodsReceivedListQuerySchema,
+  goodsReceivedListResultSchema,
   postGoodsReceivedInputSchema,
   postGoodsReceivedResultSchema,
 } from "@shared/goods-received";
+import {
+  productPurchaseHistoryQuerySchema,
+  productPurchaseHistoryResultSchema,
+  supplierPurchaseHistoryQuerySchema,
+  supplierPurchaseHistoryResultSchema,
+} from "@shared/purchase-history";
+import {
+  getPurchaseReturnResultSchema,
+  postPurchaseReturnInputSchema,
+  postPurchaseReturnResultSchema,
+  purchaseReturnIdInputSchema,
+  purchaseReturnListQuerySchema,
+  printPurchaseReturnResultSchema,
+  purchaseReturnListResultSchema,
+  savePurchaseReturnPdfResultSchema,
+  purchaseReturnableInputSchema,
+  purchaseReturnableNoteResultSchema,
+  purchaseReturnableResultSchema,
+} from "@shared/purchase-returns";
 import {
   cancelPurchaseOrderResultSchema,
   confirmPurchaseOrderResultSchema,
@@ -208,6 +233,9 @@ import type { BackupPasswordService } from "./services/backup-password";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { GoodsReceivedService } from "./services/goods-received";
+import type { PurchaseReturnDocumentsService } from "./services/purchase-return-documents";
+import type { PurchaseHistoryService } from "./services/purchase-history";
+import type { PurchaseReturnsService } from "./services/purchase-returns";
 import type { InventoryService } from "./services/inventory";
 import type { StocktakeService } from "./services/stocktake";
 import type { ProductsService } from "./services/products";
@@ -259,6 +287,9 @@ interface IpcServices {
   purchaseOrders: PurchaseOrdersService;
   goodsReceived: GoodsReceivedService;
   purchaseOrderDocuments: PurchaseOrderDocumentsService;
+  purchaseReturns: PurchaseReturnsService;
+  purchaseReturnDocuments: PurchaseReturnDocumentsService;
+  purchaseHistory: PurchaseHistoryService;
   receipts: ReceiptsService;
   reports: ReportsService;
 }
@@ -276,8 +307,11 @@ export function registerIpcHandlers({
   inventory,
   stocktake,
   products,
+  purchaseHistory,
   purchaseOrderDocuments,
   purchaseOrders,
+  purchaseReturnDocuments,
+  purchaseReturns,
   receipts,
   reports,
   returns,
@@ -538,6 +572,69 @@ export function registerIpcHandlers({
   handle(ipcChannels.purchaseOrdersCancel, (_event, input) =>
     cancelPurchaseOrderResultSchema.parse(
       purchaseOrders.cancel(purchaseOrderIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.goodsReceivedPost, (_event, input) =>
+    postGoodsReceivedResultSchema.parse(
+      goodsReceived.post(postGoodsReceivedInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.goodsReceivedList, (_event, input) =>
+    goodsReceivedListResultSchema.parse(
+      goodsReceived.list(goodsReceivedListQuerySchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.goodsReceivedGet, (_event, input) =>
+    getGoodsReceivedResultSchema.parse(goodsReceived.get(goodsReceivedIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.goodsReceivedLastCost, (_event, input) =>
+    goodsReceivedLastCostResultSchema.parse(
+      goodsReceived.lastCost(goodsReceivedLastCostInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsPost, (_event, input) =>
+    postPurchaseReturnResultSchema.parse(
+      purchaseReturns.post(postPurchaseReturnInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsList, (_event, input) =>
+    purchaseReturnListResultSchema.parse(
+      purchaseReturns.list(purchaseReturnListQuerySchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsGet, (_event, input) =>
+    getPurchaseReturnResultSchema.parse(
+      purchaseReturns.get(purchaseReturnIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsReturnable, (_event, input) =>
+    purchaseReturnableResultSchema.parse(
+      purchaseReturns.returnable(purchaseReturnableInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsFromNote, (_event, input) =>
+    purchaseReturnableNoteResultSchema.parse(
+      purchaseReturns.fromNote(purchaseReturnIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsSavePdf, async (_event, input) =>
+    savePurchaseReturnPdfResultSchema.parse(
+      await purchaseReturnDocuments.savePdf(purchaseReturnIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsPrint, async (_event, input) =>
+    printPurchaseReturnResultSchema.parse(
+      await purchaseReturnDocuments.print(purchaseReturnIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseHistoryProduct, (_event, input) =>
+    productPurchaseHistoryResultSchema.parse(
+      purchaseHistory.forProduct(productPurchaseHistoryQuerySchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseHistorySupplier, (_event, input) =>
+    supplierPurchaseHistoryResultSchema.parse(
+      purchaseHistory.forSupplier(supplierPurchaseHistoryQuerySchema.parse(input)),
     ),
   );
   handle(ipcChannels.purchaseOrdersSavePdf, async (_event, input) =>

@@ -19,6 +19,9 @@ import { createCatalogExportService } from "./services/catalog-export";
 import { createAuditLogService } from "./services/audit-log";
 import { createCategoriesService } from "./services/categories";
 import { createGoodsReceivedService } from "./services/goods-received";
+import { createPurchaseHistoryService } from "./services/purchase-history";
+import { createPurchaseReturnDocumentsService } from "./services/purchase-return-documents";
+import { createPurchaseReturnsService } from "./services/purchase-returns";
 import { createPurchaseOrderDocumentsService } from "./services/purchase-order-documents";
 import { createPurchaseOrdersService } from "./services/purchase-orders";
 import { createReceiptsService } from "./services/receipts";
@@ -148,6 +151,9 @@ void app.whenReady().then(async () => {
   const suppliers = createSuppliersService({ database, audit, sessions });
   const purchaseOrders = createPurchaseOrdersService({ database, audit, sessions });
   const goodsReceived = createGoodsReceivedService({ database, audit, sessions, stock });
+  const purchaseReturns = createPurchaseReturnsService({ database, audit, sessions, stock });
+  const purchaseHistory = createPurchaseHistoryService({ database, sessions });
+  const documentRenderer = createDocumentRenderer();
   const taxCategories = createTaxCategoriesService({ database, audit, sessions });
   const catalogExport = createCatalogExportService({
     database,
@@ -159,7 +165,7 @@ void app.whenReady().then(async () => {
     database,
     sessions,
     purchaseOrders,
-    renderer: createDocumentRenderer(),
+    renderer: documentRenderer,
     chooseSavePath: (fileName) =>
       chooseSavePath("Save purchase order", { name: "PDF file", extensions: ["pdf"] }, fileName),
   });
@@ -222,6 +228,14 @@ void app.whenReady().then(async () => {
       return result.canceled ? null : (result.filePaths[0] ?? null);
     },
   });
+  const purchaseReturnDocuments = createPurchaseReturnDocumentsService({
+    database,
+    sessions,
+    purchaseReturns,
+    renderer: documentRenderer,
+    chooseSavePath: (fileName) =>
+      chooseSavePath("Save purchase return", { name: "PDF file", extensions: ["pdf"] }, fileName),
+  });
   const fakePrinterDir = process.env["VENDORA_FAKE_PRINTER"];
   const renderWindow = createRenderWindow();
   const receipts = createReceiptsService({
@@ -247,8 +261,11 @@ void app.whenReady().then(async () => {
     inventory,
     stocktake,
     products,
+    purchaseHistory,
     purchaseOrderDocuments,
     purchaseOrders,
+    purchaseReturnDocuments,
+    purchaseReturns,
     receipts,
     reports,
     returns,

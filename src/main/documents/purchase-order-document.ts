@@ -3,7 +3,7 @@ import { formatRupees } from "../../shared/money";
 import { purchaseOrderStatusLabels, type PurchaseOrder } from "../../shared/purchase-orders";
 import { formatQuantity } from "../../shared/quantity";
 import type { ReceiptSettings } from "../../shared/settings";
-import { buildStorePanel, labelled, present } from "./store-panel";
+import { buildStorePanel, formatDate, labelled, present } from "./store-panel";
 
 export interface PurchaseOrderSupplier {
   contactPerson: string | null;
@@ -15,13 +15,6 @@ interface Input {
   order: PurchaseOrder;
   store: ReceiptSettings;
   supplier: PurchaseOrderSupplier;
-}
-
-const pad2 = (value: number) => String(value).padStart(2, "0");
-
-function formatDate(iso: string): string {
-  const date = new Date(iso);
-  return `${pad2(date.getDate())}-${pad2(date.getMonth() + 1)}-${date.getFullYear()}`;
 }
 
 export function buildPurchaseOrderDocument({ order, store, supplier }: Input): DocumentModel {

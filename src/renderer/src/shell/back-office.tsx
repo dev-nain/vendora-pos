@@ -3,7 +3,9 @@ import {
   ChartColumnIcon,
   ClipboardListIcon,
   DatabaseBackupIcon,
+  PackageCheckIcon,
   PackageIcon,
+  PackageMinusIcon,
   ScrollTextIcon,
   SettingsIcon,
   TagsIcon,
@@ -23,9 +25,11 @@ import { NegativeStockScreen } from "../inventory/negative-stock-screen";
 import { LowStockScreen } from "../inventory/low-stock-screen";
 import { StockScreen } from "../inventory/stock-screen";
 import { StocktakeScreen } from "../inventory/stocktake-screen";
+import { GoodsReceivedScreen } from "../purchasing/goods-received-screen";
 import { ProductsScreen } from "../products/products-screen";
 import type { LeaveGuard, OrderSeed } from "../purchasing/order-form-screen";
 import { PurchaseOrdersScreen } from "../purchasing/purchase-orders-screen";
+import { PurchaseReturnsScreen } from "../purchasing/purchase-returns-screen";
 import { ReportsScreen } from "../reports/reports-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
 import { BackupPasswordSetting } from "../settings/backup-password-setting";
@@ -47,6 +51,8 @@ const icons: Record<BackOfficePage, LucideIcon> = {
   "negative-stock": TriangleAlertIcon,
   "low-stock": TriangleAlertIcon,
   "purchase-orders": ClipboardListIcon,
+  "goods-received": PackageCheckIcon,
+  "purchase-returns": PackageMinusIcon,
   suppliers: TruckIcon,
   reports: ChartColumnIcon,
   users: UsersIcon,
@@ -84,6 +90,12 @@ export function BackOffice({
   const secondCopy = useSecondCopyStatus();
   const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
   const clearOrderSeed = useCallback(() => setOrderSeed(null), []);
+  const [returnSeed, setReturnSeed] = useState<string | null>(null);
+  const clearReturnSeed = useCallback(() => setReturnSeed(null), []);
+  const returnToSupplier = useCallback((noteId: string) => {
+    setReturnSeed(noteId);
+    setPage("purchase-returns");
+  }, []);
   const createOrder = useCallback((items: LowStockItem[]) => {
     setOrderSeed(items);
     setPage("purchase-orders");
@@ -149,6 +161,19 @@ export function BackOffice({
             seed={orderSeed}
             registerLeaveGuard={registerLeaveGuard}
             onSeedUsed={clearOrderSeed}
+            onSessionEnded={onSessionEnded}
+          />
+        ) : page === "goods-received" ? (
+          <GoodsReceivedScreen
+            registerLeaveGuard={registerLeaveGuard}
+            onReturn={returnToSupplier}
+            onSessionEnded={onSessionEnded}
+          />
+        ) : page === "purchase-returns" ? (
+          <PurchaseReturnsScreen
+            seed={returnSeed}
+            registerLeaveGuard={registerLeaveGuard}
+            onSeedUsed={clearReturnSeed}
             onSessionEnded={onSessionEnded}
           />
         ) : page === "suppliers" ? (

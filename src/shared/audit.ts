@@ -32,6 +32,7 @@ export const auditActions = [
   "purchase_order_cancel",
   "goods_received_post",
   "stocktake_post",
+  "purchase_return_post",
 ] as const;
 export type AuditAction = (typeof auditActions)[number];
 
@@ -66,6 +67,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   purchase_order_confirm: "Purchase order confirmed",
   purchase_order_cancel: "Purchase order cancelled",
   goods_received_post: "Goods received",
+  purchase_return_post: "Purchase return",
   stocktake_post: "Stocktake posted",
 };
 

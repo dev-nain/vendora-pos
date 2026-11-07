@@ -14,6 +14,7 @@ const movementTypes = [
   "adjustment",
   "stocktake",
   "damage",
+  "purchase_return",
 ] as const;
 export const movementReasons = ["damage", "expiry", "theft", "correction"] as const;
 export type StockMovementReason = (typeof movementReasons)[number];

@@ -93,7 +93,25 @@ import {
   taxCategorySchema,
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
-import { postGoodsReceivedResultSchema } from "@shared/goods-received";
+import {
+  getGoodsReceivedResultSchema,
+  goodsReceivedLastCostResultSchema,
+  goodsReceivedListResultSchema,
+  postGoodsReceivedResultSchema,
+} from "@shared/goods-received";
+import {
+  productPurchaseHistoryResultSchema,
+  supplierPurchaseHistoryResultSchema,
+} from "@shared/purchase-history";
+import {
+  getPurchaseReturnResultSchema,
+  postPurchaseReturnResultSchema,
+  printPurchaseReturnResultSchema,
+  purchaseReturnListResultSchema,
+  savePurchaseReturnPdfResultSchema,
+  purchaseReturnableNoteResultSchema,
+  purchaseReturnableResultSchema,
+} from "@shared/purchase-returns";
 import {
   cancelPurchaseOrderResultSchema,
   confirmPurchaseOrderResultSchema,
@@ -404,6 +422,58 @@ const api: VendoraApi = {
     post: async (input) =>
       postGoodsReceivedResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.goodsReceivedPost, input),
+      ),
+    list: async (query) =>
+      goodsReceivedListResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.goodsReceivedList, query),
+      ),
+    get: async (id) =>
+      getGoodsReceivedResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.goodsReceivedGet, { id }),
+      ),
+    lastCost: async (productId) =>
+      goodsReceivedLastCostResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.goodsReceivedLastCost, { productId }),
+      ),
+  },
+  purchaseReturns: {
+    post: async (input) =>
+      postPurchaseReturnResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsPost, input),
+      ),
+    list: async (query) =>
+      purchaseReturnListResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsList, query),
+      ),
+    get: async (id) =>
+      getPurchaseReturnResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsGet, { id }),
+      ),
+    returnable: async (input) =>
+      purchaseReturnableResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsReturnable, input),
+      ),
+    fromNote: async (goodsReceivedNoteId) =>
+      purchaseReturnableNoteResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsFromNote, { id: goodsReceivedNoteId }),
+      ),
+    savePdf: async (id) =>
+      savePurchaseReturnPdfResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsSavePdf, { id }),
+      ),
+    print: async (id) =>
+      printPurchaseReturnResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsPrint, { id }),
+      ),
+  },
+  purchaseHistory: {
+    forProduct: async (query) =>
+      productPurchaseHistoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseHistoryProduct, query),
+      ),
+    forSupplier: async (query) =>
+      supplierPurchaseHistoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseHistorySupplier, query),
       ),
   },
   reports: {

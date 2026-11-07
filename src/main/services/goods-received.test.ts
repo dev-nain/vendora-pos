@@ -157,6 +157,11 @@ describe("createGoodsReceivedService", () => {
     return result.order;
   };
 
+  const listAll = (overrides = {}) => service.list({ limit: 50, offset: 0, ...overrides });
+  const at = (iso: string) => {
+    clock = new Date(iso).getTime() - 1000;
+  };
+
   const twoLineOrder = () =>
     confirmedOrder([
       { productId: sugarId, orderedQtyMilli: 5000, unitCostPaisa: 14000 },
@@ -643,11 +648,16 @@ describe("createGoodsReceivedService", () => {
   });
 
   describe("no edit path", () => {
-    it("exposes only post", () => {
-      expect(Object.keys(service)).toEqual(["post"]);
+    it("exposes only post and the reads", () => {
+      expect(Object.keys(service)).toEqual(["post", "list", "get", "lastCost"]);
       expect(
         Object.values(ipcChannels).filter((name) => name.startsWith("goods-received:")),
-      ).toEqual(["goods-received:post"]);
+      ).toEqual([
+        "goods-received:post",
+        "goods-received:list",
+        "goods-received:get",
+        "goods-received:last-cost",
+      ]);
     });
 
     it("leaves the order not editable after posting", () => {
@@ -665,6 +675,146 @@ describe("createGoodsReceivedService", () => {
 
       expect(result).toMatchObject({ ok: false, reason: "not-editable" });
     });
+  });
+
+  describe("remaining after a partial delivery", () => {
+    it("shows what is left and finishes at received", () => {
+      const order = confirmedOrder([
+        { productId: teaId, orderedQtyMilli: 24000, unitCostPaisa: 500 },
+      ]);
+      posted(fromOrder(order, [{ index: 0, qtyMilli: 6000, unitCostPaisa: 500 }]));
+      expect(orderNow(order.id)).toMatchObject({
+        status: "partly_received",
+        lines: [{ remainingQtyMilli: 18000 }],
+      });
+
+      posted(fromOrder(order, [{ index: 0, qtyMilli: 18000, unitCostPaisa: 500 }]));
+      expect(orderNow(order.id)).toMatchObject({
+        status: "received",
+        lines: [{ remainingQtyMilli: 0 }],
+      });
+    });
+  });
+
+  describe("list", () => {
+    it("lists newest first with line counts and the order number", () => {
+      const order = confirmedOrder();
+      const first = posted(direct([lineOf(sugarId), lineOf(teaId)]));
+      const second = posted(fromOrder(order, [{ index: 0, qtyMilli: 1000, unitCostPaisa: 14000 }]));
+
+      const result = listAll();
+
+      expect(result.total).toBe(2);
+      expect(result.items.map((item) => item.id)).toEqual([second.id, first.id]);
+      expect(result.items[0]).toMatchObject({
+        orderNo: order.orderNo,
+        purchaseOrderId: order.id,
+        lineCount: 1,
+        supplierName: "Al-Noor",
+        supplierInvoiceNo: "INV-2",
+      });
+      expect(result.items[1]).toMatchObject({ orderNo: null, purchaseOrderId: null, lineCount: 2 });
+    });
+
+    it("filters by supplier", () => {
+      posted(direct([lineOf(sugarId)]));
+      const other = database.db
+        .insert(suppliers)
+        .values({ storeId: storeId(), name: "Other" })
+        .returning()
+        .get().id;
+      const note = posted(direct([lineOf(sugarId)], { supplierId: other }));
+
+      const result = listAll({ supplierId: other });
+
+      expect(result.total).toBe(1);
+      expect(result.items.map((item) => item.id)).toEqual([note.id]);
+    });
+
+    it("includes both edge days and excludes a note just outside", () => {
+      at("2024-03-09T23:59:00");
+      const before = posted(direct([lineOf(sugarId)]));
+      at("2024-03-10T00:00:30");
+      const startEdge = posted(direct([lineOf(sugarId)]));
+      at("2024-03-12T23:59:00");
+      const endEdge = posted(direct([lineOf(sugarId)]));
+      at("2024-03-13T00:00:30");
+      const after = posted(direct([lineOf(sugarId)]));
+
+      const ids = listAll({ from: "2024-03-10", to: "2024-03-12" }).items.map((item) => item.id);
+
+      expect(ids).toEqual([endEdge.id, startEdge.id]);
+      expect(ids).not.toContain(before.id);
+      expect(ids).not.toContain(after.id);
+      expect(listAll({ from: "2024-03-13" }).items.map((item) => item.id)).toEqual([after.id]);
+      expect(listAll({ from: "2024-03-12", to: "2024-03-10" }).items).toEqual([]);
+    });
+
+    it("pages and reports the full total", () => {
+      const ids = Array.from(
+        { length: 5 },
+        () => posted(direct([lineOf(sugarId)])).id,
+      ).toReversed();
+
+      const page = listAll({ limit: 2, offset: 2 });
+
+      expect(page.total).toBe(5);
+      expect(page.items.map((item) => item.id)).toEqual(ids.slice(2, 4));
+      expect(listAll({ limit: 2, offset: 4 }).items.map((item) => item.id)).toEqual(ids.slice(4));
+    });
+
+    it("lists nothing when empty", () => {
+      expect(listAll()).toEqual({ items: [], total: 0 });
+    });
+  });
+
+  describe("get", () => {
+    it("returns the same note that post returned", () => {
+      const order = confirmedOrder();
+      const note = posted(fromOrder(order, [{ index: 0, qtyMilli: 1000, unitCostPaisa: 14000 }]));
+      const direct1 = posted(direct([lineOf(sugarId), lineOf(teaId)]));
+
+      expect(service.get({ id: note.id })).toEqual({ ok: true, note });
+      expect(service.get({ id: direct1.id })).toEqual({ ok: true, note: direct1 });
+      expect(note.orderNo).toBe(order.orderNo);
+    });
+
+    it("refuses an unknown note", () => {
+      expect(service.get({ id: missingId })).toMatchObject({ ok: false, reason: "not-found" });
+    });
+  });
+
+  describe("lastCost", () => {
+    it("is null when the product was never received", () => {
+      expect(service.lastCost({ productId: sugarId })).toEqual({ unitCostPaisa: null });
+    });
+
+    it("returns the newest note's cost, not the weighted average", () => {
+      posted(direct([{ productId: teaId, qtyMilli: 10000, unitCostPaisa: 100 }]));
+      posted(direct([{ productId: teaId, qtyMilli: 10000, unitCostPaisa: 300 }]));
+      posted(direct([{ productId: sugarId, qtyMilli: 1000, unitCostPaisa: 999 }]));
+
+      expect(costOf(teaId)).toBe(200);
+      expect(service.lastCost({ productId: teaId })).toEqual({ unitCostPaisa: 300 });
+    });
+
+    it("takes the later position within one note", () => {
+      posted(
+        direct([
+          { productId: teaId, qtyMilli: 1000, unitCostPaisa: 100 },
+          { productId: teaId, qtyMilli: 1000, unitCostPaisa: 700 },
+        ]),
+      );
+
+      expect(service.lastCost({ productId: teaId })).toEqual({ unitCostPaisa: 700 });
+    });
+  });
+
+  it("throws when a read is called signed out", () => {
+    sessions.end();
+    expect(() => service.list({ limit: 10, offset: 0 })).toThrow(UnauthenticatedError);
+    expect(() => service.get({ id: missingId })).toThrow(UnauthenticatedError);
+    expect(() => service.lastCost({ productId: sugarId })).toThrow(UnauthenticatedError);
   });
 
   it("throws when signed out and writes nothing", () => {

@@ -22,7 +22,32 @@ import type {
   DeleteCategoryResult,
   RenameCategoryResult,
 } from "./categories";
-import type { PostGoodsReceivedInput, PostGoodsReceivedResult } from "./goods-received";
+import type {
+  GetGoodsReceivedResult,
+  GoodsReceivedLastCostResult,
+  GoodsReceivedListQuery,
+  GoodsReceivedListResult,
+  PostGoodsReceivedInput,
+  PostGoodsReceivedResult,
+} from "./goods-received";
+import type {
+  ProductPurchaseHistoryQuery,
+  ProductPurchaseHistoryResult,
+  SupplierPurchaseHistoryQuery,
+  SupplierPurchaseHistoryResult,
+} from "./purchase-history";
+import type {
+  GetPurchaseReturnResult,
+  PostPurchaseReturnInput,
+  PostPurchaseReturnResult,
+  PurchaseReturnListQuery,
+  PrintPurchaseReturnResult,
+  PurchaseReturnListResult,
+  SavePurchaseReturnPdfResult,
+  PurchaseReturnableInput,
+  PurchaseReturnableNoteResult,
+  PurchaseReturnableResult,
+} from "./purchase-returns";
 import type {
   CancelPurchaseOrderResult,
   ConfirmPurchaseOrderResult,
@@ -246,6 +271,18 @@ export const ipcChannels = {
   purchaseOrdersConfirm: "purchase-orders:confirm",
   purchaseOrdersCancel: "purchase-orders:cancel",
   goodsReceivedPost: "goods-received:post",
+  goodsReceivedList: "goods-received:list",
+  goodsReceivedGet: "goods-received:get",
+  goodsReceivedLastCost: "goods-received:last-cost",
+  purchaseReturnsPost: "purchase-returns:post",
+  purchaseReturnsList: "purchase-returns:list",
+  purchaseReturnsGet: "purchase-returns:get",
+  purchaseReturnsReturnable: "purchase-returns:returnable",
+  purchaseReturnsFromNote: "purchase-returns:from-note",
+  purchaseReturnsSavePdf: "purchase-returns:save-pdf",
+  purchaseReturnsPrint: "purchase-returns:print",
+  purchaseHistoryProduct: "purchase-history:product",
+  purchaseHistorySupplier: "purchase-history:supplier",
   purchaseOrdersSavePdf: "purchase-orders:save-pdf",
   purchaseOrdersPrint: "purchase-orders:print",
   reportsSalesByDay: "reports:sales-by-day",
@@ -402,6 +439,22 @@ export interface VendoraApi {
   };
   goodsReceived: {
     post: (input: PostGoodsReceivedInput) => Promise<PostGoodsReceivedResult>;
+    list: (query: GoodsReceivedListQuery) => Promise<GoodsReceivedListResult>;
+    get: (id: string) => Promise<GetGoodsReceivedResult>;
+    lastCost: (productId: string) => Promise<GoodsReceivedLastCostResult>;
+  };
+  purchaseReturns: {
+    post: (input: PostPurchaseReturnInput) => Promise<PostPurchaseReturnResult>;
+    list: (query: PurchaseReturnListQuery) => Promise<PurchaseReturnListResult>;
+    get: (id: string) => Promise<GetPurchaseReturnResult>;
+    returnable: (input: PurchaseReturnableInput) => Promise<PurchaseReturnableResult>;
+    fromNote: (goodsReceivedNoteId: string) => Promise<PurchaseReturnableNoteResult>;
+    savePdf: (id: string) => Promise<SavePurchaseReturnPdfResult>;
+    print: (id: string) => Promise<PrintPurchaseReturnResult>;
+  };
+  purchaseHistory: {
+    forProduct: (query: ProductPurchaseHistoryQuery) => Promise<ProductPurchaseHistoryResult>;
+    forSupplier: (query: SupplierPurchaseHistoryQuery) => Promise<SupplierPurchaseHistoryResult>;
   };
   reports: {
     salesByDay: (range: ReportRange) => Promise<SalesByDayResult>;
