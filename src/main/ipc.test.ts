@@ -24,6 +24,7 @@ import {
   createPurchaseOrdersService,
   type PurchaseOrdersService,
 } from "./services/purchase-orders";
+import { createSaleInvoicesService, type SaleInvoicesService } from "./services/sale-invoices";
 import { createShiftsService, type ShiftsService } from "./services/shifts";
 import { createSuppliersService, type SuppliersService } from "./services/suppliers";
 import { createGoodsReceivedService, type GoodsReceivedService } from "./services/goods-received";
@@ -77,6 +78,7 @@ describe("products ipc", () => {
   let suppliersService: SuppliersService;
   let purchaseOrdersService: PurchaseOrdersService;
   let purchaseOrderDocumentsService: PurchaseOrderDocumentsService;
+  let saleInvoicesService: SaleInvoicesService;
   const renderer = { toPdf: vi.fn(async () => Buffer.from("%PDF-")), print: vi.fn() };
   let goodsReceivedService: GoodsReceivedService;
   let exportPath: string | null;
@@ -164,6 +166,12 @@ describe("products ipc", () => {
       renderer,
       chooseSavePath: async () => join(dir, "order.pdf"),
     });
+    saleInvoicesService = createSaleInvoicesService({
+      database,
+      sessions,
+      renderer,
+      chooseSavePath: async () => join(dir, "invoice.pdf"),
+    });
     goodsReceivedService = createGoodsReceivedService({
       database,
       audit: createAuditService(database),
@@ -193,6 +201,7 @@ describe("products ipc", () => {
       purchaseOrders: purchaseOrdersService,
       receipts: stub,
       returns: stub,
+      saleInvoices: saleInvoicesService,
       sales: stub,
       settings: stub,
       shifts: stub,
@@ -495,6 +504,27 @@ describe("products ipc", () => {
       expect(spy).not.toHaveBeenCalled();
     });
 
+    it.each([
+      ["invoices:save-pdf", "savePdf", { saleId: "x" }],
+      ["invoices:save-pdf", "savePdf", { saleId: unknownId, extra: 1 }],
+      ["invoices:print", "print", { saleId: "x" }],
+      ["invoices:print", "print", {}],
+    ] as const)("%s rejects bad input", async (channel, method, input) => {
+      signIn("owner");
+      const spy = vi.spyOn(saleInvoicesService, method);
+      await expect(invoke(channel, input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("refuses invoice requests when signed out", async () => {
+      sessions.end();
+      for (const channel of ["invoices:save-pdf", "invoices:print"]) {
+        await expect(invoke(channel, { saleId: unknownId })).rejects.toThrow(
+          new Error(ipcErrorMessages.unauthenticated),
+        );
+      }
+    });
+
     it("is refused when signed out", async () => {
       sessions.end();
       const requests: [string, unknown][] = [
@@ -649,6 +679,7 @@ describe("shifts ipc", () => {
       purchaseOrders: stub,
       receipts: receipts as never,
       returns: stub,
+      saleInvoices: stub,
       sales: stub,
       settings: stub,
       shifts: service,
@@ -807,6 +838,7 @@ describe("checkout ipc", () => {
       purchaseOrders: stub,
       receipts: receipts as never,
       returns: kit.returns,
+      saleInvoices: stub,
       sales,
       settings: stub,
       shifts: kit.shifts,
@@ -1058,6 +1090,7 @@ describe("backup settings ipc", () => {
       purchaseOrders: stub,
       receipts: stub,
       returns: stub,
+      saleInvoices: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
@@ -1107,6 +1140,7 @@ describe("backup ipc", () => {
       purchaseOrders: stub,
       receipts: stub,
       returns: stub,
+      saleInvoices: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
@@ -1186,6 +1220,7 @@ describe("backup password ipc", () => {
       purchaseOrders: stub,
       receipts: stub,
       returns: stub,
+      saleInvoices: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
@@ -1272,6 +1307,7 @@ describe("inventory ipc", () => {
       purchaseOrders: stub,
       receipts: stub,
       returns: stub,
+      saleInvoices: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
@@ -1445,6 +1481,7 @@ describe("audit log ipc", () => {
       purchaseOrders: stub,
       receipts: stub,
       returns: stub,
+      saleInvoices: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
@@ -1536,6 +1573,7 @@ describe("stocktake ipc", () => {
       purchaseOrders: stub,
       receipts: stub,
       returns: stub,
+      saleInvoices: stub,
       sales: stub,
       settings: stub,
       shifts: stub,

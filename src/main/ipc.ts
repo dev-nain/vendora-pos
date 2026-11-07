@@ -35,6 +35,7 @@ import {
 } from "@shared/checkout";
 import { auditListQuerySchema, auditPageSchema, auditUsersSchema } from "@shared/audit";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
+import { printInvoiceResultSchema, saveInvoicePdfResultSchema } from "@shared/invoices";
 import {
   negativeStockQuerySchema,
   negativeStockResultSchema,
@@ -207,6 +208,7 @@ import type { StocktakeService } from "./services/stocktake";
 import type { ProductsService } from "./services/products";
 import type { PurchaseOrderDocumentsService } from "./services/purchase-order-documents";
 import type { PurchaseOrdersService } from "./services/purchase-orders";
+import type { SaleInvoicesService } from "./services/sale-invoices";
 import type { ReceiptsService } from "./services/receipts";
 import type { ReturnsService } from "./services/returns";
 import type { SalesService } from "./services/sales";
@@ -253,6 +255,7 @@ interface IpcServices {
   purchaseOrders: PurchaseOrdersService;
   goodsReceived: GoodsReceivedService;
   receipts: ReceiptsService;
+  saleInvoices: SaleInvoicesService;
 }
 
 export function registerIpcHandlers({
@@ -272,6 +275,7 @@ export function registerIpcHandlers({
   purchaseOrders,
   receipts,
   returns,
+  saleInvoices,
   sales,
   settings,
   shifts,
@@ -544,6 +548,12 @@ export function registerIpcHandlers({
     printPurchaseOrderResultSchema.parse(
       await purchaseOrderDocuments.print(purchaseOrderIdInputSchema.parse(input)),
     ),
+  );
+  handle(ipcChannels.invoicesSavePdf, async (_event, input) =>
+    saveInvoicePdfResultSchema.parse(await saleInvoices.savePdf(saleIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.invoicesPrint, async (_event, input) =>
+    printInvoiceResultSchema.parse(await saleInvoices.print(saleIdInputSchema.parse(input))),
   );
   handle(ipcChannels.goodsReceivedPost, (_event, input) =>
     postGoodsReceivedResultSchema.parse(

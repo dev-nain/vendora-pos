@@ -22,6 +22,7 @@ import type {
   DeleteCategoryResult,
   RenameCategoryResult,
 } from "./categories";
+import type { PrintInvoiceResult, SaveInvoicePdfResult } from "./invoices";
 import type {
   GetGoodsReceivedResult,
   GoodsReceivedLastCostResult,
@@ -242,6 +243,8 @@ export const ipcChannels = {
   goodsReceivedLastCost: "goods-received:last-cost",
   purchaseOrdersSavePdf: "purchase-orders:save-pdf",
   purchaseOrdersPrint: "purchase-orders:print",
+  invoicesSavePdf: "invoices:save-pdf",
+  invoicesPrint: "invoices:print",
   shiftsState: "shifts:state",
   shiftsOpen: "shifts:open",
   shiftsAddCashMove: "shifts:add-cash-move",
@@ -388,6 +391,11 @@ export interface VendoraApi {
     savePdf: (id: string) => Promise<SavePurchaseOrderPdfResult>;
     print: (id: string) => Promise<PrintPurchaseOrderResult>;
   };
+  invoices: {
+    savePdf: (saleId: string) => Promise<SaveInvoicePdfResult>;
+    print: (saleId: string) => Promise<PrintInvoiceResult>;
+  };
+
   goodsReceived: {
     post: (input: PostGoodsReceivedInput) => Promise<PostGoodsReceivedResult>;
     list: (query: GoodsReceivedListQuery) => Promise<GoodsReceivedListResult>;
