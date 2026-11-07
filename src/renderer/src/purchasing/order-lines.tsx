@@ -25,6 +25,7 @@ const unitSuffix = { piece: "pcs", kg: "kg", litre: "L" } as const;
 interface OrderLinesProps<Line extends OrderLineDraft> {
   lines: readonly Line[];
   editable: boolean;
+  costEditable?: boolean;
   errors: Record<string, OrderLineErrors>;
   onChange: (key: string, patch: Partial<Pick<OrderLineDraft, "qtyText" | "costText">>) => void;
   onRemove: (key: string) => void;
@@ -46,6 +47,7 @@ const quantity = (line: OrderLineDraft): string => {
 export function OrderLines<Line extends OrderLineDraft>({
   lines,
   editable,
+  costEditable = editable,
   errors,
   onChange,
   onRemove,
@@ -163,7 +165,7 @@ export function OrderLines<Line extends OrderLineDraft>({
                 )}
               </TableCell>
               <TableCell className="px-200 py-100 text-right tabular-nums">
-                {editable ? (
+                {costEditable ? (
                   <div className="grid gap-100">
                     <Input
                       data-column="cost"
