@@ -6,3 +6,12 @@ export class UnauthenticatedError extends Error {
     this.name = "UnauthenticatedError";
   }
 }
+
+export class RecoveryUnavailableError extends Error {
+  readonly code = "recovery-unavailable";
+
+  constructor() {
+    super("Recovery unavailable");
+    this.name = "RecoveryUnavailableError";
+  }
+}
