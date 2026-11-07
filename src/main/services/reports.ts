@@ -4,6 +4,10 @@ import {
 } from "../../shared/discounts-returns-voids";
 import {
   exportReportFailedMessage,
+  formatShiftLabel,
+  paymentMethodColumns,
+  storeDateTime,
+  storeToday,
   formatRangeLabel,
   formatStoreDateTime,
   grossProfitByCategoryColumns,
@@ -15,9 +19,12 @@ import {
   salesByCategoryColumns,
   salesByHourColumns,
   salesByProductColumns,
-  storeToday,
+  type ExportPaymentMethodsInput,
   salesTaxSummaryColumns,
   type ExportReportInput,
+  type PaymentMethodsQuery,
+  type PaymentMethodsResult,
+  type ReportShift,
   type ExportReportResult,
   type ReportCellValue,
   type ReportColumn,
@@ -61,6 +68,7 @@ import { readDiscountsReturnsVoids } from "../reports/discounts-returns-voids";
 import { reportCsv, reportCsvSections } from "../reports/report-csv";
 import { buildReportDocument, buildSectionedReportDocument } from "../reports/report-document";
 import { readGrossProfitByCategory, readGrossProfitByProduct } from "../reports/gross-profit";
+import { findReportShift, listReportShifts, readPaymentMethods } from "../reports/payment-methods";
 import { readSalesByDay, readSalesByHour } from "../reports/sales-by-day";
 import {
   readSalesByCashier,
@@ -137,6 +145,42 @@ export function createReportsService({
   function salesByCashier(range: ReportRange): SalesByCashierResult {
     const session = requireSession(sessions);
     return readSalesByCashier(database, session.storeId, range);
+  }
+
+  function paymentMethods(query: PaymentMethodsQuery): PaymentMethodsResult {
+    const session = requireSession(sessions);
+    return readPaymentMethods(database, session.storeId, query);
+  }
+
+  function reportShifts(range: ReportRange): ReportShift[] {
+    const session = requireSession(sessions);
+    return listReportShifts(database, session.storeId, range);
+  }
+
+  async function exportPaymentMethods(input: ExportPaymentMethodsInput) {
+    const base = {
+      title: "Sales by payment method",
+      columns: paymentMethodColumns,
+      format: input.format,
+    };
+    if ("range" in input) {
+      return exportTable({
+        ...base,
+        fileName: fileNameOf("sales-by-payment-method", input.range, input.format),
+        reference: () => formatRangeLabel(input.range),
+        read: (storeId) => readPaymentMethods(database, storeId, { range: input.range }),
+      });
+    }
+    const session = requireSession(sessions);
+    const shift = findReportShift(database, session.storeId, input.shiftId);
+    if (!shift) return exportFailed;
+    const opened = storeDateTime(shift.openedAt);
+    return exportTable({
+      ...base,
+      fileName: `payment-methods-shift-${opened.day}-${opened.time.replace(":", "")}.${input.format}`,
+      reference: () => `Shift ${formatShiftLabel(shift)}`,
+      read: (storeId) => readPaymentMethods(database, storeId, { shiftId: input.shiftId }),
+    });
   }
 
   function stockOnHand(): StockOnHandResult {
@@ -274,6 +318,9 @@ export function createReportsService({
         columns: salesByHourColumns,
         read: (storeId) => readSalesByHour(database, storeId, range),
       }),
+    paymentMethods,
+    reportShifts,
+    exportPaymentMethods,
     grossProfitByProduct,
     grossProfitByCategory,
     exportGrossProfitByProduct: ({ range, format }: ExportReportInput) =>

@@ -22,6 +22,28 @@ export const exportReportInputSchema = z.strictObject({
 });
 export type ExportReportInput = z.infer<typeof exportReportInputSchema>;
 
+export const paymentMethodsQuerySchema = z.union([
+  z.strictObject({ range: reportRangeSchema }),
+  z.strictObject({ shiftId: z.uuid() }),
+]);
+export type PaymentMethodsQuery = z.infer<typeof paymentMethodsQuerySchema>;
+
+export const exportPaymentMethodsInputSchema = z.union([
+  exportReportInputSchema,
+  z.strictObject({ shiftId: z.uuid(), format: z.enum(reportExportFormats) }),
+]);
+export type ExportPaymentMethodsInput = z.infer<typeof exportPaymentMethodsInputSchema>;
+
+export const reportShiftSchema = z.strictObject({
+  id: z.uuid(),
+  openedAt: z.iso.datetime(),
+  closedAt: z.iso.datetime().nullable(),
+  openedBy: z.string(),
+});
+export type ReportShift = z.infer<typeof reportShiftSchema>;
+
+export const reportShiftListSchema = z.array(reportShiftSchema);
+
 export const reportPresets = ["today", "yesterday", "this-week", "this-month", "custom"] as const;
 export type ReportPreset = (typeof reportPresets)[number];
 
@@ -92,6 +114,22 @@ export function formatRangeLabel(range: ReportRange): string {
   return range.from === range.to
     ? formatStoreDay(range.from)
     : `${formatStoreDay(range.from)} – ${formatStoreDay(range.to)}`;
+}
+
+export function storeDateTime(iso: string): { day: string; time: string } {
+  const local = new Date(Date.parse(iso) + storeUtcOffsetMs).toISOString();
+  return { day: local.slice(0, 10), time: local.slice(11, 16) };
+}
+
+export function formatShiftLabel(shift: ReportShift): string {
+  const opened = storeDateTime(shift.openedAt);
+  const start = `${formatStoreDay(opened.day)} ${opened.time}`;
+  let end = "open";
+  if (shift.closedAt !== null) {
+    const closed = storeDateTime(shift.closedAt);
+    end = closed.day === opened.day ? closed.time : `${formatStoreDay(closed.day)} ${closed.time}`;
+  }
+  return `${start} – ${end} · ${shift.openedBy}`;
 }
 
 export type ReportCellValue = string | number | null;
@@ -423,6 +461,29 @@ export const salesByCashierColumns: ReportColumn<SalesByCashierRow>[] = [
   { key: "grossPaisa", label: "Gross sales", format: "money", width: "192px" },
   { key: "returnsPaisa", label: "Returns", format: "money", width: "192px" },
   { key: "netPaisa", label: "Net sales", format: "money", width: "192px" },
+];
+
+export const paymentMethodTotalsSchema = z.strictObject({
+  receivedPaisa: countSchema,
+  refundedPaisa: countSchema,
+  netPaisa: countSchema,
+});
+export type PaymentMethodTotals = z.infer<typeof paymentMethodTotalsSchema>;
+
+export const paymentMethodRowSchema = paymentMethodTotalsSchema.extend({ method: z.string() });
+export type PaymentMethodRow = z.infer<typeof paymentMethodRowSchema>;
+
+export const paymentMethodsResultSchema = z.strictObject({
+  rows: z.array(paymentMethodRowSchema),
+  totals: paymentMethodTotalsSchema,
+});
+export type PaymentMethodsResult = z.infer<typeof paymentMethodsResultSchema>;
+
+export const paymentMethodColumns: ReportColumn<PaymentMethodRow>[] = [
+  { key: "method", label: "Method", format: "text", width: "316px" },
+  { key: "receivedPaisa", label: "Received", format: "money", width: "240px" },
+  { key: "refundedPaisa", label: "Refunded", format: "money", width: "240px" },
+  { key: "netPaisa", label: "Net", format: "money", width: "240px" },
 ];
 
 export const exportReportFailedMessage =
