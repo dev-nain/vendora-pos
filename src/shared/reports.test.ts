@@ -4,6 +4,7 @@ import {
   exportReportInputSchema,
   formatRangeLabel,
   formatReportCell,
+  formatStoreDateTime,
   formatStoreDay,
   isNumericColumn,
   presetRange,
@@ -185,7 +186,7 @@ describe("range labels", () => {
 describe("formatReportCell", () => {
   type Row = { a: string | number };
   type Spec =
-    | { format: "day" | "text" | "count" | "money" }
+    | { format: "day" | "text" | "count" | "money" | "unit" | "datetime" }
     | { format: "quantity"; unit: ProductUnit };
   const column = (spec: Spec): ReportColumn<Row> => ({ key: "a", label: "A", ...spec });
 
@@ -205,6 +206,80 @@ describe("formatReportCell", () => {
     expect(formatReportCell(column({ format: "quantity", unit: "kg" }), -1500)).toBe("−1.500 kg");
     expect(formatReportCell(column({ format: "quantity", unit: "piece" }), -2000)).toBe("−2 pcs");
     expect(formatReportCell(column({ format: "count" }), -3)).toBe("−3");
+  });
+
+  it("formats row-unit quantities by the row's own unit", () => {
+    type UnitRow = { unit: ProductUnit; qty: number };
+    const qty: ReportColumn<UnitRow> = {
+      key: "qty",
+      label: "Qty",
+      format: "quantity",
+      unitKey: "unit",
+    };
+    expect(formatReportCell(qty, 12000, { unit: "piece", qty: 12000 })).toBe("12");
+    expect(formatReportCell(qty, 1500, { unit: "kg", qty: 1500 })).toBe("1.500");
+    expect(formatReportCell(qty, 250, { unit: "litre", qty: 250 })).toBe("0.250");
+    expect(formatReportCell(qty, -1500, { unit: "kg", qty: -1500 })).toBe("−1.500");
+    expect(formatReportCell(qty, -2000, { unit: "piece", qty: -2000 })).toBe("−2");
+  });
+
+  it("throws for a row-unit quantity with no row or an unknown unit", () => {
+    type UnitRow = { unit: string; qty: number };
+    const qty: ReportColumn<UnitRow> = {
+      key: "qty",
+      label: "Qty",
+      format: "quantity",
+      unitKey: "unit",
+    };
+    expect(() => formatReportCell(qty, 1000)).toThrow();
+    expect(() => formatReportCell(qty, 1000, { unit: "box", qty: 1000 })).toThrow();
+  });
+
+  it("formats unit columns", () => {
+    const unit: ReportColumn<{ a: string }> = { key: "a", label: "Unit", format: "unit" };
+    expect(formatReportCell(unit, "piece")).toBe("pcs");
+    expect(formatReportCell(unit, "kg")).toBe("kg");
+    expect(formatReportCell(unit, "litre")).toBe("L");
+  });
+
+  it("formats date-times as Asia/Karachi store time", () => {
+    const when: ReportColumn<{ a: string }> = { key: "a", label: "When", format: "datetime" };
+    expect(formatReportCell(when, "2026-11-07T10:05:00.000Z")).toBe("7 Nov 2026, 3:05 pm");
+    expect(formatReportCell(when, "2026-11-07T19:30:00.000Z")).toBe("8 Nov 2026, 12:30 am");
+    expect(formatReportCell(when, "2026-11-07T07:00:00.000Z")).toBe("7 Nov 2026, 12:00 pm");
+    expect(formatReportCell(when, "2026-11-06T18:59:00.000Z")).toBe("6 Nov 2026, 11:59 pm");
+  });
+
+  it("agrees with Intl for Asia/Karachi on dates either side of midnight UTC", () => {
+    const intl = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Karachi",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    for (const instant of [
+      "2026-01-01T00:00:00.000Z",
+      "2026-03-31T18:59:59.000Z",
+      "2026-03-31T19:00:00.000Z",
+      "2026-12-31T23:59:00.000Z",
+      "2026-07-15T07:07:00.000Z",
+    ]) {
+      const parts = intl.formatToParts(new Date(instant));
+      const part = (type: Intl.DateTimeFormatPartTypes) =>
+        parts.find((candidate) => candidate.type === type)?.value ?? "";
+      const expected = `${part("day")} ${part("month")} ${part("year")}, ${part("hour")}:${part("minute")} ${part("dayPeriod").toLowerCase()}`;
+      expect(formatStoreDateTime(instant)).toBe(expected);
+    }
+  });
+
+  it("marks unit and date-time columns as not numeric", () => {
+    expect(isNumericColumn(column({ format: "unit" }))).toBe(false);
+    expect(isNumericColumn(column({ format: "datetime" }))).toBe(false);
+    expect(isNumericColumn(column({ format: "count" }))).toBe(true);
+    expect(isNumericColumn(column({ format: "money" }))).toBe(true);
   });
 
   it("marks day and text columns as not numeric", () => {

@@ -1,4 +1,9 @@
-import { isNumericColumn, type ReportColumn } from "../../shared/reports";
+import {
+  formatReportCell,
+  formatStoreDateTimeCsv,
+  isNumericColumn,
+  type ReportColumn,
+} from "../../shared/reports";
 import { csvCell, formatMilli, formatPaisa } from "../services/catalog-csv";
 
 type CellValue = string | number;
@@ -21,6 +26,10 @@ function cell<Row>(column: ReportColumn<Row>, value: CellValue): string {
   switch (column.format) {
     case "text":
       return csvCell(String(value));
+    case "unit":
+      return formatReportCell(column, value);
+    case "datetime":
+      return formatStoreDateTimeCsv(String(value));
     case "money":
       return signed(Number(value), formatPaisa);
     case "quantity":
@@ -46,6 +55,6 @@ export function reportCsv<Row extends Record<string, CellValue>>({
     BOM,
     line(columns.map((column) => csvCell(column.label))),
     ...rows.map((row) => line(columns.map((column) => cell(column, row[column.key] ?? "")))),
-    line(totalCells),
+    ...(Object.keys(totals).length > 0 ? [line(totalCells)] : []),
   ].join("");
 }

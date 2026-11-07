@@ -1,11 +1,5 @@
 import type { DocumentModel } from "../../shared/document";
-import {
-  formatRangeLabel,
-  formatReportCell,
-  isNumericColumn,
-  type ReportColumn,
-  type ReportRange,
-} from "../../shared/reports";
+import { formatReportCell, isNumericColumn, type ReportColumn } from "../../shared/reports";
 import type { ReceiptSettings } from "../../shared/settings";
 import { buildStorePanel } from "../documents/store-panel";
 
@@ -13,7 +7,8 @@ type CellValue = string | number;
 
 interface Input<Row> {
   title: string;
-  range: ReportRange;
+  reference: string;
+  facts?: { label: string; value: string }[];
   store: ReceiptSettings;
   columns: ReportColumn<Row>[];
   rows: Row[];
@@ -29,7 +24,8 @@ function percentWidths<Row>(columns: ReportColumn<Row>[]): (string | undefined)[
 
 export function buildReportDocument<Row extends Record<string, CellValue>>({
   title,
-  range,
+  reference,
+  facts = [],
   store,
   columns,
   rows,
@@ -40,9 +36,9 @@ export function buildReportDocument<Row extends Record<string, CellValue>>({
 
   return {
     title,
-    reference: formatRangeLabel(range),
+    reference,
     panels: storePanel.lines.length > 0 ? [storePanel] : [],
-    facts: [{ label: "Times", value: "Asia/Karachi" }],
+    facts: [{ label: "Times", value: "Asia/Karachi" }, ...facts],
     columns: columns.map((column, index) => {
       const width = widths[index];
       return {
@@ -52,7 +48,7 @@ export function buildReportDocument<Row extends Record<string, CellValue>>({
       };
     }),
     rows: rows.map((row) =>
-      columns.map((column) => ({ text: formatReportCell(column, row[column.key] ?? "") })),
+      columns.map((column) => ({ text: formatReportCell(column, row[column.key] ?? "", row) })),
     ),
     totals: columns.slice(1).flatMap((column) => {
       const value = totals[column.key];

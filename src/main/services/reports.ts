@@ -1,5 +1,6 @@
 import {
   exportReportFailedMessage,
+  formatRangeLabel,
   salesByDayColumns,
   type ExportReportInput,
   type ExportReportResult,
@@ -23,15 +24,20 @@ interface ReportsDeps {
   sessions: SessionStore;
   renderer: DocumentRenderer;
   chooseSavePath: (fileName: string, format: ReportExportFormat) => Promise<string | null>;
+  now?: () => Date;
 }
 
 interface ExportTable<Row extends Record<string, string | number>> {
   title: string;
-  fileStem: string;
-  range: ReportRange;
+  fileName: string;
+  reference: () => string;
   format: ReportExportFormat;
   columns: ReportColumn<Row>[];
-  read: (storeId: string) => { rows: Row[]; totals: Record<string, number> };
+  read: (storeId: string) => {
+    rows: Row[];
+    totals: Record<string, number>;
+    facts?: { label: string; value: string }[];
+  };
 }
 
 const exportFailed = {
@@ -40,11 +46,7 @@ const exportFailed = {
   message: exportReportFailedMessage,
 } as const;
 
-const fileNameOf = ({
-  fileStem,
-  range,
-  format,
-}: Pick<ExportTable<never>, "fileStem" | "range" | "format">) =>
+const fileNameOf = (fileStem: string, range: ReportRange, format: ReportExportFormat) =>
   range.from === range.to
     ? `${fileStem}-${range.from}.${format}`
     : `${fileStem}-${range.from}-to-${range.to}.${format}`;
@@ -64,10 +66,10 @@ export function createReportsService({
     table: ExportTable<Row>,
   ): Promise<ExportReportResult> {
     requireSession(sessions);
-    const path = await chooseSavePath(fileNameOf(table), table.format);
+    const path = await chooseSavePath(table.fileName, table.format);
     if (path === null) return { ok: true, status: "cancelled" };
     const session = requireSession(sessions);
-    const { rows, totals } = table.read(session.storeId);
+    const { rows, totals, facts } = table.read(session.storeId);
     try {
       const bytes =
         table.format === "csv"
@@ -78,7 +80,8 @@ export function createReportsService({
           : await renderer.toPdf(
               buildReportDocument({
                 title: table.title,
-                range: table.range,
+                reference: table.reference(),
+                ...(facts ? { facts } : {}),
                 store: getReceiptSettings(database.db, session.storeId),
                 columns: table.columns,
                 rows,
@@ -97,8 +100,8 @@ export function createReportsService({
     exportSalesByDay: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Sales by day",
-        fileStem: "sales-by-day",
-        range,
+        fileName: fileNameOf("sales-by-day", range, format),
+        reference: () => formatRangeLabel(range),
         format,
         columns: salesByDayColumns,
         read: (storeId) => readSalesByDay(database, storeId, range),

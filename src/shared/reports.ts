@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { signedRupees } from "./money";
-import type { ProductUnit } from "./products";
-import { formatQuantity } from "./quantity";
+import { productUnits, type ProductUnit } from "./products";
+import { formatQuantity, formatQuantityAmount, unitSuffix } from "./quantity";
 
 export const storeUtcOffsetMs = 5 * 60 * 60 * 1000;
 const dayMs = 24 * 60 * 60 * 1000;
@@ -98,21 +98,59 @@ export type ReportColumn<Row> = {
   key: Extract<keyof Row, string>;
   label: string;
   width?: string;
-} & ({ format: "day" | "text" | "count" | "money" } | { format: "quantity"; unit: ProductUnit });
+} & (
+  | { format: "day" | "text" | "count" | "money" | "unit" | "datetime" }
+  | { format: "quantity"; unit: ProductUnit }
+  | { format: "quantity"; unitKey: Extract<keyof Row, string> }
+);
 
 export const isNumericColumn = <Row>(column: ReportColumn<Row>): boolean =>
-  column.format !== "day" && column.format !== "text";
+  column.format !== "day" &&
+  column.format !== "text" &&
+  column.format !== "unit" &&
+  column.format !== "datetime";
 
 const MINUS = "−";
 
-export function formatReportCell<Row>(column: ReportColumn<Row>, value: string | number): string {
+const isProductUnit = (value: unknown): value is ProductUnit =>
+  productUnits.some((unit) => unit === value);
+
+function toUnit(value: unknown): ProductUnit {
+  if (!isProductUnit(value)) throw new Error("Report row has no unit");
+  return value;
+}
+
+export function formatStoreDateTime(iso: string): string {
+  const shifted = new Date(Date.parse(iso) + storeUtcOffsetMs);
+  const hours = shifted.getUTCHours();
+  const minutes = String(shifted.getUTCMinutes()).padStart(2, "0");
+  const period = hours < 12 ? "am" : "pm";
+  const day = formatStoreDay(shifted.toISOString().slice(0, 10));
+  return `${day}, ${hours % 12 === 0 ? 12 : hours % 12}:${minutes} ${period}`;
+}
+
+export function formatStoreDateTimeCsv(iso: string): string {
+  return new Date(Date.parse(iso) + storeUtcOffsetMs).toISOString().slice(0, 16).replace("T", " ");
+}
+
+export function formatReportCell<Row>(
+  column: ReportColumn<Row>,
+  value: string | number,
+  row?: Row,
+): string {
   switch (column.format) {
     case "day":
       return formatStoreDay(String(value));
     case "money":
       return signedRupees(Number(value));
     case "quantity":
-      return formatQuantity(Number(value), column.unit).replace("-", MINUS);
+      return "unitKey" in column
+        ? formatQuantityAmount(Number(value), toUnit(row?.[column.unitKey])).replace("-", MINUS)
+        : formatQuantity(Number(value), column.unit).replace("-", MINUS);
+    case "unit":
+      return unitSuffix[toUnit(value)];
+    case "datetime":
+      return formatStoreDateTime(String(value));
     case "count": {
       const count = Number(value);
       const grouped = String(Math.abs(count)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
