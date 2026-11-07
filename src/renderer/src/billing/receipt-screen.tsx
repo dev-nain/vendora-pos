@@ -7,6 +7,8 @@ import { PrintWarning } from "@renderer/components/print-warning";
 import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
 import { formatRupees } from "../lib/money";
+import { InvoiceActions, useInvoiceActions } from "../orders/invoice-actions";
+import { invoiceShortcut } from "../orders/invoice-shortcut";
 import { createBurstDetector } from "./scan-burst";
 
 interface ReceiptScreenProps {
@@ -28,6 +30,8 @@ function Figure({ label, paisa }: { label: string; paisa: number }) {
     </div>
   );
 }
+
+const ignoreError = () => undefined;
 
 type Manual = { phase: "running" } | { phase: "done"; result: PrintResult };
 
@@ -59,6 +63,8 @@ export function ReceiptScreen({
   const [manual, setManual] = useState<Manual | null>(null);
   const newBillButton = useRef<HTMLButtonElement | null>(null);
   const running = useRef(false);
+  const invoice = useInvoiceActions(sale.id, ignoreError);
+  const { print: printInvoice, savePdf: saveInvoice } = invoice;
 
   useEffect(() => {
     let live = true;
@@ -123,7 +129,18 @@ export function ReceiptScreen({
   useEffect(() => {
     if (!active) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === "p") {
+      const invoiceAction = invoiceShortcut(event);
+      if (invoiceAction) {
+        event.preventDefault();
+        if (invoiceAction === "print") printInvoice();
+        else saveInvoice();
+      } else if (
+        event.ctrlKey &&
+        !event.shiftKey &&
+        !event.altKey &&
+        !event.metaKey &&
+        event.key.toLowerCase() === "p"
+      ) {
         event.preventDefault();
         runPrint();
       } else if (event.key === "Escape" && asking) {
@@ -133,7 +150,7 @@ export function ReceiptScreen({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [active, asking, runPrint, skip]);
+  }, [active, asking, printInvoice, saveInvoice, runPrint, skip]);
 
   const outcome: PrintResult | null =
     manual?.phase === "done"
@@ -235,6 +252,15 @@ export function ReceiptScreen({
             {failure?.canRetry ? "Retry" : "Print"}
             <Kbd>Ctrl+P</Kbd>
           </Button>
+        </div>
+        <div className="flex items-center gap-200">
+          <InvoiceActions
+            busy={invoice.busy}
+            status={invoice.status}
+            error={invoice.error}
+            onPrint={invoice.print}
+            onSavePdf={invoice.savePdf}
+          />
         </div>
       </div>
     </div>

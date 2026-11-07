@@ -95,5 +95,5 @@ INSERT INTO `__new_stock_movements`("id", "store_id", "terminal_id", "product_id
 DROP TABLE `stock_movements`;--> statement-breakpoint
 ALTER TABLE `__new_stock_movements` RENAME TO `stock_movements`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
-CREATE INDEX `stock_movements_product_id_idx` ON `stock_movements` (`product_id`);--> statement-breakpoint
+CREATE INDEX `stock_movements_product_id_qty_created_at_idx` ON `stock_movements` (`product_id`,`qty_milli`,`created_at`);--> statement-breakpoint
 CREATE INDEX `stock_movements_product_id_created_at_idx` ON `stock_movements` (`product_id`,`created_at`);
