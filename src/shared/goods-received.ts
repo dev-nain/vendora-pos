@@ -18,7 +18,7 @@ function checkLineTotal(line: { qtyMilli: number; unitCostPaisa: number }, ctx: 
   }
 }
 
-const supplierInvoiceNoSchema = z
+export const supplierInvoiceNoSchema = z
   .string()
   .trim()
   .min(1, "Enter the supplier's invoice number.")
