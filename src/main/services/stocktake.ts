@@ -536,19 +536,18 @@ export function createStocktakeService({
       const rows = countedRows(tx, input.stocktakeId, products.costPaisa);
       if (rows.length === 0) return refuse("nothing-counted", stocktakeMessages.nothingCounted);
 
-      let adjustmentCount = 0;
-      for (const row of rows) {
-        if (row.varianceMilli === 0) continue;
-        stock.record(tx, {
+      const variances = rows.filter((row) => row.varianceMilli !== 0);
+      stock.recordStocktakeMovements(
+        tx,
+        variances.map((row) => ({
           productId: row.productId,
-          type: "stocktake",
           qtyMilli: row.varianceMilli,
           sourceType: "stocktake",
           sourceId: input.stocktakeId,
           actorUserId: session.userId,
-        });
-        adjustmentCount += 1;
-      }
+        })),
+      );
+      const adjustmentCount = variances.length;
 
       tx.update(stocktakeLines)
         .set({
