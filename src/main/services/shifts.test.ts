@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BillResult, CompleteSaleInput } from "../../shared/checkout";
 import type { HeldBillSummary } from "../../shared/shifts";
 import { UnauthenticatedError } from "../auth/errors";
@@ -33,6 +33,7 @@ describe("createShiftsService", () => {
   let database: VendoraDatabase;
   let sessions: SessionStore;
   let held: HeldBillSummary[];
+  let afterClose: (userId: string) => void;
   let service: ReturnType<typeof createShiftsService>;
 
   const storeId = () => database.db.select().from(stores).get()!.id;
@@ -81,11 +82,13 @@ describe("createShiftsService", () => {
     seedStoreAndTerminal(database);
     sessions = createSessionStore();
     held = [];
+    afterClose = () => undefined;
     service = createShiftsService({
       database,
       audit: createAuditService(database),
       sessions,
       heldBills: () => held,
+      afterClose: (userId) => afterClose(userId),
     });
   });
 
@@ -351,6 +354,55 @@ describe("createShiftsService", () => {
       expect(list).toHaveLength(9);
       expect(list[0]).toMatchObject({ valuePaisa: 500000, kind: "note" });
       expect(list.at(-1)).toMatchObject({ valuePaisa: 200, kind: "coin" });
+    });
+  });
+
+  describe("close hook", () => {
+    const totalCount = { method: "total", countedCashPaisa: 0 } as const;
+
+    it("runs once with the closing user after the transaction has committed", () => {
+      const user = signIn("cashier");
+      const shiftId = openWith(0);
+      const calls: { userId: string; inTransaction: boolean; closed: boolean }[] = [];
+      afterClose = (userId) =>
+        calls.push({
+          userId,
+          inTransaction: database.sqlite.inTransaction,
+          closed: database.db.select().from(shifts).get()!.closedAt !== null,
+        });
+
+      service.close({ shiftId, count: totalCount });
+
+      expect(calls).toEqual([{ userId: user.id, inTransaction: false, closed: true }]);
+    });
+
+    it("still returns ok and closes the shift when the hook throws", () => {
+      signIn("cashier");
+      const shiftId = openWith(0);
+      afterClose = () => {
+        throw new Error("backup down");
+      };
+
+      const result = service.close({ shiftId, count: totalCount });
+
+      expect(result.ok).toBe(true);
+      expect(database.db.select().from(shifts).get()?.closedAt).not.toBeNull();
+    });
+
+    it("does not run for a shift that is not open or has held bills", () => {
+      signIn("cashier");
+      const hook = vi.fn();
+      afterClose = hook;
+      expect(service.close({ shiftId: "missing", count: totalCount })).toMatchObject({
+        reason: "not-open",
+      });
+      const shiftId = openWith(0);
+      held = [{ id: "d1" } as HeldBillSummary];
+      expect(service.close({ shiftId, count: totalCount })).toMatchObject({
+        reason: "held-bills",
+      });
+
+      expect(hook).not.toHaveBeenCalled();
     });
   });
 
