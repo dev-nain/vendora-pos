@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { productUnits } from "./products";
-import { reportExportFormats, type ReportColumn } from "./reports";
+import { reportExportFormats, reportRangeSchema, type ReportColumn } from "./reports";
 
 const countSchema = z.int();
 const unitSchema = z.enum(productUnits);
@@ -122,4 +122,62 @@ export const negativeStockReportColumns: ReportColumn<NegativeStockReportRow>[] 
   },
   { key: "stockValuePaisa", label: "Value", format: "money", width: "176px" },
   { key: "lastMovementAt", label: "Last movement", format: "datetime", width: "280px" },
+];
+
+export const stockMovementsReportInputSchema = z.strictObject({
+  productId: z.uuid(),
+  range: reportRangeSchema,
+});
+export type StockMovementsReportInput = z.infer<typeof stockMovementsReportInputSchema>;
+
+export const stockMovementsExportInputSchema = stockMovementsReportInputSchema.extend({
+  format: z.enum(reportExportFormats),
+});
+export type StockMovementsExportInput = z.infer<typeof stockMovementsExportInputSchema>;
+
+const stockMovementReportRowSchema = z.strictObject({
+  id: z.string(),
+  createdAt: z.iso.datetime(),
+  type: z.string(),
+  reference: z.string(),
+  unit: unitSchema,
+  qtyMilli: countSchema,
+  balanceMilli: countSchema,
+  valuePaisa: countSchema,
+  userName: z.string(),
+});
+export type StockMovementReportRow = z.infer<typeof stockMovementReportRowSchema>;
+
+export const stockMovementsReportResultSchema = z.strictObject({
+  product: z.strictObject({ id: z.string(), nameEn: z.string(), unit: unitSchema }).nullable(),
+  openingMilli: countSchema,
+  closingMilli: countSchema,
+  rows: z.array(stockMovementReportRowSchema),
+  totals: z.strictObject({ valuePaisa: countSchema }),
+});
+export type StockMovementsReportResult = z.infer<typeof stockMovementsReportResultSchema>;
+
+export const stockMovementsColumns: ReportColumn<StockMovementReportRow>[] = [
+  { key: "createdAt", label: "Date", format: "datetime", width: "176px" },
+  { key: "type", label: "Type", format: "text", width: "112px" },
+  { key: "reference", label: "Reference", format: "text", width: "160px" },
+  { key: "unit", label: "Unit", format: "unit", width: "56px" },
+  {
+    key: "qtyMilli",
+    label: "Quantity",
+    format: "quantity",
+    unitKey: "unit",
+    bare: true,
+    width: "108px",
+  },
+  {
+    key: "balanceMilli",
+    label: "Balance",
+    format: "quantity",
+    unitKey: "unit",
+    bare: true,
+    width: "108px",
+  },
+  { key: "valuePaisa", label: "Value", format: "money", width: "136px" },
+  { key: "userName", label: "By", format: "text", width: "180px" },
 ];
