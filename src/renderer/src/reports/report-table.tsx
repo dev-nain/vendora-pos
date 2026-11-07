@@ -15,12 +15,13 @@ interface ReportTableProps<Row extends Record<string, string | number>> {
   busy: boolean;
   columns: ReportColumn<Row>[];
   rows: Row[];
-  totals: Record<string, number>;
+  rowKey: Extract<keyof Row, string>;
+  totals?: Record<string, number> | null;
 }
 
-const cellClass = (column: { format: string }, value: string | number) =>
+const cellClass = <Row,>(column: ReportColumn<Row>, value: string | number) =>
   `px-200 whitespace-nowrap ${
-    column.format === "day" || column.format === "text" ? "" : "text-right tabular-nums"
+    isNumericColumn(column) ? "text-right tabular-nums" : ""
   } ${typeof value === "number" ? negativeClass(value) : ""}`;
 
 export function ReportTable<Row extends Record<string, string | number>>({
@@ -28,6 +29,7 @@ export function ReportTable<Row extends Record<string, string | number>>({
   busy,
   columns,
   rows,
+  rowKey,
   totals,
 }: ReportTableProps<Row>) {
   return (
@@ -62,36 +64,42 @@ export function ReportTable<Row extends Record<string, string | number>>({
       </TableHeader>
       <TableBody>
         {rows.map((row) => (
-          <TableRow key={String(row[columns[0]?.key ?? ""])}>
+          <TableRow key={String(row[rowKey])}>
             {columns.map((column) => {
               const value = row[column.key] ?? "";
               return (
                 <TableCell key={column.key} className={cellClass(column, value)}>
-                  {formatReportCell(column, value)}
+                  {formatReportCell(column, value, row)}
                 </TableCell>
               );
             })}
           </TableRow>
         ))}
       </TableBody>
-      <TableFooter>
-        <TableRow>
-          {columns.map((column, index) => {
-            const value = totals[column.key];
-            return (
-              <TableCell
-                key={column.key}
-                className={`sticky bottom-0 bg-surface-secondary font-semibold ${cellClass(
-                  column,
-                  value ?? "",
-                )}`}
-              >
-                {index === 0 ? "Total" : value === undefined ? "" : formatReportCell(column, value)}
-              </TableCell>
-            );
-          })}
-        </TableRow>
-      </TableFooter>
+      {totals ? (
+        <TableFooter>
+          <TableRow>
+            {columns.map((column, index) => {
+              const value = totals[column.key];
+              return (
+                <TableCell
+                  key={column.key}
+                  className={`sticky bottom-0 bg-surface-secondary font-semibold ${cellClass(
+                    column,
+                    value ?? "",
+                  )}`}
+                >
+                  {index === 0
+                    ? "Total"
+                    : value === undefined
+                      ? ""
+                      : formatReportCell(column, value)}
+                </TableCell>
+              );
+            })}
+          </TableRow>
+        </TableFooter>
+      ) : null}
     </Table>
   );
 }

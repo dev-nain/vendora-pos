@@ -16,13 +16,9 @@ import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { ErrorLine } from "../users/form-parts";
 import { DateRangeControl } from "./date-range-control";
 import type { ReportDefinition } from "./report-definitions";
-import { ReportTable } from "./report-table";
 
-interface ReportViewProps<
-  Row extends Record<string, string | number>,
-  Totals extends Record<string, number>,
-> {
-  definition: ReportDefinition<Row, Totals>;
+interface ReportViewProps<Result> {
+  definition: ReportDefinition<Result>;
   picker: ReactNode;
   onSessionEnded: () => void;
 }
@@ -34,16 +30,17 @@ const rangeError = (from: string, to: string): string =>
 
 const shortcuts: Record<string, ReportExportFormat> = { e: "csv", p: "pdf" };
 
-export function ReportView<
-  Row extends Record<string, string | number>,
-  Totals extends Record<string, number>,
->({ definition, picker, onSessionEnded }: ReportViewProps<Row, Totals>) {
+export function ReportView<Result>({
+  definition,
+  picker,
+  onSessionEnded,
+}: ReportViewProps<Result>) {
   const [preset, setPreset] = useState<ReportPreset>("today");
   const [initial] = useState(() => presetRange("today", new Date()));
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
   const [reloadKey, setReloadKey] = useState(0);
-  const [result, setResult] = useState<{ rows: Row[]; totals: Totals } | null>(null);
+  const [result, setResult] = useState<Result | null>(null);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -83,8 +80,12 @@ export function ReportView<
       });
   }, [range, key, definition, fail]);
 
-  const rows = result?.rows ?? [];
-  const canExport = range !== null && !exporting && loadedKey === key && rows.length > 0;
+  const canExport =
+    range !== null &&
+    !exporting &&
+    loadedKey === key &&
+    result !== null &&
+    !definition.isEmpty(result);
 
   const exportAs = useCallback(
     async (format: ReportExportFormat) => {
@@ -195,7 +196,7 @@ export function ReportView<
           loadFailed ? null : (
             <p className="m-0 text-secondary">Loading…</p>
           )
-        ) : rows.length === 0 ? (
+        ) : definition.isEmpty(result) ? (
           <div className="flex flex-col items-center gap-100 rounded-300 border border-line-card bg-surface-secondary py-1200 text-center">
             <ChartColumnIcon
               aria-hidden="true"
@@ -204,18 +205,12 @@ export function ReportView<
               className="text-icon-muted"
             />
             <p className="m-0 text-[length:var(--font-size-450)] font-semibold text-foreground">
-              No sales in this period
+              {definition.emptyTitle}
             </p>
             <p className="m-0 text-secondary">Try another date range.</p>
           </div>
         ) : (
-          <ReportTable
-            label={`${definition.label} table`}
-            busy={busy}
-            columns={definition.columns}
-            rows={rows}
-            totals={result.totals}
-          />
+          <definition.Body result={result} busy={busy} />
         )}
       </div>
     </div>
