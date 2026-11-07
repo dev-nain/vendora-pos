@@ -138,7 +138,9 @@ import {
   postPurchaseReturnResultSchema,
   purchaseReturnIdInputSchema,
   purchaseReturnListQuerySchema,
+  printPurchaseReturnResultSchema,
   purchaseReturnListResultSchema,
+  savePurchaseReturnPdfResultSchema,
   purchaseReturnableInputSchema,
   purchaseReturnableNoteResultSchema,
   purchaseReturnableResultSchema,
@@ -185,6 +187,7 @@ import type { BillDraftsService } from "./services/bill-drafts";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { GoodsReceivedService } from "./services/goods-received";
+import type { PurchaseReturnDocumentsService } from "./services/purchase-return-documents";
 import type { PurchaseHistoryService } from "./services/purchase-history";
 import type { PurchaseReturnsService } from "./services/purchase-returns";
 import type { InventoryService } from "./services/inventory";
@@ -231,6 +234,7 @@ interface IpcServices {
   purchaseOrders: PurchaseOrdersService;
   goodsReceived: GoodsReceivedService;
   purchaseReturns: PurchaseReturnsService;
+  purchaseReturnDocuments: PurchaseReturnDocumentsService;
   purchaseHistory: PurchaseHistoryService;
   receipts: ReceiptsService;
 }
@@ -246,6 +250,7 @@ export function registerIpcHandlers({
   purchaseHistory,
   purchaseOrderDocuments,
   purchaseOrders,
+  purchaseReturnDocuments,
   purchaseReturns,
   receipts,
   returns,
@@ -500,6 +505,16 @@ export function registerIpcHandlers({
   handle(ipcChannels.purchaseReturnsFromNote, (_event, input) =>
     purchaseReturnableNoteResultSchema.parse(
       purchaseReturns.fromNote(purchaseReturnIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsSavePdf, async (_event, input) =>
+    savePurchaseReturnPdfResultSchema.parse(
+      await purchaseReturnDocuments.savePdf(purchaseReturnIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsPrint, async (_event, input) =>
+    printPurchaseReturnResultSchema.parse(
+      await purchaseReturnDocuments.print(purchaseReturnIdInputSchema.parse(input)),
     ),
   );
   handle(ipcChannels.purchaseHistoryProduct, (_event, input) =>

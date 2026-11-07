@@ -31,7 +31,9 @@ import type {
   PostPurchaseReturnInput,
   PostPurchaseReturnResult,
   PurchaseReturnListQuery,
+  PrintPurchaseReturnResult,
   PurchaseReturnListResult,
+  SavePurchaseReturnPdfResult,
   PurchaseReturnableInput,
   PurchaseReturnableNoteResult,
   PurchaseReturnableResult,
@@ -223,6 +225,8 @@ export const ipcChannels = {
   purchaseReturnsGet: "purchase-returns:get",
   purchaseReturnsReturnable: "purchase-returns:returnable",
   purchaseReturnsFromNote: "purchase-returns:from-note",
+  purchaseReturnsSavePdf: "purchase-returns:save-pdf",
+  purchaseReturnsPrint: "purchase-returns:print",
   purchaseHistoryProduct: "purchase-history:product",
   purchaseHistorySupplier: "purchase-history:supplier",
   purchaseOrdersSavePdf: "purchase-orders:save-pdf",
@@ -362,6 +366,8 @@ export interface VendoraApi {
     get: (id: string) => Promise<GetPurchaseReturnResult>;
     returnable: (input: PurchaseReturnableInput) => Promise<PurchaseReturnableResult>;
     fromNote: (goodsReceivedNoteId: string) => Promise<PurchaseReturnableNoteResult>;
+    savePdf: (id: string) => Promise<SavePurchaseReturnPdfResult>;
+    print: (id: string) => Promise<PrintPurchaseReturnResult>;
   };
   purchaseHistory: {
     forProduct: (query: ProductPurchaseHistoryQuery) => Promise<ProductPurchaseHistoryResult>;

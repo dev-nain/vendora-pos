@@ -81,7 +81,9 @@ import {
 import {
   getPurchaseReturnResultSchema,
   postPurchaseReturnResultSchema,
+  printPurchaseReturnResultSchema,
   purchaseReturnListResultSchema,
+  savePurchaseReturnPdfResultSchema,
   purchaseReturnableNoteResultSchema,
   purchaseReturnableResultSchema,
 } from "@shared/purchase-returns";
@@ -377,6 +379,14 @@ const api: VendoraApi = {
     fromNote: async (goodsReceivedNoteId) =>
       purchaseReturnableNoteResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.purchaseReturnsFromNote, { id: goodsReceivedNoteId }),
+      ),
+    savePdf: async (id) =>
+      savePurchaseReturnPdfResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsSavePdf, { id }),
+      ),
+    print: async (id) =>
+      printPurchaseReturnResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsPrint, { id }),
       ),
   },
   purchaseHistory: {

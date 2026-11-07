@@ -35,6 +35,10 @@ import {
   createPurchaseReturnsService,
   type PurchaseReturnsService,
 } from "./services/purchase-returns";
+import {
+  createPurchaseReturnDocumentsService,
+  type PurchaseReturnDocumentsService,
+} from "./services/purchase-return-documents";
 import { createStockService } from "./services/stock";
 import { openMigratedDatabase } from "./db/test-database";
 
@@ -83,6 +87,7 @@ describe("products ipc", () => {
   let goodsReceivedService: GoodsReceivedService;
   let purchaseReturnsService: PurchaseReturnsService;
   let purchaseHistoryService: PurchaseHistoryService;
+  let purchaseReturnDocumentsService: PurchaseReturnDocumentsService;
   let purchaseOrderDocumentsService: PurchaseOrderDocumentsService;
   const renderer = { toPdf: vi.fn(async () => Buffer.from("%PDF-")), print: vi.fn() };
   let exportPath: string | null;
@@ -170,6 +175,13 @@ describe("products ipc", () => {
       stock: createStockService({ database, audit: createAuditService(database) }),
     });
     purchaseHistoryService = createPurchaseHistoryService({ database, sessions });
+    purchaseReturnDocumentsService = createPurchaseReturnDocumentsService({
+      database,
+      sessions,
+      purchaseReturns: purchaseReturnsService,
+      renderer,
+      chooseSavePath: async () => join(dir, "return.pdf"),
+    });
     purchaseOrderDocumentsService = createPurchaseOrderDocumentsService({
       database,
       sessions,
@@ -195,6 +207,7 @@ describe("products ipc", () => {
       purchaseHistory: purchaseHistoryService,
       purchaseOrderDocuments: purchaseOrderDocumentsService,
       purchaseOrders: purchaseOrdersService,
+      purchaseReturnDocuments: purchaseReturnDocumentsService,
       purchaseReturns: purchaseReturnsService,
       receipts: stub,
       returns: stub,
@@ -481,6 +494,18 @@ describe("products ipc", () => {
     });
 
     it.each([
+      ["purchase-returns:save-pdf", "savePdf", { id: "x" }],
+      ["purchase-returns:save-pdf", "savePdf", { id: unknownId, extra: 1 }],
+      ["purchase-returns:print", "print", { id: "x" }],
+      ["purchase-returns:print", "print", {}],
+    ] as const)("%s rejects bad input before the service runs", async (channel, method, input) => {
+      signIn("owner");
+      const spy = vi.spyOn(purchaseReturnDocumentsService, method);
+      await expect(invoke(channel, input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it.each([
       ["purchase-history:product", { productId: "x", limit: 10, offset: 0 }],
       ["purchase-history:product", { productId: unknownId, limit: 101, offset: 0 }],
       ["purchase-history:supplier", { supplierId: unknownId, limit: 10, offset: 0, extra: 1 }],
@@ -501,6 +526,8 @@ describe("products ipc", () => {
       ["purchase-returns:get", { id: unknownId }],
       ["purchase-returns:returnable", { supplierId: unknownId, productId: unknownId }],
       ["purchase-returns:from-note", { id: unknownId }],
+      ["purchase-returns:save-pdf", { id: unknownId }],
+      ["purchase-returns:print", { id: unknownId }],
       ["purchase-history:product", { productId: unknownId, limit: 10, offset: 0 }],
       ["purchase-history:supplier", { supplierId: unknownId, limit: 10, offset: 0 }],
     ] as const)("refuses %s when signed out", async (channel, input) => {
@@ -755,6 +782,7 @@ describe("shifts ipc", () => {
       purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
       purchaseReturns: stub,
       receipts: receipts as never,
       returns: stub,
@@ -910,6 +938,7 @@ describe("checkout ipc", () => {
       purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
       purchaseReturns: stub,
       receipts: receipts as never,
       returns: kit.returns,
@@ -1156,6 +1185,7 @@ describe("inventory ipc", () => {
       purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
       purchaseReturns: stub,
       receipts: stub,
       returns: stub,
