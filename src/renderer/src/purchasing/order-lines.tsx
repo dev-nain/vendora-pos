@@ -3,7 +3,6 @@ import { useRef, type KeyboardEvent } from "react";
 import { flushSync } from "react-dom";
 
 import { Button } from "@renderer/components/ui/button";
-import { FieldError } from "@renderer/components/ui/field";
 import { Input } from "@renderer/components/ui/input";
 import {
   Table,
@@ -16,6 +15,7 @@ import {
 import { formatRupees, parseRupees } from "../lib/money";
 import { formatQuantity, parseQuantityMilli } from "../lib/quantity";
 import { ProductNameCell } from "../products/product-cells";
+import { ErrorLine } from "../users/form-parts";
 import { lineTotal, type OrderLineDraft, type OrderLineErrors } from "./order-form";
 
 type Column = "qty" | "cost";
@@ -147,7 +147,9 @@ export function OrderLines({
                       </span>
                     </div>
                     {lineErrors?.qty ? (
-                      <FieldError className="text-left">{lineErrors.qty}</FieldError>
+                      <div className="text-left">
+                        <ErrorLine>{lineErrors.qty}</ErrorLine>
+                      </div>
                     ) : null}
                   </div>
                 ) : (
@@ -169,7 +171,9 @@ export function OrderLines({
                       onKeyDown={(event) => onFieldKeyDown(event, "cost", index, line.key)}
                     />
                     {lineErrors?.cost ? (
-                      <FieldError className="text-left">{lineErrors.cost}</FieldError>
+                      <div className="text-left">
+                        <ErrorLine>{lineErrors.cost}</ErrorLine>
+                      </div>
                     ) : null}
                   </div>
                 ) : (
