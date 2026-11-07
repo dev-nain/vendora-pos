@@ -44,11 +44,13 @@ type View =
 
 interface GoodsReceivedScreenProps {
   registerLeaveGuard: (guard: LeaveGuard | null) => void;
+  onReturn: (noteId: string) => void;
   onSessionEnded: () => void;
 }
 
 export function GoodsReceivedScreen({
   registerLeaveGuard,
+  onReturn,
   onSessionEnded,
 }: GoodsReceivedScreenProps) {
   const [view, setView] = useState<View>({ kind: "list" });
@@ -99,6 +101,7 @@ export function GoodsReceivedScreen({
         status={view.status}
         backRef={backRef}
         onBack={backToList}
+        onReturn={onReturn}
         onSessionEnded={onSessionEnded}
       />
       {view.checkMargin ? (

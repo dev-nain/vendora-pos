@@ -87,6 +87,12 @@ export function BackOffice({
   const [page, setPage] = useState<BackOfficePage>(focusPrinter ? "settings" : "products");
   const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
   const clearOrderSeed = useCallback(() => setOrderSeed(null), []);
+  const [returnSeed, setReturnSeed] = useState<string | null>(null);
+  const clearReturnSeed = useCallback(() => setReturnSeed(null), []);
+  const returnToSupplier = useCallback((noteId: string) => {
+    setReturnSeed(noteId);
+    setPage("purchase-returns");
+  }, []);
   const createOrder = useCallback((items: LowStockItem[]) => {
     setOrderSeed(items);
     setPage("purchase-orders");
@@ -158,10 +164,16 @@ export function BackOffice({
         ) : page === "goods-received" ? (
           <GoodsReceivedScreen
             registerLeaveGuard={registerLeaveGuard}
+            onReturn={returnToSupplier}
             onSessionEnded={onSessionEnded}
           />
         ) : page === "purchase-returns" ? (
-          <PurchaseReturnsScreen onSessionEnded={onSessionEnded} />
+          <PurchaseReturnsScreen
+            seed={returnSeed}
+            registerLeaveGuard={registerLeaveGuard}
+            onSeedUsed={clearReturnSeed}
+            onSessionEnded={onSessionEnded}
+          />
         ) : page === "suppliers" ? (
           <SuppliersScreen onSessionEnded={onSessionEnded} />
         ) : page === "users" ? (

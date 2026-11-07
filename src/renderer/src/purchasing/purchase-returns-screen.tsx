@@ -1,4 +1,4 @@
-import { ChevronLeftIcon, ChevronRightIcon, PackageMinusIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, PackageMinusIcon, PlusIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import {
@@ -6,6 +6,7 @@ import {
   type PurchaseReturnListResult,
 } from "@shared/purchase-returns";
 import { Button } from "@renderer/components/ui/button";
+import { Kbd } from "@renderer/components/ui/kbd";
 import {
   Table,
   TableBody,
@@ -17,25 +18,63 @@ import {
 import { formatDate } from "@renderer/lib/date-time";
 import { formatRupees } from "@renderer/lib/money";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
-import { PRODUCT_PAGE_SIZE, pageRangeLabel } from "../products/product-list";
+import { PRODUCT_PAGE_SIZE, isTypingTarget, pageRangeLabel } from "../products/product-list";
 import { ErrorLine } from "../users/form-parts";
+import type { LeaveGuard } from "./order-form-screen";
 import { ReturnDetail } from "./return-detail";
+import { ReturnFormScreen, type ReturnStart } from "./return-form-screen";
 
-type View = { kind: "list" } | { kind: "return"; id: string; status: string | null };
+type View =
+  | { kind: "list" }
+  | { kind: "form"; start: ReturnStart }
+  | { kind: "return"; id: string; status: string | null };
 
 interface PurchaseReturnsScreenProps {
+  seed: string | null;
+  registerLeaveGuard: (guard: LeaveGuard | null) => void;
+  onSeedUsed: () => void;
   onSessionEnded: () => void;
 }
 
-export function PurchaseReturnsScreen({ onSessionEnded }: PurchaseReturnsScreenProps) {
-  const [view, setView] = useState<View>({ kind: "list" });
+export function PurchaseReturnsScreen({
+  seed,
+  registerLeaveGuard,
+  onSeedUsed,
+  onSessionEnded,
+}: PurchaseReturnsScreenProps) {
+  const [view, setView] = useState<View>(
+    seed ? { kind: "form", start: { kind: "note", noteId: seed } } : { kind: "list" },
+  );
+
+  useEffect(() => {
+    if (seed) onSeedUsed();
+  }, [seed, onSeedUsed]);
+
   const backToList = useCallback(() => setView({ kind: "list" }), []);
 
   if (view.kind === "list") {
     return (
       <ReturnList
         onSessionEnded={onSessionEnded}
+        onNew={() => setView({ kind: "form", start: { kind: "supplier" } })}
         onOpen={(id) => setView({ kind: "return", id, status: null })}
+      />
+    );
+  }
+  if (view.kind === "form") {
+    return (
+      <ReturnFormScreen
+        start={view.start}
+        registerLeaveGuard={registerLeaveGuard}
+        onBack={backToList}
+        onPosted={(purchaseReturn) =>
+          setView({
+            kind: "return",
+            id: purchaseReturn.id,
+            status: `Posted ${purchaseReturn.returnNo}.`,
+          })
+        }
+        onSessionEnded={onSessionEnded}
       />
     );
   }
@@ -51,10 +90,11 @@ export function PurchaseReturnsScreen({ onSessionEnded }: PurchaseReturnsScreenP
 
 interface ReturnListProps {
   onSessionEnded: () => void;
+  onNew: () => void;
   onOpen: (id: string) => void;
 }
 
-function ReturnList({ onSessionEnded, onOpen }: ReturnListProps) {
+function ReturnList({ onSessionEnded, onNew, onOpen }: ReturnListProps) {
   const [result, setResult] = useState<PurchaseReturnListResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
@@ -86,6 +126,18 @@ function ReturnList({ onSessionEnded, onOpen }: ReturnListProps) {
   }, [page, fail]);
 
   useEffect(load, [load]);
+
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.ctrlKey || event.altKey || event.metaKey || isTypingTarget(event.target)) return;
+      if (event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        onNew();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onNew]);
 
   const items = result?.items ?? [];
   const total = result?.total ?? 0;
@@ -129,6 +181,16 @@ function ReturnList({ onSessionEnded, onOpen }: ReturnListProps) {
         <p className="m-0 text-[length:var(--font-size-350)] text-secondary">
           Goods sent back to suppliers.
         </p>
+      </div>
+      <div className="flex items-start justify-between gap-300">
+        <p className="m-0 max-w-[560px] text-[length:var(--font-size-350)] text-secondary">
+          To return goods from a delivery, open it under Goods received and press R.
+        </p>
+        <Button onClick={onNew}>
+          <PlusIcon aria-hidden="true" size={16} strokeWidth={2} />
+          Return from supplier
+          <Kbd>N</Kbd>
+        </Button>
       </div>
       {error ? (
         <div className="flex items-center gap-300">
