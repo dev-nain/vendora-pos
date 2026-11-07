@@ -9,6 +9,7 @@ import {
   type PostGoodsReceivedResult,
 } from "../../shared/goods-received";
 import { ipcChannels } from "../../shared/ipc";
+import { priceUpdateInput, updateProductInputSchema } from "../../shared/products";
 import {
   createPurchaseOrderInputSchema,
   updatePurchaseOrderInputSchema,
@@ -36,6 +37,7 @@ import { seedStoreAndTerminal } from "../db/seed";
 import { openMigratedDatabase } from "../db/test-database";
 import { createAuditService } from "./audit";
 import { createGoodsReceivedService } from "./goods-received";
+import { createProductsService } from "./products";
 import { createPurchaseOrdersService } from "./purchase-orders";
 import { createStockService, type StockService } from "./stock";
 
@@ -232,6 +234,21 @@ describe("createGoodsReceivedService", () => {
 
   const receive = (qtyMilli: number, unitCostPaisa: number) =>
     posted(direct([{ productId: sugarId, qtyMilli, unitCostPaisa }]));
+
+  const setStore = (values: Partial<typeof stores.$inferInsert>) =>
+    database.db.update(stores).set(values).run();
+
+  const receiveAt = (productId: string, unitCostPaisa: number) =>
+    posted(direct([{ productId, qtyMilli: 1000, unitCostPaisa }]));
+
+  const lowMargin = (id: string) => {
+    const result = service.lowMargin({ id });
+    if (!result.ok) throw new Error("not found");
+    return result;
+  };
+
+  const priced = (name: string, salePricePaisa: number, overrides = {}) =>
+    newProduct(name, "piece", { costPaisa: 0, salePricePaisa, ...overrides });
 
   describe("direct", () => {
     it("writes the note, line, movement, stock, cost and audit row", () => {
@@ -649,7 +666,7 @@ describe("createGoodsReceivedService", () => {
 
   describe("no edit path", () => {
     it("exposes only post and the reads", () => {
-      expect(Object.keys(service)).toEqual(["post", "list", "get", "lastCost"]);
+      expect(Object.keys(service)).toEqual(["post", "list", "get", "lastCost", "lowMargin"]);
       expect(
         Object.values(ipcChannels).filter((name) => name.startsWith("goods-received:")),
       ).toEqual([
@@ -807,6 +824,195 @@ describe("createGoodsReceivedService", () => {
       );
 
       expect(service.lastCost({ productId: teaId })).toEqual({ unitCostPaisa: 700 });
+    });
+  });
+
+  describe("lowMargin", () => {
+    it("returns no items while the threshold is unset", () => {
+      const free = priced("Free", 0);
+      const note = receiveAt(free, 100);
+
+      expect(service.lowMargin({ id: note.id })).toEqual({
+        ok: true,
+        thresholdBps: null,
+        items: [],
+      });
+    });
+
+    it("lists a below-threshold product in a tax-exclusive store with its new average cost", () => {
+      setStore({ pricesIncludeTax: false, marginThresholdBps: 2000 });
+      const low = priced("Low", 10000);
+      const atThreshold = priced("At", 10000);
+      const note = posted(
+        direct([
+          { productId: low, qtyMilli: 1000, unitCostPaisa: 8001 },
+          { productId: atThreshold, qtyMilli: 1000, unitCostPaisa: 8000 },
+        ]),
+      );
+
+      const result = lowMargin(note.id);
+
+      expect(result.thresholdBps).toBe(2000);
+      expect(result.items).toEqual([
+        {
+          productId: low,
+          nameEn: "Low",
+          nameUr: null,
+          unit: "piece",
+          costPaisa: 8001,
+          salePricePaisa: 10000,
+          mrpPaisa: null,
+          marginBps: 1999,
+        },
+      ]);
+    });
+
+    it("extracts tax in a tax-inclusive store before comparing", () => {
+      setStore({ pricesIncludeTax: true, standardTaxRateBps: 1800, marginThresholdBps: 2000 });
+      const low = priced("Low", 11800);
+      const atThreshold = priced("At", 11800);
+      const note = posted(
+        direct([
+          { productId: low, qtyMilli: 1000, unitCostPaisa: 8001 },
+          { productId: atThreshold, qtyMilli: 1000, unitCostPaisa: 8000 },
+        ]),
+      );
+
+      expect(lowMargin(note.id).items.map((item) => item.productId)).toEqual([low]);
+    });
+
+    it("uses the store rate when the tax category has none", () => {
+      setStore({ pricesIncludeTax: true, standardTaxRateBps: 1000, marginThresholdBps: 2000 });
+      const product = priced("Rate", 11000);
+      const note = receiveAt(product, 8001);
+
+      expect(lowMargin(note.id).items).toHaveLength(1);
+      setStore({ standardTaxRateBps: 0 });
+      expect(lowMargin(note.id).items).toHaveLength(0);
+    });
+
+    it("lists only products on that note", () => {
+      setStore({ pricesIncludeTax: false, marginThresholdBps: 2000 });
+      const onNote = priced("On note", 10000);
+      priced("Other", 10000, { costPaisa: 9500 });
+      const note = receiveAt(onNote, 9000);
+
+      expect(lowMargin(note.id).items.map((item) => item.productId)).toEqual([onNote]);
+    });
+
+    it("lists a zero price with a null margin", () => {
+      setStore({ marginThresholdBps: 2000 });
+      const free = priced("Free", 0);
+      const note = receiveAt(free, 100);
+
+      expect(lowMargin(note.id).items).toMatchObject([{ productId: free, marginBps: null }]);
+    });
+
+    it("lists a product on two lines once, in line order", () => {
+      setStore({ pricesIncludeTax: false, marginThresholdBps: 2000 });
+      const first = priced("First", 10000);
+      const second = priced("Second", 10000);
+      const note = posted(
+        direct([
+          { productId: second, qtyMilli: 1000, unitCostPaisa: 9000 },
+          { productId: first, qtyMilli: 1000, unitCostPaisa: 9000 },
+          { productId: second, qtyMilli: 1000, unitCostPaisa: 9000 },
+        ]),
+      );
+
+      expect(lowMargin(note.id).items.map((item) => item.productId)).toEqual([second, first]);
+    });
+
+    it("leaves out deleted products", () => {
+      setStore({ pricesIncludeTax: false, marginThresholdBps: 2000 });
+      const gone = priced("Gone", 10000);
+      const note = receiveAt(gone, 9000);
+      database.db
+        .update(products)
+        .set({ deletedAt: new Date() })
+        .where(eq(products.id, gone))
+        .run();
+
+      expect(lowMargin(note.id).items).toEqual([]);
+    });
+
+    it("refuses an unknown note and another store's note", () => {
+      setStore({ marginThresholdBps: 2000 });
+      expect(service.lowMargin({ id: missingId })).toMatchObject({
+        ok: false,
+        reason: "not-found",
+      });
+      const note = receiveAt(sugarId, 100);
+      const otherStore = database.db.insert(stores).values({}).returning().get().id;
+      database.db
+        .update(goodsReceivedNotes)
+        .set({ storeId: otherStore })
+        .where(eq(goodsReceivedNotes.id, note.id))
+        .run();
+
+      expect(service.lowMargin({ id: note.id })).toMatchObject({ ok: false, reason: "not-found" });
+    });
+
+    it("throws when signed out", () => {
+      sessions.end();
+      expect(() => service.lowMargin({ id: missingId })).toThrow(UnauthenticatedError);
+    });
+
+    it("changes nothing by itself", () => {
+      setStore({ pricesIncludeTax: false, marginThresholdBps: 2000 });
+      const low = priced("Low", 10000);
+      const note = receiveAt(low, 9000);
+      const before = database.db.select().from(products).all();
+      const priceAudits = auditRows("price_change").length;
+
+      lowMargin(note.id);
+
+      expect(database.db.select().from(products).all()).toEqual(before);
+      expect(auditRows("price_change")).toHaveLength(priceAudits);
+    });
+
+    it("accepting a new price writes one price_change, no cost_change, and keeps barcodes", () => {
+      setStore({ pricesIncludeTax: false, marginThresholdBps: 2000 });
+      const productsService = createProductsService({ database, audit, sessions });
+      const category = database.db.select().from(categories).get()!;
+      const tax = database.db.select().from(taxCategories).get()!;
+      const created = productsService.create({
+        nameEn: "Tapal",
+        nameUr: null,
+        categoryId: category.id,
+        taxCategoryId: tax.id,
+        brand: null,
+        unit: "piece",
+        internalCode: null,
+        costPaisa: 0,
+        salePricePaisa: 10000,
+        mrpPaisa: 13000,
+        pctCode: null,
+        lowStockThresholdMilli: null,
+        barcodes: [
+          { barcode: "8964000000011", packQtyMilli: 1000, salePricePaisa: null },
+          { barcode: "8964000000012", packQtyMilli: 12000, salePricePaisa: 110000 },
+        ],
+      });
+      if (!created.ok) throw new Error(created.message);
+      const note = receiveAt(created.product.id, 9000);
+      const costChanges = auditRows("cost_change").length;
+      const fresh = productsService.get({ id: created.product.id });
+      if (!fresh.ok) throw new Error(fresh.message);
+
+      const input = priceUpdateInput(fresh.product, 12000);
+      const result = productsService.update(updateProductInputSchema.parse(input));
+
+      expect(result.ok).toBe(true);
+      const changes = auditRows("price_change");
+      expect(changes).toHaveLength(1);
+      expect(JSON.parse(changes[0]!.details!)).toMatchObject({ oldPaisa: 10000, newPaisa: 12000 });
+      expect(auditRows("cost_change")).toHaveLength(costChanges);
+      const after = productsService.get({ id: created.product.id });
+      if (!after.ok) throw new Error(after.message);
+      expect(after.product.barcodes).toEqual(fresh.product.barcodes);
+      expect(after.product.costPaisa).toBe(9000);
+      expect(lowMargin(note.id).items).toHaveLength(0);
     });
   });
 
