@@ -152,7 +152,10 @@ export function BackOffice({
             onSessionEnded={onSessionEnded}
           />
         ) : page === "goods-received" ? (
-          <GoodsReceivedScreen onSessionEnded={onSessionEnded} />
+          <GoodsReceivedScreen
+            registerLeaveGuard={registerLeaveGuard}
+            onSessionEnded={onSessionEnded}
+          />
         ) : page === "suppliers" ? (
           <SuppliersScreen onSessionEnded={onSessionEnded} />
         ) : page === "users" ? (
