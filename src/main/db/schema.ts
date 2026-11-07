@@ -13,6 +13,7 @@ import { paymentMethods, type PaymentMethod } from "../../shared/checkout";
 import { productUnits, type ProductUnit } from "../../shared/products";
 import { storedPurchaseOrderStatuses } from "../../shared/purchase-orders";
 import { printerKinds, printModes, type PaperWidthMm } from "../../shared/settings";
+import { stocktakeScopes, stocktakeStatuses } from "../../shared/stocktake";
 import { uuidv7 } from "./id";
 
 export { paymentMethods, productUnits, type PaymentMethod, type ProductUnit };
@@ -49,6 +50,12 @@ export type DiscountKind = (typeof discountKinds)[number];
 
 export const linePriceTypes = ["original", "manual"] as const;
 export type LinePriceType = (typeof linePriceTypes)[number];
+
+export const backupTriggers = ["daily", "shift_close", "manual", "pre_restore"] as const;
+export type BackupTrigger = (typeof backupTriggers)[number];
+
+export const backupResults = ["ok", "failed"] as const;
+export type BackupResult = (typeof backupResults)[number];
 
 export const scaleSources = ["weight", "price"] as const;
 export type ScaleSource = (typeof scaleSources)[number];
@@ -114,6 +121,7 @@ export const terminals = sqliteTable(
     printerPort: integer("printer_port"),
     paperWidthMm: integer("paper_width_mm").$type<PaperWidthMm>().notNull().default(80),
     printMode: text("print_mode", { enum: printModes }).notNull().default("print"),
+    secondCopyFolder: text("second_copy_folder"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -148,9 +156,7 @@ export const auditLog = sqliteTable(
     terminalId: text("terminal_id")
       .notNull()
       .references(() => terminals.id),
-    actorUserId: text("actor_user_id")
-      .notNull()
-      .references(() => users.id),
+    actorUserId: text("actor_user_id").references(() => users.id),
     action: text("action").notNull(),
     entityType: text("entity_type"),
     entityId: text("entity_id"),
@@ -347,7 +353,7 @@ export const stockMovements = sqliteTable(
     check("stock_movements_qty_milli_check", sql`${t.qtyMilli} <> 0`),
     check("stock_movements_unit_cost_paisa_check", sql`${t.unitCostPaisa} >= 0`),
     check("stock_movements_source_check", sql`(${t.sourceType} IS NULL) = (${t.sourceId} IS NULL)`),
-    index("stock_movements_product_id_idx").on(t.productId),
+    index("stock_movements_product_id_qty_created_at_idx").on(t.productId, t.qtyMilli, t.createdAt),
     index("stock_movements_product_id_created_at_idx").on(t.productId, t.createdAt),
   ],
 );
@@ -851,6 +857,41 @@ export const receiptPrints = sqliteTable(
   (t) => [index("receipt_prints_sale_id_idx").on(t.saleId)],
 );
 
+export const backupRecords = sqliteTable(
+  "backup_records",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    trigger: text("trigger").notNull(),
+    fileName: text("file_name").notNull(),
+    sizeBytes: integer("size_bytes"),
+    result: text("result").notNull(),
+    error: text("error"),
+    copyFolder: text("copy_folder"),
+    copyResult: text("copy_result", { enum: backupResults }),
+    copyError: text("copy_error"),
+    copyDeletedAt: integer("copy_deleted_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [
+    check("backup_records_trigger_check", inList(t.trigger, backupTriggers)),
+    check("backup_records_result_check", inList(t.result, backupResults)),
+    check(
+      "backup_records_outcome_check",
+      sql`(${t.result} = 'ok' AND ${t.sizeBytes} IS NOT NULL AND ${t.error} IS NULL) OR (${t.result} = 'failed' AND ${t.sizeBytes} IS NULL AND ${t.error} IS NOT NULL)`,
+    ),
+    check("backup_records_size_bytes_check", allIntegers([], [t.sizeBytes])),
+    index("backup_records_created_at_idx").on(t.createdAt),
+  ],
+);
+
 export const terminalInvoiceSequences = sqliteTable(
   "terminal_invoice_sequences",
   {
@@ -981,6 +1022,193 @@ export const purchaseOrderLines = sqliteTable(
   ],
 );
 
+export const terminalGrnSequences = sqliteTable(
+  "terminal_grn_sequences",
+  {
+    terminalId: text("terminal_id")
+      .primaryKey()
+      .references(() => terminals.id),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    nextSeq: integer("next_seq").notNull().default(1),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check(
+      "terminal_grn_sequences_next_seq_check",
+      sql`${isInteger(t.nextSeq)} AND ${t.nextSeq} >= 1`,
+    ),
+  ],
+);
+
+export const goodsReceivedNotes = sqliteTable(
+  "goods_received_notes",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    grnNo: text("grn_no").notNull(),
+    supplierId: text("supplier_id")
+      .notNull()
+      .references(() => suppliers.id),
+    purchaseOrderId: text("purchase_order_id").references(() => purchaseOrders.id),
+    supplierInvoiceNo: text("supplier_invoice_no").notNull(),
+    totalPaisa: integer("total_paisa").notNull(),
+    actorUserId: text("actor_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check(
+      "goods_received_notes_total_paisa_check",
+      sql`${isInteger(t.totalPaisa)} AND ${t.totalPaisa} >= 0`,
+    ),
+    check("goods_received_notes_grn_no_check", sql`length(${t.grnNo}) > 0`),
+    check(
+      "goods_received_notes_supplier_invoice_no_check",
+      sql`length(${t.supplierInvoiceNo}) > 0`,
+    ),
+    uniqueIndex("goods_received_notes_grn_no_terminal_id_unique").on(t.grnNo, t.terminalId),
+    index("goods_received_notes_store_id_created_at_idx").on(t.storeId, t.createdAt),
+    index("goods_received_notes_supplier_id_idx").on(t.supplierId),
+    index("goods_received_notes_purchase_order_id_idx").on(t.purchaseOrderId),
+  ],
+);
+
+export const goodsReceivedLines = sqliteTable(
+  "goods_received_lines",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    goodsReceivedNoteId: text("goods_received_note_id")
+      .notNull()
+      .references(() => goodsReceivedNotes.id),
+    position: integer("position").notNull(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id),
+    purchaseOrderLineId: text("purchase_order_line_id").references(() => purchaseOrderLines.id),
+    nameEn: text("name_en").notNull(),
+    nameUr: text("name_ur"),
+    unit: text("unit", { enum: productUnits }).notNull(),
+    qtyMilli: integer("qty_milli").notNull(),
+    unitCostPaisa: integer("unit_cost_paisa").notNull(),
+    lineTotalPaisa: integer("line_total_paisa").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check(
+      "goods_received_lines_integers_check",
+      allIntegers([t.position, t.qtyMilli, t.unitCostPaisa, t.lineTotalPaisa]),
+    ),
+    check("goods_received_lines_position_check", sql`${t.position} >= 0`),
+    check("goods_received_lines_qty_milli_check", sql`${t.qtyMilli} > 0`),
+    check("goods_received_lines_unit_cost_paisa_check", sql`${t.unitCostPaisa} >= 0`),
+    check("goods_received_lines_line_total_paisa_check", sql`${t.lineTotalPaisa} >= 0`),
+    check("goods_received_lines_unit_check", inList(t.unit, productUnits)),
+    uniqueIndex("goods_received_lines_goods_received_note_id_position_unique").on(
+      t.goodsReceivedNoteId,
+      t.position,
+    ),
+    index("goods_received_lines_product_id_idx").on(t.productId),
+    index("goods_received_lines_purchase_order_line_id_idx").on(t.purchaseOrderLineId),
+  ],
+);
+
+export const stocktakes = sqliteTable(
+  "stocktakes",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    scope: text("scope", { enum: stocktakeScopes }).notNull(),
+    categoryId: text("category_id").references(() => categories.id),
+    status: text("status", { enum: stocktakeStatuses }).notNull().default("open"),
+    startedBy: text("started_by")
+      .notNull()
+      .references(() => users.id),
+    postedAt: integer("posted_at", { mode: "timestamp_ms" }),
+    postedBy: text("posted_by").references(() => users.id),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("stocktakes_scope_check", inList(t.scope, stocktakeScopes)),
+    check("stocktakes_status_check", inList(t.status, stocktakeStatuses)),
+    check(
+      "stocktakes_scope_category_check",
+      sql`(${t.scope} = 'category') = (${t.categoryId} IS NOT NULL)`,
+    ),
+    check(
+      "stocktakes_posted_check",
+      sql`(${t.status} = 'posted') = (${t.postedAt} IS NOT NULL) AND (${t.postedAt} IS NULL) = (${t.postedBy} IS NULL)`,
+    ),
+    uniqueIndex("stocktakes_store_open_unique")
+      .on(t.storeId)
+      .where(sql`${t.status} = 'open'`),
+  ],
+);
+
+export const stocktakeLines = sqliteTable(
+  "stocktake_lines",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    stocktakeId: text("stocktake_id")
+      .notNull()
+      .references(() => stocktakes.id),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id),
+    expectedQtyMilli: integer("expected_qty_milli"),
+    countedQtyMilli: integer("counted_qty_milli"),
+    countedAt: integer("counted_at", { mode: "timestamp_ms" }),
+    unitCostPaisa: integer("unit_cost_paisa"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check(
+      "stocktake_lines_integers_check",
+      allIntegers([], [t.expectedQtyMilli, t.countedQtyMilli, t.unitCostPaisa]),
+    ),
+    check(
+      "stocktake_lines_unit_cost_paisa_check",
+      sql`${t.unitCostPaisa} IS NULL OR ${t.unitCostPaisa} >= 0`,
+    ),
+    check(
+      "stocktake_lines_counted_qty_milli_check",
+      sql`${t.countedQtyMilli} IS NULL OR ${t.countedQtyMilli} >= 0`,
+    ),
+    check(
+      "stocktake_lines_counted_set_check",
+      sql`(${t.countedQtyMilli} IS NULL) = (${t.countedAt} IS NULL) AND (${t.expectedQtyMilli} IS NULL) = (${t.countedAt} IS NULL)`,
+    ),
+    uniqueIndex("stocktake_lines_stocktake_product_unique").on(t.stocktakeId, t.productId),
+  ],
+);
+
 export const schema = {
   stores,
   terminals,
@@ -1001,8 +1229,14 @@ export const schema = {
   saleLines,
   salePayments,
   receiptPrints,
+  backupRecords,
   terminalInvoiceSequences,
   terminalPurchaseOrderSequences,
   purchaseOrders,
   purchaseOrderLines,
+  terminalGrnSequences,
+  goodsReceivedNotes,
+  goodsReceivedLines,
+  stocktakes,
+  stocktakeLines,
 };
