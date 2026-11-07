@@ -27,6 +27,10 @@ export const auditActions = [
   "line_delete",
   "bill_discard",
   "sale_complete",
+  "purchase_order_create",
+  "purchase_order_confirm",
+  "purchase_order_cancel",
+  "goods_received_post",
 ] as const;
 export type AuditAction = (typeof auditActions)[number];
 
@@ -57,6 +61,10 @@ export const auditActionLabels: Record<AuditAction, string> = {
   line_delete: "Line void",
   bill_discard: "Bill void",
   sale_complete: "Sale",
+  purchase_order_create: "Purchase order created",
+  purchase_order_confirm: "Purchase order confirmed",
+  purchase_order_cancel: "Purchase order cancelled",
+  goods_received_post: "Goods received",
 };
 
 export const AUDIT_PAGE_SIZE = 50;
