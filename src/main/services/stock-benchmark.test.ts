@@ -9,6 +9,7 @@ import { seedStoreAndTerminal } from "../db/seed";
 import { createAuditService } from "./audit";
 import { createInventoryService } from "./inventory";
 import { createStockService } from "./stock";
+import { createStocktakeService } from "./stocktake";
 import { openMigratedDatabase } from "../db/test-database";
 import {
   lowStockResultSchema,
@@ -16,6 +17,12 @@ import {
   stockHistoryResultSchema,
   stockListResultSchema,
 } from "../../shared/inventory";
+import {
+  recordCountResultSchema,
+  startStocktakeResultSchema,
+  stocktakeLinesResultSchema,
+  stocktakeScanResultSchema,
+} from "../../shared/stocktake";
 
 const productCount = 30_000;
 const movementCount = 1_000_000;
@@ -51,6 +58,7 @@ describe("stock on-hand benchmark", () => {
   let database: VendoraDatabase;
   let service: ReturnType<typeof createStockService>;
   let inventory: ReturnType<typeof createInventoryService>;
+  let stocktake: ReturnType<typeof createStocktakeService>;
   let secondCategoryId: string;
   const productIds: string[] = [];
   const totals = new Float64Array(productCount);
@@ -136,6 +144,7 @@ describe("stock on-hand benchmark", () => {
     const sessions = createSessionStore();
     sessions.start({ userId: actorId, storeId, loggedInAt: new Date(0) });
     inventory = createInventoryService({ database, sessions, stock: service });
+    stocktake = createStocktakeService({ database, sessions, stock: service });
   }, 180_000);
 
   afterAll(() => {
@@ -294,6 +303,60 @@ describe("stock on-hand benchmark", () => {
     });
     expect(first).toBeLessThan(100);
     expect(last).toBeLessThan(100);
+  });
+
+  it("starts, scans, records and lists a 30,000-line stocktake quickly", () => {
+    const startedAt = performance.now();
+    const started = startStocktakeResultSchema.parse(stocktake.start({ scope: "full" }));
+    const startMs = performance.now() - startedAt;
+    console.log(`stocktake start (${productCount} lines): ${startMs.toFixed(0)} ms`);
+    if (!started.ok) throw new Error("start refused");
+    expect(started.stocktake.lineCount).toBe(productCount);
+    expect(startMs).toBeLessThan(3000);
+    const stocktakeId = started.stocktake.id;
+
+    const scanP95 = measure("stocktake scan", 200, (n) => {
+      const result = stocktakeScanResultSchema.parse(
+        stocktake.scan({
+          stocktakeId,
+          barcode: `89${String((n * 149) % productCount).padStart(11, "0")}`,
+        }),
+      );
+      expect(result.ok).toBe(true);
+    });
+    expect(scanP95).toBeLessThan(100);
+
+    const lineId = (() => {
+      const result = stocktakeScanResultSchema.parse(
+        stocktake.scan({ stocktakeId, barcode: "89" + "0".repeat(11) }),
+      );
+      if (!result.ok) throw new Error("scan refused");
+      return result.line.id;
+    })();
+    const recordP95 = measure("stocktake record", 200, (n) => {
+      const result = recordCountResultSchema.parse(
+        stocktake.record({ stocktakeId, lineId, countedMilli: (n % 50) * 1000 }),
+      );
+      expect(result.ok).toBe(true);
+    });
+    expect(recordP95).toBeLessThan(100);
+
+    const firstPageP95 = measure("stocktake lines first page", 100, () => {
+      const result = stocktakeLinesResultSchema.parse(
+        stocktake.lines({ stocktakeId, query: "", limit: 50, offset: 0 }),
+      );
+      expect(result.ok && result.items.length).toBe(50);
+    });
+    const queryP95 = measure("stocktake lines text query", 100, (n) => {
+      const result = stocktakeLinesResultSchema.parse(
+        stocktake.lines({ stocktakeId, query: `item ${100 + (n % 800)}`, limit: 50, offset: 0 }),
+      );
+      expect(result.ok && result.total).toBeGreaterThan(0);
+    });
+    expect(firstPageP95).toBeLessThan(100);
+    expect(queryP95).toBeLessThan(100);
+
+    expect(stocktake.cancel({ stocktakeId })).toEqual({ ok: true });
   });
 
   const negativeStock = (offset: number) =>
