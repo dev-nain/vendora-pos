@@ -127,6 +127,13 @@
       "when": 1793988189646,
       "tag": "0017_mean_nextwave",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1794057534515,
+      "tag": "0018_cynical_vance_astro",
+      "breakpoints": true
     }
   ]
 }

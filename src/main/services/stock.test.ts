@@ -283,6 +283,18 @@ describe("createStockService", () => {
     });
   });
 
+  describe("purchase return", () => {
+    it("snapshots the cost and leaves it unchanged", () => {
+      record({ type: "receipt", qtyMilli: 10000, unitCostPaisa: 10000 });
+      record({ type: "receipt", qtyMilli: 10000, unitCostPaisa: 12000 });
+      record({ type: "purchase_return", qtyMilli: -5000 });
+
+      const returned = movementRows().filter((m) => m.type === "purchase_return");
+      expect(returned.map((m) => [m.qtyMilli, m.unitCostPaisa])).toEqual([[-5000, 11000]]);
+      expect(costOf()).toBe(11000);
+    });
+  });
+
   describe("audit", () => {
     it("audits an adjustment", () => {
       record({ type: "receipt", qtyMilli: 5000, unitCostPaisa: 10000 });
@@ -320,6 +332,12 @@ describe("createStockService", () => {
     it("refuses a positive damage", () =>
       refused({ type: "damage", qtyMilli: 1000, reason: "damage" }));
     it("refuses a negative return", () => refused({ type: "return", qtyMilli: -1000 }));
+    it("refuses a positive purchase return", () =>
+      refused({ type: "purchase_return", qtyMilli: 1000 }));
+    it("refuses a unit cost on a purchase return", () =>
+      refused({ type: "purchase_return", qtyMilli: -1000, unitCostPaisa: 100 }));
+    it("refuses a reason on a purchase return", () =>
+      refused({ type: "purchase_return", qtyMilli: -1000, reason: "damage" }));
     it("refuses a negative receipt", () =>
       refused({ type: "receipt", qtyMilli: -1000, unitCostPaisa: 100 }));
     it("refuses a fractional quantity", () => refused({ type: "sale", qtyMilli: -1.5 }));

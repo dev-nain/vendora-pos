@@ -10,6 +10,7 @@ const movementTypes = [
   "adjustment",
   "stocktake",
   "damage",
+  "purchase_return",
 ] as const;
 const movementReasons = ["damage", "expiry", "theft", "correction"] as const;
 

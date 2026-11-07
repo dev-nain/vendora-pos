@@ -20,6 +20,7 @@ export const movementTypeLabels: Record<StockMovementRow["type"], string> = {
   adjustment: "Adjustment",
   stocktake: "Stocktake",
   damage: "Damage",
+  purchase_return: "Purchase return",
 };
 
 export const movementReasonLabels: Record<NonNullable<StockMovementRow["reason"]>, string> = {
