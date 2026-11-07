@@ -12,6 +12,17 @@ import type {
   DeleteCategoryResult,
   RenameCategoryResult,
 } from "./categories";
+import type { PostGoodsReceivedInput, PostGoodsReceivedResult } from "./goods-received";
+import type {
+  CancelPurchaseOrderResult,
+  ConfirmPurchaseOrderResult,
+  CreatePurchaseOrderInput,
+  CreatePurchaseOrderResult,
+  GetPurchaseOrderResult,
+  PurchaseOrderSummary,
+  UpdatePurchaseOrderInput,
+  UpdatePurchaseOrderResult,
+} from "./purchase-orders";
 import type {
   CreateSupplierInput,
   CreateSupplierResult,
@@ -161,6 +172,13 @@ export const ipcChannels = {
   suppliersUpdate: "suppliers:update",
   suppliersArchive: "suppliers:archive",
   suppliersRestore: "suppliers:restore",
+  purchaseOrdersList: "purchase-orders:list",
+  purchaseOrdersGet: "purchase-orders:get",
+  purchaseOrdersCreate: "purchase-orders:create",
+  purchaseOrdersUpdate: "purchase-orders:update",
+  purchaseOrdersConfirm: "purchase-orders:confirm",
+  purchaseOrdersCancel: "purchase-orders:cancel",
+  goodsReceivedPost: "goods-received:post",
   shiftsState: "shifts:state",
   shiftsOpen: "shifts:open",
   shiftsAddCashMove: "shifts:add-cash-move",
@@ -268,6 +286,17 @@ export interface VendoraApi {
     update: (input: UpdateSupplierInput) => Promise<UpdateSupplierResult>;
     archive: (id: string) => Promise<SupplierStatusResult>;
     restore: (id: string) => Promise<SupplierStatusResult>;
+  };
+  purchaseOrders: {
+    list: () => Promise<PurchaseOrderSummary[]>;
+    get: (id: string) => Promise<GetPurchaseOrderResult>;
+    create: (input: CreatePurchaseOrderInput) => Promise<CreatePurchaseOrderResult>;
+    update: (input: UpdatePurchaseOrderInput) => Promise<UpdatePurchaseOrderResult>;
+    confirm: (id: string) => Promise<ConfirmPurchaseOrderResult>;
+    cancel: (id: string) => Promise<CancelPurchaseOrderResult>;
+  };
+  goodsReceived: {
+    post: (input: PostGoodsReceivedInput) => Promise<PostGoodsReceivedResult>;
   };
   shifts: {
     state: () => Promise<ShiftState>;

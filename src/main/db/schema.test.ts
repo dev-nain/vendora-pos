@@ -16,9 +16,14 @@ import { openDatabase, type VendoraDatabase } from "./client";
 import { runMigrations } from "./migrate";
 import {
   categories,
+  goodsReceivedLines,
+  goodsReceivedNotes,
   productBarcodes,
   products,
+  purchaseOrderLines,
+  purchaseOrders,
   stores,
+  suppliers,
   taxCategories,
   users,
   type ProductUnit,
@@ -537,6 +542,372 @@ const seedScaleStore = () => {
   );
   return { dir, database };
 };
+
+describe("purchase orders migration on an existing database", () => {
+  it("backs up, keeps existing rows and adds the purchase order tables", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vendora-upgrade-"));
+    const database = openDatabase(join(dir, "vendora.db"));
+    try {
+      const oldFolder = join(dir, "old-migrations");
+      mkdirSync(join(oldFolder, "meta"), { recursive: true });
+      const journal = JSON.parse(
+        readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+      ) as { entries: { tag: string }[] };
+      journal.entries = journal.entries.slice(0, 16);
+      writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
+      for (const entry of journal.entries) {
+        copyFileSync(
+          join(migrationsFolder, `${entry.tag}.sql`),
+          join(oldFolder, `${entry.tag}.sql`),
+        );
+      }
+
+      const backupDir = join(dir, "backups");
+      runMigrations(database, { migrationsFolder: oldFolder, backupDir });
+      database.sqlite.exec(
+        "INSERT INTO stores (id, name, created_at, updated_at) VALUES ('s1', 'Existing', 0, 0)",
+      );
+      database.sqlite.exec(
+        "INSERT INTO suppliers (id, store_id, name, created_at, updated_at) VALUES ('p1', 's1', 'Al-Noor', 0, 0)",
+      );
+
+      expect(runMigrations(database, { migrationsFolder, backupDir })).toBe("migrated");
+
+      expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
+      expect(database.sqlite.prepare("SELECT id, name FROM suppliers").all()).toEqual([
+        { id: "p1", name: "Al-Noor" },
+      ]);
+      const names = database.sqlite
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE '%purchase_order%'",
+        )
+        .all()
+        .map((row) => (row as { name: string }).name)
+        .toSorted();
+      expect(names).toEqual([
+        "purchase_order_lines",
+        "purchase_orders",
+        "terminal_purchase_order_sequences",
+      ]);
+    } finally {
+      database.sqlite.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("purchase order schema", () => {
+  let dir: string;
+  let database: VendoraDatabase;
+  let orderId: string;
+  let productId: string;
+  let supplierId: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vendora-po-"));
+    database = openDatabase(join(dir, "vendora.db"));
+    runMigrations(database, { migrationsFolder, backupDir: join(dir, "backups") });
+    database.sqlite.exec(`
+      INSERT INTO stores (id, created_at, updated_at) VALUES ('s1', 1, 1);
+      INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 1);
+      INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at)
+        VALUES ('u1', 'bilal', 'Bilal', 'h', 'h', 1, 1);
+    `);
+    const categoryId = database.db
+      .insert(categories)
+      .values({ storeId: "s1", name: "General" })
+      .returning()
+      .get().id;
+    const taxCategoryId = database.db
+      .insert(taxCategories)
+      .values({ storeId: "s1", name: "Standard" })
+      .returning()
+      .get().id;
+    productId = database.db
+      .insert(products)
+      .values({
+        storeId: "s1",
+        nameEn: "Sugar",
+        searchText: "sugar",
+        categoryId,
+        taxCategoryId,
+        unit: "kg",
+        costPaisa: 100,
+        salePricePaisa: 120,
+      })
+      .returning()
+      .get().id;
+    supplierId = database.db
+      .insert(suppliers)
+      .values({ storeId: "s1", name: "Al-Noor" })
+      .returning()
+      .get().id;
+    orderId = insertOrder().id;
+  });
+
+  afterEach(() => {
+    database.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const insertOrder = (overrides: Partial<typeof purchaseOrders.$inferInsert> = {}) =>
+    database.db
+      .insert(purchaseOrders)
+      .values({
+        storeId: "s1",
+        terminalId: "t1",
+        orderNo: "PO-T1-000001",
+        supplierId,
+        totalPaisa: 0,
+        createdByUserId: "u1",
+        ...overrides,
+      })
+      .returning()
+      .get();
+
+  const insertLine = (overrides: Partial<typeof purchaseOrderLines.$inferInsert> = {}) =>
+    database.db
+      .insert(purchaseOrderLines)
+      .values({
+        storeId: "s1",
+        terminalId: "t1",
+        purchaseOrderId: orderId,
+        position: 0,
+        productId,
+        nameEn: "Sugar",
+        unit: "kg",
+        orderedQtyMilli: 1000,
+        unitCostPaisa: 100,
+        lineTotalPaisa: 100,
+        ...overrides,
+      })
+      .returning()
+      .get();
+
+  it("defaults to a draft order and nothing received", () => {
+    expect(database.db.select().from(purchaseOrders).get()?.status).toBe("draft");
+    expect(insertLine().receivedQtyMilli).toBe(0);
+  });
+
+  it("rejects an unknown status", () => {
+    expect(() => database.sqlite.exec("UPDATE purchase_orders SET status = 'received'")).toThrow();
+  });
+
+  it.each([
+    ["negative quantity", { orderedQtyMilli: -1 }],
+    ["zero quantity", { orderedQtyMilli: 0 }],
+    ["fractional quantity", { orderedQtyMilli: 1.5 }],
+    ["negative cost", { unitCostPaisa: -1 }],
+    ["fractional cost", { unitCostPaisa: 1.5 }],
+    ["negative total", { lineTotalPaisa: -1 }],
+    ["negative received quantity", { receivedQtyMilli: -1 }],
+    ["fractional received quantity", { receivedQtyMilli: 0.5 }],
+    ["unknown unit", { unit: "box" as ProductUnit }],
+  ])("rejects a line with %s", (_, overrides) => {
+    expect(() => insertLine(overrides)).toThrow();
+  });
+
+  it("rejects a negative or fractional order total", () => {
+    expect(() => insertOrder({ orderNo: "PO-T1-000002", totalPaisa: -1 })).toThrow();
+    expect(() => insertOrder({ orderNo: "PO-T1-000003", totalPaisa: 1.5 })).toThrow();
+  });
+
+  it("rejects a duplicate order number on a terminal", () => {
+    expect(() => insertOrder()).toThrow();
+  });
+
+  it("rejects a duplicate live position and frees it when soft-deleted", () => {
+    const first = insertLine();
+    expect(() => insertLine()).toThrow();
+    database.db
+      .update(purchaseOrderLines)
+      .set({ deletedAt: new Date() })
+      .where(eq(purchaseOrderLines.id, first.id))
+      .run();
+    expect(() => insertLine()).not.toThrow();
+  });
+});
+
+describe("goods received migration on an existing database", () => {
+  it("backs up, keeps existing rows and adds the goods received tables", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vendora-upgrade-"));
+    const database = openDatabase(join(dir, "vendora.db"));
+    try {
+      const oldFolder = join(dir, "old-migrations");
+      mkdirSync(join(oldFolder, "meta"), { recursive: true });
+      const journal = JSON.parse(
+        readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+      ) as { entries: { tag: string }[] };
+      journal.entries = journal.entries.slice(0, 17);
+      writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
+      for (const entry of journal.entries) {
+        copyFileSync(
+          join(migrationsFolder, `${entry.tag}.sql`),
+          join(oldFolder, `${entry.tag}.sql`),
+        );
+      }
+
+      const backupDir = join(dir, "backups");
+      runMigrations(database, { migrationsFolder: oldFolder, backupDir });
+      database.sqlite.exec(`
+        INSERT INTO stores (id, name, created_at, updated_at) VALUES ('s1', 'Existing', 0, 0);
+        INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 0, 0);
+        INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at)
+          VALUES ('u1', 'bilal', 'Bilal', 'h', 'h', 0, 0);
+        INSERT INTO suppliers (id, store_id, name, created_at, updated_at) VALUES ('p1', 's1', 'Al-Noor', 0, 0);
+        INSERT INTO purchase_orders (id, store_id, terminal_id, order_no, supplier_id, total_paisa, created_by_user_id, created_at, updated_at)
+          VALUES ('o1', 's1', 't1', 'PO-T1-000001', 'p1', 0, 'u1', 0, 0);
+      `);
+
+      expect(runMigrations(database, { migrationsFolder, backupDir })).toBe("migrated");
+
+      expect(readdirSync(backupDir).filter((f) => /^pre-migrate-.*\.db$/.test(f))).toHaveLength(1);
+      expect(database.sqlite.prepare("SELECT id, order_no FROM purchase_orders").all()).toEqual([
+        { id: "o1", order_no: "PO-T1-000001" },
+      ]);
+      const names = database.sqlite
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND (name LIKE 'goods_received%' OR name = 'terminal_grn_sequences')",
+        )
+        .all()
+        .map((row) => (row as { name: string }).name)
+        .toSorted();
+      expect(names).toEqual([
+        "goods_received_lines",
+        "goods_received_notes",
+        "terminal_grn_sequences",
+      ]);
+    } finally {
+      database.sqlite.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("goods received schema", () => {
+  let dir: string;
+  let database: VendoraDatabase;
+  let noteId: string;
+  let productId: string;
+  let supplierId: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vendora-grn-"));
+    database = openDatabase(join(dir, "vendora.db"));
+    runMigrations(database, { migrationsFolder, backupDir: join(dir, "backups") });
+    database.sqlite.exec(`
+      INSERT INTO stores (id, created_at, updated_at) VALUES ('s1', 1, 1);
+      INSERT INTO terminals (id, store_id, code, created_at, updated_at) VALUES ('t1', 's1', 'T1', 1, 1);
+      INSERT INTO users (id, username, display_name, password_hash, pin_hash, created_at, updated_at)
+        VALUES ('u1', 'bilal', 'Bilal', 'h', 'h', 1, 1);
+    `);
+    const categoryId = database.db
+      .insert(categories)
+      .values({ storeId: "s1", name: "General" })
+      .returning()
+      .get().id;
+    const taxCategoryId = database.db
+      .insert(taxCategories)
+      .values({ storeId: "s1", name: "Standard" })
+      .returning()
+      .get().id;
+    productId = database.db
+      .insert(products)
+      .values({
+        storeId: "s1",
+        nameEn: "Sugar",
+        searchText: "sugar",
+        categoryId,
+        taxCategoryId,
+        unit: "kg",
+        costPaisa: 100,
+        salePricePaisa: 120,
+      })
+      .returning()
+      .get().id;
+    supplierId = database.db
+      .insert(suppliers)
+      .values({ storeId: "s1", name: "Al-Noor" })
+      .returning()
+      .get().id;
+    noteId = insertNote().id;
+  });
+
+  afterEach(() => {
+    database.sqlite.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const insertNote = (overrides: Partial<typeof goodsReceivedNotes.$inferInsert> = {}) =>
+    database.db
+      .insert(goodsReceivedNotes)
+      .values({
+        storeId: "s1",
+        terminalId: "t1",
+        grnNo: "GRN-T1-000001",
+        supplierId,
+        supplierInvoiceNo: "INV-1",
+        totalPaisa: 0,
+        actorUserId: "u1",
+        ...overrides,
+      })
+      .returning()
+      .get();
+
+  const insertLine = (overrides: Partial<typeof goodsReceivedLines.$inferInsert> = {}) =>
+    database.db
+      .insert(goodsReceivedLines)
+      .values({
+        storeId: "s1",
+        terminalId: "t1",
+        goodsReceivedNoteId: noteId,
+        position: 0,
+        productId,
+        nameEn: "Sugar",
+        unit: "kg",
+        qtyMilli: 1000,
+        unitCostPaisa: 100,
+        lineTotalPaisa: 100,
+        ...overrides,
+      })
+      .returning()
+      .get();
+
+  it("stores a line without an order link", () => {
+    expect(insertLine().purchaseOrderLineId).toBeNull();
+  });
+
+  it.each([
+    ["zero quantity", { qtyMilli: 0 }],
+    ["negative quantity", { qtyMilli: -1 }],
+    ["fractional quantity", { qtyMilli: 1.5 }],
+    ["negative cost", { unitCostPaisa: -1 }],
+    ["fractional cost", { unitCostPaisa: 1.5 }],
+    ["negative total", { lineTotalPaisa: -1 }],
+    ["unknown unit", { unit: "box" as ProductUnit }],
+  ])("rejects a line with %s", (_, overrides) => {
+    expect(() => insertLine(overrides)).toThrow();
+  });
+
+  it("rejects an empty GRN number or invoice number", () => {
+    expect(() => insertNote({ grnNo: "" })).toThrow();
+    expect(() => insertNote({ grnNo: "GRN-T1-000002", supplierInvoiceNo: "" })).toThrow();
+  });
+
+  it("rejects a negative or fractional total", () => {
+    expect(() => insertNote({ grnNo: "GRN-T1-000002", totalPaisa: -1 })).toThrow();
+    expect(() => insertNote({ grnNo: "GRN-T1-000003", totalPaisa: 1.5 })).toThrow();
+  });
+
+  it("rejects a duplicate GRN number on a terminal", () => {
+    expect(() => insertNote()).toThrow();
+  });
+
+  it("rejects a duplicate position on a note", () => {
+    insertLine();
+    expect(() => insertLine()).toThrow();
+  });
+});
 
 describe("scale prefix settings", () => {
   it("defaults a fresh store to 21 and 22", () => {
