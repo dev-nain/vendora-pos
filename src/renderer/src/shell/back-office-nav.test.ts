@@ -10,6 +10,7 @@ describe("back office nav", () => {
       "stock",
       "suppliers",
       "users",
+      "audit",
       "backup",
       "settings",
     ]);
