@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   miscItemInputSchema,
+  marginThresholdInputSchema,
   miscItemSettingSchema,
   printerSettingsSchema,
   receiptSettingsInputSchema,
@@ -17,6 +18,7 @@ import type { VendoraDatabase } from "../db/client";
 import { auditLog, stores, terminals, users } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import {
+  getMarginThresholdBps,
   getMiscItemEnabled,
   getScalePrefixes,
   getShiftVarianceWarnPaisa,
@@ -299,6 +301,80 @@ describe("createSettingsService", () => {
       expect(() => service.getShiftVarianceWarn()).toThrow(UnauthenticatedError);
       expect(() => service.setShiftVarianceWarn({ warnPaisa: 5 })).toThrow(UnauthenticatedError);
       expect(getShiftVarianceWarnPaisa(database, storeId())).toBe(0);
+    });
+  });
+
+  describe("margin threshold", () => {
+    it.each([-1, 10001, 1.5, "15"])("schema rejects %s", (thresholdBps) => {
+      expect(marginThresholdInputSchema.safeParse({ thresholdBps }).success).toBe(false);
+    });
+
+    it.each([0, 1500, 10000, null])("schema accepts %s", (thresholdBps) => {
+      expect(marginThresholdInputSchema.safeParse({ thresholdBps }).success).toBe(true);
+    });
+
+    it("schema rejects extra keys", () => {
+      expect(marginThresholdInputSchema.safeParse({ thresholdBps: 1, extra: 1 }).success).toBe(
+        false,
+      );
+    });
+
+    it("reads null by default", () => {
+      signIn("cashier");
+
+      expect(service.getMarginThreshold()).toEqual({ thresholdBps: null });
+    });
+
+    it("sets it and writes one settings_change row with from and to", () => {
+      const user = signIn("cashier");
+
+      expect(service.setMarginThreshold({ thresholdBps: 1500 })).toEqual({ thresholdBps: 1500 });
+
+      expect(getMarginThresholdBps(database.db, storeId())).toBe(1500);
+      const rows = auditRows();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        action: "settings_change",
+        actorUserId: user.id,
+        entityType: "store",
+        entityId: storeId(),
+      });
+      expect(JSON.parse(rows[0]!.details!)).toEqual({
+        setting: "marginThresholdBps",
+        from: null,
+        to: 1500,
+      });
+    });
+
+    it("writes nothing when unchanged", () => {
+      signIn("cashier");
+      service.setMarginThreshold({ thresholdBps: 1500 });
+
+      service.setMarginThreshold({ thresholdBps: 1500 });
+
+      expect(auditRows()).toHaveLength(1);
+    });
+
+    it("turns off with null and audits it", () => {
+      signIn("cashier");
+      service.setMarginThreshold({ thresholdBps: 1500 });
+
+      service.setMarginThreshold({ thresholdBps: null });
+
+      expect(getMarginThresholdBps(database.db, storeId())).toBeNull();
+      const rows = auditRows();
+      expect(rows).toHaveLength(2);
+      expect(JSON.parse(rows[1]!.details!)).toEqual({
+        setting: "marginThresholdBps",
+        from: 1500,
+        to: null,
+      });
+    });
+
+    it("refuses with no session", () => {
+      expect(() => service.getMarginThreshold()).toThrow(UnauthenticatedError);
+      expect(() => service.setMarginThreshold({ thresholdBps: 5 })).toThrow(UnauthenticatedError);
+      expect(getMarginThresholdBps(database.db, storeId())).toBeNull();
     });
   });
 

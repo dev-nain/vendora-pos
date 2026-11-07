@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 const require = createRequire(import.meta.url);
 const electron = require("electron");
@@ -23,7 +23,10 @@ const result = spawnSync(electron, ["."], { stdio: "inherit", timeout: 60_000, e
 if (result.error) fail(result.error.message);
 if (result.status !== 0) fail(`electron exited with ${result.status}`);
 
-function check(path, name) {
+const files = [file, join(dir, "invoice.pdf"), join(dir, "report.pdf")];
+const sizes = [];
+for (const path of files) {
+  const name = basename(path);
   let bytes;
   try {
     bytes = readFileSync(path);
@@ -37,11 +40,8 @@ function check(path, name) {
   if (!bytes.subarray(-32).toString("latin1").includes("%%EOF")) {
     fail(`${name}: file has no %%EOF trailer`);
   }
-  return bytes.length;
+  sizes.push(`${name} ${bytes.length} bytes`);
 }
 
-const documentSize = check(file, "purchase order");
-const reportSize = check(`${file}.report.pdf`, "report");
-
 rmSync(dir, { recursive: true, force: true });
-console.log(`PDF check passed (purchase order ${documentSize} bytes, report ${reportSize} bytes)`);
+console.log(`PDF check passed (${sizes.join(", ")})`);
