@@ -652,7 +652,12 @@ describe("createGoodsReceivedService", () => {
       expect(Object.keys(service)).toEqual(["post", "list", "get", "lastCost"]);
       expect(
         Object.values(ipcChannels).filter((name) => name.startsWith("goods-received:")),
-      ).toEqual(["goods-received:post"]);
+      ).toEqual([
+        "goods-received:post",
+        "goods-received:list",
+        "goods-received:get",
+        "goods-received:last-cost",
+      ]);
     });
 
     it("leaves the order not editable after posting", () => {

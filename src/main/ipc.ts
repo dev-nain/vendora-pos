@@ -148,6 +148,12 @@ import {
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
 import {
+  getGoodsReceivedResultSchema,
+  goodsReceivedIdInputSchema,
+  goodsReceivedLastCostInputSchema,
+  goodsReceivedLastCostResultSchema,
+  goodsReceivedListQuerySchema,
+  goodsReceivedListResultSchema,
   postGoodsReceivedInputSchema,
   postGoodsReceivedResultSchema,
 } from "@shared/goods-received";
@@ -514,6 +520,19 @@ export function registerIpcHandlers({
   handle(ipcChannels.goodsReceivedPost, (_event, input) =>
     postGoodsReceivedResultSchema.parse(
       goodsReceived.post(postGoodsReceivedInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.goodsReceivedList, (_event, input) =>
+    goodsReceivedListResultSchema.parse(
+      goodsReceived.list(goodsReceivedListQuerySchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.goodsReceivedGet, (_event, input) =>
+    getGoodsReceivedResultSchema.parse(goodsReceived.get(goodsReceivedIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.goodsReceivedLastCost, (_event, input) =>
+    goodsReceivedLastCostResultSchema.parse(
+      goodsReceived.lastCost(goodsReceivedLastCostInputSchema.parse(input)),
     ),
   );
   handle(ipcChannels.purchaseOrdersSavePdf, async (_event, input) =>

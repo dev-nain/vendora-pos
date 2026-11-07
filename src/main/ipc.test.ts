@@ -386,6 +386,60 @@ describe("products ipc", () => {
         new Error(ipcErrorMessages.unauthenticated),
       );
     });
+
+    it.each([
+      ["goods-received:list", "list", { limit: 0, offset: 0 }],
+      ["goods-received:list", "list", { limit: 10, offset: 0, from: "soon" }],
+      ["goods-received:list", "list", { limit: 10, offset: 0, extra: 1 }],
+      ["goods-received:get", "get", { id: "x" }],
+      ["goods-received:get", "get", { id: unknownId, extra: 1 }],
+      ["goods-received:last-cost", "lastCost", { productId: "x" }],
+      ["goods-received:last-cost", "lastCost", {}],
+    ] as const)("rejects bad %s input before the service runs", async (channel, method, input) => {
+      signIn("owner");
+      const spy = vi.spyOn(goodsReceivedService, method);
+      await expect(invoke(channel, input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["goods-received:list", { limit: 10, offset: 0 }],
+      ["goods-received:get", { id: unknownId }],
+      ["goods-received:last-cost", { productId: unknownId }],
+    ] as const)("refuses %s when signed out", async (channel, input) => {
+      sessions.end();
+      await expect(invoke(channel, input)).rejects.toThrow(
+        new Error(ipcErrorMessages.unauthenticated),
+      );
+    });
+
+    it("reads a posted note back", async () => {
+      signIn("cashier");
+      const product = seedProduct();
+      const created = (await invoke("suppliers:create", {
+        name: "Al-Noor",
+        contactPerson: null,
+        phone: null,
+        ntn: null,
+        notes: null,
+      })) as { supplier: { id: string } };
+      const posted = (await invoke(
+        "goods-received:post",
+        directGrn(created.supplier.id, product.id),
+      )) as { note: { id: string } };
+
+      expect(await invoke("goods-received:list", { limit: 10, offset: 0 })).toMatchObject({
+        total: 1,
+        items: [{ id: posted.note.id, lineCount: 1 }],
+      });
+      expect(await invoke("goods-received:get", { id: posted.note.id })).toMatchObject({
+        ok: true,
+        note: { id: posted.note.id },
+      });
+      expect(await invoke("goods-received:last-cost", { productId: product.id })).toEqual({
+        unitCostPaisa: 12000,
+      });
+    });
   });
 
   describe("purchase orders", () => {
