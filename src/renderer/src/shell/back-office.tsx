@@ -4,6 +4,7 @@ import {
   PackageCheckIcon,
   DatabaseBackupIcon,
   PackageIcon,
+  PackageMinusIcon,
   ScrollTextIcon,
   SettingsIcon,
   TagsIcon,
@@ -27,6 +28,7 @@ import { StocktakeScreen } from "../inventory/stocktake-screen";
 import { ProductsScreen } from "../products/products-screen";
 import type { LeaveGuard, OrderSeed } from "../purchasing/order-form-screen";
 import { PurchaseOrdersScreen } from "../purchasing/purchase-orders-screen";
+import { PurchaseReturnsScreen } from "../purchasing/purchase-returns-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
 import { BackupPasswordSetting } from "../settings/backup-password-setting";
 import { BackupSetting } from "../settings/backup-setting";
@@ -49,6 +51,7 @@ const icons: Record<BackOfficePage, LucideIcon> = {
   "low-stock": TriangleAlertIcon,
   "purchase-orders": ClipboardListIcon,
   "goods-received": PackageCheckIcon,
+  "purchase-returns": PackageMinusIcon,
   suppliers: TruckIcon,
   users: UsersIcon,
   audit: ScrollTextIcon,
@@ -157,6 +160,8 @@ export function BackOffice({
             registerLeaveGuard={registerLeaveGuard}
             onSessionEnded={onSessionEnded}
           />
+        ) : page === "purchase-returns" ? (
+          <PurchaseReturnsScreen onSessionEnded={onSessionEnded} />
         ) : page === "suppliers" ? (
           <SuppliersScreen onSessionEnded={onSessionEnded} />
         ) : page === "users" ? (
