@@ -101,6 +101,7 @@ import type {
   UpdateProductInput,
   UpdateProductResult,
 } from "./products";
+import type { DiscountsReturnsVoidsResult } from "./discounts-returns-voids";
 import type {
   ExportReportInput,
   ExportReportResult,
@@ -200,6 +201,8 @@ export const ipcChannels = {
   purchaseOrdersPrint: "purchase-orders:print",
   reportsSalesByDay: "reports:sales-by-day",
   reportsExportSalesByDay: "reports:export-sales-by-day",
+  reportsDiscountsReturnsVoids: "reports:discounts-returns-voids",
+  reportsExportDiscountsReturnsVoids: "reports:export-discounts-returns-voids",
   shiftsState: "shifts:state",
   shiftsOpen: "shifts:open",
   shiftsAddCashMove: "shifts:add-cash-move",
@@ -326,6 +329,8 @@ export interface VendoraApi {
   reports: {
     salesByDay: (range: ReportRange) => Promise<SalesByDayResult>;
     exportSalesByDay: (input: ExportReportInput) => Promise<ExportReportResult>;
+    discountsReturnsVoids: (range: ReportRange) => Promise<DiscountsReturnsVoidsResult>;
+    exportDiscountsReturnsVoids: (input: ExportReportInput) => Promise<ExportReportResult>;
   };
   shifts: {
     state: () => Promise<ShiftState>;

@@ -12,6 +12,7 @@ import {
   printResultSchema,
   saleJobResultSchema,
 } from "@shared/receipt";
+import { discountsReturnsVoidsResultSchema } from "@shared/discounts-returns-voids";
 import { exportReportResultSchema, salesByDayResultSchema } from "@shared/reports";
 import {
   miscItemSettingSchema,
@@ -329,6 +330,14 @@ const api: VendoraApi = {
     exportSalesByDay: async (input) =>
       exportReportResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.reportsExportSalesByDay, input),
+      ),
+    discountsReturnsVoids: async (range) =>
+      discountsReturnsVoidsResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsDiscountsReturnsVoids, range),
+      ),
+    exportDiscountsReturnsVoids: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportDiscountsReturnsVoids, input),
       ),
   },
   shifts: {
