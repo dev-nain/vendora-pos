@@ -8,7 +8,9 @@ describe("back office nav", () => {
       "products",
       "categories",
       "stock",
+      "suppliers",
       "users",
+      "backup",
       "settings",
     ]);
   });
@@ -21,7 +23,13 @@ describe("back office nav", () => {
 
   it("groups stock under Inventory", () => {
     expect(
-      backOfficeEntries.filter((entry) => entry.group === "Inventory").map((entry) => entry.label),
-    ).toEqual(["Stock"]);
+      backOfficeEntries.filter((entry) => entry.group === "Inventory").map((entry) => entry.page),
+    ).toEqual(["stock"]);
+  });
+
+  it("groups suppliers under Purchasing", () => {
+    expect(
+      backOfficeEntries.filter((entry) => entry.group === "Purchasing").map((entry) => entry.page),
+    ).toEqual(["suppliers"]);
   });
 });
