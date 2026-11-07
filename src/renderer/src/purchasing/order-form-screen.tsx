@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
 import type { LowStockItem } from "@shared/inventory";
+import type { BarcodeLookup } from "@shared/products";
 import { isPurchaseOrderEditable, type PurchaseOrder } from "@shared/purchase-orders";
 import type { Supplier } from "@shared/suppliers";
 import { Button } from "@renderer/components/ui/button";
@@ -18,11 +19,7 @@ import {
 } from "@renderer/components/ui/select";
 import { cn } from "@renderer/lib/utils";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
-import { createBurstDetector, restoreField } from "../billing/scan-burst";
-import { notFoundMessage } from "../billing/scan-input";
 import { ScanField, useDebouncedValue } from "../billing/scan-field";
-import { createScanQueue, type ScanQueue } from "../billing/scan-queue";
-import { playScanError, playScanOk } from "../billing/scan-sounds";
 import { DiscardChangesDialog } from "../products/discard-changes-dialog";
 import { ErrorLine } from "../users/form-parts";
 import { formatRupees } from "../lib/money";
@@ -45,6 +42,7 @@ import {
 import { OrderLines } from "./order-lines";
 import { OrderStatusBadge } from "./order-status-badge";
 import { ProductPicker, type ProductPickerHandle } from "./product-picker";
+import { useLineScanner } from "./use-line-scanner";
 
 export type OrderSeed = readonly LowStockItem[];
 
@@ -61,7 +59,6 @@ interface OrderFormScreenProps {
 const noErrors: OrderFormErrors = { line: {} };
 
 const SEARCH_DEBOUNCE_MS = 150;
-const NOTICE_MS = 4000;
 
 const cancellable = (order: PurchaseOrder) =>
   order.status !== "cancelled" && order.status !== "received";
@@ -87,7 +84,6 @@ export function OrderFormScreen({
   const [discard, setDiscard] = useState<{ proceed: () => void } | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [scanText, setScanText] = useState("");
-  const [notice, setNotice] = useState<string | null>(null);
   const [hasResults, setHasResults] = useState(false);
   const query = useDebouncedValue(scanText, SEARCH_DEBOUNCE_MS);
 
@@ -95,9 +91,6 @@ export function OrderFormScreen({
   const busyRef = useRef(false);
   const scanRef = useRef<HTMLInputElement | null>(null);
   const pickerRef = useRef<ProductPickerHandle | null>(null);
-  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const queue = useRef<ScanQueue | null>(null);
-  const processScan = useRef<(code: string) => Promise<"continue">>(async () => "continue");
 
   const dirty = isOrderFormDirty(initial, values);
   const editable = order === null || isPurchaseOrderEditable(order);
@@ -166,25 +159,6 @@ export function OrderFormScreen({
 
   const focusScan = useCallback(() => scanRef.current?.focus(), []);
 
-  const clearNotice = useCallback(() => {
-    if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    noticeTimer.current = null;
-    setNotice(null);
-  }, []);
-
-  const showNotice = useCallback((text: string) => {
-    if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    setNotice(text);
-    noticeTimer.current = setTimeout(() => setNotice(null), NOTICE_MS);
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    },
-    [],
-  );
-
   useEffect(() => {
     if (orderId === null) {
       formRef.current?.querySelector<HTMLElement>('[data-slot="select-trigger"]')?.focus();
@@ -207,67 +181,29 @@ export function OrderFormScreen({
     [],
   );
 
-  useEffect(() => {
-    queue.current = createScanQueue((code) => processScan.current(code));
-  }, []);
+  const onLookup = useCallback(
+    async (lookup: BarcodeLookup) => {
+      addLines(
+        lookup.product.id,
+        (lines) => addFromLookup(lines, lookup).lines,
+        lookup.source === "scale",
+      );
+      return null;
+    },
+    [addLines],
+  );
 
-  useEffect(() => {
-    processScan.current = async (code) => {
-      clearNotice();
-      try {
-        const lookup = await window.vendora.products.lookupBarcode(code);
-        if (lookup === null) {
-          showNotice(notFoundMessage(code));
-          playScanError();
-        } else {
-          addLines(
-            lookup.product.id,
-            (lines) => addFromLookup(lines, lookup).lines,
-            lookup.source === "scale",
-          );
-          playScanOk();
-        }
-      } catch (cause) {
-        if (isSessionError(cause)) onSessionEnded();
-        else showNotice(serviceErrorMessage);
-      }
-      return "continue";
-    };
-  }, [addLines, clearNotice, showNotice, onSessionEnded]);
+  const { notice, clearNotice, enqueue } = useLineScanner({
+    enabled: editable,
+    paused: dialogOpen,
+    onLookup,
+    onSessionEnded,
+  });
 
   const pickProduct = (product: OrderProduct) => {
     setScanText("");
     addLines(product.id, (lines) => addProduct(lines, product, ONE_UNIT_MILLI).lines, true);
   };
-
-  useEffect(() => {
-    if (dialogOpen) queue.current?.pause();
-    else queue.current?.resume();
-  }, [dialogOpen]);
-
-  useEffect(() => {
-    if (!editable || dialogOpen) return;
-    const detector = createBurstDetector();
-    let snapshot: { field: HTMLInputElement; value: string } | null = null;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.target as HTMLElement | null)?.id === "scan-field") {
-        detector.reset();
-        return;
-      }
-      const result = detector.feed(event.key, event.timeStamp);
-      const field = document.activeElement;
-      if (result.startedBurst && field instanceof HTMLInputElement) {
-        snapshot = { field, value: field.value };
-      }
-      if (result.scan === null) return;
-      event.preventDefault();
-      event.stopPropagation();
-      if (snapshot) restoreField(snapshot.field, snapshot.value);
-      queue.current?.enqueue(result.scan);
-    };
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [editable, dialogOpen]);
 
   const focusFirstInvalid = () =>
     requestAnimationFrame(() =>
@@ -547,7 +483,7 @@ export function OrderFormScreen({
                   notice={notice}
                   canMoveToGrid={hasResults}
                   onChange={setScanText}
-                  onSubmit={(code) => queue.current?.enqueue(code)}
+                  onSubmit={enqueue}
                   onMoveToGrid={() => pickerRef.current?.focusFirst()}
                   onDismissNotice={() => (notice ? clearNotice() : requestLeave(onBack))}
                 />
