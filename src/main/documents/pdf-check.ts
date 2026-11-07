@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { app, BrowserWindow } from "electron";
-import { salesByDayColumns, type SalesByDayRow } from "../../shared/reports";
+import { formatRangeLabel, salesByDayColumns, type SalesByDayRow } from "../../shared/reports";
 import { buildReportDocument } from "../reports/report-document";
 import type { DocumentModel } from "../../shared/document";
 import type { SaleSnapshot, SnapshotLine } from "../receipts/sale-snapshot";
@@ -126,7 +126,7 @@ function reportModel(): DocumentModel {
   }));
   return buildReportDocument({
     title: "Sales by day",
-    range: { from: "2026-10-01", to: "2026-10-31" },
+    reference: formatRangeLabel({ from: "2026-10-01", to: "2026-10-31" }),
     store: {
       name: "Vendora Test Store",
       address: "Main Bazaar, Lahore",

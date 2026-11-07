@@ -160,4 +160,39 @@ describe("reportCsvSections", () => {
       ].join("\r\n"),
     );
   });
+
+  describe("row-unit, unit and date-time columns", () => {
+    type StockRow = { product: string; unit: string; onHand: number; at: string };
+    const stockColumns: ReportColumn<StockRow>[] = [
+      { key: "product", label: "Product", format: "text" },
+      { key: "unit", label: "Unit", format: "unit" },
+      { key: "onHand", label: "On hand", format: "quantity", unitKey: "unit" },
+      { key: "at", label: "Last movement", format: "datetime" },
+    ];
+    const stock = (rows: StockRow[], totals: Record<string, number> = {}) =>
+      reportCsv({ columns: stockColumns, rows, totals, totalsLabel: "Total" });
+
+    it("writes the unit suffix, the bare quantity and ISO-like store time", () => {
+      const text = stock([
+        { product: "Sugar", unit: "kg", onHand: -1500, at: "2026-11-07T10:05:00.000Z" },
+        { product: "Tea", unit: "piece", onHand: 12000, at: "2026-11-07T19:30:00.000Z" },
+      ]);
+      expect(lines(text).slice(0, 3)).toEqual([
+        "Product,Unit,On hand,Last movement",
+        "Sugar,kg,-1.5,2026-11-07 15:05",
+        "Tea,pcs,12,2026-11-08 00:30",
+      ]);
+    });
+
+    it("leaves out the Total line when there are no totals", () => {
+      const text = stock([
+        { product: "Tea", unit: "piece", onHand: 1000, at: "2026-11-07T10:05:00.000Z" },
+      ]);
+      expect(lines(text)).toEqual([
+        "Product,Unit,On hand,Last movement",
+        "Tea,pcs,1,2026-11-07 15:05",
+        "",
+      ]);
+    });
+  });
 });

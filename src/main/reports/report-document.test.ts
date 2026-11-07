@@ -64,7 +64,7 @@ const profitColumns: ReportColumn<ProfitRow>[] = [
 const build = (store_: ReceiptSettings = store) =>
   buildReportDocument({
     title: "Sales by day",
-    range: { from: "2026-11-01", to: "2026-11-07" },
+    reference: "1 Nov 2026 – 7 Nov 2026",
     store: store_,
     columns: salesByDayColumns,
     rows: [row],
@@ -120,10 +120,57 @@ describe("buildReportDocument", () => {
     expect(widths.reduce((sum, width) => sum + width, 0)).toBeCloseTo(100, 0);
   });
 
+  it("takes the reference line and extra facts from the caller", () => {
+    const model = buildReportDocument({
+      title: "Stock movements",
+      reference: "Tea · 1 Nov 2026",
+      facts: [{ label: "Opening balance", value: "0 pcs" }],
+      store,
+      columns: salesByDayColumns,
+      rows: [],
+      totals: {},
+    });
+    expect(model.reference).toBe("Tea · 1 Nov 2026");
+    expect(model.facts).toEqual([
+      { label: "Times", value: "Asia/Karachi" },
+      { label: "Opening balance", value: "0 pcs" },
+    ]);
+  });
+
+  it("formats row-unit quantities with the row's unit and keeps unit and date-time left", () => {
+    type StockRow = { unit: string; onHand: number; at: string };
+    const model = buildReportDocument<StockRow>({
+      title: "Negative stock",
+      reference: "As of 7 Nov 2026, 3:05 pm",
+      store,
+      columns: [
+        { key: "unit", label: "Unit", format: "unit", width: "100px" },
+        {
+          key: "onHand",
+          label: "On hand",
+          format: "quantity",
+          unitKey: "unit",
+          bare: true,
+          width: "100px",
+        },
+        { key: "at", label: "Last movement", format: "datetime", width: "100px" },
+      ],
+      rows: [{ unit: "kg", onHand: -1500, at: "2026-11-07T10:05:00.000Z" }],
+      totals: {},
+    });
+    expect(model.columns.map((column) => column.align)).toEqual(["left", "right", "left"]);
+    expect(model.rows[0]?.map((cell) => cell.text)).toEqual([
+      "kg",
+      "−1.500",
+      "7 Nov 2026, 3:05 pm",
+    ]);
+    expect(model.totals).toEqual([]);
+  });
+
   it("shows null cells and totals as a dash and appends footer rows", () => {
     const model = buildReportDocument({
       title: "Gross profit by product",
-      range: { from: "2026-11-07", to: "2026-11-07" },
+      reference: "7 Nov 2026",
       store,
       columns: profitColumns,
       rows: [

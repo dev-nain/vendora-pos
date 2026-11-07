@@ -1,5 +1,5 @@
 import { sectionNote, type ReportSection } from "../../shared/discounts-returns-voids";
-import type { DocumentModel } from "../../shared/document";
+import type { DocumentModel, DocumentPair } from "../../shared/document";
 import {
   formatRangeLabel,
   formatReportCell,
@@ -14,7 +14,8 @@ import { storePanel as buildStorePanel } from "../documents/document-parts";
 
 interface Input<Row> {
   title: string;
-  range: ReportRange;
+  reference: string;
+  facts?: DocumentPair[];
   store: ReceiptSettings;
   columns: ReportColumn<Row>[];
   rows: Row[];
@@ -67,14 +68,14 @@ function tableOf<Row extends Record<string, ReportCellValue>>(
   };
 }
 
-function frame(title: string, range: ReportRange, store: ReceiptSettings) {
+function frame(title: string, reference: string, store: ReceiptSettings, facts: DocumentPair[]) {
   const storePanel = buildStorePanel(store);
   return {
     title,
-    reference: formatRangeLabel(range),
+    reference,
     header: [],
     panels: storePanel.lines.length > 0 ? [storePanel] : [],
-    facts: [{ label: "Times", value: "Asia/Karachi" }],
+    facts: [{ label: "Times", value: "Asia/Karachi" }, ...facts],
     summaries: [],
     notes: null,
     footer: [],
@@ -84,14 +85,15 @@ function frame(title: string, range: ReportRange, store: ReceiptSettings) {
 
 export function buildReportDocument<Row extends Record<string, ReportCellValue>>({
   title,
-  range,
+  reference,
+  facts = [],
   store,
   columns,
   rows,
   totals,
   footer = [],
 }: Input<Row>): DocumentModel {
-  return { ...frame(title, range, store), ...tableOf(columns, rows, totals, footer) };
+  return { ...frame(title, reference, store, facts), ...tableOf(columns, rows, totals, footer) };
 }
 
 export function buildSectionedReportDocument({
@@ -106,7 +108,7 @@ export function buildSectionedReportDocument({
   sections: ReportSection[];
 }): DocumentModel {
   return {
-    ...frame(title, range, store),
+    ...frame(title, formatRangeLabel(range), store, []),
     columns: [],
     rows: [],
     totals: [],

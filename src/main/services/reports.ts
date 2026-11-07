@@ -4,6 +4,7 @@ import {
 } from "../../shared/discounts-returns-voids";
 import {
   exportReportFailedMessage,
+  formatRangeLabel,
   grossProfitByCategoryColumns,
   grossProfitByProductColumns,
   type GrossProfitByCategoryResult,
@@ -42,14 +43,15 @@ interface ReportsDeps {
 
 interface ExportTable<Row extends Record<string, ReportCellValue>> {
   title: string;
-  fileStem: string;
-  range: ReportRange;
+  fileName: string;
+  reference: () => string;
   format: ReportExportFormat;
   columns: ReportColumn<Row>[];
   read: (storeId: string) => {
     rows: Row[];
     totals: Record<string, number | null>;
     footer?: ReportFooterRow[];
+    facts?: { label: string; value: string }[];
   };
 }
 
@@ -59,11 +61,7 @@ const exportFailed = {
   message: exportReportFailedMessage,
 } as const;
 
-const fileNameOf = ({
-  fileStem,
-  range,
-  format,
-}: Pick<ExportTable<never>, "fileStem" | "range" | "format">) =>
+const fileNameOf = (fileStem: string, range: ReportRange, format: ReportExportFormat) =>
   range.from === range.to
     ? `${fileStem}-${range.from}.${format}`
     : `${fileStem}-${range.from}-to-${range.to}.${format}`;
@@ -102,11 +100,11 @@ export function createReportsService({
   }
 
   async function exportFile(
-    file: Pick<ExportTable<never>, "fileStem" | "range" | "format">,
+    file: Pick<ExportTable<never>, "fileName" | "format">,
     render: (storeId: string) => Buffer | Promise<Buffer>,
   ): Promise<ExportReportResult> {
     requireSession(sessions);
-    const path = await chooseSavePath(fileNameOf(file), file.format);
+    const path = await chooseSavePath(file.fileName, file.format);
     if (path === null) return { ok: true, status: "cancelled" };
     const session = requireSession(sessions);
     try {
@@ -121,7 +119,7 @@ export function createReportsService({
     table: ExportTable<Row>,
   ): Promise<ExportReportResult> {
     return exportFile(table, (storeId) => {
-      const { rows, totals, footer = [] } = table.read(storeId);
+      const { rows, totals, footer = [], facts } = table.read(storeId);
       return table.format === "csv"
         ? Buffer.from(
             reportCsv({ columns: table.columns, rows, totals, totalsLabel: "Total", footer }),
@@ -130,7 +128,8 @@ export function createReportsService({
         : renderer.toPdf(
             buildReportDocument({
               title: table.title,
-              range: table.range,
+              reference: table.reference(),
+              ...(facts ? { facts } : {}),
               store: getReceiptSettings(database.db, storeId),
               columns: table.columns,
               rows,
@@ -142,7 +141,8 @@ export function createReportsService({
   }
 
   function exportDiscountsReturnsVoids({ range, format }: ExportReportInput) {
-    return exportFile({ fileStem: "discounts-returns-voids", range, format }, (storeId) => {
+    const fileName = fileNameOf("discounts-returns-voids", range, format);
+    return exportFile({ fileName, format }, (storeId) => {
       const sections = discountsReturnsVoidsSections(
         readDiscountsReturnsVoids(database, storeId, range, {
           limit: format === "csv" ? null : reportDetailLimit,
@@ -168,8 +168,8 @@ export function createReportsService({
     exportGrossProfitByProduct: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Gross profit by product",
-        fileStem: "gross-profit-by-product",
-        range,
+        fileName: fileNameOf("gross-profit-by-product", range, format),
+        reference: () => formatRangeLabel(range),
         format,
         columns: grossProfitByProductColumns,
         read: (storeId) => readGrossProfitByProduct(database, storeId, range),
@@ -177,8 +177,8 @@ export function createReportsService({
     exportGrossProfitByCategory: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Gross profit by category",
-        fileStem: "gross-profit-by-category",
-        range,
+        fileName: fileNameOf("gross-profit-by-category", range, format),
+        reference: () => formatRangeLabel(range),
         format,
         columns: grossProfitByCategoryColumns,
         read: (storeId) => readGrossProfitByCategory(database, storeId, range),
@@ -189,8 +189,8 @@ export function createReportsService({
     exportSalesByDay: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Sales by day",
-        fileStem: "sales-by-day",
-        range,
+        fileName: fileNameOf("sales-by-day", range, format),
+        reference: () => formatRangeLabel(range),
         format,
         columns: salesByDayColumns,
         read: (storeId) => readSalesByDay(database, storeId, range),
@@ -198,8 +198,8 @@ export function createReportsService({
     exportSalesTaxSummary: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Sales tax summary",
-        fileStem: "sales-tax-summary",
-        range,
+        fileName: fileNameOf("sales-tax-summary", range, format),
+        reference: () => formatRangeLabel(range),
         format,
         columns: salesTaxSummaryColumns,
         read: (storeId) => readSalesTaxSummary(database, storeId, range),
