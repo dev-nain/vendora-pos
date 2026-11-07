@@ -1,15 +1,21 @@
 import {
   exportReportFailedMessage,
   salesByDayColumns,
+  salesByCashierColumns,
+  salesByCategoryColumns,
   salesByHourColumns,
+  salesByProductColumns,
   type ExportReportInput,
   type ExportReportResult,
   type ReportColumn,
   type ReportExportFormat,
   type ReportFooterRow,
   type ReportRange,
+  type SalesByCashierResult,
+  type SalesByCategoryResult,
   type SalesByDayResult,
   type SalesByHourResult,
+  type SalesByProductResult,
 } from "../../shared/reports";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
@@ -19,6 +25,11 @@ import { writeAtomic } from "../documents/write-atomic";
 import { reportCsv } from "../reports/report-csv";
 import { buildReportDocument } from "../reports/report-document";
 import { readSalesByDay, readSalesByHour } from "../reports/sales-by-day";
+import {
+  readSalesByCashier,
+  readSalesByCategory,
+  readSalesByProduct,
+} from "../reports/sales-by-line";
 import { getReceiptSettings } from "../settings/store-settings";
 
 interface ReportsDeps {
@@ -74,6 +85,21 @@ export function createReportsService({
     return readSalesByHour(database, session.storeId, range);
   }
 
+  function salesByProduct(range: ReportRange): SalesByProductResult {
+    const session = requireSession(sessions);
+    return readSalesByProduct(database, session.storeId, range);
+  }
+
+  function salesByCategory(range: ReportRange): SalesByCategoryResult {
+    const session = requireSession(sessions);
+    return readSalesByCategory(database, session.storeId, range);
+  }
+
+  function salesByCashier(range: ReportRange): SalesByCashierResult {
+    const session = requireSession(sessions);
+    return readSalesByCashier(database, session.storeId, range);
+  }
+
   async function exportTable<Row extends Record<string, string | number>>(
     table: ExportTable<Row>,
   ): Promise<ExportReportResult> {
@@ -119,6 +145,36 @@ export function createReportsService({
         format,
         columns: salesByHourColumns,
         read: (storeId) => readSalesByHour(database, storeId, range),
+      }),
+    salesByProduct,
+    exportSalesByProduct: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Sales by product",
+        fileStem: "sales-by-product",
+        range,
+        format,
+        columns: salesByProductColumns,
+        read: (storeId) => readSalesByProduct(database, storeId, range),
+      }),
+    salesByCategory,
+    exportSalesByCategory: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Sales by category",
+        fileStem: "sales-by-category",
+        range,
+        format,
+        columns: salesByCategoryColumns,
+        read: (storeId) => readSalesByCategory(database, storeId, range),
+      }),
+    salesByCashier,
+    exportSalesByCashier: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Sales by cashier",
+        fileStem: "sales-by-cashier",
+        range,
+        format,
+        columns: salesByCashierColumns,
+        read: (storeId) => readSalesByCashier(database, storeId, range),
       }),
     exportSalesByDay: ({ range, format }: ExportReportInput) =>
       exportTable({
