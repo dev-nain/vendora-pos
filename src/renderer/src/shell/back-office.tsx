@@ -1,5 +1,6 @@
 import {
   BoxesIcon,
+  ClipboardListIcon,
   DatabaseBackupIcon,
   PackageIcon,
   ScrollTextIcon,
@@ -19,6 +20,7 @@ import { CategoriesScreen } from "../categories/categories-screen";
 import { NegativeStockScreen } from "../inventory/negative-stock-screen";
 import { LowStockScreen } from "../inventory/low-stock-screen";
 import { StockScreen } from "../inventory/stock-screen";
+import { StocktakeScreen } from "../inventory/stocktake-screen";
 import { ProductsScreen } from "../products/products-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
 import { BackupPasswordSetting } from "../settings/backup-password-setting";
@@ -36,6 +38,7 @@ const icons: Record<BackOfficePage, LucideIcon> = {
   products: PackageIcon,
   categories: TagsIcon,
   stock: BoxesIcon,
+  stocktake: ClipboardListIcon,
   "negative-stock": TriangleAlertIcon,
   "low-stock": TriangleAlertIcon,
   suppliers: TruckIcon,
@@ -109,6 +112,8 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
           <CategoriesScreen onSessionEnded={onSessionEnded} />
         ) : page === "stock" ? (
           <StockScreen onSessionEnded={onSessionEnded} />
+        ) : page === "stocktake" ? (
+          <StocktakeScreen onSessionEnded={onSessionEnded} />
         ) : page === "negative-stock" ? (
           <NegativeStockScreen onSessionEnded={onSessionEnded} />
         ) : page === "low-stock" ? (

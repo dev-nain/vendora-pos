@@ -26,6 +26,7 @@ import { createSalesService } from "./services/sales";
 import { createSettingsService } from "./services/settings";
 import { createShiftsService } from "./services/shifts";
 import { createInventoryService } from "./services/inventory";
+import { createStocktakeService } from "./services/stocktake";
 import { createProductsService } from "./services/products";
 import { createStockService } from "./services/stock";
 import { createSuppliersService } from "./services/suppliers";
@@ -116,6 +117,7 @@ void app.whenReady().then(async () => {
   const users = createUsersService({ database, audit, sessions });
   const products = createProductsService({ database, audit, sessions });
   const inventory = createInventoryService({ database, sessions, stock });
+  const stocktake = createStocktakeService({ database, sessions, stock });
   const categories = createCategoriesService({ database, audit, sessions });
   const suppliers = createSuppliersService({ database, audit, sessions });
   const purchaseOrders = createPurchaseOrdersService({ database, audit, sessions });
@@ -206,6 +208,7 @@ void app.whenReady().then(async () => {
     categories,
     goodsReceived,
     inventory,
+    stocktake,
     products,
     purchaseOrders,
     receipts,
