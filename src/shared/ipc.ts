@@ -12,7 +12,14 @@ import type {
   DeleteCategoryResult,
   RenameCategoryResult,
 } from "./categories";
-import type { PostGoodsReceivedInput, PostGoodsReceivedResult } from "./goods-received";
+import type {
+  GetGoodsReceivedResult,
+  GoodsReceivedLastCostResult,
+  GoodsReceivedListQuery,
+  GoodsReceivedListResult,
+  PostGoodsReceivedInput,
+  PostGoodsReceivedResult,
+} from "./goods-received";
 import type {
   CancelPurchaseOrderResult,
   ConfirmPurchaseOrderResult,
@@ -192,6 +199,9 @@ export const ipcChannels = {
   purchaseOrdersConfirm: "purchase-orders:confirm",
   purchaseOrdersCancel: "purchase-orders:cancel",
   goodsReceivedPost: "goods-received:post",
+  goodsReceivedList: "goods-received:list",
+  goodsReceivedGet: "goods-received:get",
+  goodsReceivedLastCost: "goods-received:last-cost",
   purchaseOrdersSavePdf: "purchase-orders:save-pdf",
   purchaseOrdersPrint: "purchase-orders:print",
   shiftsState: "shifts:state",
@@ -319,6 +329,9 @@ export interface VendoraApi {
   };
   goodsReceived: {
     post: (input: PostGoodsReceivedInput) => Promise<PostGoodsReceivedResult>;
+    list: (query: GoodsReceivedListQuery) => Promise<GoodsReceivedListResult>;
+    get: (id: string) => Promise<GetGoodsReceivedResult>;
+    lastCost: (productId: string) => Promise<GoodsReceivedLastCostResult>;
   };
   shifts: {
     state: () => Promise<ShiftState>;

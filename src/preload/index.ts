@@ -68,7 +68,12 @@ import {
   taxCategorySchema,
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
-import { postGoodsReceivedResultSchema } from "@shared/goods-received";
+import {
+  getGoodsReceivedResultSchema,
+  goodsReceivedLastCostResultSchema,
+  goodsReceivedListResultSchema,
+  postGoodsReceivedResultSchema,
+} from "@shared/goods-received";
 import {
   cancelPurchaseOrderResultSchema,
   confirmPurchaseOrderResultSchema,
@@ -327,6 +332,18 @@ const api: VendoraApi = {
     post: async (input) =>
       postGoodsReceivedResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.goodsReceivedPost, input),
+      ),
+    list: async (query) =>
+      goodsReceivedListResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.goodsReceivedList, query),
+      ),
+    get: async (id) =>
+      getGoodsReceivedResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.goodsReceivedGet, { id }),
+      ),
+    lastCost: async (productId) =>
+      goodsReceivedLastCostResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.goodsReceivedLastCost, { productId }),
       ),
   },
   shifts: {
