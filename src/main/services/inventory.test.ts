@@ -242,6 +242,33 @@ describe("createInventoryService", () => {
     });
   });
 
+  const seedNegative = (total: number) => {
+    for (let i = 0; i < total; i++) {
+      move(product(`Item ${String(i).padStart(2, "0")}`).id, "adjustment", -1000, {
+        reason: "correction",
+      });
+    }
+  };
+
+  describe("negativeStock", () => {
+    it("pages the list and reports the full total", () => {
+      seedNegative(5);
+      const page = service.negativeStock({ limit: 2, offset: 2 });
+      expect(page.items.map((item) => item.nameEn)).toEqual(["Item 02", "Item 03"]);
+      expect(page.total).toBe(5);
+    });
+
+    it("returns no items but the real total past the end", () => {
+      seedNegative(3);
+      expect(service.negativeStock({ limit: 50, offset: 10 })).toEqual({ items: [], total: 3 });
+    });
+
+    it("throws without a session", () => {
+      kit.sessions.end();
+      expect(() => service.negativeStock({ limit: 50, offset: 0 })).toThrow(UnauthenticatedError);
+    });
+  });
+
   describe("adjustStock", () => {
     it("saves a correction as an adjustment", () => {
       const tea = product("Tea");

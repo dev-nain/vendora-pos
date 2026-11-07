@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { maxQtyMilli, refusal } from "./checkout";
-import { productSearchInputSchema, productSearchItemSchema } from "./products";
+import {
+  PRODUCT_SEARCH_MAX_LIMIT,
+  productSearchInputSchema,
+  productSearchItemSchema,
+} from "./products";
 
 const movementTypes = [
   "opening",
@@ -99,6 +103,29 @@ export const stockHistoryResultSchema = z.union([
   refusal("not-found"),
 ]);
 export type StockHistoryResult = z.infer<typeof stockHistoryResultSchema>;
+
+export const negativeStockQuerySchema = z.strictObject({
+  limit: z.int().min(1).max(PRODUCT_SEARCH_MAX_LIMIT),
+  offset: z.int().min(0).max(Number.MAX_SAFE_INTEGER),
+});
+export type NegativeStockQuery = z.input<typeof negativeStockQuerySchema>;
+
+export const negativeStockItemSchema = z.strictObject({
+  id: z.string(),
+  nameEn: z.string(),
+  nameUr: z.string().nullable(),
+  unit: productSearchItemSchema.shape.unit,
+  onHandMilli: z.int().negative(),
+  stockValuePaisa: z.int(),
+  lastMovementAt: z.iso.datetime(),
+});
+export type NegativeStockItem = z.infer<typeof negativeStockItemSchema>;
+
+export const negativeStockResultSchema = z.strictObject({
+  items: z.array(negativeStockItemSchema),
+  total: z.number(),
+});
+export type NegativeStockResult = z.infer<typeof negativeStockResultSchema>;
 
 export const stockAdjustmentInputSchema = z.discriminatedUnion("mode", [
   z.strictObject({

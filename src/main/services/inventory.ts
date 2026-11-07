@@ -4,6 +4,8 @@ import {
   stockAdjustmentMessages,
   type LowStockQuery,
   type LowStockResult,
+  type NegativeStockQuery,
+  type NegativeStockResult,
   type StockAdjustmentInput,
   type StockAdjustmentResult,
   type StockHistoryQuery,
@@ -16,6 +18,7 @@ import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { products, saleLines, sales, users } from "../db/schema";
+import { listNegativeStock } from "./negative-stock";
 import { lowStockProducts } from "./low-stock";
 import { searchProducts } from "./product-search";
 import { movementTypeForReason, type StockService } from "./stock";
@@ -160,6 +163,12 @@ export function createInventoryService({ database, sessions, stock }: InventoryD
     };
   }
 
+  function negativeStock(input: NegativeStockQuery): NegativeStockResult {
+    const session = requireSession(sessions);
+    const all = listNegativeStock(database, session.storeId);
+    return { items: all.slice(input.offset, input.offset + input.limit), total: all.length };
+  }
+
   function adjustStock(input: StockAdjustmentInput): StockAdjustmentResult {
     const session = requireSession(sessions);
     const product = findProduct(session.storeId, input.productId);
@@ -203,6 +212,6 @@ export function createInventoryService({ database, sessions, stock }: InventoryD
     return lowStockProducts(database, session.storeId, input);
   }
 
-  return { list, history, lowStock, adjustStock };
+  return { list, history, lowStock, negativeStock, adjustStock };
 }
 export type InventoryService = ReturnType<typeof createInventoryService>;

@@ -134,6 +134,13 @@
       "when": 1794039820888,
       "tag": "0018_backup_records",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1794040131405,
+      "tag": "0019_stock_movements_covering_index",
+      "breakpoints": true
     }
   ]
 }

@@ -1489,6 +1489,19 @@ describe("stock movement schema", () => {
       ),
     ).toContain("stock_movements_product_id");
   });
+
+  it("reads ledger totals from a covering index", () => {
+    const detail = (
+      database.sqlite
+        .prepare(
+          "EXPLAIN QUERY PLAN SELECT product_id, sum(qty_milli), max(created_at) FROM stock_movements GROUP BY product_id",
+        )
+        .all() as { detail: string }[]
+    )
+      .map((row) => row.detail)
+      .join(" ");
+    expect(detail).toContain("COVERING INDEX stock_movements_product_id_qty_created_at_idx");
+  });
 });
 
 describe("stock movements migration on an existing database", () => {
@@ -1549,7 +1562,7 @@ describe("stock movements migration on an existing database", () => {
         .all();
       expect(indexes).toEqual([
         { name: "stock_movements_product_id_created_at_idx" },
-        { name: "stock_movements_product_id_idx" },
+        { name: "stock_movements_product_id_qty_created_at_idx" },
       ]);
     } finally {
       database.sqlite.close();
@@ -1697,7 +1710,7 @@ describe("backup tables migration on an existing database", () => {
       const journal = JSON.parse(
         readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
       ) as { entries: { tag: string }[] };
-      journal.entries = journal.entries.slice(0, -1);
+      journal.entries = journal.entries.slice(0, 18);
       writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
       for (const entry of journal.entries) {
         copyFileSync(
