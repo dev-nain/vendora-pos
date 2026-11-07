@@ -208,6 +208,14 @@ const summarisers: Record<AuditAction, (entry: AuditEntry) => string> = {
     const details = detailsOf(entry);
     return join([text(details.grnNo), lines(details.lineCount), rupees(details.totalPaisa)]);
   },
+  stocktake_post: (entry) => {
+    const details = detailsOf(entry);
+    const adjustments = whole(details.adjustmentCount);
+    return join([
+      lines(details.lineCount),
+      adjustments !== undefined && plural(adjustments, "adjustment"),
+    ]);
+  },
   shift_open: (entry) => {
     const float = rupees(detailsOf(entry).openingFloatPaisa);
     return float ? `Float ${float}` : "";

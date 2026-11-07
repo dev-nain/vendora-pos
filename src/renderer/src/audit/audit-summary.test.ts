@@ -145,6 +145,7 @@ describe("summariseAudit", () => {
       entry("goods_received_post", { grnNo: "GRN-2", lineCount: 1, totalPaisa: 50000 }),
       "GRN-2, 1 line, Rs 500",
     ],
+    [entry("stocktake_post", { lineCount: 40, adjustmentCount: 1 }), "40 lines, 1 adjustment"],
     [entry("backup", null), ""],
     [entry("restore", null), ""],
   ])("summarises %#", (input, expected) => {

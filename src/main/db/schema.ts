@@ -1143,6 +1143,8 @@ export const stocktakes = sqliteTable(
     startedBy: text("started_by")
       .notNull()
       .references(() => users.id),
+    postedAt: integer("posted_at", { mode: "timestamp_ms" }),
+    postedBy: text("posted_by").references(() => users.id),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -1152,6 +1154,10 @@ export const stocktakes = sqliteTable(
     check(
       "stocktakes_scope_category_check",
       sql`(${t.scope} = 'category') = (${t.categoryId} IS NOT NULL)`,
+    ),
+    check(
+      "stocktakes_posted_check",
+      sql`(${t.status} = 'posted') = (${t.postedAt} IS NOT NULL) AND (${t.postedAt} IS NULL) = (${t.postedBy} IS NULL)`,
     ),
     uniqueIndex("stocktakes_store_open_unique")
       .on(t.storeId)
@@ -1178,13 +1184,18 @@ export const stocktakeLines = sqliteTable(
     expectedQtyMilli: integer("expected_qty_milli"),
     countedQtyMilli: integer("counted_qty_milli"),
     countedAt: integer("counted_at", { mode: "timestamp_ms" }),
+    unitCostPaisa: integer("unit_cost_paisa"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     check(
       "stocktake_lines_integers_check",
-      allIntegers([], [t.expectedQtyMilli, t.countedQtyMilli]),
+      allIntegers([], [t.expectedQtyMilli, t.countedQtyMilli, t.unitCostPaisa]),
+    ),
+    check(
+      "stocktake_lines_unit_cost_paisa_check",
+      sql`${t.unitCostPaisa} IS NULL OR ${t.unitCostPaisa} >= 0`,
     ),
     check(
       "stocktake_lines_counted_qty_milli_check",

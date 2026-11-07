@@ -1422,6 +1422,7 @@ describe("stocktake ipc", () => {
       database: kit.database,
       sessions: kit.sessions,
       stock: kit.stock,
+      audit: kit.audit,
     });
     const stub = {} as never;
     registerIpcHandlers({
