@@ -1,13 +1,24 @@
 import {
   salesByDayColumns,
-  type ExportReportInput,
   type ExportReportResult,
   type ReportColumn,
+  type ReportExportFormat,
   type ReportRange,
-  type SalesByDayResult,
   type SalesByDayRow,
   type SalesByDayTotals,
 } from "@shared/reports";
+
+export interface ReportQuery {
+  range: ReportRange;
+  productId: string | null;
+  stocktakeId: string | null;
+}
+
+export interface LoadedReport<Row, Totals> {
+  rows: Row[];
+  totals: Totals;
+  caption?: string | null;
+}
 
 export interface ReportDefinition<
   Row extends Record<string, string | number>,
@@ -16,16 +27,23 @@ export interface ReportDefinition<
   id: string;
   label: string;
   columns: ReportColumn<Row>[];
-  load: (range: ReportRange) => Promise<{ rows: Row[]; totals: Totals }>;
-  exportTo: (input: ExportReportInput) => Promise<ExportReportResult>;
+  period: "range" | "today";
+  subject: "none" | "product" | "stocktake";
+  emptyTitle: string;
+  emptyHint: string;
+  waitingText?: string;
+  load: (query: ReportQuery) => Promise<LoadedReport<Row, Totals>> | null;
+  exportTo: (query: ReportQuery, format: ReportExportFormat) => Promise<ExportReportResult> | null;
 }
 
 export const salesByDayReport: ReportDefinition<SalesByDayRow, SalesByDayTotals> = {
   id: "sales-by-day",
   label: "Sales by day",
   columns: salesByDayColumns,
-  load: (range): Promise<SalesByDayResult> => window.vendora.reports.salesByDay(range),
-  exportTo: (input) => window.vendora.reports.exportSalesByDay(input),
+  period: "range",
+  subject: "none",
+  emptyTitle: "No sales in this period",
+  emptyHint: "Try another date range.",
+  load: ({ range }) => window.vendora.reports.salesByDay(range),
+  exportTo: ({ range }, format) => window.vendora.reports.exportSalesByDay({ range, format }),
 };
-
-export const reportDefinitions = [salesByDayReport] as const;
