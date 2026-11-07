@@ -19,6 +19,7 @@ Windows desktop app, installed per store. v1 targets Windows 10 and 11 (64-bit).
 - The **main process** owns the database, printing, cash drawer, licensing, backups and session checks.
 - The **renderer** displays data and calls a narrow, typed IPC API through the preload script. It never touches the database, filesystem or hardware directly.
 - Every IPC input is validated with Zod in main, and every data call requires a signed-in session checked in main — hiding a button in the UI is not a check.
+- Exception: when the database file is damaged or can't be opened, the recovery calls (startup state, backup scan, backup file picker, restore, retry) work without a session. Main allows them only in that startup mode and refuses them otherwise.
 - Electron hardening: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, no remote content loaded into windows.
 
 ## Database
@@ -32,6 +33,13 @@ Windows desktop app, installed per store. v1 targets Windows 10 and 11 (64-bit).
 - Purchase orders, goods receipts
 - Shifts, cash movements
 - Audit log, backup records
+
+**Startup check:**
+
+- SQLite runs with `journal_mode = WAL` and `synchronous = FULL`, so a committed write is on disk before the call returns.
+- Before the app opens the database it checks the file on a read-only connection with `PRAGMA quick_check`. On 30,000 products and 500,000 sale lines (276 MiB) `quick_check` took about 550 ms and `integrity_check` about 2,000 ms on the dev machine, so `quick_check` is used to keep cold start to login under 5 seconds.
+- Damaged means: SQLite corruption, not a database, a zero-byte file, or missing Vendora tables. Only a missing file is a first run. Other open errors (file locked, access denied, disk error) show a plain message with Retry; the file is never moved. A database from a newer Vendora, or one whose migration fails, shows its own message and stays where it is.
+- A recovery restore renames the damaged file (and its `-wal` and `-shm`) to `vendora-damaged-<timestamp>.db` in the user data folder and puts the chosen backup in place. It never deletes the damaged file.
 
 **Data rules:**
 
@@ -99,6 +107,7 @@ The receipt is one dithered 1-bit raster image sent with `GS v 0` in bands of at
 ## Security
 
 - Passwords and PINs hashed with argon2id; PIN lockout after 5 failed attempts.
+- The recovery calls are the one exception to the signed-in session rule. They exist only while the database is damaged, take a Zod-parsed backup name or a main-issued token (never a path), and record the restore in the audit log with no actor.
 - License data stored encrypted at rest (Windows DPAPI).
 - Every data IPC call requires a signed-in session, enforced in the main process.
 - No telemetry containing business data. Crash reports are opt-in and scrub personal data.
