@@ -35,6 +35,31 @@ export const stockListResultSchema = z.strictObject({
 });
 export type StockListResult = z.infer<typeof stockListResultSchema>;
 
+export const lowStockQuerySchema = productSearchInputSchema.pick({
+  categoryId: true,
+  limit: true,
+  offset: true,
+});
+export type LowStockQuery = z.input<typeof lowStockQuerySchema>;
+
+export const lowStockItemSchema = z.strictObject({
+  id: z.string(),
+  nameEn: z.string(),
+  nameUr: z.string().nullable(),
+  categoryId: z.string().nullable(),
+  unit: productSearchItemSchema.shape.unit,
+  onHandMilli: z.int(),
+  thresholdMilli: z.int().nonnegative(),
+  shortfallMilli: z.int().nonnegative(),
+});
+export type LowStockItem = z.infer<typeof lowStockItemSchema>;
+
+export const lowStockResultSchema = z.strictObject({
+  items: z.array(lowStockItemSchema),
+  total: z.number(),
+});
+export type LowStockResult = z.infer<typeof lowStockResultSchema>;
+
 export const STOCK_HISTORY_MAX_LIMIT = 100;
 
 export const stockHistoryQuerySchema = z.strictObject({

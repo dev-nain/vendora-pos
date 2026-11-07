@@ -235,6 +235,51 @@ describe("createStockService", () => {
       expect(costOf(id)).toBe(25000);
     });
 
+    it("audits a receipt that moves the cost, with the actor", () => {
+      record({ type: "receipt", qtyMilli: 10000, unitCostPaisa: 12000 });
+
+      const rows = database.db
+        .select()
+        .from(auditLog)
+        .where(eq(auditLog.action, "cost_change"))
+        .all();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        actorUserId: actorId,
+        entityType: "product",
+        entityId: productId,
+      });
+      expect(JSON.parse(rows[0]!.details ?? "null")).toEqual({ oldPaisa: 10000, newPaisa: 12000 });
+    });
+
+    it("writes no cost_change when a receipt leaves the cost unchanged", () => {
+      record({ type: "receipt", qtyMilli: 10000, unitCostPaisa: 10000 });
+
+      expect(
+        database.db.select().from(auditLog).where(eq(auditLog.action, "cost_change")).all(),
+      ).toEqual([]);
+    });
+
+    it("removes the cost_change row when the caller's transaction rolls back", () => {
+      expect(() =>
+        database.db.transaction((tx) => {
+          service.record(tx, {
+            productId,
+            actorUserId: actorId,
+            type: "receipt",
+            qtyMilli: 10000,
+            unitCostPaisa: 12000,
+          });
+          throw new Error("later step failed");
+        }),
+      ).toThrow("later step failed");
+
+      expect(
+        database.db.select().from(auditLog).where(eq(auditLog.action, "cost_change")).all(),
+      ).toEqual([]);
+      expect(costOf()).toBe(10000);
+    });
+
     it("snapshots the current cost on non-receipt movements", () => {
       record({ type: "sale", qtyMilli: -1000 });
       record({ type: "receipt", qtyMilli: 10000, unitCostPaisa: 12000 });

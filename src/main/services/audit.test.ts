@@ -82,6 +82,13 @@ describe("createAuditService", () => {
     expect(rows()).toHaveLength(0);
   });
 
+  it("stores a null actor and rejects a missing or malformed one", () => {
+    const id = audit.record({ action: "backup", actorUserId: null });
+    expect(rows().find((row) => row.id === id)?.actorUserId).toBeNull();
+    expect(() => audit.record({ action: "backup" } as never)).toThrow();
+    expect(() => audit.record({ action: "backup", actorUserId: "nope" })).toThrow();
+  });
+
   it("rejects an unknown actor at the database level", () => {
     expect(() => audit.record({ action: "login", actorUserId: actor })).toThrow();
     expect(rows()).toHaveLength(0);
@@ -109,7 +116,7 @@ describe("createAuditService", () => {
   it("leaves no row when the transaction rolls back", () => {
     expect(() =>
       database.db.transaction((tx) => {
-        audit.record({ action: "void", actorUserId: ownerId }, tx);
+        audit.record({ action: "login", actorUserId: ownerId }, tx);
         tx.rollback();
       }),
     ).toThrow();
@@ -118,7 +125,7 @@ describe("createAuditService", () => {
 
   it("keeps the row when the transaction commits", () => {
     database.db.transaction((tx) => {
-      audit.record({ action: "void", actorUserId: ownerId }, tx);
+      audit.record({ action: "login", actorUserId: ownerId }, tx);
     });
     expect(rows()).toHaveLength(1);
   });
@@ -136,7 +143,7 @@ describe("auditRecordInputSchema", () => {
     for (const action of auditActions) {
       expect(auditRecordInputSchema.safeParse({ action, actorUserId: actor }).success).toBe(true);
     }
-    expect(auditActions).toHaveLength(25);
+    expect(auditActions).toHaveLength(30);
     expect(
       auditRecordInputSchema.safeParse({ action: "override", actorUserId: actor }).success,
     ).toBe(false);

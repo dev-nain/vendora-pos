@@ -5,6 +5,8 @@ import { formatQuantity } from "../lib/quantity";
 export const onHandText = (milli: number, unit: ProductUnit): string =>
   formatQuantity(milli, unit).replace(/^-/, "−");
 
+export const negativeClass = (value: number): string => (value < 0 ? "text-critical" : "");
+
 export const signedQuantityText = (milli: number, unit: ProductUnit): string => {
   const text = onHandText(milli, unit);
   return milli > 0 ? `+${text}` : text;

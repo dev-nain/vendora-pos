@@ -191,6 +191,16 @@ export function createStockService({ database, audit, now = () => new Date() }: 
           .set({ costPaisa: averaged, updatedAt: now() })
           .where(eq(products.id, product.id))
           .run();
+        audit.record(
+          {
+            action: "cost_change",
+            actorUserId: input.actorUserId,
+            entityType: "product",
+            entityId: product.id,
+            details: { oldPaisa: product.costPaisa, newPaisa: averaged },
+          },
+          tx,
+        );
       }
     }
 
