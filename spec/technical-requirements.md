@@ -37,7 +37,7 @@ Windows desktop app, installed per store. v1 targets Windows 10 and 11 (64-bit).
 
 - **Money is stored as integer paisa.** Never floats.
 - **Quantities are stored as integer milli-units** (3 decimals for weighed items).
-- Sale lines store a **snapshot** of name, price, cost and tax rate at the time of sale. Reports must not change when the catalog does.
+- Sale lines store a **snapshot** of name, price, cost, tax rate and category at the time of sale. Reports must not change when the catalog does. Lines sold before the category snapshot carry the product's category as it stood at that upgrade, and misc lines have none.
 - **Stock on hand = sum of stock movements.** A cached per-product total is allowed but must be rebuildable from the ledger.
 - Completed sales, payments, stock movements and audit entries are **append-only**. Corrections are new records (returns, adjustments), never edits.
 - Times are stored in UTC and displayed in Asia/Karachi.

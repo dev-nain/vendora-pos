@@ -50,6 +50,7 @@ import {
 import {
   billDraftLines,
   billDrafts,
+  categories,
   products,
   receiptPrints,
   salePayments,
@@ -179,10 +180,12 @@ export function createSalesService({
       .select({
         line: billDraftLines,
         product: products,
+        categoryName: categories.name,
         categoryRateBps: taxCategories.rateBps,
       })
       .from(billDraftLines)
       .innerJoin(products, eq(products.id, billDraftLines.productId))
+      .innerJoin(categories, eq(categories.id, products.categoryId))
       .innerJoin(taxCategories, eq(taxCategories.id, products.taxCategoryId))
       .where(and(eq(billDraftLines.draftId, draft.id), isNull(billDraftLines.deletedAt)))
       .orderBy(asc(billDraftLines.position))
@@ -355,7 +358,7 @@ export function createSalesService({
       .get();
     const saleRef = { id: sale.id, storeId: terminal.storeId, terminalId: terminal.id };
 
-    const lineValues = rows.map(({ line, product, categoryRateBps }, index) => {
+    const lineValues = rows.map(({ line, product, categoryName, categoryRateBps }, index) => {
       const amounts = computed.lines[index];
       if (!amounts) throw new Error("Totals are out of step with the lines");
       const original = line.refundedLineId ? originals.get(line.refundedLineId) : undefined;
@@ -374,6 +377,8 @@ export function createSalesService({
               mrpPaisa: snapshot.mrpPaisa,
               pctCode: snapshot.pctCode,
               isThirdSchedule: snapshot.isThirdSchedule,
+              categoryId: snapshot.categoryId,
+              categoryName: snapshot.categoryName,
             },
             taxRateBps: snapshot.taxRateBps,
             line: {
@@ -392,7 +397,11 @@ export function createSalesService({
         ...saleLineRow({
           sale: { ...saleRef, refundedSaleId },
           position: index,
-          product,
+          product: {
+            ...product,
+            categoryId: product.isSystem ? null : product.categoryId,
+            categoryName: product.isSystem ? null : categoryName,
+          },
           taxRateBps: rateOf(categoryRateBps),
           line,
           amounts,
