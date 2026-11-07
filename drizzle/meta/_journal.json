@@ -155,6 +155,13 @@
       "when": 1794040295164,
       "tag": "0021_stocktake_posting",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1794074317733,
+      "tag": "0022_margin_prompt",
+      "breakpoints": true
     }
   ]
 }
