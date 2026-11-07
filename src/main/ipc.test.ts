@@ -1207,6 +1207,47 @@ describe("inventory ipc", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  describe("adjust stock", () => {
+    const productId = unknownId;
+    const change = { mode: "change", productId, qtyMilli: -1000, reason: "theft" };
+    const count = { mode: "count", productId, countedMilli: 5000, reason: "correction" };
+
+    it.each([
+      ["no reason", { mode: "change", productId, qtyMilli: -1000 }],
+      ["unknown reason", { ...change, reason: "lost" }],
+      ["zero quantity", { ...change, qtyMilli: 0 }],
+      ["fractional quantity", { ...change, qtyMilli: 1.5 }],
+      ["quantity over the limit", { ...change, qtyMilli: 1_000_000_001 }],
+      ["negative count", { ...count, countedMilli: -1 }],
+      ["fractional count", { ...count, countedMilli: 1.5 }],
+      ["unknown mode", { ...change, mode: "set" }],
+      ["bad product id", { ...change, productId: "x" }],
+      ["extra actor", { ...change, actorUserId: unknownId }],
+    ])("rejects %s", async (_name, input) => {
+      const spy = vi.spyOn(service, "adjustStock");
+      await expect(invoke("inventory:adjust-stock", input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("passes both modes to the service", async () => {
+      const spy = vi.spyOn(service, "adjustStock");
+      for (const input of [change, count]) {
+        expect(await invoke("inventory:adjust-stock", input)).toMatchObject({
+          ok: false,
+          reason: "not-found",
+        });
+        expect(spy).toHaveBeenLastCalledWith(input);
+      }
+    });
+
+    it("rejects with no session", async () => {
+      kit.sessions.end();
+      await expect(invoke("inventory:adjust-stock", change)).rejects.toThrow(
+        new Error(ipcErrorMessages.unauthenticated),
+      );
+    });
+  });
+
   it("lists stock and returns a refusal for an unknown product", async () => {
     const tea = kit.addProduct({ nameEn: "Tea", searchText: "tea", costPaisa: 1000 });
     expect(await invoke("inventory:list-stock", { query: "", limit: 10, offset: 0 })).toMatchObject(
