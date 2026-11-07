@@ -245,9 +245,10 @@ export function createStockService({ database, audit, now = () => new Date() }: 
     },
 
     recordStocktakeMovements(tx: Tx, inputs: Omit<RecordMovementInput, "type">[]): void {
-      const parsed = inputs.map((input) =>
-        recordMovementInputSchema.parse({ ...input, type: "stocktake" }),
-      );
+      // Both movement indexes lead with product_id, so ordered inserts touch each page once.
+      const parsed = inputs
+        .map((input) => recordMovementInputSchema.parse({ ...input, type: "stocktake" }))
+        .toSorted((a, b) => (a.productId < b.productId ? -1 : 1));
       if (parsed.length === 0) return;
       const terminal = terminalOf(tx);
       const createdAt = now();
