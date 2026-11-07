@@ -36,6 +36,16 @@ export function getShiftVarianceWarnPaisa(database: VendoraDatabase, storeId: st
   return row.warnPaisa;
 }
 
+export function getMarginThresholdBps(executor: DbExecutor, storeId: string): number | null {
+  const row = executor
+    .select({ thresholdBps: stores.marginThresholdBps })
+    .from(stores)
+    .where(eq(stores.id, storeId))
+    .get();
+  if (!row) throw new Error("Store not found");
+  return row.thresholdBps;
+}
+
 export interface CheckoutSettings {
   pricesIncludeTax: boolean;
   standardTaxRateBps: number;
@@ -104,4 +114,14 @@ export function getPrinterSettings(executor: DbExecutor, terminalId: string): Pr
         ? { kind: "network", host: row.host, port: row.port }
         : { kind: "none" };
   return { connection, paperWidthMm: row.paperWidthMm, printMode: row.printMode };
+}
+
+export function getSecondCopyFolder(executor: DbExecutor, terminalId: string): string | null {
+  const row = executor
+    .select({ folder: terminals.secondCopyFolder })
+    .from(terminals)
+    .where(eq(terminals.id, terminalId))
+    .get();
+  if (!row) throw new Error("Terminal not found");
+  return row.folder;
 }
