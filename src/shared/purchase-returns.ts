@@ -75,7 +75,10 @@ export const postPurchaseReturnInputSchema = z.discriminatedUnion("kind", [
 ]);
 
 export const purchaseReturnIdInputSchema = z.strictObject({ id: z.uuid() });
-export const returnableInputSchema = z.strictObject({ supplierId: z.uuid(), productId: z.uuid() });
+export const purchaseReturnableInputSchema = z.strictObject({
+  supplierId: z.uuid(),
+  productId: z.uuid(),
+});
 
 export const PURCHASE_RETURNS_MAX_LIMIT = 100;
 
@@ -145,7 +148,7 @@ export const getPurchaseReturnResultSchema = z.union([
   refusal("not-found"),
 ]);
 
-export const returnableResultSchema = z.union([
+export const purchaseReturnableResultSchema = z.union([
   z.strictObject({
     ok: z.literal(true),
     product: z.strictObject({
@@ -162,7 +165,7 @@ export const returnableResultSchema = z.union([
   refusal("product-unavailable"),
 ]);
 
-export const returnableNoteResultSchema = z.union([
+export const purchaseReturnableNoteResultSchema = z.union([
   z.strictObject({
     ok: z.literal(true),
     note: z.strictObject({
@@ -210,9 +213,9 @@ export type PurchaseReturnSummary = z.infer<typeof purchaseReturnSummarySchema>;
 export type PurchaseReturnListQuery = z.input<typeof purchaseReturnListQuerySchema>;
 export type PurchaseReturnListResult = z.infer<typeof purchaseReturnListResultSchema>;
 export type GetPurchaseReturnResult = z.infer<typeof getPurchaseReturnResultSchema>;
-export type ReturnableInput = z.input<typeof returnableInputSchema>;
-export type ReturnableResult = z.infer<typeof returnableResultSchema>;
-export type ReturnableNoteResult = z.infer<typeof returnableNoteResultSchema>;
-export type ReturnableNote = Extract<ReturnableNoteResult, { ok: true }>;
+export type PurchaseReturnableInput = z.input<typeof purchaseReturnableInputSchema>;
+export type PurchaseReturnableResult = z.infer<typeof purchaseReturnableResultSchema>;
+export type PurchaseReturnableNoteResult = z.infer<typeof purchaseReturnableNoteResultSchema>;
+export type PurchaseReturnableNote = Extract<PurchaseReturnableNoteResult, { ok: true }>;
 export type SavePurchaseReturnPdfResult = z.infer<typeof savePurchaseReturnPdfResultSchema>;
 export type PrintPurchaseReturnResult = z.infer<typeof printPurchaseReturnResultSchema>;

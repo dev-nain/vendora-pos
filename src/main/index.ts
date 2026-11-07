@@ -11,6 +11,9 @@ import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
 import { createAuthService } from "./services/auth";
+import { createPurchaseHistoryService } from "./services/purchase-history";
+import { createPurchaseReturnDocumentsService } from "./services/purchase-return-documents";
+import { createPurchaseReturnsService } from "./services/purchase-returns";
 import { createBackupSettingsService } from "./services/backup-settings";
 import { createBackupAdminService } from "./services/backup-admin";
 import { createBackupPasswordService } from "./services/backup-password";
@@ -151,6 +154,8 @@ void app.whenReady().then(async () => {
   const suppliers = createSuppliersService({ database, audit, sessions });
   const purchaseOrders = createPurchaseOrdersService({ database, audit, sessions });
   const goodsReceived = createGoodsReceivedService({ database, audit, sessions, stock });
+  const purchaseReturns = createPurchaseReturnsService({ database, audit, sessions, stock });
+  const purchaseHistory = createPurchaseHistoryService({ database, sessions });
   const taxCategories = createTaxCategoriesService({ database, audit, sessions });
   const catalogExport = createCatalogExportService({
     database,
@@ -166,6 +171,14 @@ void app.whenReady().then(async () => {
     renderer: documentRenderer,
     chooseSavePath: (fileName) =>
       chooseSavePath("Save purchase order", { name: "PDF file", extensions: ["pdf"] }, fileName),
+  });
+  const purchaseReturnDocuments = createPurchaseReturnDocumentsService({
+    database,
+    sessions,
+    purchaseReturns,
+    renderer: documentRenderer,
+    chooseSavePath: (fileName) =>
+      chooseSavePath("Save purchase return", { name: "PDF file", extensions: ["pdf"] }, fileName),
   });
   const saleInvoices = createSaleInvoicesService({
     database,
@@ -245,8 +258,11 @@ void app.whenReady().then(async () => {
     inventory,
     stocktake,
     products,
+    purchaseHistory,
     purchaseOrderDocuments,
     purchaseOrders,
+    purchaseReturnDocuments,
+    purchaseReturns,
     receipts,
     returns,
     saleInvoices,

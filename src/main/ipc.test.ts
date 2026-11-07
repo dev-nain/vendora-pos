@@ -29,6 +29,18 @@ import { createSaleInvoicesService, type SaleInvoicesService } from "./services/
 import { createShiftsService, type ShiftsService } from "./services/shifts";
 import { createSuppliersService, type SuppliersService } from "./services/suppliers";
 import { createGoodsReceivedService, type GoodsReceivedService } from "./services/goods-received";
+import {
+  createPurchaseHistoryService,
+  type PurchaseHistoryService,
+} from "./services/purchase-history";
+import {
+  createPurchaseReturnsService,
+  type PurchaseReturnsService,
+} from "./services/purchase-returns";
+import {
+  createPurchaseReturnDocumentsService,
+  type PurchaseReturnDocumentsService,
+} from "./services/purchase-return-documents";
 import { createStockService } from "./services/stock";
 import { createStocktakeService, type StocktakeService } from "./services/stocktake";
 import { openMigratedDatabase } from "./db/test-database";
@@ -75,6 +87,9 @@ describe("products ipc", () => {
   let dir: string;
   let database: VendoraDatabase;
   let sessions: SessionStore;
+  let purchaseReturnsService: PurchaseReturnsService;
+  let purchaseHistoryService: PurchaseHistoryService;
+  let purchaseReturnDocumentsService: PurchaseReturnDocumentsService;
   let service: ProductsService;
   let suppliersService: SuppliersService;
   let purchaseOrdersService: PurchaseOrdersService;
@@ -166,6 +181,20 @@ describe("products ipc", () => {
       audit: createAuditService(database),
       sessions,
     });
+    purchaseReturnsService = createPurchaseReturnsService({
+      database,
+      audit: createAuditService(database),
+      sessions,
+      stock: createStockService({ database, audit: createAuditService(database) }),
+    });
+    purchaseHistoryService = createPurchaseHistoryService({ database, sessions });
+    purchaseReturnDocumentsService = createPurchaseReturnDocumentsService({
+      database,
+      sessions,
+      purchaseReturns: purchaseReturnsService,
+      renderer,
+      chooseSavePath: async () => join(dir, "return.pdf"),
+    });
     purchaseOrderDocumentsService = createPurchaseOrderDocumentsService({
       database,
       sessions,
@@ -204,8 +233,11 @@ describe("products ipc", () => {
       goodsReceived: goodsReceivedService,
       inventory: stub,
       products: service,
+      purchaseHistory: purchaseHistoryService,
       purchaseOrderDocuments: purchaseOrderDocumentsService,
       purchaseOrders: purchaseOrdersService,
+      purchaseReturnDocuments: purchaseReturnDocumentsService,
+      purchaseReturns: purchaseReturnsService,
       receipts: stub,
       returns: stub,
       saleInvoices: saleInvoicesService,
@@ -524,6 +556,127 @@ describe("products ipc", () => {
     });
   });
 
+  describe("purchase returns and history", () => {
+    const line = { productId: unknownId, qtyMilli: 1000 };
+    const supplierReturn = {
+      kind: "supplier",
+      supplierId: unknownId,
+      reason: "damaged",
+      notes: null,
+      lines: [line],
+    };
+
+    it.each([
+      ["purchase-returns:post", "post", { ...supplierReturn, supplierId: "x" }],
+      ["purchase-returns:post", "post", { ...supplierReturn, reason: "lost" }],
+      ["purchase-returns:post", "post", { ...supplierReturn, extra: 1 }],
+      [
+        "purchase-returns:post",
+        "post",
+        { ...supplierReturn, lines: [{ ...line, unitCostPaisa: 1 }] },
+      ],
+      ["purchase-returns:post", "post", { ...supplierReturn, lines: [line, line] }],
+      ["purchase-returns:post", "post", { ...supplierReturn, lines: [] }],
+      ["purchase-returns:post", "post", { kind: "other" }],
+      ["purchase-returns:list", "list", { limit: 0, offset: 0 }],
+      ["purchase-returns:list", "list", { limit: 10, offset: 0, extra: 1 }],
+      ["purchase-returns:get", "get", { id: "x" }],
+      ["purchase-returns:returnable", "returnable", { supplierId: unknownId, productId: "x" }],
+      ["purchase-returns:from-note", "fromNote", { id: "x" }],
+    ] as const)("%s rejects bad input before the service runs", async (channel, method, input) => {
+      signIn("owner");
+      const spy = vi.spyOn(purchaseReturnsService, method);
+      await expect(invoke(channel, input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["purchase-returns:save-pdf", "savePdf", { id: "x" }],
+      ["purchase-returns:save-pdf", "savePdf", { id: unknownId, extra: 1 }],
+      ["purchase-returns:print", "print", { id: "x" }],
+      ["purchase-returns:print", "print", {}],
+    ] as const)("%s rejects bad input before the service runs", async (channel, method, input) => {
+      signIn("owner");
+      const spy = vi.spyOn(purchaseReturnDocumentsService, method);
+      await expect(invoke(channel, input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["purchase-history:product", { productId: "x", limit: 10, offset: 0 }],
+      ["purchase-history:product", { productId: unknownId, limit: 101, offset: 0 }],
+      ["purchase-history:supplier", { supplierId: unknownId, limit: 10, offset: 0, extra: 1 }],
+      ["purchase-history:supplier", { supplierId: "x", limit: 10, offset: 0 }],
+    ] as const)("%s rejects bad input before the service runs", async (channel, input) => {
+      signIn("owner");
+      const spies = [
+        vi.spyOn(purchaseHistoryService, "forProduct"),
+        vi.spyOn(purchaseHistoryService, "forSupplier"),
+      ];
+      await expect(invoke(channel, input)).rejects.toThrow();
+      for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["purchase-returns:post", supplierReturn],
+      ["purchase-returns:list", { limit: 10, offset: 0 }],
+      ["purchase-returns:get", { id: unknownId }],
+      ["purchase-returns:returnable", { supplierId: unknownId, productId: unknownId }],
+      ["purchase-returns:from-note", { id: unknownId }],
+      ["purchase-returns:save-pdf", { id: unknownId }],
+      ["purchase-returns:print", { id: unknownId }],
+      ["purchase-history:product", { productId: unknownId, limit: 10, offset: 0 }],
+      ["purchase-history:supplier", { supplierId: unknownId, limit: 10, offset: 0 }],
+    ] as const)("refuses %s when signed out", async (channel, input) => {
+      sessions.end();
+      await expect(invoke(channel, input)).rejects.toThrow(
+        new Error(ipcErrorMessages.unauthenticated),
+      );
+    });
+
+    it("returns and reads back a return through the handlers", async () => {
+      signIn("cashier");
+      const product = seedProduct();
+      const created = (await invoke("suppliers:create", {
+        name: "Al-Noor",
+        contactPerson: null,
+        phone: null,
+        ntn: null,
+        notes: null,
+      })) as { supplier: { id: string } };
+      await invoke("goods-received:post", directGrn(created.supplier.id, product.id));
+
+      const posted = (await invoke("purchase-returns:post", {
+        kind: "supplier",
+        supplierId: created.supplier.id,
+        reason: "expired",
+        notes: null,
+        lines: [{ productId: product.id, qtyMilli: 2000 }],
+      })) as { ok: true; purchaseReturn: { id: string; returnNo: string } };
+
+      expect(posted).toMatchObject({
+        ok: true,
+        purchaseReturn: { returnNo: "PRN-T1-000001", totalPaisa: 24000 },
+      });
+      expect(await invoke("purchase-returns:list", { limit: 10, offset: 0 })).toMatchObject({
+        total: 1,
+      });
+      expect(await invoke("purchase-returns:get", { id: posted.purchaseReturn.id })).toMatchObject({
+        ok: true,
+      });
+      expect(
+        await invoke("purchase-history:product", { productId: product.id, limit: 10, offset: 0 }),
+      ).toMatchObject({ ok: true, items: [{ kind: "return" }, { kind: "receipt" }] });
+      expect(
+        await invoke("purchase-history:supplier", {
+          supplierId: created.supplier.id,
+          limit: 10,
+          offset: 0,
+        }),
+      ).toMatchObject({ ok: true, hasMore: false });
+    });
+  });
+
   describe("purchase orders", () => {
     it.each([
       ["purchase-orders:create", "create", { supplierId: "x", notes: null, lines: [] }],
@@ -748,8 +901,11 @@ describe("shifts ipc", () => {
       goodsReceived: stub,
       inventory: stub,
       products: stub,
+      purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
+      purchaseReturns: stub,
       receipts: receipts as never,
       returns: stub,
       saleInvoices: stub,
@@ -907,8 +1063,11 @@ describe("checkout ipc", () => {
       goodsReceived: stub,
       inventory: stub,
       products: stub,
+      purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
+      purchaseReturns: stub,
       receipts: receipts as never,
       returns: kit.returns,
       saleInvoices: stub,
@@ -1159,8 +1318,11 @@ describe("backup settings ipc", () => {
       goodsReceived: stub,
       inventory: stub,
       products: stub,
+      purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
+      purchaseReturns: stub,
       receipts: stub,
       returns: stub,
       saleInvoices: stub,
@@ -1209,8 +1371,11 @@ describe("backup ipc", () => {
       goodsReceived: stub,
       inventory: stub,
       products: stub,
+      purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
+      purchaseReturns: stub,
       receipts: stub,
       returns: stub,
       saleInvoices: stub,
@@ -1289,8 +1454,11 @@ describe("backup password ipc", () => {
       goodsReceived: stub,
       inventory: stub,
       products: stub,
+      purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
+      purchaseReturns: stub,
       receipts: stub,
       returns: stub,
       saleInvoices: stub,
@@ -1376,8 +1544,11 @@ describe("inventory ipc", () => {
       goodsReceived: stub,
       inventory: service,
       products: stub,
+      purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
+      purchaseReturns: stub,
       receipts: stub,
       returns: stub,
       saleInvoices: stub,
@@ -1550,8 +1721,11 @@ describe("audit log ipc", () => {
       goodsReceived: stub,
       inventory: stub,
       products: stub,
+      purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
+      purchaseReturns: stub,
       receipts: stub,
       returns: stub,
       saleInvoices: stub,
@@ -1642,8 +1816,11 @@ describe("stocktake ipc", () => {
       goodsReceived: stub,
       inventory: stub,
       products: stub,
+      purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
+      purchaseReturns: stub,
       receipts: stub,
       returns: stub,
       saleInvoices: stub,

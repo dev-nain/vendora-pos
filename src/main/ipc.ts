@@ -162,6 +162,25 @@ import {
   postGoodsReceivedResultSchema,
 } from "@shared/goods-received";
 import {
+  productPurchaseHistoryQuerySchema,
+  productPurchaseHistoryResultSchema,
+  supplierPurchaseHistoryQuerySchema,
+  supplierPurchaseHistoryResultSchema,
+} from "@shared/purchase-history";
+import {
+  getPurchaseReturnResultSchema,
+  postPurchaseReturnInputSchema,
+  postPurchaseReturnResultSchema,
+  purchaseReturnIdInputSchema,
+  purchaseReturnListQuerySchema,
+  printPurchaseReturnResultSchema,
+  purchaseReturnListResultSchema,
+  savePurchaseReturnPdfResultSchema,
+  purchaseReturnableInputSchema,
+  purchaseReturnableNoteResultSchema,
+  purchaseReturnableResultSchema,
+} from "@shared/purchase-returns";
+import {
   cancelPurchaseOrderResultSchema,
   confirmPurchaseOrderResultSchema,
   createPurchaseOrderInputSchema,
@@ -206,6 +225,9 @@ import type { BackupPasswordService } from "./services/backup-password";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { GoodsReceivedService } from "./services/goods-received";
+import type { PurchaseReturnDocumentsService } from "./services/purchase-return-documents";
+import type { PurchaseHistoryService } from "./services/purchase-history";
+import type { PurchaseReturnsService } from "./services/purchase-returns";
 import type { InventoryService } from "./services/inventory";
 import type { StocktakeService } from "./services/stocktake";
 import type { ProductsService } from "./services/products";
@@ -257,6 +279,9 @@ interface IpcServices {
   purchaseOrderDocuments: PurchaseOrderDocumentsService;
   purchaseOrders: PurchaseOrdersService;
   goodsReceived: GoodsReceivedService;
+  purchaseReturns: PurchaseReturnsService;
+  purchaseReturnDocuments: PurchaseReturnDocumentsService;
+  purchaseHistory: PurchaseHistoryService;
   receipts: ReceiptsService;
   saleInvoices: SaleInvoicesService;
 }
@@ -274,8 +299,11 @@ export function registerIpcHandlers({
   inventory,
   stocktake,
   products,
+  purchaseHistory,
   purchaseOrderDocuments,
   purchaseOrders,
+  purchaseReturnDocuments,
+  purchaseReturns,
   receipts,
   returns,
   saleInvoices,
@@ -551,6 +579,51 @@ export function registerIpcHandlers({
   handle(ipcChannels.goodsReceivedLastCost, (_event, input) =>
     goodsReceivedLastCostResultSchema.parse(
       goodsReceived.lastCost(goodsReceivedLastCostInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsPost, (_event, input) =>
+    postPurchaseReturnResultSchema.parse(
+      purchaseReturns.post(postPurchaseReturnInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsList, (_event, input) =>
+    purchaseReturnListResultSchema.parse(
+      purchaseReturns.list(purchaseReturnListQuerySchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsGet, (_event, input) =>
+    getPurchaseReturnResultSchema.parse(
+      purchaseReturns.get(purchaseReturnIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsReturnable, (_event, input) =>
+    purchaseReturnableResultSchema.parse(
+      purchaseReturns.returnable(purchaseReturnableInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsFromNote, (_event, input) =>
+    purchaseReturnableNoteResultSchema.parse(
+      purchaseReturns.fromNote(purchaseReturnIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsSavePdf, async (_event, input) =>
+    savePurchaseReturnPdfResultSchema.parse(
+      await purchaseReturnDocuments.savePdf(purchaseReturnIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsPrint, async (_event, input) =>
+    printPurchaseReturnResultSchema.parse(
+      await purchaseReturnDocuments.print(purchaseReturnIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseHistoryProduct, (_event, input) =>
+    productPurchaseHistoryResultSchema.parse(
+      purchaseHistory.forProduct(productPurchaseHistoryQuerySchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseHistorySupplier, (_event, input) =>
+    supplierPurchaseHistoryResultSchema.parse(
+      purchaseHistory.forSupplier(supplierPurchaseHistoryQuerySchema.parse(input)),
     ),
   );
   handle(ipcChannels.purchaseOrdersSavePdf, async (_event, input) =>

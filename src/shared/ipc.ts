@@ -33,6 +33,24 @@ import type {
   PostGoodsReceivedResult,
 } from "./goods-received";
 import type {
+  ProductPurchaseHistoryQuery,
+  ProductPurchaseHistoryResult,
+  SupplierPurchaseHistoryQuery,
+  SupplierPurchaseHistoryResult,
+} from "./purchase-history";
+import type {
+  GetPurchaseReturnResult,
+  PostPurchaseReturnInput,
+  PostPurchaseReturnResult,
+  PurchaseReturnListQuery,
+  PrintPurchaseReturnResult,
+  PurchaseReturnListResult,
+  SavePurchaseReturnPdfResult,
+  PurchaseReturnableInput,
+  PurchaseReturnableNoteResult,
+  PurchaseReturnableResult,
+} from "./purchase-returns";
+import type {
   CancelPurchaseOrderResult,
   ConfirmPurchaseOrderResult,
   CreatePurchaseOrderInput,
@@ -214,6 +232,15 @@ export const ipcChannels = {
   productsSearch: "products:search",
   productsGet: "products:get",
   productsCreate: "products:create",
+  purchaseReturnsPost: "purchase-returns:post",
+  purchaseReturnsList: "purchase-returns:list",
+  purchaseReturnsGet: "purchase-returns:get",
+  purchaseReturnsReturnable: "purchase-returns:returnable",
+  purchaseReturnsFromNote: "purchase-returns:from-note",
+  purchaseReturnsSavePdf: "purchase-returns:save-pdf",
+  purchaseReturnsPrint: "purchase-returns:print",
+  purchaseHistoryProduct: "purchase-history:product",
+  purchaseHistorySupplier: "purchase-history:supplier",
   productsUpdate: "products:update",
   productsArchive: "products:archive",
   productsRestore: "products:restore",
@@ -409,6 +436,19 @@ export interface VendoraApi {
     get: (id: string) => Promise<GetGoodsReceivedResult>;
     lastCost: (productId: string) => Promise<GoodsReceivedLastCostResult>;
     lowMargin: (id: string) => Promise<LowMarginResult>;
+  };
+  purchaseReturns: {
+    post: (input: PostPurchaseReturnInput) => Promise<PostPurchaseReturnResult>;
+    list: (query: PurchaseReturnListQuery) => Promise<PurchaseReturnListResult>;
+    get: (id: string) => Promise<GetPurchaseReturnResult>;
+    returnable: (input: PurchaseReturnableInput) => Promise<PurchaseReturnableResult>;
+    fromNote: (goodsReceivedNoteId: string) => Promise<PurchaseReturnableNoteResult>;
+    savePdf: (id: string) => Promise<SavePurchaseReturnPdfResult>;
+    print: (id: string) => Promise<PrintPurchaseReturnResult>;
+  };
+  purchaseHistory: {
+    forProduct: (query: ProductPurchaseHistoryQuery) => Promise<ProductPurchaseHistoryResult>;
+    forSupplier: (query: SupplierPurchaseHistoryQuery) => Promise<SupplierPurchaseHistoryResult>;
   };
   shifts: {
     state: () => Promise<ShiftState>;
