@@ -9,8 +9,9 @@ import { createSessionStore, type SessionStore } from "./auth/session";
 import type { VendoraDatabase } from "./db/client";
 import { auditLog, categories, products, stores, taxCategories, users } from "./db/schema";
 import { seedStoreAndTerminal } from "./db/seed";
-import { registerIpcHandlers } from "./ipc";
+import { registerIpcHandlers, registerStartupHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
+import { createRecoveryService } from "./services/recovery";
 import { createBackupSettingsService } from "./services/backup-settings";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createProductsService, type ProductsService } from "./services/products";
@@ -1126,5 +1127,65 @@ describe("backup password ipc", () => {
     service.status.mockResolvedValue({ state: "maybe" });
 
     await expect(invoke("backup:password-status")).rejects.toThrow();
+  });
+});
+
+const buildRecovery = (state: Parameters<typeof createRecoveryService>[0]["state"]) => {
+  const restore = vi.fn();
+  const relaunch = vi.fn();
+  registerStartupHandlers(
+    createRecoveryService({
+      state,
+      backupDir: join(tmpdir(), "vendora-no-backups"),
+      migrationsFolder: join(process.cwd(), "drizzle"),
+      chooseFile: async () => null,
+      restores: { restore },
+      relaunch,
+    }),
+  );
+  return { restore, relaunch };
+};
+
+describe("recovery ipc", () => {
+  beforeEach(() => {
+    handlers.clear();
+  });
+
+  it("answers app info and the startup state in any mode", async () => {
+    buildRecovery({ mode: "normal" });
+
+    expect(await invoke("app:get-info")).toEqual({ version: "0.0.0" });
+    expect(await invoke("startup:state")).toEqual({ mode: "normal" });
+  });
+
+  it.each([
+    ["recovery:scan", undefined],
+    ["recovery:choose-file", undefined],
+    ["recovery:restore", { kind: "listed", fileName: goodBackupName }],
+    ["recovery:retry", undefined],
+  ])("refuses %s outside recovery mode", async (channel, input) => {
+    const { restore, relaunch } = buildRecovery({ mode: "normal" });
+
+    await expect(invoke(channel, input)).rejects.toThrow(
+      new Error(ipcErrorMessages.recoveryUnavailable),
+    );
+    expect(restore).not.toHaveBeenCalled();
+    expect(relaunch).not.toHaveBeenCalled();
+  });
+
+  it("parses the restore input before the service runs", async () => {
+    const { restore } = buildRecovery({ mode: "damaged" });
+
+    await expect(
+      invoke("recovery:restore", { kind: "listed", fileName: "../x.db" }),
+    ).rejects.toThrow();
+    await expect(invoke("recovery:restore", { kind: "picked", token: "nope" })).rejects.toThrow();
+    expect(restore).not.toHaveBeenCalled();
+  });
+
+  it("scans in recovery mode", async () => {
+    buildRecovery({ mode: "damaged" });
+
+    expect(await invoke("recovery:scan")).toEqual({ backups: [], lastGood: null });
   });
 });
