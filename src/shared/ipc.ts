@@ -12,6 +12,7 @@ import type {
   DeleteCategoryResult,
   RenameCategoryResult,
 } from "./categories";
+import type { PrintInvoiceResult, SaveInvoicePdfResult } from "./invoices";
 import type {
   CancelPurchaseOrderResult,
   ConfirmPurchaseOrderResult,
@@ -192,6 +193,8 @@ export const ipcChannels = {
   purchaseOrdersCancel: "purchase-orders:cancel",
   purchaseOrdersSavePdf: "purchase-orders:save-pdf",
   purchaseOrdersPrint: "purchase-orders:print",
+  invoicesSavePdf: "invoices:save-pdf",
+  invoicesPrint: "invoices:print",
   shiftsState: "shifts:state",
   shiftsOpen: "shifts:open",
   shiftsAddCashMove: "shifts:add-cash-move",
@@ -314,6 +317,10 @@ export interface VendoraApi {
     cancel: (id: string) => Promise<CancelPurchaseOrderResult>;
     savePdf: (id: string) => Promise<SavePurchaseOrderPdfResult>;
     print: (id: string) => Promise<PrintPurchaseOrderResult>;
+  };
+  invoices: {
+    savePdf: (saleId: string) => Promise<SaveInvoicePdfResult>;
+    print: (saleId: string) => Promise<PrintInvoiceResult>;
   };
   shifts: {
     state: () => Promise<ShiftState>;

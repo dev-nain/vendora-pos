@@ -68,6 +68,7 @@ import {
   taxCategorySchema,
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
+import { printInvoiceResultSchema, saveInvoicePdfResultSchema } from "@shared/invoices";
 import {
   cancelPurchaseOrderResultSchema,
   confirmPurchaseOrderResultSchema,
@@ -320,6 +321,16 @@ const api: VendoraApi = {
     print: async (id) =>
       printPurchaseOrderResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.purchaseOrdersPrint, { id }),
+      ),
+  },
+  invoices: {
+    savePdf: async (saleId) =>
+      saveInvoicePdfResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.invoicesSavePdf, { saleId }),
+      ),
+    print: async (saleId) =>
+      printInvoiceResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.invoicesPrint, { saleId }),
       ),
   },
   shifts: {

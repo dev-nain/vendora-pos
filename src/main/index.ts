@@ -10,6 +10,7 @@ import { createAuthService } from "./services/auth";
 import { createBillDraftsService } from "./services/bill-drafts";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createCategoriesService } from "./services/categories";
+import { createSaleInvoicesService } from "./services/sale-invoices";
 import { createPurchaseOrderDocumentsService } from "./services/purchase-order-documents";
 import { createPurchaseOrdersService } from "./services/purchase-orders";
 import { createReceiptsService } from "./services/receipts";
@@ -98,13 +99,21 @@ void app.whenReady().then(async () => {
     chooseSavePath: (fileName) =>
       chooseSavePath("Export catalog", { name: "CSV file", extensions: ["csv"] }, fileName),
   });
+  const documentRenderer = createDocumentRenderer();
   const purchaseOrderDocuments = createPurchaseOrderDocumentsService({
     database,
     sessions,
     purchaseOrders,
-    renderer: createDocumentRenderer(),
+    renderer: documentRenderer,
     chooseSavePath: (fileName) =>
       chooseSavePath("Save purchase order", { name: "PDF file", extensions: ["pdf"] }, fileName),
+  });
+  const saleInvoices = createSaleInvoicesService({
+    database,
+    sessions,
+    renderer: documentRenderer,
+    chooseSavePath: (fileName) =>
+      chooseSavePath("Save invoice", { name: "PDF file", extensions: ["pdf"] }, fileName),
   });
   const fakePrinterDir = process.env["VENDORA_FAKE_PRINTER"];
   const renderWindow = createRenderWindow();
@@ -129,6 +138,7 @@ void app.whenReady().then(async () => {
     purchaseOrders,
     receipts,
     returns,
+    saleInvoices,
     sales,
     settings,
     shifts,
