@@ -1710,7 +1710,7 @@ describe("backup tables migration on an existing database", () => {
       const journal = JSON.parse(
         readFileSync(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
       ) as { entries: { tag: string }[] };
-      journal.entries = journal.entries.slice(0, -1);
+      journal.entries = journal.entries.slice(0, 18);
       writeFileSync(join(oldFolder, "meta", "_journal.json"), JSON.stringify(journal));
       for (const entry of journal.entries) {
         copyFileSync(
