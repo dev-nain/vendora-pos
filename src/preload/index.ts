@@ -63,6 +63,7 @@ import {
   taxCategorySchema,
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
+import { postGoodsReceivedResultSchema } from "@shared/goods-received";
 import {
   cancelPurchaseOrderResultSchema,
   confirmPurchaseOrderResultSchema,
@@ -295,6 +296,12 @@ const api: VendoraApi = {
     cancel: async (id) =>
       cancelPurchaseOrderResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.purchaseOrdersCancel, { id }),
+      ),
+  },
+  goodsReceived: {
+    post: async (input) =>
+      postGoodsReceivedResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.goodsReceivedPost, input),
       ),
   },
   shifts: {
