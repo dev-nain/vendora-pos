@@ -5,11 +5,13 @@ import {
 import {
   exportReportFailedMessage,
   formatRangeLabel,
+  formatStoreDateTime,
   grossProfitByCategoryColumns,
   grossProfitByProductColumns,
   type GrossProfitByCategoryResult,
   type GrossProfitByProductResult,
   salesByDayColumns,
+  storeToday,
   salesTaxSummaryColumns,
   type ExportReportInput,
   type ExportReportResult,
@@ -21,6 +23,15 @@ import {
   type SalesByDayResult,
   type SalesTaxSummaryResult,
 } from "../../shared/reports";
+import {
+  lowStockReportColumns,
+  negativeStockReportColumns,
+  stockOnHandColumns,
+  type ExportTodayReportInput,
+  type LowStockReportResult,
+  type NegativeStockReportResult,
+  type StockOnHandResult,
+} from "../../shared/stock-reports";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
@@ -31,6 +42,7 @@ import { reportCsv, reportCsvSections } from "../reports/report-csv";
 import { buildReportDocument, buildSectionedReportDocument } from "../reports/report-document";
 import { readGrossProfitByCategory, readGrossProfitByProduct } from "../reports/gross-profit";
 import { readSalesByDay } from "../reports/sales-by-day";
+import { readLowStock, readNegativeStock, readStockOnHand } from "../reports/stock-position";
 import { readSalesTaxSummary } from "../reports/sales-tax-summary";
 import { getReceiptSettings } from "../settings/store-settings";
 
@@ -39,6 +51,7 @@ interface ReportsDeps {
   sessions: SessionStore;
   renderer: DocumentRenderer;
   chooseSavePath: (fileName: string, format: ReportExportFormat) => Promise<string | null>;
+  now?: () => Date;
 }
 
 interface ExportTable<Row extends Record<string, ReportCellValue>> {
@@ -71,11 +84,30 @@ export function createReportsService({
   sessions,
   renderer,
   chooseSavePath,
+  now = () => new Date(),
 }: ReportsDeps) {
   function salesByDay(range: ReportRange): SalesByDayResult {
     const session = requireSession(sessions);
     return readSalesByDay(database, session.storeId, range);
   }
+  function stockOnHand(): StockOnHandResult {
+    const session = requireSession(sessions);
+    return readStockOnHand(database, session.storeId, now());
+  }
+
+  function lowStock(): LowStockReportResult {
+    const session = requireSession(sessions);
+    return readLowStock(database, session.storeId, now());
+  }
+
+  function negativeStock(): NegativeStockReportResult {
+    const session = requireSession(sessions);
+    return readNegativeStock(database, session.storeId, now());
+  }
+
+  const asOfReference = () => `As of ${formatStoreDateTime(now().toISOString())}`;
+  const todayFileName = (stem: string, format: ReportExportFormat) =>
+    `${stem}-${storeToday(now())}.${format}`;
 
   function grossProfitByProduct(range: ReportRange): GrossProfitByProductResult {
     const session = requireSession(sessions);
@@ -203,6 +235,39 @@ export function createReportsService({
         format,
         columns: salesTaxSummaryColumns,
         read: (storeId) => readSalesTaxSummary(database, storeId, range),
+      }),
+    stockOnHand,
+    lowStock,
+    negativeStock,
+    exportStockOnHand: ({ format }: ExportTodayReportInput) =>
+      exportTable({
+        title: "Stock on hand and valuation",
+        fileName: todayFileName("stock-on-hand", format),
+        reference: asOfReference,
+        format,
+        columns: stockOnHandColumns,
+        read: (storeId) => ({
+          ...readStockOnHand(database, storeId, now()),
+          facts: [{ label: "Valued at", value: "Current average cost" }],
+        }),
+      }),
+    exportLowStock: ({ format }: ExportTodayReportInput) =>
+      exportTable({
+        title: "Low stock",
+        fileName: todayFileName("low-stock", format),
+        reference: asOfReference,
+        format,
+        columns: lowStockReportColumns,
+        read: (storeId) => readLowStock(database, storeId, now()),
+      }),
+    exportNegativeStock: ({ format }: ExportTodayReportInput) =>
+      exportTable({
+        title: "Negative stock",
+        fileName: todayFileName("negative-stock", format),
+        reference: asOfReference,
+        format,
+        columns: negativeStockReportColumns,
+        read: (storeId) => readNegativeStock(database, storeId, now()),
       }),
   };
 }
