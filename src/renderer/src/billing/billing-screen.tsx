@@ -40,7 +40,7 @@ import { ReceiptScreen } from "./receipt-screen";
 import { ProductGrid, type ProductGridHandle } from "./product-grid";
 import { QuantityConfirmDialog } from "./quantity-confirm-dialog";
 import { quantityGuardMessage } from "./quantity-guard";
-import { createBurstDetector } from "./scan-burst";
+import { createBurstDetector, restoreField } from "./scan-burst";
 import { notFoundMessage } from "./scan-input";
 import { createScanQueue, type ScanOutcome, type ScanQueue } from "./scan-queue";
 import { ScanField, useDebouncedValue } from "./scan-field";
@@ -91,12 +91,16 @@ const paymentHints: Hint[] = [
 const receiptHints: Hint[] = [
   ["Enter", "New bill"],
   ["Ctrl+P", "Print"],
+  ["Ctrl+Shift+P", "Print invoice"],
+  ["Ctrl+Shift+S", "Save invoice PDF"],
   ["Ctrl+L", "Switch user"],
 ];
 
 const receiptAskHints: Hint[] = [
   ["Enter", "Print"],
   ["Esc", "Skip"],
+  ["Ctrl+Shift+P", "Print invoice"],
+  ["Ctrl+Shift+S", "Save invoice PDF"],
   ["Ctrl+L", "Switch user"],
 ];
 
@@ -132,11 +136,6 @@ type Prompt =
   | { kind: "held" }
   | { kind: "discard-bill" }
   | { kind: "discard-held"; bill: HeldBillSummary };
-
-function restoreField(field: HTMLInputElement, value: string) {
-  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(field, value);
-  field.dispatchEvent(new Event("input", { bubbles: true }));
-}
 
 interface BillingScreenProps {
   active: boolean;

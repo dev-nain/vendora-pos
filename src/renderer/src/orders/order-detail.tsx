@@ -8,6 +8,7 @@ import { cn } from "@renderer/lib/utils";
 import { formatDateTime } from "../lib/date-time";
 import { formatRupees } from "../lib/money";
 import { formatQuantity } from "../lib/quantity";
+import { InvoiceActions, type useInvoiceActions } from "./invoice-actions";
 import { orderMoney } from "./order-list";
 
 type OrderLine = OrderDetailData["lines"][number];
@@ -42,6 +43,7 @@ interface OrderDetailProps {
   canReturn: boolean;
   onReprint: () => void;
   onReturn: () => void;
+  invoice: ReturnType<typeof useInvoiceActions>;
 }
 
 export function OrderDetail({
@@ -52,6 +54,7 @@ export function OrderDetail({
   canReturn,
   onReprint,
   onReturn,
+  invoice,
 }: OrderDetailProps) {
   if (!order) {
     return (
@@ -163,6 +166,13 @@ export function OrderDetail({
             Nothing left to return.
           </p>
         )}
+        <InvoiceActions
+          busy={invoice.busy}
+          status={invoice.status}
+          error={invoice.error}
+          onPrint={invoice.print}
+          onSavePdf={invoice.savePdf}
+        />
         {result?.successful ? (
           <p role="status" className="m-0 text-[length:var(--font-size-350)] text-secondary">
             Receipt sent to the printer.

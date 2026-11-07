@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { maxPaisa } from "./checkout";
-import { postGoodsReceivedInputSchema } from "./goods-received";
+import {
+  GOODS_RECEIVED_MAX_LIMIT,
+  goodsReceivedListQuerySchema,
+  postGoodsReceivedInputSchema,
+} from "./goods-received";
 
 const uuid = "01900000-0000-7000-8000-000000000001";
 const directLine = { productId: uuid, qtyMilli: 1000, unitCostPaisa: 100 };
@@ -73,5 +77,28 @@ describe("postGoodsReceivedInputSchema", () => {
     const big = { ...directLine, qtyMilli: 2000, unitCostPaisa: maxPaisa };
     expect(parse({ ...direct, lines: [big] }).success).toBe(false);
     expect(parse({ ...order, lines: [{ ...orderLine, ...big }] }).success).toBe(false);
+  });
+});
+
+const parseQuery = (value: unknown) => goodsReceivedListQuerySchema.safeParse(value);
+
+describe("goodsReceivedListQuerySchema", () => {
+  const query = { limit: 50, offset: 0 };
+
+  it("accepts filters and paging", () => {
+    expect(parseQuery(query).success).toBe(true);
+    expect(
+      parseQuery({ ...query, supplierId: uuid, from: "2024-03-10", to: "2024-03-12" }).success,
+    ).toBe(true);
+  });
+
+  it("rejects a bad supplier id, a bad date, a bad limit and extra keys", () => {
+    expect(parseQuery({ ...query, supplierId: "nope" }).success).toBe(false);
+    expect(parseQuery({ ...query, from: "10/03/2024" }).success).toBe(false);
+    expect(parseQuery({ ...query, to: "2024-13-40" }).success).toBe(false);
+    expect(parseQuery({ ...query, limit: 0 }).success).toBe(false);
+    expect(parseQuery({ ...query, limit: GOODS_RECEIVED_MAX_LIMIT + 1 }).success).toBe(false);
+    expect(parseQuery({ ...query, offset: -1 }).success).toBe(false);
+    expect(parseQuery({ ...query, extra: 1 }).success).toBe(false);
   });
 });
