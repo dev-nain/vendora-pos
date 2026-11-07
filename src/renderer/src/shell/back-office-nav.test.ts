@@ -8,7 +8,12 @@ describe("back office nav", () => {
       "products",
       "categories",
       "stock",
+      "low-stock",
+      "negative-stock",
+      "suppliers",
       "users",
+      "audit",
+      "backup",
       "settings",
     ]);
   });
@@ -19,9 +24,15 @@ describe("back office nav", () => {
     ).toEqual(["products", "categories"]);
   });
 
-  it("groups stock under Inventory", () => {
+  it("groups stock, low stock and negative stock under Inventory", () => {
     expect(
-      backOfficeEntries.filter((entry) => entry.group === "Inventory").map((entry) => entry.label),
-    ).toEqual(["Stock"]);
+      backOfficeEntries.filter((entry) => entry.group === "Inventory").map((entry) => entry.page),
+    ).toEqual(["stock", "low-stock", "negative-stock"]);
+  });
+
+  it("groups suppliers under Purchasing", () => {
+    expect(
+      backOfficeEntries.filter((entry) => entry.group === "Purchasing").map((entry) => entry.page),
+    ).toEqual(["suppliers"]);
   });
 });
