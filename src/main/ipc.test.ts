@@ -151,6 +151,12 @@ describe("products ipc", () => {
       audit: createAuditService(database),
       sessions,
     });
+    goodsReceivedService = createGoodsReceivedService({
+      database,
+      audit: createAuditService(database),
+      sessions,
+      stock: createStockService({ database, audit: createAuditService(database) }),
+    });
     purchaseOrderDocumentsService = createPurchaseOrderDocumentsService({
       database,
       sessions,

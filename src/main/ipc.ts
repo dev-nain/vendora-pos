@@ -511,6 +511,11 @@ export function registerIpcHandlers({
       purchaseOrders.cancel(purchaseOrderIdInputSchema.parse(input)),
     ),
   );
+  handle(ipcChannels.goodsReceivedPost, (_event, input) =>
+    postGoodsReceivedResultSchema.parse(
+      goodsReceived.post(postGoodsReceivedInputSchema.parse(input)),
+    ),
+  );
   handle(ipcChannels.purchaseOrdersSavePdf, async (_event, input) =>
     savePurchaseOrderPdfResultSchema.parse(
       await purchaseOrderDocuments.savePdf(purchaseOrderIdInputSchema.parse(input)),
