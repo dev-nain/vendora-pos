@@ -13,6 +13,7 @@ import { createCategoriesService } from "./services/categories";
 import { createPurchaseOrderDocumentsService } from "./services/purchase-order-documents";
 import { createPurchaseOrdersService } from "./services/purchase-orders";
 import { createReceiptsService } from "./services/receipts";
+import { createReportsService } from "./services/reports";
 import { createReturnsService } from "./services/returns";
 import { createSalesService } from "./services/sales";
 import { createSettingsService } from "./services/settings";
@@ -106,6 +107,19 @@ void app.whenReady().then(async () => {
     chooseSavePath: (fileName) =>
       chooseSavePath("Save purchase order", { name: "PDF file", extensions: ["pdf"] }, fileName),
   });
+  const reports = createReportsService({
+    database,
+    sessions,
+    renderer: createDocumentRenderer(),
+    chooseSavePath: (fileName, format) =>
+      chooseSavePath(
+        "Export report",
+        format === "csv"
+          ? { name: "CSV file", extensions: ["csv"] }
+          : { name: "PDF file", extensions: ["pdf"] },
+        fileName,
+      ),
+  });
   const fakePrinterDir = process.env["VENDORA_FAKE_PRINTER"];
   const renderWindow = createRenderWindow();
   const receipts = createReceiptsService({
@@ -128,6 +142,7 @@ void app.whenReady().then(async () => {
     purchaseOrderDocuments,
     purchaseOrders,
     receipts,
+    reports,
     returns,
     sales,
     settings,

@@ -23,6 +23,7 @@ import {
   createPurchaseOrdersService,
   type PurchaseOrdersService,
 } from "./services/purchase-orders";
+import { createReportsService, type ReportsService } from "./services/reports";
 import { createShiftsService, type ShiftsService } from "./services/shifts";
 import { createSuppliersService, type SuppliersService } from "./services/suppliers";
 import { createStockService } from "./services/stock";
@@ -161,6 +162,7 @@ describe("products ipc", () => {
       purchaseOrderDocuments: purchaseOrderDocumentsService,
       purchaseOrders: purchaseOrdersService,
       receipts: stub,
+      reports: stub,
       returns: stub,
       sales: stub,
       settings: stub,
@@ -502,6 +504,7 @@ describe("shifts ipc", () => {
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
       receipts: receipts as never,
+      reports: stub,
       returns: stub,
       sales: stub,
       settings: stub,
@@ -654,6 +657,7 @@ describe("checkout ipc", () => {
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
       receipts: receipts as never,
+      reports: stub,
       returns: kit.returns,
       sales,
       settings: stub,
@@ -897,6 +901,7 @@ describe("inventory ipc", () => {
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
       receipts: stub,
+      reports: stub,
       returns: stub,
       sales: stub,
       settings: stub,
@@ -965,6 +970,89 @@ describe("inventory ipc", () => {
       invoke("inventory:list-stock", { query: "", limit: 10, offset: 0 }),
     ).rejects.toThrow(new Error(ipcErrorMessages.unauthenticated));
     await expect(invoke("inventory:low-stock", { limit: 10, offset: 0 })).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
+  });
+});
+
+describe("reports ipc", () => {
+  let kit: CheckoutKit;
+  let service: ReportsService;
+  const range = { from: "2026-11-01", to: "2026-11-07" };
+
+  beforeEach(() => {
+    handlers.clear();
+    kit = createCheckoutKit();
+    service = createReportsService({
+      database: kit.database,
+      sessions: kit.sessions,
+      renderer: { toPdf: async () => Buffer.from("%PDF-"), print: async () => "printed" },
+      chooseSavePath: async (fileName) => join(kit.dir, fileName),
+    });
+    const stub = {} as never;
+    registerIpcHandlers({
+      auth: stub,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      inventory: stub,
+      products: stub,
+      purchaseOrderDocuments: stub,
+      purchaseOrders: stub,
+      receipts: stub,
+      reports: service,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      suppliers: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+    kit.signIn("cashier");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    kit.close();
+  });
+
+  it.each([
+    ["reports:sales-by-day", "salesByDay", { from: "2026-13-01", to: "2026-11-07" }],
+    ["reports:sales-by-day", "salesByDay", { from: "2026-11-08", to: "2026-11-07" }],
+    ["reports:sales-by-day", "salesByDay", { ...range, extra: 1 }],
+    ["reports:export-sales-by-day", "exportSalesByDay", { range, format: "xlsx" }],
+    ["reports:export-sales-by-day", "exportSalesByDay", { range, format: "csv", extra: 1 }],
+    [
+      "reports:export-sales-by-day",
+      "exportSalesByDay",
+      { range: { from: "2026-11-08", to: "2026-11-07" }, format: "pdf" },
+    ],
+    ["reports:export-sales-by-day", "exportSalesByDay", { range }],
+  ] as const)("%s rejects bad input", async (channel, method, input) => {
+    const spy = vi.spyOn(service, method);
+    await expect(invoke(channel, input)).rejects.toThrow();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty report and exports it", async () => {
+    expect(await invoke("reports:sales-by-day", range)).toMatchObject({
+      rows: [],
+      totals: { billCount: 0, totalPaisa: 0 },
+    });
+    expect(await invoke("reports:export-sales-by-day", { range, format: "csv" })).toEqual({
+      ok: true,
+      status: "saved",
+      path: join(kit.dir, "sales-by-day-2026-11-01-to-2026-11-07.csv"),
+    });
+  });
+
+  it("is refused when signed out", async () => {
+    kit.sessions.end();
+    await expect(invoke("reports:sales-by-day", range)).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
+    await expect(invoke("reports:export-sales-by-day", { range, format: "pdf" })).rejects.toThrow(
       new Error(ipcErrorMessages.unauthenticated),
     );
   });

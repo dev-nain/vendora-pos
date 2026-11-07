@@ -163,7 +163,7 @@ export const salesByDayColumns: ReportColumn<SalesByDayRow>[] = [
 export const exportReportFailedMessage =
   "Couldn't save the report. Check the folder and try again.";
 
-export const exportReportResultSchema = z.discriminatedUnion("ok", [
+export const exportReportResultSchema = z.union([
   z.strictObject({ ok: z.literal(true), status: z.literal("saved"), path: z.string() }),
   z.strictObject({ ok: z.literal(true), status: z.literal("cancelled") }),
   z.strictObject({ ok: z.literal(false), reason: z.literal("failed"), message: z.string() }),
