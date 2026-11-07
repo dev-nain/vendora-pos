@@ -28,16 +28,16 @@ export const checkoutMessages = {
   needsWeight: "Enter the weight.",
 } as const;
 
-const maxPaisa = 100_000_000_00;
-const maxQtyMilli = 1_000_000_000;
+export const maxPaisa = 100_000_000_00;
+export const maxQtyMilli = 1_000_000_000;
 
 export const refusal = <Reason extends string>(reason: Reason) =>
   z.strictObject({ ok: z.literal(false), reason: z.literal(reason), message: z.string() });
 
-const paisaSchema = z.int().min(0).max(maxPaisa);
+export const paisaSchema = z.int().min(0).max(maxPaisa);
 const positivePaisaSchema = z.int().min(1).max(maxPaisa);
-const qtyMilliSchema = z.int().min(1).max(maxQtyMilli);
-const isoSchema = z.iso.datetime();
+export const qtyMilliSchema = z.int().min(1).max(maxQtyMilli);
+export const isoSchema = z.iso.datetime();
 
 export const discountSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("amount"), amountPaisa: paisaSchema }),
