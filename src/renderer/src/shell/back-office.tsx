@@ -5,6 +5,7 @@ import {
   ScrollTextIcon,
   SettingsIcon,
   TagsIcon,
+  TriangleAlertIcon,
   TruckIcon,
   UsersIcon,
   type LucideIcon,
@@ -15,6 +16,7 @@ import { cn } from "@renderer/lib/utils";
 import { AuditLogScreen } from "../audit/audit-log-screen";
 import { BackupScreen } from "../backup/backup-screen";
 import { CategoriesScreen } from "../categories/categories-screen";
+import { LowStockScreen } from "../inventory/low-stock-screen";
 import { StockScreen } from "../inventory/stock-screen";
 import { ProductsScreen } from "../products/products-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
@@ -33,6 +35,7 @@ const icons: Record<BackOfficePage, LucideIcon> = {
   products: PackageIcon,
   categories: TagsIcon,
   stock: BoxesIcon,
+  "low-stock": TriangleAlertIcon,
   suppliers: TruckIcon,
   users: UsersIcon,
   audit: ScrollTextIcon,
@@ -104,6 +107,8 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
           <CategoriesScreen onSessionEnded={onSessionEnded} />
         ) : page === "stock" ? (
           <StockScreen onSessionEnded={onSessionEnded} />
+        ) : page === "low-stock" ? (
+          <LowStockScreen onSessionEnded={onSessionEnded} />
         ) : page === "suppliers" ? (
           <SuppliersScreen onSessionEnded={onSessionEnded} />
         ) : page === "users" ? (

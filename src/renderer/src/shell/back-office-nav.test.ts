@@ -8,6 +8,7 @@ describe("back office nav", () => {
       "products",
       "categories",
       "stock",
+      "low-stock",
       "suppliers",
       "users",
       "audit",
@@ -22,10 +23,10 @@ describe("back office nav", () => {
     ).toEqual(["products", "categories"]);
   });
 
-  it("groups stock under Inventory", () => {
+  it("groups stock and low stock under Inventory", () => {
     expect(
       backOfficeEntries.filter((entry) => entry.group === "Inventory").map((entry) => entry.page),
-    ).toEqual(["stock"]);
+    ).toEqual(["stock", "low-stock"]);
   });
 
   it("groups suppliers under Purchasing", () => {

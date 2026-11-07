@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   movementReasonLabels,
   movementTypeLabels,
+  negativeClass,
   onHandText,
   signedQuantityText,
 } from "./stock-format";
@@ -21,6 +22,14 @@ describe("onHandText", () => {
   it("uses the minus sign for negative stock", () => {
     expect(onHandText(-3000, "piece")).toBe("−3 pcs");
     expect(onHandText(-1250, "kg")).toBe("−1.250 kg");
+  });
+});
+
+describe("negativeClass", () => {
+  it("marks only values below zero as critical", () => {
+    expect(negativeClass(-1)).toBe("text-critical");
+    expect(negativeClass(0)).toBe("");
+    expect(negativeClass(1)).toBe("");
   });
 });
 

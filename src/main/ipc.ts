@@ -36,6 +36,8 @@ import {
 import { auditListQuerySchema, auditPageSchema, auditUsersSchema } from "@shared/audit";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
 import {
+  lowStockQuerySchema,
+  lowStockResultSchema,
   stockHistoryQuerySchema,
   stockHistoryResultSchema,
   stockListQuerySchema,
@@ -366,6 +368,9 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.inventoryListStock, (_event, input) =>
     stockListResultSchema.parse(inventory.list(stockListQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.inventoryLowStock, (_event, input) =>
+    lowStockResultSchema.parse(inventory.lowStock(lowStockQuerySchema.parse(input))),
   );
   handle(ipcChannels.inventoryStockHistory, (_event, input) =>
     stockHistoryResultSchema.parse(inventory.history(stockHistoryQuerySchema.parse(input))),

@@ -47,7 +47,11 @@ import {
   shiftStateSchema,
 } from "@shared/shifts";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
-import { stockHistoryResultSchema, stockListResultSchema } from "@shared/inventory";
+import {
+  lowStockResultSchema,
+  stockHistoryResultSchema,
+  stockListResultSchema,
+} from "@shared/inventory";
 import { returnableResultSchema } from "@shared/returns";
 import { getOrderResultSchema, orderListSchema } from "@shared/sales";
 import {
@@ -214,6 +218,8 @@ const api: VendoraApi = {
       stockHistoryResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.inventoryStockHistory, query),
       ),
+    lowStock: async (query) =>
+      lowStockResultSchema.parse(await ipcRenderer.invoke(ipcChannels.inventoryLowStock, query)),
   },
   products: {
     getMiscItem: async () =>

@@ -1190,6 +1190,10 @@ describe("inventory ipc", () => {
     ["inventory:list-stock", "list", { query: "", limit: 101, offset: 0 }],
     ["inventory:list-stock", "list", { query: "", limit: 10, offset: 0, extra: 1 }],
     ["inventory:list-stock", "list", { query: "", limit: 10, offset: 0, includeArchived: true }],
+    ["inventory:low-stock", "lowStock", { limit: 101, offset: 0 }],
+    ["inventory:low-stock", "lowStock", { limit: 10, offset: 0, extra: 1 }],
+    ["inventory:low-stock", "lowStock", { limit: 10, offset: 0, categoryId: "x" }],
+    ["inventory:low-stock", "lowStock", { limit: 10, offset: 0, query: "" }],
     ["inventory:stock-history", "history", { productId: "x", limit: 10, offset: 0 }],
     ["inventory:stock-history", "history", { productId: unknownId, limit: 101, offset: 0 }],
     [
@@ -1216,11 +1220,26 @@ describe("inventory ipc", () => {
     ).toMatchObject({ ok: false, reason: "not-found" });
   });
 
+  it("lists low-stock products", async () => {
+    const tea = kit.addProduct({
+      nameEn: "Tea",
+      searchText: "tea",
+      lowStockThresholdMilli: 5000,
+    });
+    expect(await invoke("inventory:low-stock", { limit: 10, offset: 0 })).toMatchObject({
+      total: 1,
+      items: [{ id: tea.id, onHandMilli: 0, thresholdMilli: 5000, shortfallMilli: 5000 }],
+    });
+  });
+
   it("rejects reads with no session", async () => {
     kit.sessions.end();
     await expect(
       invoke("inventory:list-stock", { query: "", limit: 10, offset: 0 }),
     ).rejects.toThrow(new Error(ipcErrorMessages.unauthenticated));
+    await expect(invoke("inventory:low-stock", { limit: 10, offset: 0 })).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
   });
 });
 
