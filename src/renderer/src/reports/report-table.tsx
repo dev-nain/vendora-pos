@@ -17,6 +17,7 @@ interface ReportTableProps<Row extends Record<string, string | number>> {
   rows: Row[];
   rowKey: Extract<keyof Row, string>;
   totals?: Record<string, number> | null;
+  onOpenSale?: ((invoiceNo: string) => void) | undefined;
 }
 
 const cellClass = <Row,>(column: ReportColumn<Row>, value: string | number) =>
@@ -31,6 +32,7 @@ export function ReportTable<Row extends Record<string, string | number>>({
   rows,
   rowKey,
   totals,
+  onOpenSale,
 }: ReportTableProps<Row>) {
   return (
     <Table
@@ -67,9 +69,23 @@ export function ReportTable<Row extends Record<string, string | number>>({
           <TableRow key={String(row[rowKey])}>
             {columns.map((column) => {
               const value = row[column.key] ?? "";
+              const text = formatReportCell(column, value, row);
+              const invoiceNo =
+                column.format === "invoice" ? String(row[column.linkKey ?? column.key] ?? "") : "";
               return (
                 <TableCell key={column.key} className={cellClass(column, value)}>
-                  {formatReportCell(column, value, row)}
+                  {invoiceNo !== "" && onOpenSale ? (
+                    <button
+                      type="button"
+                      aria-label={`Open bill ${invoiceNo} on the Orders screen`}
+                      className="-mx-100 min-h-[var(--height-control-md)] rounded-100 px-100 text-[color:var(--color-text-link)] outline-none hover:underline focus-visible:shadow-focus"
+                      onClick={() => onOpenSale(invoiceNo)}
+                    >
+                      {text}
+                    </button>
+                  ) : (
+                    text
+                  )}
                 </TableCell>
               );
             })}

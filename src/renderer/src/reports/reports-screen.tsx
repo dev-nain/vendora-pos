@@ -7,19 +7,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@renderer/components/ui/select";
-import { reportDefinitions } from "./report-definitions";
+import {
+  discountsReturnsVoidsReport,
+  reportDefinitions,
+  salesByDayReport,
+} from "./report-definitions";
 import { ReportView } from "./report-view";
 
 interface ReportsScreenProps {
   onSessionEnded: () => void;
+  onOpenSale?: ((invoiceNo: string) => void) | undefined;
 }
 
 const reportItems = reportDefinitions.map((report) => ({ value: report.id, label: report.label }));
 
-export function ReportsScreen({ onSessionEnded }: ReportsScreenProps) {
+export function ReportsScreen({ onSessionEnded, onOpenSale }: ReportsScreenProps) {
   const [reportId, setReportId] = useState<string>(reportDefinitions[0].id);
-  const definition = reportDefinitions.find((report) => report.id === reportId);
-  if (!definition) return null;
 
   const picker = (
     <Select
@@ -29,7 +32,7 @@ export function ReportsScreen({ onSessionEnded }: ReportsScreenProps) {
         if (typeof next === "string") setReportId(next);
       }}
     >
-      <SelectTrigger aria-label="Report" className="w-[220px]" autoFocus>
+      <SelectTrigger aria-label="Report" className="w-[280px]" autoFocus>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -42,10 +45,18 @@ export function ReportsScreen({ onSessionEnded }: ReportsScreenProps) {
     </Select>
   );
 
-  return (
+  return reportId === discountsReturnsVoidsReport.id ? (
     <ReportView
-      key={definition.id}
-      definition={definition}
+      key={reportId}
+      definition={discountsReturnsVoidsReport}
+      picker={picker}
+      onSessionEnded={onSessionEnded}
+      onOpenSale={onOpenSale}
+    />
+  ) : (
+    <ReportView
+      key={reportId}
+      definition={salesByDayReport}
       picker={picker}
       onSessionEnded={onSessionEnded}
     />

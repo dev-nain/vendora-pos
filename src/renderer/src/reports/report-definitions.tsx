@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 
+import type { DiscountsReturnsVoidsResult } from "@shared/discounts-returns-voids";
 import {
   salesByDayColumns,
   type ExportReportInput,
@@ -7,11 +8,13 @@ import {
   type ReportRange,
   type SalesByDayResult,
 } from "@shared/reports";
+import { DiscountsReturnsVoidsBody } from "./discounts-returns-voids-view";
 import { ReportTable } from "./report-table";
 
 export interface ReportBodyProps<Result> {
   result: Result;
   busy: boolean;
+  onOpenSale?: ((invoiceNo: string) => void) | undefined;
 }
 
 export interface ReportDefinition<Result> {
@@ -47,4 +50,18 @@ export const salesByDayReport: ReportDefinition<SalesByDayResult> = {
   Body: SalesByDayBody,
 };
 
-export const reportDefinitions = [salesByDayReport] as const;
+export const discountsReturnsVoidsReport: ReportDefinition<DiscountsReturnsVoidsResult> = {
+  id: "discounts-returns-voids",
+  label: "Discounts, returns and voids",
+  emptyTitle: "No discounts, returns or voids in this period",
+  load: (range) => window.vendora.reports.discountsReturnsVoids(range),
+  exportTo: (input) => window.vendora.reports.exportDiscountsReturnsVoids(input),
+  isEmpty: ({ discounts, returns, voids }) =>
+    discounts.billCount === 0 &&
+    returns.lineCount === 0 &&
+    voids.deletedLines.count === 0 &&
+    voids.discardedBills.count === 0,
+  Body: DiscountsReturnsVoidsBody,
+};
+
+export const reportDefinitions = [salesByDayReport, discountsReturnsVoidsReport] as const;

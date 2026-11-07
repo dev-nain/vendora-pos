@@ -21,6 +21,7 @@ interface ReportViewProps<Result> {
   definition: ReportDefinition<Result>;
   picker: ReactNode;
   onSessionEnded: () => void;
+  onOpenSale?: ((invoiceNo: string) => void) | undefined;
 }
 
 const rangeError = (from: string, to: string): string =>
@@ -34,6 +35,7 @@ export function ReportView<Result>({
   definition,
   picker,
   onSessionEnded,
+  onOpenSale,
 }: ReportViewProps<Result>) {
   const [preset, setPreset] = useState<ReportPreset>("today");
   const [initial] = useState(() => presetRange("today", new Date()));
@@ -210,7 +212,7 @@ export function ReportView<Result>({
             <p className="m-0 text-secondary">Try another date range.</p>
           </div>
         ) : (
-          <definition.Body result={result} busy={busy} />
+          <definition.Body result={result} busy={busy} onOpenSale={onOpenSale} />
         )}
       </div>
     </div>
