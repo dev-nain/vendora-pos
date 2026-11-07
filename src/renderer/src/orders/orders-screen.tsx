@@ -40,6 +40,7 @@ const emptyText: Record<Source, string> = {
 
 interface OrdersScreenProps {
   active: boolean;
+  initialInvoiceNo: string | null;
   onBack: () => void;
   onSessionEnded: () => void;
   onPrinterChanged: () => void;
@@ -49,6 +50,7 @@ interface OrdersScreenProps {
 
 export function OrdersScreen({
   active,
+  initialInvoiceNo,
   onBack,
   onSessionEnded,
   onPrinterChanged,
@@ -60,7 +62,7 @@ export function OrdersScreen({
   const [loadFailed, setLoadFailed] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<OrderDetailData | null>(null);
-  const [searchText, setSearchText] = useState("");
+  const [searchText, setSearchText] = useState(initialInvoiceNo ?? "");
   const [dateText, setDateText] = useState("");
   const [printing, setPrinting] = useState(false);
   const [result, setResult] = useState<PrintResult | null>(null);
@@ -115,8 +117,11 @@ export function OrdersScreen({
     [load, showShift],
   );
 
+  const firstInvoiceNo = useRef(initialInvoiceNo);
   useEffect(() => {
-    load({ scope: "shift" }, "shift");
+    const query = firstInvoiceNo.current ? searchQueryFrom(firstInvoiceNo.current) : null;
+    if (query) load(query, "invoice");
+    else load({ scope: "shift" }, "shift");
   }, [load]);
 
   useEffect(() => {
