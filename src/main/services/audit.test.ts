@@ -82,6 +82,13 @@ describe("createAuditService", () => {
     expect(rows()).toHaveLength(0);
   });
 
+  it("stores a null actor and rejects a missing or malformed one", () => {
+    const id = audit.record({ action: "backup", actorUserId: null });
+    expect(rows().find((row) => row.id === id)?.actorUserId).toBeNull();
+    expect(() => audit.record({ action: "backup" } as never)).toThrow();
+    expect(() => audit.record({ action: "backup", actorUserId: "nope" })).toThrow();
+  });
+
   it("rejects an unknown actor at the database level", () => {
     expect(() => audit.record({ action: "login", actorUserId: actor })).toThrow();
     expect(rows()).toHaveLength(0);
@@ -136,7 +143,7 @@ describe("auditRecordInputSchema", () => {
     for (const action of auditActions) {
       expect(auditRecordInputSchema.safeParse({ action, actorUserId: actor }).success).toBe(true);
     }
-    expect(auditActions).toHaveLength(25);
+    expect(auditActions).toHaveLength(31);
     expect(
       auditRecordInputSchema.safeParse({ action: "override", actorUserId: actor }).success,
     ).toBe(false);
