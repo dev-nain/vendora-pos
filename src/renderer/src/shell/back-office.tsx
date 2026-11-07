@@ -24,6 +24,7 @@ import { PurchaseOrdersScreen } from "../purchasing/purchase-orders-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
 import { PrinterSetting } from "../settings/printer-setting";
 import { ReceiptSetting } from "../settings/receipt-setting";
+import { MarginThresholdSetting } from "../settings/margin-threshold-setting";
 import { ShiftVarianceSetting } from "../settings/shift-variance-setting";
 import { SuppliersScreen } from "../suppliers/suppliers-screen";
 import { UsersScreen } from "../users/users-screen";
@@ -147,6 +148,7 @@ export function BackOffice({
             </h1>
             <MiscItemSetting />
             <ShiftVarianceSetting />
+            <MarginThresholdSetting />
             <PrinterSetting focusOnReady={focusPrinter === true} />
             <ReceiptSetting />
           </div>
