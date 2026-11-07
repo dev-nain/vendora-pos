@@ -11,6 +11,7 @@ describe("back office nav", () => {
       "low-stock",
       "purchase-orders",
       "suppliers",
+      "reports",
       "users",
       "settings",
     ]);
