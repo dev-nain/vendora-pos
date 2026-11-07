@@ -114,6 +114,15 @@ describe("lookupBarcode", () => {
     expect(lookupBarcode(database, storeId, "A1")).toBeNull();
   });
 
+  it("finds an archived product's barcode when archived products are included", () => {
+    const product = addProduct({ isActive: false });
+    addBarcode(product.id, "A1");
+    expect(lookupBarcode(database, storeId, "A1", { includeArchived: true })?.product.id).toBe(
+      product.id,
+    );
+    expect(lookupBarcode(database, storeId, "A1", { includeArchived: false })).toBeNull();
+  });
+
   it("returns null for a deleted product", () => {
     const product = addProduct({ deletedAt: new Date() });
     addBarcode(product.id, "A1");
@@ -213,6 +222,14 @@ describe("lookupBarcode", () => {
         product: expect.objectContaining({ id: product.id }),
         scale: { itemCode: "00123", kind: "price", pricePaisa: 25000 },
       });
+    });
+
+    it("resolves an archived product's label when archived products are included", () => {
+      const product = addProduct({ unit: "kg", internalCode: "00123", isActive: false });
+      expect(lookupBarcode(database, storeId, weightCode)).toBeNull();
+      expect(
+        lookupBarcode(database, storeId, weightCode, { includeArchived: true })?.product.id,
+      ).toBe(product.id);
     });
 
     it("returns null for archived, deleted and unmatched products", () => {

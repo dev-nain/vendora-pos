@@ -92,6 +92,29 @@ export const updateProductInputSchema = productFieldsSchema
   .extend({ id: z.uuid() })
   .superRefine(checkCrossFields);
 
+export function priceUpdateInput(product: Product, salePricePaisa: number): UpdateProductInput {
+  return {
+    id: product.id,
+    nameEn: product.nameEn,
+    nameUr: product.nameUr,
+    categoryId: product.categoryId,
+    taxCategoryId: product.taxCategoryId,
+    brand: product.brand,
+    unit: product.unit,
+    internalCode: product.internalCode,
+    costPaisa: product.costPaisa,
+    salePricePaisa,
+    mrpPaisa: product.mrpPaisa,
+    pctCode: product.pctCode,
+    lowStockThresholdMilli: product.lowStockThresholdMilli,
+    barcodes: product.barcodes.map((entry) => ({
+      barcode: entry.barcode,
+      packQtyMilli: entry.packQtyMilli,
+      salePricePaisa: entry.salePricePaisa,
+    })),
+  };
+}
+
 export const productIdInputSchema = z.strictObject({ id: z.uuid() });
 
 export const productSchema = z.strictObject({

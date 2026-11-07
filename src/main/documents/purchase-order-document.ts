@@ -37,6 +37,7 @@ export function buildPurchaseOrderDocument({ order, store, supplier }: Input): D
   return {
     title: "Purchase order",
     reference: order.orderNo,
+    header: [],
     panels: storeDetails.lines.length > 0 ? [storeDetails, supplierPanel] : [supplierPanel],
     facts,
     columns: [
@@ -54,6 +55,8 @@ export function buildPurchaseOrderDocument({ order, store, supplier }: Input): D
       { text: formatRupees(line.lineTotalPaisa) },
     ]),
     totals: [{ label: "Total", value: formatRupees(order.totalPaisa) }],
+    summaries: [],
     notes: present(order.notes) ? order.notes : null,
+    footer: [],
   };
 }
