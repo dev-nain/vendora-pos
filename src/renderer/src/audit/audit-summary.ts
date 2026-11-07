@@ -152,6 +152,8 @@ const username = (entry: AuditEntry): string => text(detailsOf(entry).username) 
 const supplierName = (entry: AuditEntry): string => text(detailsOf(entry).name) ?? "";
 const productNameEn = (entry: AuditEntry): string => text(detailsOf(entry).nameEn) ?? "";
 
+const orderNo = (entry: AuditEntry): string => text(detailsOf(entry).orderNo) ?? "";
+
 const summarisers: Record<AuditAction, (entry: AuditEntry) => string> = {
   login: (entry) => {
     const method = text(detailsOf(entry).method);
@@ -196,6 +198,16 @@ const summarisers: Record<AuditAction, (entry: AuditEntry) => string> = {
   product_delete: productNameEn,
   supplier_archive: supplierName,
   supplier_restore: supplierName,
+  purchase_order_create: (entry) => {
+    const details = detailsOf(entry);
+    return join([text(details.orderNo), lines(details.lineCount), rupees(details.totalPaisa)]);
+  },
+  purchase_order_confirm: orderNo,
+  purchase_order_cancel: orderNo,
+  goods_received_post: (entry) => {
+    const details = detailsOf(entry);
+    return join([text(details.grnNo), lines(details.lineCount), rupees(details.totalPaisa)]);
+  },
   shift_open: (entry) => {
     const float = rupees(detailsOf(entry).openingFloatPaisa);
     return float ? `Float ${float}` : "";

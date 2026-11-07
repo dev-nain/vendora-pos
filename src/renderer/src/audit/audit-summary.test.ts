@@ -116,6 +116,8 @@ describe("summariseAudit", () => {
     [entry("product_archive", { nameEn: "Tapal 950g" }), "Tapal 950g"],
     [entry("supplier_archive", { name: "Karachi Traders" }), "Karachi Traders"],
     [entry("supplier_restore", { name: "Karachi Traders" }), "Karachi Traders"],
+    [entry("purchase_order_confirm", { orderNo: "PO-7" }), "PO-7"],
+    [entry("purchase_order_cancel", { orderNo: "PO-7", from: "confirmed" }), "PO-7"],
     [entry("product_restore", { nameEn: "Tapal 950g" }), "Tapal 950g"],
     [entry("product_delete", { nameEn: "Tapal 950g", barcodes: ["1"] }), "Tapal 950g"],
     [entry("shift_open", { openingFloatPaisa: 500000 }), "Float Rs 5,000"],
@@ -134,6 +136,14 @@ describe("summariseAudit", () => {
     [
       entry("sale_complete", { invoiceNo: "T1-9", lineCount: 3, totalPaisa: 124000 }),
       "Invoice T1-9, 3 lines, Rs 1,240",
+    ],
+    [
+      entry("purchase_order_create", { orderNo: "PO-7", lineCount: 3, totalPaisa: 124000 }),
+      "PO-7, 3 lines, Rs 1,240",
+    ],
+    [
+      entry("goods_received_post", { grnNo: "GRN-2", lineCount: 1, totalPaisa: 50000 }),
+      "GRN-2, 1 line, Rs 500",
     ],
     [entry("backup", null), ""],
     [entry("restore", null), ""],
