@@ -11,6 +11,8 @@ import { createBillDraftsService } from "./services/bill-drafts";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createCategoriesService } from "./services/categories";
 import { createGoodsReceivedService } from "./services/goods-received";
+import { createPurchaseHistoryService } from "./services/purchase-history";
+import { createPurchaseReturnsService } from "./services/purchase-returns";
 import { createPurchaseOrderDocumentsService } from "./services/purchase-order-documents";
 import { createPurchaseOrdersService } from "./services/purchase-orders";
 import { createReceiptsService } from "./services/receipts";
@@ -93,6 +95,8 @@ void app.whenReady().then(async () => {
   const suppliers = createSuppliersService({ database, audit, sessions });
   const purchaseOrders = createPurchaseOrdersService({ database, audit, sessions });
   const goodsReceived = createGoodsReceivedService({ database, audit, sessions, stock });
+  const purchaseReturns = createPurchaseReturnsService({ database, audit, sessions, stock });
+  const purchaseHistory = createPurchaseHistoryService({ database, sessions });
   const taxCategories = createTaxCategoriesService({ database, audit, sessions });
   const catalogExport = createCatalogExportService({
     database,
@@ -128,8 +132,10 @@ void app.whenReady().then(async () => {
     goodsReceived,
     inventory,
     products,
+    purchaseHistory,
     purchaseOrderDocuments,
     purchaseOrders,
+    purchaseReturns,
     receipts,
     returns,
     sales,

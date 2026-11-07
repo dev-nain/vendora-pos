@@ -8,9 +8,9 @@ import {
   type PurchaseReturnListQuery,
   type PurchaseReturnListResult,
   type PurchaseReturn,
-  type ReturnableInput,
-  type ReturnableNoteResult,
-  type ReturnableResult,
+  type PurchaseReturnableInput,
+  type PurchaseReturnableNoteResult,
+  type PurchaseReturnableResult,
   type postPurchaseReturnInputSchema,
 } from "../../shared/purchase-returns";
 import { purchaseOrderLineTotalPaisa, purchaseOrderTotalPaisa } from "../../shared/purchase-orders";
@@ -423,7 +423,10 @@ export function createPurchaseReturnsService({
     });
   }
 
-  function returnable({ supplierId, productId }: ReturnableInput): ReturnableResult {
+  function returnable({
+    supplierId,
+    productId,
+  }: PurchaseReturnableInput): PurchaseReturnableResult {
     const session = requireSession(sessions);
     if (!findLiveSupplier(db, session.storeId, supplierId)) return supplierUnavailable;
     const product = loadProducts(db, session.storeId, [productId]).get(productId);
@@ -445,7 +448,7 @@ export function createPurchaseReturnsService({
     };
   }
 
-  function fromNote({ id }: { id: string }): ReturnableNoteResult {
+  function fromNote({ id }: { id: string }): PurchaseReturnableNoteResult {
     const session = requireSession(sessions);
     const note = db
       .select({

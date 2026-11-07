@@ -75,6 +75,17 @@ import {
   postGoodsReceivedResultSchema,
 } from "@shared/goods-received";
 import {
+  productPurchaseHistoryResultSchema,
+  supplierPurchaseHistoryResultSchema,
+} from "@shared/purchase-history";
+import {
+  getPurchaseReturnResultSchema,
+  postPurchaseReturnResultSchema,
+  purchaseReturnListResultSchema,
+  purchaseReturnableNoteResultSchema,
+  purchaseReturnableResultSchema,
+} from "@shared/purchase-returns";
+import {
   cancelPurchaseOrderResultSchema,
   confirmPurchaseOrderResultSchema,
   createPurchaseOrderResultSchema,
@@ -344,6 +355,38 @@ const api: VendoraApi = {
     lastCost: async (productId) =>
       goodsReceivedLastCostResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.goodsReceivedLastCost, { productId }),
+      ),
+  },
+  purchaseReturns: {
+    post: async (input) =>
+      postPurchaseReturnResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsPost, input),
+      ),
+    list: async (query) =>
+      purchaseReturnListResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsList, query),
+      ),
+    get: async (id) =>
+      getPurchaseReturnResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsGet, { id }),
+      ),
+    returnable: async (input) =>
+      purchaseReturnableResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsReturnable, input),
+      ),
+    fromNote: async (goodsReceivedNoteId) =>
+      purchaseReturnableNoteResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsFromNote, { id: goodsReceivedNoteId }),
+      ),
+  },
+  purchaseHistory: {
+    forProduct: async (query) =>
+      productPurchaseHistoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseHistoryProduct, query),
+      ),
+    forSupplier: async (query) =>
+      supplierPurchaseHistoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseHistorySupplier, query),
       ),
   },
   shifts: {

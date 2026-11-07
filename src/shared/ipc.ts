@@ -21,6 +21,22 @@ import type {
   PostGoodsReceivedResult,
 } from "./goods-received";
 import type {
+  ProductPurchaseHistoryQuery,
+  ProductPurchaseHistoryResult,
+  SupplierPurchaseHistoryQuery,
+  SupplierPurchaseHistoryResult,
+} from "./purchase-history";
+import type {
+  GetPurchaseReturnResult,
+  PostPurchaseReturnInput,
+  PostPurchaseReturnResult,
+  PurchaseReturnListQuery,
+  PurchaseReturnListResult,
+  PurchaseReturnableInput,
+  PurchaseReturnableNoteResult,
+  PurchaseReturnableResult,
+} from "./purchase-returns";
+import type {
   CancelPurchaseOrderResult,
   ConfirmPurchaseOrderResult,
   CreatePurchaseOrderInput,
@@ -202,6 +218,13 @@ export const ipcChannels = {
   goodsReceivedList: "goods-received:list",
   goodsReceivedGet: "goods-received:get",
   goodsReceivedLastCost: "goods-received:last-cost",
+  purchaseReturnsPost: "purchase-returns:post",
+  purchaseReturnsList: "purchase-returns:list",
+  purchaseReturnsGet: "purchase-returns:get",
+  purchaseReturnsReturnable: "purchase-returns:returnable",
+  purchaseReturnsFromNote: "purchase-returns:from-note",
+  purchaseHistoryProduct: "purchase-history:product",
+  purchaseHistorySupplier: "purchase-history:supplier",
   purchaseOrdersSavePdf: "purchase-orders:save-pdf",
   purchaseOrdersPrint: "purchase-orders:print",
   shiftsState: "shifts:state",
@@ -332,6 +355,17 @@ export interface VendoraApi {
     list: (query: GoodsReceivedListQuery) => Promise<GoodsReceivedListResult>;
     get: (id: string) => Promise<GetGoodsReceivedResult>;
     lastCost: (productId: string) => Promise<GoodsReceivedLastCostResult>;
+  };
+  purchaseReturns: {
+    post: (input: PostPurchaseReturnInput) => Promise<PostPurchaseReturnResult>;
+    list: (query: PurchaseReturnListQuery) => Promise<PurchaseReturnListResult>;
+    get: (id: string) => Promise<GetPurchaseReturnResult>;
+    returnable: (input: PurchaseReturnableInput) => Promise<PurchaseReturnableResult>;
+    fromNote: (goodsReceivedNoteId: string) => Promise<PurchaseReturnableNoteResult>;
+  };
+  purchaseHistory: {
+    forProduct: (query: ProductPurchaseHistoryQuery) => Promise<ProductPurchaseHistoryResult>;
+    forSupplier: (query: SupplierPurchaseHistoryQuery) => Promise<SupplierPurchaseHistoryResult>;
   };
   shifts: {
     state: () => Promise<ShiftState>;
