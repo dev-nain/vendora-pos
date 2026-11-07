@@ -15,6 +15,16 @@ export const shiftVarianceInputSchema = z.strictObject({ warnPaisa: warnPaisaSch
 
 export const shiftVarianceSettingSchema = z.strictObject({ warnPaisa: warnPaisaSchema });
 
+export const marginThresholdBpsSchema = z.int().min(0).max(10000).nullable();
+
+export const marginThresholdInputSchema = z.strictObject({
+  thresholdBps: marginThresholdBpsSchema,
+});
+
+export const marginThresholdSettingSchema = z.strictObject({
+  thresholdBps: marginThresholdBpsSchema,
+});
+
 export const scalePrefixSchema = z.string().regex(/^\d{2}$/);
 
 const scalePrefixesShape = {
@@ -38,6 +48,9 @@ export type MiscItemInput = z.infer<typeof miscItemInputSchema>;
 export type MiscItemSetting = z.infer<typeof miscItemSettingSchema>;
 export type ShiftVarianceInput = z.infer<typeof shiftVarianceInputSchema>;
 export type ShiftVarianceSetting = z.infer<typeof shiftVarianceSettingSchema>;
+
+export type MarginThresholdInput = z.infer<typeof marginThresholdInputSchema>;
+export type MarginThresholdSetting = z.infer<typeof marginThresholdSettingSchema>;
 
 export const blankToNull = (value: string | null) =>
   value === null || value.trim() === "" ? null : value.trim();

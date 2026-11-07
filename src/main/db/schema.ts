@@ -63,6 +63,7 @@ export const stores = sqliteTable(
     scalePricePrefix: text("scale_price_prefix").notNull().default("22"),
     miscItemEnabled: integer("misc_item_enabled", { mode: "boolean" }).notNull().default(false),
     shiftVarianceWarnPaisa: integer("shift_variance_warn_paisa").notNull().default(0),
+    marginThresholdBps: integer("margin_threshold_bps"),
     pricesIncludeTax: integer("prices_include_tax", { mode: "boolean" }).notNull().default(true),
     cashRoundingEnabled: integer("cash_rounding_enabled", { mode: "boolean" })
       .notNull()
