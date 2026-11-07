@@ -124,8 +124,57 @@
     {
       "idx": 17,
       "version": "6",
-      "when": 1794038209404,
-      "tag": "0017_sale_line_category",
+      "when": 1793988189646,
+      "tag": "0017_mean_nextwave",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1794039820888,
+      "tag": "0018_backup_records",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1794040131405,
+      "tag": "0019_stock_movements_covering_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1794040223220,
+      "tag": "0020_stocktakes",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1794040295164,
+      "tag": "0021_stocktake_posting",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1794074317733,
+      "tag": "0022_margin_prompt",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1794074412551,
+      "tag": "0023_purchase_returns",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1794075967061,
+      "tag": "0024_sale_line_category",
       "breakpoints": true
     }
   ]
