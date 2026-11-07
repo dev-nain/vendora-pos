@@ -1,4 +1,3 @@
-import type { StockMovementRow } from "@shared/inventory";
 import type { ProductUnit } from "@shared/products";
 import { negativeRupees } from "../billing/bill-format";
 import { formatRupees } from "../lib/money";
@@ -28,20 +27,4 @@ export const signedQuantityText = (milli: number, unit: ProductUnit): string => 
 export const signedValueText = (paisa: number): string =>
   paisa < 0 ? negativeRupees(-paisa) : paisa > 0 ? `+${formatRupees(paisa)}` : formatRupees(0);
 
-export const movementTypeLabels: Record<StockMovementRow["type"], string> = {
-  opening: "Opening",
-  sale: "Sale",
-  return: "Return",
-  receipt: "Receipt",
-  adjustment: "Adjustment",
-  stocktake: "Stocktake",
-  damage: "Damage",
-  purchase_return: "Purchase return",
-};
-
-export const movementReasonLabels: Record<NonNullable<StockMovementRow["reason"]>, string> = {
-  damage: "Damage",
-  expiry: "Expiry",
-  theft: "Theft",
-  correction: "Correction",
-};
+export { movementReasonLabels, movementTypeLabels } from "@shared/inventory";

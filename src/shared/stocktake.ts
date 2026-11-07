@@ -5,6 +5,9 @@ import { barcodeLookupInputSchema, PRODUCT_SEARCH_MAX_LIMIT, productUnits } from
 export const stocktakeScopes = ["full", "category"] as const;
 export type StocktakeScope = (typeof stocktakeScopes)[number];
 
+export const stocktakeScopeLabel = (scope: StocktakeScope, categoryName: string | null): string =>
+  scope === "full" ? "Full count" : `Category: ${categoryName ?? ""}`;
+
 export const stocktakeStatuses = ["open", "posted", "cancelled"] as const;
 export type StocktakeStatus = (typeof stocktakeStatuses)[number];
 

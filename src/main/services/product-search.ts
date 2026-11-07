@@ -15,6 +15,25 @@ function escapeLike(term: string): string {
   return term.replace(/[\\%_]/g, (char) => `\\${char}`);
 }
 
+export const productOnHandMilli = sql<number>`coalesce((SELECT sum(${stockMovements.qtyMilli}) FROM ${stockMovements} WHERE ${stockMovements.productId} = ${outerProductId}), 0)`;
+
+export function stockListFilters(
+  storeId: string,
+  {
+    categoryId,
+    includeArchived,
+  }: { categoryId?: string | undefined; includeArchived?: boolean | undefined },
+): SQL[] {
+  const filters: SQL[] = [
+    eq(products.storeId, storeId),
+    isNull(products.deletedAt),
+    eq(products.isSystem, false),
+  ];
+  if (!includeArchived) filters.push(eq(products.isActive, true));
+  if (categoryId) filters.push(eq(products.categoryId, categoryId));
+  return filters;
+}
+
 export function searchTextMatch(terms: string[]): SQL | undefined {
   // ESCAPE makes the backslash-escaped %, _ and \ in the pattern literal.
   return and(
@@ -31,13 +50,7 @@ export function searchProducts(
   const normalized = normalizeSearchText(input.query);
   const terms = normalized === "" ? [] : normalized.split(" ");
 
-  const filters: SQL[] = [
-    eq(products.storeId, storeId),
-    isNull(products.deletedAt),
-    eq(products.isSystem, false),
-  ];
-  if (!input.includeArchived) filters.push(eq(products.isActive, true));
-  if (input.categoryId) filters.push(eq(products.categoryId, input.categoryId));
+  const filters = stockListFilters(storeId, input);
 
   const barcodeProductId =
     terms.length > 0
@@ -93,7 +106,7 @@ export function searchProducts(
         string | null
       >`(SELECT ${productBarcodes.barcode} FROM ${productBarcodes} WHERE ${productBarcodes.productId} = ${outerProductId} AND ${productBarcodes.deletedAt} IS NULL ORDER BY (${productBarcodes.packQtyMilli} = 1000) DESC, ${productBarcodes.createdAt}, ${productBarcodes.id} LIMIT 1)`,
       extraBarcodeCount: sql<number>`max((SELECT count(*) FROM ${productBarcodes} WHERE ${productBarcodes.productId} = ${outerProductId} AND ${productBarcodes.deletedAt} IS NULL) - 1, 0)`,
-      onHandMilli: sql<number>`coalesce((SELECT sum(${stockMovements.qtyMilli}) FROM ${stockMovements} WHERE ${stockMovements.productId} = ${outerProductId}), 0)`,
+      onHandMilli: productOnHandMilli,
     })
     .from(products)
     .where(inArray(products.id, pageIds))

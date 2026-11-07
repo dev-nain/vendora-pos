@@ -7,7 +7,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 
-import type { PastStocktakesResult } from "@shared/stocktake";
+import { stocktakeScopeLabel, type PastStocktakesResult } from "@shared/stocktake";
 import { Badge } from "@renderer/components/ui/badge";
 import { Button } from "@renderer/components/ui/button";
 import {
@@ -152,7 +152,7 @@ export function PastStocktakes({ onOpen, onSessionEnded }: PastStocktakesProps) 
               >
                 <TableCell>{formatDateTime(item.date)}</TableCell>
                 <TableCell className="truncate">
-                  {item.scope === "full" ? "Full count" : `Category: ${item.categoryName ?? ""}`}
+                  {stocktakeScopeLabel(item.scope, item.categoryName)}
                 </TableCell>
                 <TableCell>
                   <StatusBadge status={item.status} />

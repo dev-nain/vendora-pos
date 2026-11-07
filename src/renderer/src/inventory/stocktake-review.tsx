@@ -17,6 +17,7 @@ import {
 
 import {
   stocktakeReviewFilters,
+  stocktakeScopeLabel,
   type StocktakeReview,
   type StocktakeReviewFilter,
   type StocktakeReviewLine,
@@ -251,11 +252,7 @@ export function StocktakeReviewScreen({
     setPosting(false);
   };
 
-  const scopeText = review
-    ? review.scope === "full"
-      ? "Full count"
-      : `Category: ${review.categoryName ?? ""}`
-    : "";
+  const scopeText = review ? stocktakeScopeLabel(review.scope, review.categoryName) : "";
   const subtitle = review
     ? review.status === "posted" && review.postedAt
       ? `${scopeText}. Posted ${formatDateTime(review.postedAt)} by ${review.postedByName ?? ""}.`

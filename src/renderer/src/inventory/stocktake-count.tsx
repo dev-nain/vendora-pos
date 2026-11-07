@@ -8,7 +8,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 
-import type { StocktakeLine, StocktakeSummary } from "@shared/stocktake";
+import { stocktakeScopeLabel, type StocktakeLine, type StocktakeSummary } from "@shared/stocktake";
 import { Button } from "@renderer/components/ui/button";
 import { Kbd } from "@renderer/components/ui/kbd";
 import {
@@ -417,8 +417,7 @@ export function StocktakeCount({
     setActiveIndex(0);
   };
 
-  const scopeText =
-    stocktake.scope === "full" ? "Full count" : `Category: ${stocktake.categoryName ?? ""}`;
+  const scopeText = stocktakeScopeLabel(stocktake.scope, stocktake.categoryName);
 
   return (
     <div className="flex flex-col gap-400">
