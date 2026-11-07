@@ -14,6 +14,10 @@ import { createCatalogExportService } from "./services/catalog-export";
 import { createProductsService, type ProductsService } from "./services/products";
 import { createCheckoutKit, type CheckoutKit } from "./services/checkout-test-kit";
 import { createSalesService, type SalesService } from "./services/sales";
+import {
+  createPurchaseOrdersService,
+  type PurchaseOrdersService,
+} from "./services/purchase-orders";
 import { createShiftsService, type ShiftsService } from "./services/shifts";
 import { createSuppliersService, type SuppliersService } from "./services/suppliers";
 import { createStockService } from "./services/stock";
@@ -41,12 +45,19 @@ const invoke = async (channel: string, input?: unknown) => {
 
 const unknownId = "0192f3a0-0000-7000-8000-000000000099";
 
+const order = (supplierId: string, productId: string) => ({
+  supplierId,
+  notes: null,
+  lines: [{ productId, orderedQtyMilli: 2000, unitCostPaisa: 14333 }],
+});
+
 describe("products ipc", () => {
   let dir: string;
   let database: VendoraDatabase;
   let sessions: SessionStore;
   let service: ProductsService;
   let suppliersService: SuppliersService;
+  let purchaseOrdersService: PurchaseOrdersService;
   let exportPath: string | null;
   let categoryId: string;
   let taxCategoryId: string;
@@ -114,6 +125,11 @@ describe("products ipc", () => {
       audit: createAuditService(database),
       sessions,
     });
+    purchaseOrdersService = createPurchaseOrdersService({
+      database,
+      audit: createAuditService(database),
+      sessions,
+    });
     exportPath = join(dir, "catalog.csv");
     const catalogExport = createCatalogExportService({
       database,
@@ -127,6 +143,7 @@ describe("products ipc", () => {
       catalogExport,
       categories: stub,
       products: service,
+      purchaseOrders: purchaseOrdersService,
       receipts: stub,
       returns: stub,
       sales: stub,
@@ -268,6 +285,65 @@ describe("products ipc", () => {
     });
   });
 
+  describe("purchase orders", () => {
+    it.each([
+      ["purchase-orders:create", "create", { supplierId: "x", notes: null, lines: [] }],
+      ["purchase-orders:create", "create", { supplierId: unknownId, notes: null, lines: [] }],
+      ["purchase-orders:create", "create", { supplierId: unknownId, notes: null, extra: 1 }],
+      ["purchase-orders:update", "update", { id: "x", supplierId: unknownId, notes: null }],
+      ["purchase-orders:get", "get", { id: "x" }],
+      ["purchase-orders:confirm", "confirm", { id: "x" }],
+      ["purchase-orders:cancel", "cancel", { id: "x" }],
+    ] as const)("%s rejects bad input", async (channel, method, input) => {
+      signIn("owner");
+      const spy = vi.spyOn(purchaseOrdersService, method);
+      await expect(invoke(channel, input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("creates, confirms and reads an order", async () => {
+      signIn("cashier");
+      const product = seedProduct();
+      const created = (await invoke("suppliers:create", {
+        name: "Al-Noor",
+        contactPerson: null,
+        phone: null,
+        ntn: null,
+        notes: null,
+      })) as { supplier: { id: string } };
+
+      const result = (await invoke(
+        "purchase-orders:create",
+        order(created.supplier.id, product.id),
+      )) as { ok: true; order: { id: string; status: string; totalPaisa: number } };
+      expect(result).toMatchObject({ ok: true, order: { status: "draft", totalPaisa: 28666 } });
+
+      await invoke("purchase-orders:confirm", { id: result.order.id });
+      expect(await invoke("purchase-orders:get", { id: result.order.id })).toMatchObject({
+        ok: true,
+        order: { status: "confirmed" },
+      });
+      expect(await invoke("purchase-orders:list")).toHaveLength(1);
+    });
+
+    it("is refused when signed out", async () => {
+      sessions.end();
+      const requests: [string, unknown][] = [
+        ["purchase-orders:list", undefined],
+        ["purchase-orders:get", { id: unknownId }],
+        ["purchase-orders:create", order(unknownId, unknownId)],
+        ["purchase-orders:update", { id: unknownId, ...order(unknownId, unknownId) }],
+        ["purchase-orders:confirm", { id: unknownId }],
+        ["purchase-orders:cancel", { id: unknownId }],
+      ];
+      for (const [channel, input] of requests) {
+        await expect(invoke(channel, input)).rejects.toThrow(
+          new Error(ipcErrorMessages.unauthenticated),
+        );
+      }
+    });
+  });
+
   describe("export csv", () => {
     it("saves for a manager and returns the path", async () => {
       seedProduct();
@@ -392,6 +468,7 @@ describe("shifts ipc", () => {
       catalogExport: stub,
       categories: stub,
       products: stub,
+      purchaseOrders: stub,
       receipts: receipts as never,
       returns: stub,
       sales: stub,
@@ -541,6 +618,7 @@ describe("checkout ipc", () => {
       catalogExport: stub,
       categories: stub,
       products: stub,
+      purchaseOrders: stub,
       receipts: receipts as never,
       returns: kit.returns,
       sales,
