@@ -663,11 +663,6 @@ export function registerIpcHandlers({
       await purchaseOrderDocuments.print(purchaseOrderIdInputSchema.parse(input)),
     ),
   );
-  handle(ipcChannels.goodsReceivedPost, (_event, input) =>
-    postGoodsReceivedResultSchema.parse(
-      goodsReceived.post(postGoodsReceivedInputSchema.parse(input)),
-    ),
-  );
   handle(ipcChannels.reportsSalesByDay, (_event, input) =>
     salesByDayResultSchema.parse(reports.salesByDay(reportRangeSchema.parse(input))),
   );
