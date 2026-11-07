@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -33,5 +34,30 @@ describe("openDatabase", () => {
 
   it("waits for locks", () => {
     expect(database.sqlite.pragma("busy_timeout", { simple: true })).toBe(5000);
+  });
+
+  it("keeps a committed write after the process is killed, because WAL with synchronous FULL syncs before commit returns", () => {
+    const file = join(dir, "killed.db");
+    const script = `
+      const Database = require("better-sqlite3");
+      const sqlite = new Database(process.argv[1]);
+      sqlite.pragma("journal_mode = WAL");
+      sqlite.pragma("synchronous = FULL");
+      sqlite.exec("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)");
+      sqlite.prepare("INSERT INTO t (v) VALUES (?)").run("committed");
+      process.kill(process.pid, "SIGKILL");
+    `;
+    const child = spawnSync(process.execPath, ["-e", script, file], {
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+      cwd: process.cwd(),
+    });
+    expect(child.signal).toBe("SIGKILL");
+
+    const reopened = openDatabase(file);
+    try {
+      expect(reopened.sqlite.prepare("SELECT v FROM t").all()).toEqual([{ v: "committed" }]);
+    } finally {
+      reopened.sqlite.close();
+    }
   });
 });
