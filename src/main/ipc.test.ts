@@ -16,6 +16,7 @@ import { createCatalogExportService } from "./services/catalog-export";
 import { createProductsService, type ProductsService } from "./services/products";
 import { createCheckoutKit, type CheckoutKit } from "./services/checkout-test-kit";
 import { createSalesService, type SalesService } from "./services/sales";
+import { createSettingsService, type SettingsService } from "./services/settings";
 import {
   createPurchaseOrderDocumentsService,
   type PurchaseOrderDocumentsService,
@@ -77,6 +78,7 @@ describe("products ipc", () => {
   let service: ProductsService;
   let suppliersService: SuppliersService;
   let purchaseOrdersService: PurchaseOrdersService;
+  let settingsService: SettingsService;
   let purchaseOrderDocumentsService: PurchaseOrderDocumentsService;
   let saleInvoicesService: SaleInvoicesService;
   const renderer = { toPdf: vi.fn(async () => Buffer.from("%PDF-")), print: vi.fn() };
@@ -159,6 +161,11 @@ describe("products ipc", () => {
       sessions,
       stock: createStockService({ database, audit: createAuditService(database) }),
     });
+    settingsService = createSettingsService({
+      database,
+      audit: createAuditService(database),
+      sessions,
+    });
     purchaseOrderDocumentsService = createPurchaseOrderDocumentsService({
       database,
       sessions,
@@ -203,7 +210,7 @@ describe("products ipc", () => {
       returns: stub,
       saleInvoices: saleInvoicesService,
       sales: stub,
-      settings: stub,
+      settings: settingsService,
       shifts: stub,
       stocktake: stub,
       suppliers: suppliersService,
@@ -404,6 +411,8 @@ describe("products ipc", () => {
       ["goods-received:get", "get", { id: unknownId, extra: 1 }],
       ["goods-received:last-cost", "lastCost", { productId: "x" }],
       ["goods-received:last-cost", "lastCost", {}],
+      ["goods-received:low-margin", "lowMargin", { id: "x" }],
+      ["goods-received:low-margin", "lowMargin", { id: unknownId, extra: 1 }],
     ] as const)("rejects bad %s input before the service runs", async (channel, method, input) => {
       signIn("owner");
       const spy = vi.spyOn(goodsReceivedService, method);
@@ -415,6 +424,7 @@ describe("products ipc", () => {
       ["goods-received:list", { limit: 10, offset: 0 }],
       ["goods-received:get", { id: unknownId }],
       ["goods-received:last-cost", { productId: unknownId }],
+      ["goods-received:low-margin", { id: unknownId }],
     ] as const)("refuses %s when signed out", async (channel, input) => {
       sessions.end();
       await expect(invoke(channel, input)).rejects.toThrow(
@@ -447,6 +457,69 @@ describe("products ipc", () => {
       });
       expect(await invoke("goods-received:last-cost", { productId: product.id })).toEqual({
         unitCostPaisa: 12000,
+      });
+    });
+  });
+
+  describe("margin threshold", () => {
+    it.each([
+      { thresholdBps: 1.5 },
+      { thresholdBps: -1 },
+      { thresholdBps: 10001 },
+      { thresholdBps: "15" },
+      { thresholdBps: 1500, extra: 1 },
+      {},
+    ])("rejects bad input %j before the service runs", async (input) => {
+      signIn("owner");
+      const spy = vi.spyOn(settingsService, "setMarginThreshold");
+      await expect(invoke("settings:set-margin-threshold", input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("refuses both channels when signed out", async () => {
+      const expected = new Error(ipcErrorMessages.unauthenticated);
+      await expect(invoke("settings:get-margin-threshold")).rejects.toThrow(expected);
+      await expect(invoke("settings:set-margin-threshold", { thresholdBps: 1500 })).rejects.toThrow(
+        expected,
+      );
+    });
+
+    it("saves, reads back and turns off", async () => {
+      signIn("owner");
+      expect(await invoke("settings:get-margin-threshold")).toEqual({ thresholdBps: null });
+      expect(await invoke("settings:set-margin-threshold", { thresholdBps: 1500 })).toEqual({
+        thresholdBps: 1500,
+      });
+      expect(await invoke("settings:get-margin-threshold")).toEqual({ thresholdBps: 1500 });
+      expect(await invoke("settings:set-margin-threshold", { thresholdBps: null })).toEqual({
+        thresholdBps: null,
+      });
+    });
+
+    it("returns the parsed low-margin list for a posted note", async () => {
+      signIn("cashier");
+      const product = seedProduct();
+      const created = (await invoke("suppliers:create", {
+        name: "Al-Noor",
+        contactPerson: null,
+        phone: null,
+        ntn: null,
+        notes: null,
+      })) as { supplier: { id: string } };
+      const posted = (await invoke(
+        "goods-received:post",
+        directGrn(created.supplier.id, product.id),
+      )) as { note: { id: string } };
+      await invoke("settings:set-margin-threshold", { thresholdBps: 10000 });
+
+      expect(await invoke("goods-received:low-margin", { id: posted.note.id })).toMatchObject({
+        ok: true,
+        thresholdBps: 10000,
+        items: [{ productId: product.id }],
+      });
+      expect(await invoke("goods-received:low-margin", { id: unknownId })).toMatchObject({
+        ok: false,
+        reason: "not-found",
       });
     });
   });

@@ -22,6 +22,7 @@ import {
   saleJobResultSchema,
 } from "@shared/receipt";
 import {
+  marginThresholdSettingSchema,
   miscItemSettingSchema,
   printerSettingsSchema,
   receiptSettingsSchema,
@@ -93,6 +94,7 @@ import {
   getGoodsReceivedResultSchema,
   goodsReceivedLastCostResultSchema,
   goodsReceivedListResultSchema,
+  lowMarginResultSchema,
   postGoodsReceivedResultSchema,
 } from "@shared/goods-received";
 import {
@@ -159,6 +161,14 @@ const api: VendoraApi = {
     getShiftVarianceWarn: async () =>
       shiftVarianceSettingSchema.parse(
         await ipcRenderer.invoke(ipcChannels.settingsGetShiftVarianceWarn),
+      ),
+    getMarginThreshold: async () =>
+      marginThresholdSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsGetMarginThreshold),
+      ),
+    setMarginThreshold: async (thresholdBps) =>
+      marginThresholdSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsSetMarginThreshold, { thresholdBps }),
       ),
     setShiftVarianceWarn: async (warnPaisa) =>
       shiftVarianceSettingSchema.parse(
@@ -411,6 +421,10 @@ const api: VendoraApi = {
     lastCost: async (productId) =>
       goodsReceivedLastCostResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.goodsReceivedLastCost, { productId }),
+      ),
+    lowMargin: async (id) =>
+      lowMarginResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.goodsReceivedLowMargin, { id }),
       ),
   },
   shifts: {

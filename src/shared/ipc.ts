@@ -28,6 +28,7 @@ import type {
   GoodsReceivedLastCostResult,
   GoodsReceivedListQuery,
   GoodsReceivedListResult,
+  LowMarginResult,
   PostGoodsReceivedInput,
   PostGoodsReceivedResult,
 } from "./goods-received";
@@ -60,6 +61,7 @@ import type {
   SaleJobResult,
 } from "./receipt";
 import type {
+  MarginThresholdSetting,
   MiscItemSetting,
   PrinterSettings,
   ReceiptSettings,
@@ -172,6 +174,8 @@ export const ipcChannels = {
   settingsSetMiscItemEnabled: "settings:set-misc-item-enabled",
   settingsGetShiftVarianceWarn: "settings:get-shift-variance-warn",
   settingsSetShiftVarianceWarn: "settings:set-shift-variance-warn",
+  settingsGetMarginThreshold: "settings:get-margin-threshold",
+  settingsSetMarginThreshold: "settings:set-margin-threshold",
   settingsGetReceipt: "settings:get-receipt",
   settingsSetReceipt: "settings:set-receipt",
   settingsGetSecondCopy: "settings:get-second-copy",
@@ -241,6 +245,7 @@ export const ipcChannels = {
   goodsReceivedList: "goods-received:list",
   goodsReceivedGet: "goods-received:get",
   goodsReceivedLastCost: "goods-received:last-cost",
+  goodsReceivedLowMargin: "goods-received:low-margin",
   purchaseOrdersSavePdf: "purchase-orders:save-pdf",
   purchaseOrdersPrint: "purchase-orders:print",
   invoicesSavePdf: "invoices:save-pdf",
@@ -305,6 +310,8 @@ export interface VendoraApi {
     setMiscItemEnabled: (enabled: boolean) => Promise<MiscItemSetting>;
     getShiftVarianceWarn: () => Promise<ShiftVarianceSetting>;
     setShiftVarianceWarn: (warnPaisa: number) => Promise<ShiftVarianceSetting>;
+    getMarginThreshold: () => Promise<MarginThresholdSetting>;
+    setMarginThreshold: (thresholdBps: number | null) => Promise<MarginThresholdSetting>;
     getReceipt: () => Promise<ReceiptSettings>;
     setReceipt: (input: ReceiptSettingsInput) => Promise<ReceiptSettings>;
     getSecondCopy: () => Promise<SecondCopyStatus>;
@@ -401,6 +408,7 @@ export interface VendoraApi {
     list: (query: GoodsReceivedListQuery) => Promise<GoodsReceivedListResult>;
     get: (id: string) => Promise<GetGoodsReceivedResult>;
     lastCost: (productId: string) => Promise<GoodsReceivedLastCostResult>;
+    lowMargin: (id: string) => Promise<LowMarginResult>;
   };
   shifts: {
     state: () => Promise<ShiftState>;
