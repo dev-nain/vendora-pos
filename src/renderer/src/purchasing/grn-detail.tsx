@@ -1,4 +1,4 @@
-import { ChevronLeftIcon } from "lucide-react";
+import { ChevronLeftIcon, PackageMinusIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import type { GoodsReceivedNote } from "@shared/goods-received";
@@ -7,6 +7,7 @@ import { Kbd } from "@renderer/components/ui/kbd";
 import { formatDateTime } from "@renderer/lib/date-time";
 import { formatRupees } from "@renderer/lib/money";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
+import { isTypingTarget } from "../products/product-list";
 import { ErrorLine } from "../users/form-parts";
 import { grnFormFromNote } from "./grn-form";
 import { OrderLines } from "./order-lines";
@@ -15,6 +16,7 @@ interface GrnDetailProps {
   id: string;
   status: string | null;
   onBack: () => void;
+  onReturn: (noteId: string) => void;
   onSessionEnded: () => void;
 }
 
@@ -32,7 +34,7 @@ function Fact({ label, children }: { label: string; children: string }) {
   );
 }
 
-export function GrnDetail({ id, status, onBack, onSessionEnded }: GrnDetailProps) {
+export function GrnDetail({ id, status, onBack, onReturn, onSessionEnded }: GrnDetailProps) {
   const [note, setNote] = useState<GoodsReceivedNote | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,14 +66,32 @@ export function GrnDetail({ id, status, onBack, onSessionEnded }: GrnDetailProps
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onBack]);
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "r" || event.ctrlKey || event.altKey || event.metaKey) return;
+      if (isTypingTarget(event.target) || document.querySelector('[role="dialog"]')) return;
+      event.preventDefault();
+      onReturn(id);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [id, onReturn]);
+
   return (
     <div className="flex flex-col gap-500">
       <div className="flex flex-col items-start gap-300">
-        <Button type="button" variant="ghost" size="sm" onClick={onBack}>
-          <ChevronLeftIcon aria-hidden="true" size={16} strokeWidth={2} />
-          Goods received
-          <Kbd>Esc</Kbd>
-        </Button>
+        <div className="flex items-center gap-300">
+          <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+            <ChevronLeftIcon aria-hidden="true" size={16} strokeWidth={2} />
+            Goods received
+            <Kbd>Esc</Kbd>
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => onReturn(id)}>
+            <PackageMinusIcon aria-hidden="true" size={16} strokeWidth={2} />
+            Return to supplier
+            <Kbd>R</Kbd>
+          </Button>
+        </div>
         <h1 className="m-0 font-display text-[length:var(--font-size-700)] leading-[36px] font-semibold text-foreground tabular-nums">
           {note ? note.grnNo : "Goods received note"}
         </h1>

@@ -30,15 +30,26 @@ type View =
   | { kind: "return"; id: string; status: string | null };
 
 interface PurchaseReturnsScreenProps {
+  seed: string | null;
   registerLeaveGuard: (guard: LeaveGuard | null) => void;
+  onSeedUsed: () => void;
   onSessionEnded: () => void;
 }
 
 export function PurchaseReturnsScreen({
+  seed,
   registerLeaveGuard,
+  onSeedUsed,
   onSessionEnded,
 }: PurchaseReturnsScreenProps) {
-  const [view, setView] = useState<View>({ kind: "list" });
+  const [view, setView] = useState<View>(
+    seed ? { kind: "form", start: { kind: "note", noteId: seed } } : { kind: "list" },
+  );
+
+  useEffect(() => {
+    if (seed) onSeedUsed();
+  }, [seed, onSeedUsed]);
+
   const backToList = useCallback(() => setView({ kind: "list" }), []);
 
   if (view.kind === "list") {
