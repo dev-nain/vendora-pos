@@ -2,6 +2,7 @@ import { ChevronLeftIcon, ChevronRightIcon, PackageCheckIcon, PlusIcon } from "l
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import type { GoodsReceivedListResult } from "@shared/goods-received";
+import type { PurchaseOrder } from "@shared/purchase-orders";
 import type { Supplier } from "@shared/suppliers";
 import { Button } from "@renderer/components/ui/button";
 import { Field, FieldLabel } from "@renderer/components/ui/field";
@@ -31,6 +32,7 @@ import { GrnDetail } from "./grn-detail";
 import type { GrnSource } from "./grn-form";
 import { GrnFormScreen } from "./grn-form-screen";
 import type { LeaveGuard } from "./order-form-screen";
+import { ReceiveOrderDialog } from "./receive-order-dialog";
 
 const ALL = "all";
 
@@ -56,6 +58,7 @@ export function GoodsReceivedScreen({
       <NoteList
         onSessionEnded={onSessionEnded}
         onDirect={() => setView({ kind: "form", source: { kind: "direct" } })}
+        onOrder={(order) => setView({ kind: "form", source: { kind: "order", order } })}
         onOpen={(id) => setView({ kind: "note", id, status: null })}
       />
     );
@@ -84,10 +87,11 @@ export function GoodsReceivedScreen({
 interface NoteListProps {
   onSessionEnded: () => void;
   onDirect: () => void;
+  onOrder: (order: PurchaseOrder) => void;
   onOpen: (id: string) => void;
 }
 
-function NoteList({ onSessionEnded, onDirect, onOpen }: NoteListProps) {
+function NoteList({ onSessionEnded, onDirect, onOrder, onOpen }: NoteListProps) {
   const [result, setResult] = useState<GoodsReceivedListResult | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +100,7 @@ function NoteList({ onSessionEnded, onDirect, onOpen }: NoteListProps) {
   const [to, setTo] = useState("");
   const [page, setPage] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [pickingOrder, setPickingOrder] = useState(false);
 
   const bodyRef = useRef<HTMLTableSectionElement>(null);
   const requestId = useRef(0);
@@ -137,14 +142,19 @@ function NoteList({ onSessionEnded, onDirect, onOpen }: NoteListProps) {
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.ctrlKey || event.altKey || event.metaKey || isTypingTarget(event.target)) return;
-      if (event.key.toLowerCase() === "n") {
+      if (pickingOrder) return;
+      const key = event.key.toLowerCase();
+      if (key === "n") {
         event.preventDefault();
         onDirect();
+      } else if (key === "o") {
+        event.preventDefault();
+        setPickingOrder(true);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onDirect]);
+  }, [onDirect, pickingOrder]);
 
   const items = result?.items ?? [];
   const total = result?.total ?? 0;
@@ -254,11 +264,17 @@ function NoteList({ onSessionEnded, onDirect, onOpen }: NoteListProps) {
             />
           </Field>
         </div>
-        <Button variant="secondary" onClick={onDirect}>
-          <PlusIcon aria-hidden="true" size={16} strokeWidth={2} />
-          Receive directly
-          <Kbd>N</Kbd>
-        </Button>
+        <div className="flex items-center gap-300">
+          <Button onClick={() => setPickingOrder(true)}>
+            <PlusIcon aria-hidden="true" size={16} strokeWidth={2} />
+            Receive from order
+            <Kbd>O</Kbd>
+          </Button>
+          <Button variant="secondary" onClick={onDirect}>
+            Receive directly
+            <Kbd>N</Kbd>
+          </Button>
+        </div>
       </div>
       {error ? (
         <div className="flex items-center gap-300">
@@ -373,6 +389,12 @@ function NoteList({ onSessionEnded, onDirect, onOpen }: NoteListProps) {
           </div>
         </div>
       ) : null}
+      <ReceiveOrderDialog
+        open={pickingOrder}
+        onClose={() => setPickingOrder(false)}
+        onPick={onOrder}
+        onSessionEnded={onSessionEnded}
+      />
     </div>
   );
 }
