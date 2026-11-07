@@ -1,4 +1,3 @@
-import { rename, rm, writeFile } from "node:fs/promises";
 import type { DocumentPanel } from "../../shared/document";
 import type { ReceiptSettings } from "../../shared/settings";
 
@@ -26,15 +25,4 @@ export function storePanel(store: ReceiptSettings): DocumentPanel {
       ...labelled("STRN", store.strn),
     ],
   };
-}
-
-export async function writeAtomic(path: string, bytes: Buffer): Promise<void> {
-  const temporary = `${path}.tmp`;
-  try {
-    await writeFile(temporary, bytes);
-    await rename(temporary, path);
-  } catch (error) {
-    await rm(temporary, { force: true }).catch(() => undefined);
-    throw error;
-  }
 }

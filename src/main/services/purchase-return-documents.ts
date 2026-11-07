@@ -10,7 +10,7 @@ import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { suppliers } from "../db/schema";
-import { writeAtomic } from "../documents/document-parts";
+import { writeAtomic } from "../documents/write-atomic";
 import type { DocumentRenderer } from "../documents/document-window";
 import type { PurchaseOrderSupplier } from "../documents/purchase-order-document";
 import { buildPurchaseReturnDocument } from "../documents/purchase-return-document";

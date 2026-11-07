@@ -8,6 +8,8 @@ import {
   type GoodsReceivedListQuery,
   type GoodsReceivedListResult,
   type GoodsReceivedNote,
+  type LowMarginItem,
+  type LowMarginResult,
   type PostGoodsReceivedResult,
   type postGoodsReceivedInputSchema,
 } from "../../shared/goods-received";
@@ -16,6 +18,7 @@ import {
   purchaseOrderLineTotalPaisa,
   purchaseOrderTotalPaisa,
 } from "../../shared/purchase-orders";
+import { resolveTaxRateBps } from "../db/sale-rows";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
@@ -27,10 +30,13 @@ import {
   purchaseOrderLines,
   purchaseOrders,
   suppliers,
+  taxCategories,
 } from "../db/schema";
 import { currentTerminal, type DbExecutor } from "../db/terminal";
+import { getCheckoutSettings, getMarginThresholdBps } from "../settings/store-settings";
 import type { createAuditService } from "./audit";
 import { localDayBounds } from "./sales";
+import { exTaxPricePaisa, isBelowThreshold, marginBps } from "./margin";
 import type { StockService } from "./stock";
 
 type PostInput = z.output<typeof postGoodsReceivedInputSchema>;
@@ -403,6 +409,58 @@ export function createGoodsReceivedService({
     return { unitCostPaisa: lastReceipt(db, session.storeId, productId)?.unitCostPaisa ?? null };
   }
 
-  return { post, list, get, lastCost };
+  function lowMargin({ id }: { id: string }): LowMarginResult {
+    const session = requireSession(sessions);
+    const note = db
+      .select({ id: goodsReceivedNotes.id })
+      .from(goodsReceivedNotes)
+      .where(and(eq(goodsReceivedNotes.id, id), eq(goodsReceivedNotes.storeId, session.storeId)))
+      .get();
+    if (!note) return noteNotFound;
+    const thresholdBps = getMarginThresholdBps(db, session.storeId);
+    if (thresholdBps === null) return { ok: true, thresholdBps, items: [] };
+
+    const { pricesIncludeTax, standardTaxRateBps } = getCheckoutSettings(db, session.storeId);
+    const rows = db
+      .select({
+        productId: products.id,
+        nameEn: products.nameEn,
+        nameUr: products.nameUr,
+        unit: products.unit,
+        costPaisa: products.costPaisa,
+        salePricePaisa: products.salePricePaisa,
+        mrpPaisa: products.mrpPaisa,
+        categoryRateBps: taxCategories.rateBps,
+      })
+      .from(goodsReceivedLines)
+      .innerJoin(products, eq(products.id, goodsReceivedLines.productId))
+      .innerJoin(taxCategories, eq(taxCategories.id, products.taxCategoryId))
+      .where(
+        and(
+          eq(goodsReceivedLines.goodsReceivedNoteId, note.id),
+          isNull(products.deletedAt),
+          eq(products.isSystem, false),
+        ),
+      )
+      .orderBy(asc(goodsReceivedLines.position))
+      .all();
+
+    const seen = new Set<string>();
+    const items: LowMarginItem[] = [];
+    for (const { categoryRateBps, ...row } of rows) {
+      if (seen.has(row.productId)) continue;
+      seen.add(row.productId);
+      const exTax = exTaxPricePaisa(
+        row.salePricePaisa,
+        resolveTaxRateBps(categoryRateBps, standardTaxRateBps),
+        pricesIncludeTax,
+      );
+      if (!isBelowThreshold(exTax, row.costPaisa, thresholdBps)) continue;
+      items.push({ ...row, marginBps: marginBps(exTax, row.costPaisa) });
+    }
+    return { ok: true, thresholdBps, items };
+  }
+
+  return { post, list, get, lastCost, lowMargin };
 }
 export type GoodsReceivedService = ReturnType<typeof createGoodsReceivedService>;

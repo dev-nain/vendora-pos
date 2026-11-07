@@ -10,12 +10,12 @@ import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { suppliers } from "../db/schema";
-import { writeAtomic } from "../documents/document-parts";
 import type { DocumentRenderer } from "../documents/document-window";
 import {
   buildPurchaseOrderDocument,
   type PurchaseOrderSupplier,
 } from "../documents/purchase-order-document";
+import { writeAtomic } from "../documents/write-atomic";
 import { getReceiptSettings } from "../settings/store-settings";
 import type { PurchaseOrdersService } from "./purchase-orders";
 
