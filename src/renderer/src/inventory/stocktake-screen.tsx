@@ -77,6 +77,7 @@ export function StocktakeScreen({ onSessionEnded }: StocktakeScreenProps) {
           setCurrent(stocktake);
         }}
         onAlreadyOpen={reloadCurrent}
+        onOpenPast={setReviewing}
         onSessionEnded={onSessionEnded}
       />
     );
