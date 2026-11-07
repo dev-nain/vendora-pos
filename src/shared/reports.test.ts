@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ProductUnit } from "./products";
 import {
+  exportPaymentMethodsInputSchema,
   exportReportInputSchema,
+  formatShiftLabel,
+  paymentMethodsQuerySchema,
   formatRangeLabel,
   formatReportCell,
   formatStoreDay,
@@ -17,6 +20,13 @@ import {
   storeUtcOffsetMs,
   type ReportColumn,
 } from "./reports";
+
+const shift = (openedAt: string, closedAt: string | null) => ({
+  id: "019a0000-0000-7000-8000-000000000001",
+  openedAt,
+  closedAt,
+  openedBy: "Bilal Ahmed",
+});
 
 const iso = (date: Date) => date.toISOString();
 const at = (value: string) => new Date(value);
@@ -221,5 +231,57 @@ describe("formatReportCell", () => {
     expect(hourLabel(9)).toBe("09:00");
     expect(hourLabel(23)).toBe("23:00");
     expect(salesByHourColumns.map(isNumericColumn)[0]).toBe(false);
+  });
+
+  describe("shift label", () => {
+    it("shows the close time on the same store day", () => {
+      expect(formatShiftLabel(shift("2026-11-07T04:00:00.000Z", "2026-11-07T17:10:00.000Z"))).toBe(
+        "7 Nov 2026 09:00 – 22:10 · Bilal Ahmed",
+      );
+    });
+
+    it("shows the close date when the shift crosses midnight", () => {
+      expect(formatShiftLabel(shift("2026-11-07T16:00:00.000Z", "2026-11-07T20:10:00.000Z"))).toBe(
+        "7 Nov 2026 21:00 – 8 Nov 2026 01:10 · Bilal Ahmed",
+      );
+    });
+
+    it("says open for an open shift", () => {
+      expect(formatShiftLabel(shift("2026-11-07T04:00:00.000Z", null))).toBe(
+        "7 Nov 2026 09:00 – open · Bilal Ahmed",
+      );
+    });
+  });
+
+  describe("payment method query and export unions", () => {
+    const range = { from: "2026-11-01", to: "2026-11-07" };
+    const shiftId = "019a0000-0000-7000-8000-000000000001";
+
+    it("accepts a range or a shift", () => {
+      expect(paymentMethodsQuerySchema.safeParse({ range }).success).toBe(true);
+      expect(paymentMethodsQuerySchema.safeParse({ shiftId }).success).toBe(true);
+      expect(exportPaymentMethodsInputSchema.safeParse({ range, format: "csv" }).success).toBe(
+        true,
+      );
+      expect(exportPaymentMethodsInputSchema.safeParse({ shiftId, format: "pdf" }).success).toBe(
+        true,
+      );
+    });
+
+    it("refuses extra keys, both range and shift, and a non-uuid", () => {
+      expect(paymentMethodsQuerySchema.safeParse({ range, extra: 1 }).success).toBe(false);
+      expect(paymentMethodsQuerySchema.safeParse({ shiftId, extra: 1 }).success).toBe(false);
+      expect(paymentMethodsQuerySchema.safeParse({ range, shiftId }).success).toBe(false);
+      expect(paymentMethodsQuerySchema.safeParse({ shiftId: "nope" }).success).toBe(false);
+      expect(
+        exportPaymentMethodsInputSchema.safeParse({ range, shiftId, format: "csv" }).success,
+      ).toBe(false);
+      expect(
+        exportPaymentMethodsInputSchema.safeParse({ shiftId, format: "csv", extra: 1 }).success,
+      ).toBe(false);
+      expect(
+        exportPaymentMethodsInputSchema.safeParse({ shiftId: "nope", format: "csv" }).success,
+      ).toBe(false);
+    });
   });
 });

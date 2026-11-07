@@ -1,11 +1,19 @@
 import {
   exportReportFailedMessage,
+  formatShiftLabel,
+  paymentMethodColumns,
+  storeDateTime,
+  storeToday,
   salesByDayColumns,
   salesByCashierColumns,
   salesByCategoryColumns,
   salesByHourColumns,
   salesByProductColumns,
+  type ExportPaymentMethodsInput,
   type ExportReportInput,
+  type PaymentMethodsQuery,
+  type PaymentMethodsResult,
+  type ReportShift,
   type ExportReportResult,
   type ReportColumn,
   type ReportExportFormat,
@@ -24,6 +32,7 @@ import type { DocumentRenderer } from "../documents/document-window";
 import { writeAtomic } from "../documents/write-atomic";
 import { reportCsv } from "../reports/report-csv";
 import { buildReportDocument } from "../reports/report-document";
+import { findReportShift, listReportShifts, readPaymentMethods } from "../reports/payment-methods";
 import { readSalesByDay, readSalesByHour } from "../reports/sales-by-day";
 import {
   readSalesByCashier,
@@ -100,6 +109,45 @@ export function createReportsService({
     return readSalesByCashier(database, session.storeId, range);
   }
 
+  function paymentMethods(query: PaymentMethodsQuery): PaymentMethodsResult {
+    const session = requireSession(sessions);
+    return readPaymentMethods(database, session.storeId, query);
+  }
+
+  function reportShifts(range: ReportRange): ReportShift[] {
+    const session = requireSession(sessions);
+    return listReportShifts(database, session.storeId, range);
+  }
+
+  async function exportPaymentMethods(input: ExportPaymentMethodsInput) {
+    const base = {
+      title: "Sales by payment method",
+      columns: paymentMethodColumns,
+      format: input.format,
+    };
+    if ("range" in input) {
+      return exportTable({
+        ...base,
+        fileStem: "sales-by-payment-method",
+        range: input.range,
+        read: (storeId) => readPaymentMethods(database, storeId, { range: input.range }),
+      });
+    }
+    const session = requireSession(sessions);
+    const shift = findReportShift(database, session.storeId, input.shiftId);
+    if (!shift) return exportFailed;
+    const opened = storeDateTime(shift.openedAt);
+    const closedDay = shift.closedAt ? storeDateTime(shift.closedAt).day : storeToday(new Date());
+    return exportTable({
+      ...base,
+      fileStem: "payment-methods-shift",
+      fileName: `payment-methods-shift-${opened.day}-${opened.time.replace(":", "")}.${input.format}`,
+      reference: `Shift ${formatShiftLabel(shift)}`,
+      range: { from: opened.day, to: closedDay < opened.day ? opened.day : closedDay },
+      read: (storeId) => readPaymentMethods(database, storeId, { shiftId: input.shiftId }),
+    });
+  }
+
   async function exportTable<Row extends Record<string, string | number>>(
     table: ExportTable<Row>,
   ): Promise<ExportReportResult> {
@@ -146,6 +194,9 @@ export function createReportsService({
         columns: salesByHourColumns,
         read: (storeId) => readSalesByHour(database, storeId, range),
       }),
+    paymentMethods,
+    reportShifts,
+    exportPaymentMethods,
     salesByProduct,
     exportSalesByProduct: ({ range, format }: ExportReportInput) =>
       exportTable({
