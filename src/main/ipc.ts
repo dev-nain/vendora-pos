@@ -81,6 +81,8 @@ import {
   saleJobResultSchema,
 } from "@shared/receipt";
 import {
+  marginThresholdInputSchema,
+  marginThresholdSettingSchema,
   miscItemInputSchema,
   miscItemSettingSchema,
   printerSettingsSchema,
@@ -123,6 +125,7 @@ import {
   goodsReceivedLastCostResultSchema,
   goodsReceivedListQuerySchema,
   goodsReceivedListResultSchema,
+  lowMarginResultSchema,
   postGoodsReceivedInputSchema,
   postGoodsReceivedResultSchema,
 } from "@shared/goods-received";
@@ -258,6 +261,14 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.settingsGetShiftVarianceWarn, () =>
     shiftVarianceSettingSchema.parse(settings.getShiftVarianceWarn()),
+  );
+  handle(ipcChannels.settingsGetMarginThreshold, () =>
+    marginThresholdSettingSchema.parse(settings.getMarginThreshold()),
+  );
+  handle(ipcChannels.settingsSetMarginThreshold, (_event, input) =>
+    marginThresholdSettingSchema.parse(
+      settings.setMarginThreshold(marginThresholdInputSchema.parse(input)),
+    ),
   );
   handle(ipcChannels.settingsSetShiftVarianceWarn, (_event, input) =>
     shiftVarianceSettingSchema.parse(
@@ -448,6 +459,9 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.goodsReceivedGet, (_event, input) =>
     getGoodsReceivedResultSchema.parse(goodsReceived.get(goodsReceivedIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.goodsReceivedLowMargin, (_event, input) =>
+    lowMarginResultSchema.parse(goodsReceived.lowMargin(goodsReceivedIdInputSchema.parse(input))),
   );
   handle(ipcChannels.goodsReceivedLastCost, (_event, input) =>
     goodsReceivedLastCostResultSchema.parse(

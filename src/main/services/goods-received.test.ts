@@ -674,6 +674,7 @@ describe("createGoodsReceivedService", () => {
         "goods-received:list",
         "goods-received:get",
         "goods-received:last-cost",
+        "goods-received:low-margin",
       ]);
     });
 
