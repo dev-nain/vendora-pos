@@ -7,7 +7,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@renderer/components/ui/select";
-import { salesByDayReport, type ReportDefinition } from "./report-definitions";
+import {
+  lowStockReport,
+  negativeStockReport,
+  purchasesBySupplierReport,
+  salesByDayReport,
+  stockMovementsReport,
+  stockOnHandReport,
+  stocktakeVarianceReport,
+  type ReportDefinition,
+} from "./report-definitions";
 import { ReportView } from "./report-view";
 
 interface ReportsScreenProps {
@@ -38,7 +47,15 @@ function reportEntry<
   };
 }
 
-const entries: readonly [ReportEntry, ...ReportEntry[]] = [reportEntry(salesByDayReport)];
+const entries: readonly [ReportEntry, ...ReportEntry[]] = [
+  reportEntry(salesByDayReport),
+  reportEntry(stockOnHandReport),
+  reportEntry(lowStockReport),
+  reportEntry(negativeStockReport),
+  reportEntry(stockMovementsReport),
+  reportEntry(purchasesBySupplierReport),
+  reportEntry(stocktakeVarianceReport),
+];
 
 const reportItems = entries.map((entry) => ({ value: entry.id, label: entry.label }));
 

@@ -23,6 +23,8 @@ import { pageRangeLabel } from "../products/product-list";
 import { ErrorLine } from "../users/form-parts";
 import { DateRangeControl } from "./date-range-control";
 import type { LoadedReport, ReportDefinition, ReportQuery } from "./report-definitions";
+import { ReportProductField } from "./report-product-field";
+import { ReportStocktakeSelect } from "./report-stocktake-select";
 import { ReportTable } from "./report-table";
 
 export const REPORT_PAGE_SIZE = 500;
@@ -51,8 +53,8 @@ export function ReportView<
   const [initial] = useState(() => presetRange("today", new Date()));
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
-  const [productId] = useState<string | null>(null);
-  const [stocktakeId] = useState<string | null>(null);
+  const [productId, setProductId] = useState<string | null>(null);
+  const [stocktakeId, setStocktakeId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [loaded, setLoaded] = useState<{
     key: string;
@@ -191,6 +193,17 @@ export function ReportView<
             onPreset={choosePreset}
             onFromChange={setFrom}
             onToChange={setTo}
+          />
+        ) : null}
+        {definition.subject === "product" ? (
+          <ReportProductField onChange={setProductId} onSessionEnded={onSessionEnded} />
+        ) : null}
+        {definition.subject === "stocktake" ? (
+          <ReportStocktakeSelect
+            range={range}
+            stocktakeId={stocktakeId}
+            onChange={setStocktakeId}
+            onSessionEnded={onSessionEnded}
           />
         ) : null}
       </div>
