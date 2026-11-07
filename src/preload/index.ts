@@ -37,6 +37,11 @@ import {
   shiftStateSchema,
 } from "@shared/shifts";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
+import {
+  lowStockResultSchema,
+  stockHistoryResultSchema,
+  stockListResultSchema,
+} from "@shared/inventory";
 import { returnableResultSchema } from "@shared/returns";
 import { getOrderResultSchema, orderListSchema } from "@shared/sales";
 import {
@@ -69,7 +74,9 @@ import {
   confirmPurchaseOrderResultSchema,
   createPurchaseOrderResultSchema,
   getPurchaseOrderResultSchema,
+  printPurchaseOrderResultSchema,
   purchaseOrderSummarySchema,
+  savePurchaseOrderPdfResultSchema,
   updatePurchaseOrderResultSchema,
 } from "@shared/purchase-orders";
 import {
@@ -186,6 +193,16 @@ const api: VendoraApi = {
     reactivate: async (id) =>
       userActionResultSchema.parse(await ipcRenderer.invoke(ipcChannels.usersReactivate, { id })),
   },
+  inventory: {
+    listStock: async (query) =>
+      stockListResultSchema.parse(await ipcRenderer.invoke(ipcChannels.inventoryListStock, query)),
+    stockHistory: async (query) =>
+      stockHistoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.inventoryStockHistory, query),
+      ),
+    lowStock: async (query) =>
+      lowStockResultSchema.parse(await ipcRenderer.invoke(ipcChannels.inventoryLowStock, query)),
+  },
   products: {
     getMiscItem: async () =>
       productSchema.nullable().parse(await ipcRenderer.invoke(ipcChannels.productsGetMiscItem)),
@@ -296,6 +313,14 @@ const api: VendoraApi = {
     cancel: async (id) =>
       cancelPurchaseOrderResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.purchaseOrdersCancel, { id }),
+      ),
+    savePdf: async (id) =>
+      savePurchaseOrderPdfResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersSavePdf, { id }),
+      ),
+    print: async (id) =>
+      printPurchaseOrderResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersPrint, { id }),
       ),
   },
   goodsReceived: {

@@ -4,7 +4,7 @@ import type { ProductSearchItem } from "@shared/products";
 import { Badge } from "@renderer/components/ui/badge";
 import { barcodeSummary, statusLabel } from "./product-list";
 
-export function ProductNameCell({ item }: { item: ProductSearchItem }) {
+export function ProductNameCell({ item }: { item: Pick<ProductSearchItem, "nameEn" | "nameUr"> }) {
   return (
     <>
       <span

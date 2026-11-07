@@ -19,7 +19,9 @@ import type {
   CreatePurchaseOrderInput,
   CreatePurchaseOrderResult,
   GetPurchaseOrderResult,
+  PrintPurchaseOrderResult,
   PurchaseOrderSummary,
+  SavePurchaseOrderPdfResult,
   UpdatePurchaseOrderInput,
   UpdatePurchaseOrderResult,
 } from "./purchase-orders";
@@ -75,6 +77,14 @@ import type {
   SetDamagedInput,
   UpdateLineInput,
 } from "./checkout";
+import type {
+  LowStockQuery,
+  LowStockResult,
+  StockHistoryQuery,
+  StockHistoryResult,
+  StockListQuery,
+  StockListResult,
+} from "./inventory";
 import type { AddFromSaleInput, ReturnableResult } from "./returns";
 import type {
   BarcodeLookup,
@@ -148,6 +158,9 @@ export const ipcChannels = {
   usersResetPin: "users:reset-pin",
   usersDeactivate: "users:deactivate",
   usersReactivate: "users:reactivate",
+  inventoryListStock: "inventory:list-stock",
+  inventoryStockHistory: "inventory:stock-history",
+  inventoryLowStock: "inventory:low-stock",
   productsSearch: "products:search",
   productsGet: "products:get",
   productsCreate: "products:create",
@@ -179,6 +192,8 @@ export const ipcChannels = {
   purchaseOrdersConfirm: "purchase-orders:confirm",
   purchaseOrdersCancel: "purchase-orders:cancel",
   goodsReceivedPost: "goods-received:post",
+  purchaseOrdersSavePdf: "purchase-orders:save-pdf",
+  purchaseOrdersPrint: "purchase-orders:print",
   shiftsState: "shifts:state",
   shiftsOpen: "shifts:open",
   shiftsAddCashMove: "shifts:add-cash-move",
@@ -255,6 +270,11 @@ export interface VendoraApi {
     deactivate: (id: string) => Promise<DeactivateUserResult>;
     reactivate: (id: string) => Promise<UserActionResult>;
   };
+  inventory: {
+    listStock: (query: StockListQuery) => Promise<StockListResult>;
+    stockHistory: (query: StockHistoryQuery) => Promise<StockHistoryResult>;
+    lowStock: (query: LowStockQuery) => Promise<LowStockResult>;
+  };
   products: {
     getMiscItem: () => Promise<Product | null>;
     search: (input: ProductSearchQuery) => Promise<ProductSearchResult>;
@@ -294,6 +314,8 @@ export interface VendoraApi {
     update: (input: UpdatePurchaseOrderInput) => Promise<UpdatePurchaseOrderResult>;
     confirm: (id: string) => Promise<ConfirmPurchaseOrderResult>;
     cancel: (id: string) => Promise<CancelPurchaseOrderResult>;
+    savePdf: (id: string) => Promise<SavePurchaseOrderPdfResult>;
+    print: (id: string) => Promise<PrintPurchaseOrderResult>;
   };
   goodsReceived: {
     post: (input: PostGoodsReceivedInput) => Promise<PostGoodsReceivedResult>;

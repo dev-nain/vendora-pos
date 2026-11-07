@@ -35,6 +35,14 @@ import {
 } from "@shared/checkout";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
 import {
+  lowStockQuerySchema,
+  lowStockResultSchema,
+  stockHistoryQuerySchema,
+  stockHistoryResultSchema,
+  stockListQuerySchema,
+  stockListResultSchema,
+} from "@shared/inventory";
+import {
   addFromSaleInputSchema,
   returnableInputSchema,
   returnableResultSchema,
@@ -119,7 +127,9 @@ import {
   createPurchaseOrderResultSchema,
   getPurchaseOrderResultSchema,
   purchaseOrderIdInputSchema,
+  printPurchaseOrderResultSchema,
   purchaseOrderSummarySchema,
+  savePurchaseOrderPdfResultSchema,
   updatePurchaseOrderInputSchema,
   updatePurchaseOrderResultSchema,
 } from "@shared/purchase-orders";
@@ -152,7 +162,9 @@ import type { BillDraftsService } from "./services/bill-drafts";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { GoodsReceivedService } from "./services/goods-received";
+import type { InventoryService } from "./services/inventory";
 import type { ProductsService } from "./services/products";
+import type { PurchaseOrderDocumentsService } from "./services/purchase-order-documents";
 import type { PurchaseOrdersService } from "./services/purchase-orders";
 import type { ReceiptsService } from "./services/receipts";
 import type { ReturnsService } from "./services/returns";
@@ -181,6 +193,7 @@ interface IpcServices {
   billDrafts: BillDraftsService;
   catalogExport: CatalogExportService;
   categories: CategoriesService;
+  inventory: InventoryService;
   returns: ReturnsService;
   sales: SalesService;
   settings: SettingsService;
@@ -189,6 +202,7 @@ interface IpcServices {
   taxCategories: TaxCategoriesService;
   users: UsersService;
   products: ProductsService;
+  purchaseOrderDocuments: PurchaseOrderDocumentsService;
   purchaseOrders: PurchaseOrdersService;
   goodsReceived: GoodsReceivedService;
   receipts: ReceiptsService;
@@ -200,7 +214,9 @@ export function registerIpcHandlers({
   catalogExport,
   categories,
   goodsReceived,
+  inventory,
   products,
+  purchaseOrderDocuments,
   purchaseOrders,
   receipts,
   returns,
@@ -320,6 +336,15 @@ export function registerIpcHandlers({
   handle(ipcChannels.usersReactivate, (_event, input) =>
     userActionResultSchema.parse(users.reactivate(userIdInputSchema.parse(input))),
   );
+  handle(ipcChannels.inventoryListStock, (_event, input) =>
+    stockListResultSchema.parse(inventory.list(stockListQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.inventoryLowStock, (_event, input) =>
+    lowStockResultSchema.parse(inventory.lowStock(lowStockQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.inventoryStockHistory, (_event, input) =>
+    stockHistoryResultSchema.parse(inventory.history(stockHistoryQuerySchema.parse(input))),
+  );
   handle(ipcChannels.productsSearch, (_event, input) =>
     productSearchResultSchema.parse(products.search(productSearchInputSchema.parse(input))),
   );
@@ -408,6 +433,16 @@ export function registerIpcHandlers({
   handle(ipcChannels.goodsReceivedPost, (_event, input) =>
     postGoodsReceivedResultSchema.parse(
       goodsReceived.post(postGoodsReceivedInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseOrdersSavePdf, async (_event, input) =>
+    savePurchaseOrderPdfResultSchema.parse(
+      await purchaseOrderDocuments.savePdf(purchaseOrderIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseOrdersPrint, async (_event, input) =>
+    printPurchaseOrderResultSchema.parse(
+      await purchaseOrderDocuments.print(purchaseOrderIdInputSchema.parse(input)),
     ),
   );
   handle(ipcChannels.taxCategoriesList, () =>

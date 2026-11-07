@@ -12,9 +12,14 @@ import { seedStoreAndTerminal } from "./db/seed";
 import { registerIpcHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
 import { createCatalogExportService } from "./services/catalog-export";
+import { createInventoryService, type InventoryService } from "./services/inventory";
 import { createProductsService, type ProductsService } from "./services/products";
 import { createCheckoutKit, type CheckoutKit } from "./services/checkout-test-kit";
 import { createSalesService, type SalesService } from "./services/sales";
+import {
+  createPurchaseOrderDocumentsService,
+  type PurchaseOrderDocumentsService,
+} from "./services/purchase-order-documents";
 import {
   createPurchaseOrdersService,
   type PurchaseOrdersService,
@@ -68,6 +73,8 @@ describe("products ipc", () => {
   let suppliersService: SuppliersService;
   let purchaseOrdersService: PurchaseOrdersService;
   let goodsReceivedService: GoodsReceivedService;
+  let purchaseOrderDocumentsService: PurchaseOrderDocumentsService;
+  const renderer = { toPdf: vi.fn(async () => Buffer.from("%PDF-")), print: vi.fn() };
   let exportPath: string | null;
   let categoryId: string;
   let taxCategoryId: string;
@@ -146,6 +153,13 @@ describe("products ipc", () => {
       sessions,
       stock: createStockService({ database, audit: createAuditService(database) }),
     });
+    purchaseOrderDocumentsService = createPurchaseOrderDocumentsService({
+      database,
+      sessions,
+      purchaseOrders: purchaseOrdersService,
+      renderer,
+      chooseSavePath: async () => join(dir, "order.pdf"),
+    });
     exportPath = join(dir, "catalog.csv");
     const catalogExport = createCatalogExportService({
       database,
@@ -159,7 +173,9 @@ describe("products ipc", () => {
       catalogExport,
       categories: stub,
       goodsReceived: goodsReceivedService,
+      inventory: stub,
       products: service,
+      purchaseOrderDocuments: purchaseOrderDocumentsService,
       purchaseOrders: purchaseOrdersService,
       receipts: stub,
       returns: stub,
@@ -398,6 +414,18 @@ describe("products ipc", () => {
       expect(await invoke("purchase-orders:list")).toHaveLength(1);
     });
 
+    it.each([
+      ["purchase-orders:save-pdf", "savePdf", { id: "x" }],
+      ["purchase-orders:save-pdf", "savePdf", { id: unknownId, extra: 1 }],
+      ["purchase-orders:print", "print", { id: "x" }],
+      ["purchase-orders:print", "print", {}],
+    ] as const)("%s rejects bad input", async (channel, method, input) => {
+      signIn("owner");
+      const spy = vi.spyOn(purchaseOrderDocumentsService, method);
+      await expect(invoke(channel, input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
     it("is refused when signed out", async () => {
       sessions.end();
       const requests: [string, unknown][] = [
@@ -407,6 +435,8 @@ describe("products ipc", () => {
         ["purchase-orders:update", { id: unknownId, ...order(unknownId, unknownId) }],
         ["purchase-orders:confirm", { id: unknownId }],
         ["purchase-orders:cancel", { id: unknownId }],
+        ["purchase-orders:save-pdf", { id: unknownId }],
+        ["purchase-orders:print", { id: unknownId }],
       ];
       for (const [channel, input] of requests) {
         await expect(invoke(channel, input)).rejects.toThrow(
@@ -540,7 +570,9 @@ describe("shifts ipc", () => {
       catalogExport: stub,
       categories: stub,
       goodsReceived: stub,
+      inventory: stub,
       products: stub,
+      purchaseOrderDocuments: stub,
       purchaseOrders: stub,
       receipts: receipts as never,
       returns: stub,
@@ -691,7 +723,9 @@ describe("checkout ipc", () => {
       catalogExport: stub,
       categories: stub,
       goodsReceived: stub,
+      inventory: stub,
       products: stub,
+      purchaseOrderDocuments: stub,
       purchaseOrders: stub,
       receipts: receipts as never,
       returns: kit.returns,
@@ -911,5 +945,102 @@ describe("checkout ipc", () => {
     expect(await invoke("shifts:state")).toMatchObject({
       heldBills: [expect.objectContaining({ lineCount: 1 })],
     });
+  });
+});
+
+describe("inventory ipc", () => {
+  let kit: CheckoutKit;
+  let service: InventoryService;
+
+  beforeEach(() => {
+    handlers.clear();
+    kit = createCheckoutKit();
+    service = createInventoryService({
+      database: kit.database,
+      sessions: kit.sessions,
+      stock: kit.stock,
+    });
+    const stub = {} as never;
+    registerIpcHandlers({
+      auth: stub,
+      billDrafts: stub,
+      catalogExport: stub,
+      categories: stub,
+      goodsReceived: stub,
+      inventory: service,
+      products: stub,
+      purchaseOrderDocuments: stub,
+      purchaseOrders: stub,
+      receipts: stub,
+      returns: stub,
+      sales: stub,
+      settings: stub,
+      shifts: stub,
+      suppliers: stub,
+      taxCategories: stub,
+      users: stub,
+    });
+    kit.signIn("cashier");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    kit.close();
+  });
+
+  it.each([
+    ["inventory:list-stock", "list", { query: "", limit: 101, offset: 0 }],
+    ["inventory:list-stock", "list", { query: "", limit: 10, offset: 0, extra: 1 }],
+    ["inventory:list-stock", "list", { query: "", limit: 10, offset: 0, includeArchived: true }],
+    ["inventory:low-stock", "lowStock", { limit: 101, offset: 0 }],
+    ["inventory:low-stock", "lowStock", { limit: 10, offset: 0, extra: 1 }],
+    ["inventory:low-stock", "lowStock", { limit: 10, offset: 0, categoryId: "x" }],
+    ["inventory:low-stock", "lowStock", { limit: 10, offset: 0, query: "" }],
+    ["inventory:stock-history", "history", { productId: "x", limit: 10, offset: 0 }],
+    ["inventory:stock-history", "history", { productId: unknownId, limit: 101, offset: 0 }],
+    [
+      "inventory:stock-history",
+      "history",
+      { productId: unknownId, limit: 10, offset: 0, extra: 1 },
+    ],
+  ] as const)("%s rejects bad input", async (channel, method, input) => {
+    const spy = vi.spyOn(service, method);
+    await expect(invoke(channel, input)).rejects.toThrow();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("lists stock and returns a refusal for an unknown product", async () => {
+    const tea = kit.addProduct({ nameEn: "Tea", searchText: "tea", costPaisa: 1000 });
+    expect(await invoke("inventory:list-stock", { query: "", limit: 10, offset: 0 })).toMatchObject(
+      {
+        total: 1,
+        items: [{ id: tea.id, onHandMilli: 0, costPaisa: 1000, stockValuePaisa: 0 }],
+      },
+    );
+    expect(
+      await invoke("inventory:stock-history", { productId: unknownId, limit: 10, offset: 0 }),
+    ).toMatchObject({ ok: false, reason: "not-found" });
+  });
+
+  it("lists low-stock products", async () => {
+    const tea = kit.addProduct({
+      nameEn: "Tea",
+      searchText: "tea",
+      lowStockThresholdMilli: 5000,
+    });
+    expect(await invoke("inventory:low-stock", { limit: 10, offset: 0 })).toMatchObject({
+      total: 1,
+      items: [{ id: tea.id, onHandMilli: 0, thresholdMilli: 5000, shortfallMilli: 5000 }],
+    });
+  });
+
+  it("rejects reads with no session", async () => {
+    kit.sessions.end();
+    await expect(
+      invoke("inventory:list-stock", { query: "", limit: 10, offset: 0 }),
+    ).rejects.toThrow(new Error(ipcErrorMessages.unauthenticated));
+    await expect(invoke("inventory:low-stock", { limit: 10, offset: 0 })).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
   });
 });
