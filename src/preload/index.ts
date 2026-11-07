@@ -1,5 +1,14 @@
 import { z } from "zod";
 import { contextBridge, ipcRenderer } from "electron";
+import { auditPageSchema, auditUsersSchema } from "@shared/audit";
+import {
+  backupNowResultSchema,
+  backupPasswordResultSchema,
+  backupPasswordStatusSchema,
+  backupStatusSchema,
+  chosenBackupSchema,
+  restoreResultSchema,
+} from "@shared/backup";
 import {
   authResultSchema,
   createFirstUserResultSchema,
@@ -16,6 +25,7 @@ import {
   miscItemSettingSchema,
   printerSettingsSchema,
   receiptSettingsSchema,
+  secondCopyStatusSchema,
   scalePrefixesSettingSchema,
   shiftVarianceSettingSchema,
   windowsPrintersSchema,
@@ -38,6 +48,16 @@ import {
 } from "@shared/shifts";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 import {
+  cancelStocktakeResultSchema,
+  recordCountResultSchema,
+  startStocktakeResultSchema,
+  stocktakeLinesResultSchema,
+  stocktakeScanResultSchema,
+  stocktakeSummarySchema,
+} from "@shared/stocktake";
+import {
+  negativeStockResultSchema,
+  stockAdjustmentResultSchema,
   lowStockResultSchema,
   stockHistoryResultSchema,
   stockListResultSchema,
@@ -68,6 +88,7 @@ import {
   taxCategorySchema,
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
+import { postGoodsReceivedResultSchema } from "@shared/goods-received";
 import {
   cancelPurchaseOrderResultSchema,
   confirmPurchaseOrderResultSchema,
@@ -137,6 +158,16 @@ const api: VendoraApi = {
       ),
     getReceipt: async () =>
       receiptSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsGetReceipt)),
+    getSecondCopy: async () =>
+      secondCopyStatusSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsGetSecondCopy)),
+    chooseSecondCopyFolder: async () =>
+      secondCopyStatusSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsChooseSecondCopyFolder),
+      ),
+    clearSecondCopyFolder: async () =>
+      secondCopyStatusSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsClearSecondCopyFolder),
+      ),
     setReceipt: async (input) =>
       receiptSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsSetReceipt, input)),
   },
@@ -197,8 +228,34 @@ const api: VendoraApi = {
       stockHistoryResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.inventoryStockHistory, query),
       ),
+    negativeStock: async (query) =>
+      negativeStockResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.inventoryNegativeStock, query),
+      ),
+    adjustStock: async (input) =>
+      stockAdjustmentResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.inventoryAdjustStock, input),
+      ),
     lowStock: async (query) =>
       lowStockResultSchema.parse(await ipcRenderer.invoke(ipcChannels.inventoryLowStock, query)),
+  },
+  stocktake: {
+    current: async () =>
+      stocktakeSummarySchema
+        .nullable()
+        .parse(await ipcRenderer.invoke(ipcChannels.stocktakeCurrent)),
+    start: async (input) =>
+      startStocktakeResultSchema.parse(await ipcRenderer.invoke(ipcChannels.stocktakeStart, input)),
+    lines: async (query) =>
+      stocktakeLinesResultSchema.parse(await ipcRenderer.invoke(ipcChannels.stocktakeLines, query)),
+    scan: async (input) =>
+      stocktakeScanResultSchema.parse(await ipcRenderer.invoke(ipcChannels.stocktakeScan, input)),
+    record: async (input) =>
+      recordCountResultSchema.parse(await ipcRenderer.invoke(ipcChannels.stocktakeRecord, input)),
+    cancel: async (stocktakeId) =>
+      cancelStocktakeResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.stocktakeCancel, { stocktakeId }),
+      ),
   },
   products: {
     getMiscItem: async () =>
@@ -312,6 +369,12 @@ const api: VendoraApi = {
         await ipcRenderer.invoke(ipcChannels.purchaseOrdersCancel, { id }),
       ),
   },
+  goodsReceived: {
+    post: async (input) =>
+      postGoodsReceivedResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.goodsReceivedPost, input),
+      ),
+  },
   shifts: {
     state: async () => shiftStateSchema.parse(await ipcRenderer.invoke(ipcChannels.shiftsState)),
     open: async (openingFloatPaisa) =>
@@ -378,6 +441,34 @@ const api: VendoraApi = {
       orderListSchema.parse(await ipcRenderer.invoke(ipcChannels.salesList, query)),
     get: async (id) =>
       getOrderResultSchema.parse(await ipcRenderer.invoke(ipcChannels.salesGet, { id })),
+  },
+  audit: {
+    list: async (query) =>
+      auditPageSchema.parse(await ipcRenderer.invoke(ipcChannels.auditList, query)),
+    listUsers: async () => auditUsersSchema.parse(await ipcRenderer.invoke(ipcChannels.auditUsers)),
+  },
+  backup: {
+    status: async () =>
+      backupStatusSchema.parse(await ipcRenderer.invoke(ipcChannels.backupStatus)),
+    run: async () => backupNowResultSchema.parse(await ipcRenderer.invoke(ipcChannels.backupRun)),
+    chooseFile: async () =>
+      chosenBackupSchema.parse(await ipcRenderer.invoke(ipcChannels.backupChooseFile)),
+    restore: async (input) =>
+      restoreResultSchema.parse(await ipcRenderer.invoke(ipcChannels.backupRestore, input)),
+    passwordStatus: async () =>
+      backupPasswordStatusSchema.parse(await ipcRenderer.invoke(ipcChannels.backupPasswordStatus)),
+    turnOnPassword: async (password) =>
+      backupPasswordResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.backupPasswordTurnOn, { password }),
+      ),
+    changePassword: async (current, next) =>
+      backupPasswordResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.backupPasswordChange, { current, next }),
+      ),
+    turnOffPassword: async (current) =>
+      backupPasswordResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.backupPasswordTurnOff, { current }),
+      ),
   },
 };
 

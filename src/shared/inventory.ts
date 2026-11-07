@@ -1,6 +1,10 @@
 import { z } from "zod";
-import { refusal } from "./checkout";
-import { productSearchInputSchema, productSearchItemSchema } from "./products";
+import { maxQtyMilli, refusal } from "./checkout";
+import {
+  PRODUCT_SEARCH_MAX_LIMIT,
+  productSearchInputSchema,
+  productSearchItemSchema,
+} from "./products";
 
 const movementTypes = [
   "opening",
@@ -11,7 +15,14 @@ const movementTypes = [
   "stocktake",
   "damage",
 ] as const;
-const movementReasons = ["damage", "expiry", "theft", "correction"] as const;
+export const movementReasons = ["damage", "expiry", "theft", "correction"] as const;
+export type StockMovementReason = (typeof movementReasons)[number];
+
+export const canRaiseStock = (reason: StockMovementReason): boolean => reason === "correction";
+
+export const stockAdjustmentMessages = {
+  raiseNeedsCorrection: "Only Correction can raise stock. Pick Correction.",
+};
 
 export const stockListQuerySchema = productSearchInputSchema.omit({ includeArchived: true });
 export type StockListQuery = z.input<typeof stockListQuerySchema>;
@@ -92,3 +103,53 @@ export const stockHistoryResultSchema = z.union([
   refusal("not-found"),
 ]);
 export type StockHistoryResult = z.infer<typeof stockHistoryResultSchema>;
+
+export const negativeStockQuerySchema = z.strictObject({
+  limit: z.int().min(1).max(PRODUCT_SEARCH_MAX_LIMIT),
+  offset: z.int().min(0).max(Number.MAX_SAFE_INTEGER),
+});
+export type NegativeStockQuery = z.input<typeof negativeStockQuerySchema>;
+
+export const negativeStockItemSchema = z.strictObject({
+  id: z.string(),
+  nameEn: z.string(),
+  nameUr: z.string().nullable(),
+  unit: productSearchItemSchema.shape.unit,
+  onHandMilli: z.int().negative(),
+  stockValuePaisa: z.int(),
+  lastMovementAt: z.iso.datetime(),
+});
+export type NegativeStockItem = z.infer<typeof negativeStockItemSchema>;
+
+export const negativeStockResultSchema = z.strictObject({
+  items: z.array(negativeStockItemSchema),
+  total: z.number(),
+});
+export type NegativeStockResult = z.infer<typeof negativeStockResultSchema>;
+
+export const stockAdjustmentInputSchema = z.discriminatedUnion("mode", [
+  z.strictObject({
+    mode: z.literal("change"),
+    productId: z.uuid(),
+    qtyMilli: z
+      .int()
+      .min(-maxQtyMilli)
+      .max(maxQtyMilli)
+      .refine((value) => value !== 0, "Quantity must not be zero"),
+    reason: z.enum(movementReasons),
+  }),
+  z.strictObject({
+    mode: z.literal("count"),
+    productId: z.uuid(),
+    countedMilli: z.int().min(0).max(maxQtyMilli),
+    reason: z.enum(movementReasons),
+  }),
+]);
+export type StockAdjustmentInput = z.input<typeof stockAdjustmentInputSchema>;
+
+export const stockAdjustmentResultSchema = z.union([
+  z.strictObject({ ok: z.literal(true), changed: z.boolean(), onHandMilli: z.int() }),
+  refusal("not-found"),
+  refusal("raise-needs-correction"),
+]);
+export type StockAdjustmentResult = z.infer<typeof stockAdjustmentResultSchema>;
