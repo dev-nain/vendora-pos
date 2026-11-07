@@ -39,10 +39,10 @@ export type MiscItemSetting = z.infer<typeof miscItemSettingSchema>;
 export type ShiftVarianceInput = z.infer<typeof shiftVarianceInputSchema>;
 export type ShiftVarianceSetting = z.infer<typeof shiftVarianceSettingSchema>;
 
-const blankToNull = (value: string | null) =>
+export const blankToNull = (value: string | null) =>
   value === null || value.trim() === "" ? null : value.trim();
 
-const textField = (max: number, message: string) =>
+export const textField = (max: number, message: string) =>
   z.string().nullable().transform(blankToNull).pipe(z.string().max(max, message).nullable());
 
 const maxLines = 4;
@@ -64,21 +64,25 @@ const strnSchema = z
   .transform((value) => value.replaceAll("-", ""))
   .pipe(z.string().regex(/^\d{13}$/, "STRN is 13 digits."));
 
+export const phoneField = z
+  .string()
+  .nullable()
+  .transform(blankToNull)
+  .pipe(
+    z
+      .string()
+      .max(30, "Phone is up to 30 characters.")
+      .regex(/^[\d\s+-]+$/, "Phone has digits, spaces, + and - only.")
+      .nullable(),
+  );
+
+export const ntnField = z.string().nullable().transform(blankToNull).pipe(ntnSchema.nullable());
+
 const receiptShape = {
   name: textField(100, "Store name is up to 100 characters."),
   address: textField(200, "Address is up to 200 characters."),
-  phone: z
-    .string()
-    .nullable()
-    .transform(blankToNull)
-    .pipe(
-      z
-        .string()
-        .max(30, "Phone is up to 30 characters.")
-        .regex(/^[\d\s+-]+$/, "Phone has digits, spaces, + and - only.")
-        .nullable(),
-    ),
-  ntn: z.string().nullable().transform(blankToNull).pipe(ntnSchema.nullable()),
+  phone: phoneField,
+  ntn: ntnField,
   strn: z.string().nullable().transform(blankToNull).pipe(strnSchema.nullable()),
   headerEn: multilineField("Header"),
   headerUr: multilineField("Header"),
@@ -144,6 +148,17 @@ export const windowsPrinterSchema = z.strictObject({
 
 export const windowsPrintersSchema = z.array(windowsPrinterSchema);
 
+export const secondCopyStatusSchema = z.strictObject({
+  folder: z.string().nullable(),
+  lastCopy: z
+    .discriminatedUnion("result", [
+      z.strictObject({ result: z.literal("ok"), at: z.iso.datetime() }),
+      z.strictObject({ result: z.literal("failed"), at: z.iso.datetime(), reason: z.string() }),
+    ])
+    .nullable(),
+});
+
+export type SecondCopyStatus = z.infer<typeof secondCopyStatusSchema>;
 export type ReceiptSettings = z.infer<typeof receiptSettingsSchema>;
 export type ReceiptSettingsInput = z.input<typeof receiptSettingsInputSchema>;
 export type PrinterConnection = z.infer<typeof printerConnectionSchema>;

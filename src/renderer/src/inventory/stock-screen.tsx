@@ -1,4 +1,10 @@
-import { ChevronLeftIcon, ChevronRightIcon, PackageIcon, SearchIcon } from "lucide-react";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  PackageIcon,
+  SearchIcon,
+  SlidersHorizontalIcon,
+} from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -8,7 +14,7 @@ import {
   type KeyboardEvent,
 } from "react";
 
-import type { StockListResult } from "@shared/inventory";
+import type { StockListItem, StockListResult } from "@shared/inventory";
 import { Button } from "@renderer/components/ui/button";
 import { Input } from "@renderer/components/ui/input";
 import { Kbd } from "@renderer/components/ui/kbd";
@@ -39,8 +45,9 @@ import {
   type ProductFilters,
 } from "../products/product-list";
 import { ErrorLine } from "../users/form-parts";
+import { StockAdjustDialog } from "./stock-adjust-dialog";
 import { StockHistory } from "./stock-history";
-import { onHandText } from "./stock-format";
+import { negativeClass, onHandText, rowMoveTarget } from "./stock-format";
 
 const SEARCH_DEBOUNCE_MS = 150;
 const ALL_CATEGORIES = "all";
@@ -53,8 +60,6 @@ const dash = <span className="text-tertiary">—</span>;
 
 const requestKey = (filters: ProductFilters, page: number, reloadKey: number): string =>
   JSON.stringify([filters, page, reloadKey]);
-
-const negativeClass = (value: number): string => (value < 0 ? "text-critical" : "");
 
 export function StockScreen({ onSessionEnded }: StockScreenProps) {
   const [searchText, setSearchText] = useState("");
@@ -72,6 +77,10 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [searchFocused, setSearchFocused] = useState(false);
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
+  const [adjustDialog, setAdjustDialog] = useState<{ item: StockListItem; open: boolean } | null>(
+    null,
+  );
+  const [status, setStatus] = useState<string | null>(null);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTableSectionElement>(null);
@@ -153,6 +162,14 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
     setHistoryIndex(index);
   };
 
+  const openAdjust = (index: number) => {
+    const item = items[index];
+    if (!item) return;
+    setActiveIndex(index);
+    setStatus(null);
+    setAdjustDialog({ item, open: true });
+  };
+
   const closeHistory = () => {
     restoreFocus.current = true;
     setHistoryIndex(null);
@@ -161,6 +178,7 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
   useEffect(() => {
     if (historyIndex !== null) return;
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (adjustDialog?.open) return;
       if (event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === "f") {
         event.preventDefault();
         searchRef.current?.focus();
@@ -175,27 +193,25 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [historyIndex]);
+  }, [historyIndex, adjustDialog?.open]);
 
   const onRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, index: number) => {
     if (event.target !== event.currentTarget) return;
-    const last = items.length - 1;
-    const target =
-      event.key === "ArrowDown"
-        ? Math.min(index + 1, last)
-        : event.key === "ArrowUp"
-          ? Math.max(index - 1, 0)
-          : event.key === "Home"
-            ? 0
-            : event.key === "End"
-              ? last
-              : null;
+    const target = rowMoveTarget(event.key, index, items.length - 1);
     if (target !== null) {
       event.preventDefault();
       focusRow(target);
     } else if (event.key === "Enter") {
       event.preventDefault();
       openHistory(index);
+    } else if (
+      event.key.toLowerCase() === "a" &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.metaKey
+    ) {
+      event.preventDefault();
+      openAdjust(index);
     }
   };
 
@@ -204,6 +220,7 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
     return (
       <StockHistory
         productId={historyItem.id}
+        backLabel="Back to stock"
         onBack={closeHistory}
         onSessionEnded={onSessionEnded}
       />
@@ -226,7 +243,7 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
           Stock
         </h1>
         <p className="m-0 text-[length:var(--font-size-350)] text-secondary">
-          Select a product and press Enter to see its movements.
+          Select a product and press Enter to see its movements, or A to adjust it.
         </p>
       </div>
       <div className="flex items-center gap-300">
@@ -280,6 +297,9 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
           </SelectContent>
         </Select>
       </div>
+      <p role="status" aria-live="polite" className="m-0 text-secondary empty:hidden">
+        {status}
+      </p>
       {error ? (
         <div className="flex items-center gap-300">
           <ErrorLine>{error}</ErrorLine>
@@ -314,6 +334,7 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
             <col className="w-[112px]" />
             <col className="w-[112px]" />
             <col className="w-[128px]" />
+            <col className="w-[76px]" />
           </colgroup>
           <TableHeader>
             <TableRow>
@@ -324,6 +345,9 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
               <TableHead className="text-right">On hand</TableHead>
               <TableHead className="text-right">Average cost</TableHead>
               <TableHead className="text-right">Stock value</TableHead>
+              <TableHead>
+                <span className="sr-only">Actions</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody ref={bodyRef}>
@@ -361,6 +385,26 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
                     className={`text-right tabular-nums ${negativeClass(item.stockValuePaisa)}`}
                   >
                     {signedRupees(item.stockValuePaisa)}
+                  </TableCell>
+                  <TableCell className="py-100">
+                    <Button
+                      variant="ghost"
+                      className="size-[var(--height-control-md)] p-0"
+                      tabIndex={index === activeIndex ? 0 : -1}
+                      aria-label={`Adjust stock for ${item.nameEn}`}
+                      title="Adjust stock (A)"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openAdjust(index);
+                      }}
+                    >
+                      <SlidersHorizontalIcon
+                        aria-hidden="true"
+                        size={16}
+                        strokeWidth={2}
+                        className="text-icon-muted"
+                      />
+                    </Button>
                   </TableCell>
                 </TableRow>
               );
@@ -400,6 +444,28 @@ export function StockScreen({ onSessionEnded }: StockScreenProps) {
             </Button>
           </div>
         </div>
+      ) : null}
+      {adjustDialog ? (
+        <StockAdjustDialog
+          item={adjustDialog.item}
+          open={adjustDialog.open}
+          onOpenChange={(open) =>
+            setAdjustDialog((current) => (current ? { ...current, open } : null))
+          }
+          returnFocus={() =>
+            bodyRef.current?.querySelectorAll<HTMLElement>("tr")[activeIndex] ?? null
+          }
+          onAdjusted={({ changed, onHandMilli }) => {
+            const { nameEn, unit } = adjustDialog.item;
+            setStatus(
+              changed
+                ? `${nameEn} on hand is now ${onHandText(onHandMilli, unit)}.`
+                : `${nameEn} is already at ${onHandText(onHandMilli, unit)}. Nothing changed.`,
+            );
+            setReloadKey((key) => key + 1);
+          }}
+          onSessionEnded={onSessionEnded}
+        />
       ) : null}
     </div>
   );
