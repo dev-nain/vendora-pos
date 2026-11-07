@@ -161,6 +161,17 @@ export const windowsPrinterSchema = z.strictObject({
 
 export const windowsPrintersSchema = z.array(windowsPrinterSchema);
 
+export const secondCopyStatusSchema = z.strictObject({
+  folder: z.string().nullable(),
+  lastCopy: z
+    .discriminatedUnion("result", [
+      z.strictObject({ result: z.literal("ok"), at: z.iso.datetime() }),
+      z.strictObject({ result: z.literal("failed"), at: z.iso.datetime(), reason: z.string() }),
+    ])
+    .nullable(),
+});
+
+export type SecondCopyStatus = z.infer<typeof secondCopyStatusSchema>;
 export type ReceiptSettings = z.infer<typeof receiptSettingsSchema>;
 export type ReceiptSettingsInput = z.input<typeof receiptSettingsInputSchema>;
 export type PrinterConnection = z.infer<typeof printerConnectionSchema>;

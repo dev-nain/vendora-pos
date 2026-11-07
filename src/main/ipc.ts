@@ -33,8 +33,14 @@ import {
   setDamagedInputSchema,
   updateLineInputSchema,
 } from "@shared/checkout";
+import { auditListQuerySchema, auditPageSchema, auditUsersSchema } from "@shared/audit";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
+import { printInvoiceResultSchema, saveInvoicePdfResultSchema } from "@shared/invoices";
 import {
+  negativeStockQuerySchema,
+  negativeStockResultSchema,
+  stockAdjustmentInputSchema,
+  stockAdjustmentResultSchema,
   lowStockQuerySchema,
   lowStockResultSchema,
   stockHistoryQuerySchema,
@@ -42,6 +48,19 @@ import {
   stockListQuerySchema,
   stockListResultSchema,
 } from "@shared/inventory";
+import {
+  cancelStocktakeResultSchema,
+  recordCountInputSchema,
+  recordCountResultSchema,
+  startStocktakeInputSchema,
+  startStocktakeResultSchema,
+  stocktakeIdInputSchema,
+  stocktakeLinesQuerySchema,
+  stocktakeLinesResultSchema,
+  stocktakeScanInputSchema,
+  stocktakeScanResultSchema,
+  stocktakeSummarySchema,
+} from "@shared/stocktake";
 import {
   addFromSaleInputSchema,
   returnableInputSchema,
@@ -53,6 +72,18 @@ import {
   orderListSchema,
   salesListQuerySchema,
 } from "@shared/sales";
+import {
+  backupNowResultSchema,
+  backupPasswordResultSchema,
+  backupPasswordStatusSchema,
+  changeBackupPasswordInputSchema,
+  backupStatusSchema,
+  chosenBackupSchema,
+  restoreInputSchema,
+  restoreResultSchema,
+  turnOffBackupPasswordInputSchema,
+  turnOnBackupPasswordInputSchema,
+} from "@shared/backup";
 import {
   barcodeLookupInputSchema,
   barcodeLookupSchema,
@@ -86,6 +117,7 @@ import {
   printerSettingsSchema,
   receiptSettingsInputSchema,
   receiptSettingsSchema,
+  secondCopyStatusSchema,
   scalePrefixesInputSchema,
   scalePrefixesSettingSchema,
   shiftVarianceInputSchema,
@@ -163,18 +195,24 @@ import {
 } from "@shared/users";
 import { z } from "zod";
 import { toIpcError } from "./ipc-errors";
+import type { AuditLogService } from "./services/audit-log";
 import type { AuthService } from "./services/auth";
 import type { BillDraftsService } from "./services/bill-drafts";
+import type { BackupAdminService } from "./services/backup-admin";
+import type { BackupPasswordService } from "./services/backup-password";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { GoodsReceivedService } from "./services/goods-received";
 import type { InventoryService } from "./services/inventory";
+import type { StocktakeService } from "./services/stocktake";
 import type { ProductsService } from "./services/products";
 import type { PurchaseOrderDocumentsService } from "./services/purchase-order-documents";
 import type { PurchaseOrdersService } from "./services/purchase-orders";
+import type { SaleInvoicesService } from "./services/sale-invoices";
 import type { ReceiptsService } from "./services/receipts";
 import type { ReturnsService } from "./services/returns";
 import type { SalesService } from "./services/sales";
+import type { BackupSettingsService } from "./services/backup-settings";
 import type { SettingsService } from "./services/settings";
 import type { ShiftsService } from "./services/shifts";
 import type { SuppliersService } from "./services/suppliers";
@@ -195,11 +233,16 @@ function handle(
 }
 
 interface IpcServices {
+  auditLog: AuditLogService;
   auth: AuthService;
+  backupSettings: BackupSettingsService;
+  backupAdmin: BackupAdminService;
+  backupPassword: BackupPasswordService;
   billDrafts: BillDraftsService;
   catalogExport: CatalogExportService;
   categories: CategoriesService;
   inventory: InventoryService;
+  stocktake: StocktakeService;
   returns: ReturnsService;
   sales: SalesService;
   settings: SettingsService;
@@ -212,20 +255,27 @@ interface IpcServices {
   purchaseOrders: PurchaseOrdersService;
   goodsReceived: GoodsReceivedService;
   receipts: ReceiptsService;
+  saleInvoices: SaleInvoicesService;
 }
 
 export function registerIpcHandlers({
+  auditLog,
   auth,
+  backupSettings,
+  backupAdmin,
+  backupPassword,
   billDrafts,
   catalogExport,
   categories,
   goodsReceived,
   inventory,
+  stocktake,
   products,
   purchaseOrderDocuments,
   purchaseOrders,
   receipts,
   returns,
+  saleInvoices,
   sales,
   settings,
   shifts,
@@ -267,6 +317,15 @@ export function registerIpcHandlers({
   handle(ipcChannels.settingsGetReceipt, () => receiptSettingsSchema.parse(settings.getReceipt()));
   handle(ipcChannels.settingsSetReceipt, (_event, input) =>
     receiptSettingsSchema.parse(settings.setReceipt(receiptSettingsInputSchema.parse(input))),
+  );
+  handle(ipcChannels.settingsGetSecondCopy, () =>
+    secondCopyStatusSchema.parse(backupSettings.getSecondCopy()),
+  );
+  handle(ipcChannels.settingsChooseSecondCopyFolder, async () =>
+    secondCopyStatusSchema.parse(await backupSettings.chooseSecondCopyFolder()),
+  );
+  handle(ipcChannels.settingsClearSecondCopyFolder, () =>
+    secondCopyStatusSchema.parse(backupSettings.clearSecondCopyFolder()),
   );
   handle(ipcChannels.printerGetSettings, () => printerSettingsSchema.parse(settings.getPrinter()));
   handle(ipcChannels.printerSetSettings, (_event, input) =>
@@ -350,6 +409,32 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.inventoryStockHistory, (_event, input) =>
     stockHistoryResultSchema.parse(inventory.history(stockHistoryQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeCurrent, () =>
+    stocktakeSummarySchema.nullable().parse(stocktake.current()),
+  );
+  handle(ipcChannels.stocktakeStart, (_event, input) =>
+    startStocktakeResultSchema.parse(stocktake.start(startStocktakeInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeLines, (_event, input) =>
+    stocktakeLinesResultSchema.parse(stocktake.lines(stocktakeLinesQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeScan, (_event, input) =>
+    stocktakeScanResultSchema.parse(stocktake.scan(stocktakeScanInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeRecord, (_event, input) =>
+    recordCountResultSchema.parse(stocktake.record(recordCountInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeCancel, (_event, input) =>
+    cancelStocktakeResultSchema.parse(stocktake.cancel(stocktakeIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.inventoryNegativeStock, (_event, input) =>
+    negativeStockResultSchema.parse(inventory.negativeStock(negativeStockQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.inventoryAdjustStock, (_event, input) =>
+    stockAdjustmentResultSchema.parse(
+      inventory.adjustStock(stockAdjustmentInputSchema.parse(input)),
+    ),
   );
   handle(ipcChannels.productsSearch, (_event, input) =>
     productSearchResultSchema.parse(products.search(productSearchInputSchema.parse(input))),
@@ -464,6 +549,17 @@ export function registerIpcHandlers({
       await purchaseOrderDocuments.print(purchaseOrderIdInputSchema.parse(input)),
     ),
   );
+  handle(ipcChannels.invoicesSavePdf, async (_event, input) =>
+    saveInvoicePdfResultSchema.parse(await saleInvoices.savePdf(saleIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.invoicesPrint, async (_event, input) =>
+    printInvoiceResultSchema.parse(await saleInvoices.print(saleIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.goodsReceivedPost, (_event, input) =>
+    postGoodsReceivedResultSchema.parse(
+      goodsReceived.post(postGoodsReceivedInputSchema.parse(input)),
+    ),
+  );
   handle(ipcChannels.taxCategoriesList, () =>
     z.array(taxCategorySchema).parse(taxCategories.list()),
   );
@@ -559,5 +655,39 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.salesGet, (_event, input) =>
     getOrderResultSchema.parse(sales.get(orderIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.auditList, (_event, input) =>
+    auditPageSchema.parse(auditLog.list(auditListQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.auditUsers, () => auditUsersSchema.parse(auditLog.users()));
+  handle(ipcChannels.backupStatus, async () =>
+    backupStatusSchema.parse(await backupAdmin.status()),
+  );
+  handle(ipcChannels.backupRun, async () =>
+    backupNowResultSchema.parse(await backupAdmin.backupNow()),
+  );
+  handle(ipcChannels.backupChooseFile, async () =>
+    chosenBackupSchema.parse(await backupAdmin.chooseRestoreFile()),
+  );
+  handle(ipcChannels.backupRestore, async (_event, input) =>
+    restoreResultSchema.parse(await backupAdmin.restore(restoreInputSchema.parse(input))),
+  );
+  handle(ipcChannels.backupPasswordStatus, async () =>
+    backupPasswordStatusSchema.parse(await backupPassword.status()),
+  );
+  handle(ipcChannels.backupPasswordTurnOn, async (_event, input) =>
+    backupPasswordResultSchema.parse(
+      await backupPassword.turnOn(turnOnBackupPasswordInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.backupPasswordChange, async (_event, input) =>
+    backupPasswordResultSchema.parse(
+      await backupPassword.change(changeBackupPasswordInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.backupPasswordTurnOff, async (_event, input) =>
+    backupPasswordResultSchema.parse(
+      await backupPassword.turnOff(turnOffBackupPasswordInputSchema.parse(input)),
+    ),
   );
 }
