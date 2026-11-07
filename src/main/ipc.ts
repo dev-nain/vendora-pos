@@ -54,6 +54,20 @@ import {
   salesByDayResultSchema,
 } from "@shared/reports";
 import {
+  exportTodayReportInputSchema,
+  lowStockReportResultSchema,
+  negativeStockReportResultSchema,
+  postedStocktakesResultSchema,
+  purchasesBySupplierResultSchema,
+  stockMovementsExportInputSchema,
+  stockMovementsReportInputSchema,
+  stockMovementsReportResultSchema,
+  stockOnHandResultSchema,
+  stocktakeVarianceExportInputSchema,
+  stocktakeVarianceReportInputSchema,
+  stocktakeVarianceResultSchema,
+} from "@shared/stock-reports";
+import {
   cancelStocktakeResultSchema,
   pastStocktakesQuerySchema,
   pastStocktakesResultSchema,
@@ -264,6 +278,8 @@ function handle(
     }
   });
 }
+
+const noPayloadSchema = z.tuple([]);
 
 interface IpcServices {
   auditLog: AuditLogService;
@@ -658,6 +674,66 @@ export function registerIpcHandlers({
   handle(ipcChannels.reportsExportSalesByDay, async (_event, input) =>
     exportReportResultSchema.parse(
       await reports.exportSalesByDay(exportReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsStockOnHand, (_event, ...payload) => {
+    noPayloadSchema.parse(payload);
+    return stockOnHandResultSchema.parse(reports.stockOnHand());
+  });
+  handle(ipcChannels.reportsLowStock, (_event, ...payload) => {
+    noPayloadSchema.parse(payload);
+    return lowStockReportResultSchema.parse(reports.lowStock());
+  });
+  handle(ipcChannels.reportsNegativeStock, (_event, ...payload) => {
+    noPayloadSchema.parse(payload);
+    return negativeStockReportResultSchema.parse(reports.negativeStock());
+  });
+  handle(ipcChannels.reportsStockMovements, (_event, input) =>
+    stockMovementsReportResultSchema.parse(
+      reports.stockMovements(stockMovementsReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsPurchasesBySupplier, (_event, input) =>
+    purchasesBySupplierResultSchema.parse(
+      reports.purchasesBySupplier(reportRangeSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsPostedStocktakes, (_event, input) =>
+    postedStocktakesResultSchema.parse(reports.postedStocktakes(reportRangeSchema.parse(input))),
+  );
+  handle(ipcChannels.reportsStocktakeVariance, (_event, input) =>
+    stocktakeVarianceResultSchema.parse(
+      reports.stocktakeVariance(stocktakeVarianceReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportStockOnHand, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportStockOnHand(exportTodayReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportLowStock, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportLowStock(exportTodayReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportNegativeStock, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportNegativeStock(exportTodayReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportStockMovements, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportStockMovements(stockMovementsExportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportPurchasesBySupplier, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportPurchasesBySupplier(exportReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportStocktakeVariance, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportStocktakeVariance(stocktakeVarianceExportInputSchema.parse(input)),
     ),
   );
   handle(ipcChannels.taxCategoriesList, () =>

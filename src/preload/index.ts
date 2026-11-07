@@ -23,6 +23,15 @@ import {
 } from "@shared/receipt";
 import { exportReportResultSchema, salesByDayResultSchema } from "@shared/reports";
 import {
+  lowStockReportResultSchema,
+  negativeStockReportResultSchema,
+  postedStocktakesResultSchema,
+  purchasesBySupplierResultSchema,
+  stockMovementsReportResultSchema,
+  stockOnHandResultSchema,
+  stocktakeVarianceResultSchema,
+} from "@shared/stock-reports";
+import {
   miscItemSettingSchema,
   printerSettingsSchema,
   receiptSettingsSchema,
@@ -482,6 +491,54 @@ const api: VendoraApi = {
     exportSalesByDay: async (input) =>
       exportReportResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.reportsExportSalesByDay, input),
+      ),
+    stockOnHand: async () =>
+      stockOnHandResultSchema.parse(await ipcRenderer.invoke(ipcChannels.reportsStockOnHand)),
+    lowStock: async () =>
+      lowStockReportResultSchema.parse(await ipcRenderer.invoke(ipcChannels.reportsLowStock)),
+    negativeStock: async () =>
+      negativeStockReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsNegativeStock),
+      ),
+    stockMovements: async (input) =>
+      stockMovementsReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsStockMovements, input),
+      ),
+    purchasesBySupplier: async (range) =>
+      purchasesBySupplierResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsPurchasesBySupplier, range),
+      ),
+    postedStocktakes: async (range) =>
+      postedStocktakesResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsPostedStocktakes, range),
+      ),
+    stocktakeVariance: async (input) =>
+      stocktakeVarianceResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsStocktakeVariance, input),
+      ),
+    exportStockOnHand: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportStockOnHand, input),
+      ),
+    exportLowStock: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportLowStock, input),
+      ),
+    exportNegativeStock: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportNegativeStock, input),
+      ),
+    exportStockMovements: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportStockMovements, input),
+      ),
+    exportPurchasesBySupplier: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportPurchasesBySupplier, input),
+      ),
+    exportStocktakeVariance: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportStocktakeVariance, input),
       ),
   },
   shifts: {
