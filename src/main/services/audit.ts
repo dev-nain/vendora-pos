@@ -66,7 +66,7 @@ function findForbiddenKeyPath(
 
 export const auditRecordInputSchema = z.strictObject({
   action: z.enum(auditActions),
-  actorUserId: z.uuid(),
+  actorUserId: z.uuid().nullable(),
   entityType: z.string().min(1).max(64).optional(),
   entityId: z.string().min(1).max(64).optional(),
   details: z

@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { contextBridge, ipcRenderer } from "electron";
 import {
+  backupNowResultSchema,
+  backupStatusSchema,
+  chosenBackupSchema,
+  restoreResultSchema,
+} from "@shared/backup";
+import {
   authResultSchema,
   createFirstUserResultSchema,
   loginUserSchema,
@@ -16,6 +22,7 @@ import {
   miscItemSettingSchema,
   printerSettingsSchema,
   receiptSettingsSchema,
+  secondCopyStatusSchema,
   scalePrefixesSettingSchema,
   shiftVarianceSettingSchema,
   windowsPrintersSchema,
@@ -133,6 +140,16 @@ const api: VendoraApi = {
       ),
     getReceipt: async () =>
       receiptSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsGetReceipt)),
+    getSecondCopy: async () =>
+      secondCopyStatusSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsGetSecondCopy)),
+    chooseSecondCopyFolder: async () =>
+      secondCopyStatusSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsChooseSecondCopyFolder),
+      ),
+    clearSecondCopyFolder: async () =>
+      secondCopyStatusSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsClearSecondCopyFolder),
+      ),
     setReceipt: async (input) =>
       receiptSettingsSchema.parse(await ipcRenderer.invoke(ipcChannels.settingsSetReceipt, input)),
   },
@@ -370,6 +387,15 @@ const api: VendoraApi = {
       orderListSchema.parse(await ipcRenderer.invoke(ipcChannels.salesList, query)),
     get: async (id) =>
       getOrderResultSchema.parse(await ipcRenderer.invoke(ipcChannels.salesGet, { id })),
+  },
+  backup: {
+    status: async () =>
+      backupStatusSchema.parse(await ipcRenderer.invoke(ipcChannels.backupStatus)),
+    run: async () => backupNowResultSchema.parse(await ipcRenderer.invoke(ipcChannels.backupRun)),
+    chooseFile: async () =>
+      chosenBackupSchema.parse(await ipcRenderer.invoke(ipcChannels.backupChooseFile)),
+    restore: async (input) =>
+      restoreResultSchema.parse(await ipcRenderer.invoke(ipcChannels.backupRestore, input)),
   },
 };
 

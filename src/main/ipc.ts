@@ -46,6 +46,13 @@ import {
   salesListQuerySchema,
 } from "@shared/sales";
 import {
+  backupNowResultSchema,
+  backupStatusSchema,
+  chosenBackupSchema,
+  restoreInputSchema,
+  restoreResultSchema,
+} from "@shared/backup";
+import {
   barcodeLookupInputSchema,
   barcodeLookupSchema,
   bulkUpdateProductsInputSchema,
@@ -78,6 +85,7 @@ import {
   printerSettingsSchema,
   receiptSettingsInputSchema,
   receiptSettingsSchema,
+  secondCopyStatusSchema,
   scalePrefixesInputSchema,
   scalePrefixesSettingSchema,
   shiftVarianceInputSchema,
@@ -149,6 +157,7 @@ import { z } from "zod";
 import { toIpcError } from "./ipc-errors";
 import type { AuthService } from "./services/auth";
 import type { BillDraftsService } from "./services/bill-drafts";
+import type { BackupAdminService } from "./services/backup-admin";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { GoodsReceivedService } from "./services/goods-received";
@@ -157,6 +166,7 @@ import type { PurchaseOrdersService } from "./services/purchase-orders";
 import type { ReceiptsService } from "./services/receipts";
 import type { ReturnsService } from "./services/returns";
 import type { SalesService } from "./services/sales";
+import type { BackupSettingsService } from "./services/backup-settings";
 import type { SettingsService } from "./services/settings";
 import type { ShiftsService } from "./services/shifts";
 import type { SuppliersService } from "./services/suppliers";
@@ -178,6 +188,8 @@ function handle(
 
 interface IpcServices {
   auth: AuthService;
+  backupSettings: BackupSettingsService;
+  backupAdmin: BackupAdminService;
   billDrafts: BillDraftsService;
   catalogExport: CatalogExportService;
   categories: CategoriesService;
@@ -196,6 +208,8 @@ interface IpcServices {
 
 export function registerIpcHandlers({
   auth,
+  backupSettings,
+  backupAdmin,
   billDrafts,
   catalogExport,
   categories,
@@ -245,6 +259,15 @@ export function registerIpcHandlers({
   handle(ipcChannels.settingsGetReceipt, () => receiptSettingsSchema.parse(settings.getReceipt()));
   handle(ipcChannels.settingsSetReceipt, (_event, input) =>
     receiptSettingsSchema.parse(settings.setReceipt(receiptSettingsInputSchema.parse(input))),
+  );
+  handle(ipcChannels.settingsGetSecondCopy, () =>
+    secondCopyStatusSchema.parse(backupSettings.getSecondCopy()),
+  );
+  handle(ipcChannels.settingsChooseSecondCopyFolder, async () =>
+    secondCopyStatusSchema.parse(await backupSettings.chooseSecondCopyFolder()),
+  );
+  handle(ipcChannels.settingsClearSecondCopyFolder, () =>
+    secondCopyStatusSchema.parse(backupSettings.clearSecondCopyFolder()),
   );
   handle(ipcChannels.printerGetSettings, () => printerSettingsSchema.parse(settings.getPrinter()));
   handle(ipcChannels.printerSetSettings, (_event, input) =>
@@ -505,5 +528,17 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.salesGet, (_event, input) =>
     getOrderResultSchema.parse(sales.get(orderIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.backupStatus, async () =>
+    backupStatusSchema.parse(await backupAdmin.status()),
+  );
+  handle(ipcChannels.backupRun, async () =>
+    backupNowResultSchema.parse(await backupAdmin.backupNow()),
+  );
+  handle(ipcChannels.backupChooseFile, async () =>
+    chosenBackupSchema.parse(await backupAdmin.chooseRestoreFile()),
+  );
+  handle(ipcChannels.backupRestore, async (_event, input) =>
+    restoreResultSchema.parse(await backupAdmin.restore(restoreInputSchema.parse(input))),
   );
 }

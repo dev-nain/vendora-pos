@@ -1,5 +1,12 @@
 import { z } from "zod";
 import type {
+  BackupNowResult,
+  BackupStatus,
+  ChosenBackup,
+  RestoreInput,
+  RestoreResult,
+} from "./backup";
+import type {
   AuthResult,
   CreateFirstUserInput,
   CreateFirstUserResult,
@@ -44,6 +51,7 @@ import type {
   PrinterSettings,
   ReceiptSettings,
   ReceiptSettingsInput,
+  SecondCopyStatus,
   ScalePrefixesInput,
   ScalePrefixesSetting,
   ShiftVarianceSetting,
@@ -129,6 +137,9 @@ export const ipcChannels = {
   settingsSetShiftVarianceWarn: "settings:set-shift-variance-warn",
   settingsGetReceipt: "settings:get-receipt",
   settingsSetReceipt: "settings:set-receipt",
+  settingsGetSecondCopy: "settings:get-second-copy",
+  settingsChooseSecondCopyFolder: "settings:choose-second-copy-folder",
+  settingsClearSecondCopyFolder: "settings:clear-second-copy-folder",
   printerGetSettings: "printer:get-settings",
   printerSetSettings: "printer:set-settings",
   printerListWindows: "printer:list-windows",
@@ -204,6 +215,10 @@ export const ipcChannels = {
   returnsAddFromSale: "returns:add-from-sale",
   salesList: "sales:list",
   salesGet: "sales:get",
+  backupStatus: "backup:status",
+  backupRun: "backup:run",
+  backupChooseFile: "backup:choose-file",
+  backupRestore: "backup:restore",
 } as const;
 
 export const ipcErrorMessages = {
@@ -231,6 +246,9 @@ export interface VendoraApi {
     setShiftVarianceWarn: (warnPaisa: number) => Promise<ShiftVarianceSetting>;
     getReceipt: () => Promise<ReceiptSettings>;
     setReceipt: (input: ReceiptSettingsInput) => Promise<ReceiptSettings>;
+    getSecondCopy: () => Promise<SecondCopyStatus>;
+    chooseSecondCopyFolder: () => Promise<SecondCopyStatus>;
+    clearSecondCopyFolder: () => Promise<SecondCopyStatus>;
   };
   printer: {
     getSettings: () => Promise<PrinterSettings>;
@@ -330,5 +348,11 @@ export interface VendoraApi {
   sales: {
     list: (query: SalesListQuery) => Promise<OrderSummary[]>;
     get: (id: string) => Promise<GetOrderResult>;
+  };
+  backup: {
+    status: () => Promise<BackupStatus>;
+    run: () => Promise<BackupNowResult>;
+    chooseFile: () => Promise<ChosenBackup>;
+    restore: (input: RestoreInput) => Promise<RestoreResult>;
   };
 }
