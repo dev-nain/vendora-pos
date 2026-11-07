@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   movementReasonLabels,
   movementTypeLabels,
+  negativeClass,
   onHandText,
+  rowMoveTarget,
   signedQuantityText,
   signedValueText,
 } from "./stock-format";
@@ -22,6 +24,14 @@ describe("onHandText", () => {
   it("uses the minus sign for negative stock", () => {
     expect(onHandText(-3000, "piece")).toBe("−3 pcs");
     expect(onHandText(-1250, "kg")).toBe("−1.250 kg");
+  });
+});
+
+describe("negativeClass", () => {
+  it("marks only values below zero as critical", () => {
+    expect(negativeClass(-1)).toBe("text-critical");
+    expect(negativeClass(0)).toBe("");
+    expect(negativeClass(1)).toBe("");
   });
 });
 
@@ -77,5 +87,29 @@ describe("labels", () => {
       theft: "Theft",
       correction: "Correction",
     });
+  });
+});
+
+describe("negativeClass", () => {
+  it("marks only negative values", () => {
+    expect(negativeClass(-1)).toBe("text-critical");
+    expect(negativeClass(0)).toBe("");
+    expect(negativeClass(5)).toBe("");
+  });
+});
+
+describe("rowMoveTarget", () => {
+  it("moves within the rows and clamps at both ends", () => {
+    expect(rowMoveTarget("ArrowDown", 1, 4)).toBe(2);
+    expect(rowMoveTarget("ArrowDown", 4, 4)).toBe(4);
+    expect(rowMoveTarget("ArrowUp", 3, 4)).toBe(2);
+    expect(rowMoveTarget("ArrowUp", 0, 4)).toBe(0);
+    expect(rowMoveTarget("Home", 3, 4)).toBe(0);
+    expect(rowMoveTarget("End", 1, 4)).toBe(4);
+  });
+
+  it("ignores other keys", () => {
+    expect(rowMoveTarget("Enter", 1, 4)).toBeNull();
+    expect(rowMoveTarget("a", 1, 4)).toBeNull();
   });
 });
