@@ -1,5 +1,10 @@
 import {
+  grossProfitByCategoryColumns,
+  grossProfitByProductColumns,
   salesByDayColumns,
+  type GrossProfitByCategoryRow,
+  type GrossProfitByProductRow,
+  type GrossProfitTotals,
   type ExportReportInput,
   type ExportReportResult,
   type ReportCellValue,
@@ -32,4 +37,24 @@ export const salesByDayReport: ReportDefinition<SalesByDayRow, SalesByDayTotals>
   exportTo: (input) => window.vendora.reports.exportSalesByDay(input),
 };
 
-export const reportDefinitions = [salesByDayReport] as const;
+export const grossProfitByProductReport: ReportDefinition<
+  GrossProfitByProductRow,
+  GrossProfitTotals
+> = {
+  id: "gross-profit-by-product",
+  label: "Gross profit by product",
+  columns: grossProfitByProductColumns,
+  load: (range) => window.vendora.reports.grossProfitByProduct(range),
+  exportTo: (input) => window.vendora.reports.exportGrossProfitByProduct(input),
+};
+
+export const grossProfitByCategoryReport: ReportDefinition<
+  GrossProfitByCategoryRow,
+  GrossProfitTotals
+> = {
+  id: "gross-profit-by-category",
+  label: "Gross profit by category",
+  columns: grossProfitByCategoryColumns,
+  load: (range) => window.vendora.reports.grossProfitByCategory(range),
+  exportTo: (input) => window.vendora.reports.exportGrossProfitByCategory(input),
+};

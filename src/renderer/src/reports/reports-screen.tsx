@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import {
   Select,
@@ -7,19 +7,55 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@renderer/components/ui/select";
-import { reportDefinitions } from "./report-definitions";
+import type { ReportCellValue } from "@shared/reports";
+import {
+  grossProfitByCategoryReport,
+  grossProfitByProductReport,
+  salesByDayReport,
+  type ReportDefinition,
+} from "./report-definitions";
 import { ReportView } from "./report-view";
 
 interface ReportsScreenProps {
   onSessionEnded: () => void;
 }
 
-const reportItems = reportDefinitions.map((report) => ({ value: report.id, label: report.label }));
+interface ReportEntry {
+  id: string;
+  label: string;
+  render: (picker: ReactNode, onSessionEnded: () => void) => ReactNode;
+}
+
+function reportEntry<
+  Row extends Record<string, ReportCellValue>,
+  Totals extends Record<string, number | null>,
+>(definition: ReportDefinition<Row, Totals>): ReportEntry {
+  return {
+    id: definition.id,
+    label: definition.label,
+    render: (picker, onSessionEnded) => (
+      <ReportView
+        key={definition.id}
+        definition={definition}
+        picker={picker}
+        onSessionEnded={onSessionEnded}
+      />
+    ),
+  };
+}
+
+const reportEntries = [
+  reportEntry(salesByDayReport),
+  reportEntry(grossProfitByProductReport),
+  reportEntry(grossProfitByCategoryReport),
+];
+
+const reportItems = reportEntries.map((report) => ({ value: report.id, label: report.label }));
 
 export function ReportsScreen({ onSessionEnded }: ReportsScreenProps) {
-  const [reportId, setReportId] = useState<string>(reportDefinitions[0].id);
-  const definition = reportDefinitions.find((report) => report.id === reportId);
-  if (!definition) return null;
+  const [reportId, setReportId] = useState<string>(reportEntries[0]!.id);
+  const entry = reportEntries.find((report) => report.id === reportId);
+  if (!entry) return null;
 
   const picker = (
     <Select
@@ -42,12 +78,5 @@ export function ReportsScreen({ onSessionEnded }: ReportsScreenProps) {
     </Select>
   );
 
-  return (
-    <ReportView
-      key={definition.id}
-      definition={definition}
-      picker={picker}
-      onSessionEnded={onSessionEnded}
-    />
-  );
+  return entry.render(picker, onSessionEnded);
 }
