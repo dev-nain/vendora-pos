@@ -41,6 +41,7 @@ export const lowStockItemSchema = z.strictObject({
   nameUr: z.string().nullable(),
   categoryId: z.string().nullable(),
   unit: productSearchItemSchema.shape.unit,
+  costPaisa: z.int().nonnegative(),
   onHandMilli: z.int(),
   thresholdMilli: z.int().nonnegative(),
   shortfallMilli: z.int().nonnegative(),
