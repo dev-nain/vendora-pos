@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { contextBridge, ipcRenderer } from "electron";
+import { auditPageSchema, auditUsersSchema } from "@shared/audit";
 import {
   backupNowResultSchema,
   backupPasswordResultSchema,
@@ -21,6 +22,7 @@ import {
   saleJobResultSchema,
 } from "@shared/receipt";
 import {
+  marginThresholdSettingSchema,
   miscItemSettingSchema,
   printerSettingsSchema,
   receiptSettingsSchema,
@@ -46,6 +48,21 @@ import {
   shiftStateSchema,
 } from "@shared/shifts";
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
+import {
+  cancelStocktakeResultSchema,
+  recordCountResultSchema,
+  startStocktakeResultSchema,
+  stocktakeLinesResultSchema,
+  stocktakeScanResultSchema,
+  stocktakeSummarySchema,
+} from "@shared/stocktake";
+import {
+  negativeStockResultSchema,
+  stockAdjustmentResultSchema,
+  lowStockResultSchema,
+  stockHistoryResultSchema,
+  stockListResultSchema,
+} from "@shared/inventory";
 import { returnableResultSchema } from "@shared/returns";
 import { getOrderResultSchema, orderListSchema } from "@shared/sales";
 import {
@@ -72,13 +89,35 @@ import {
   taxCategorySchema,
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
-import { postGoodsReceivedResultSchema } from "@shared/goods-received";
+import { printInvoiceResultSchema, saveInvoicePdfResultSchema } from "@shared/invoices";
+import {
+  getGoodsReceivedResultSchema,
+  goodsReceivedLastCostResultSchema,
+  goodsReceivedListResultSchema,
+  lowMarginResultSchema,
+  postGoodsReceivedResultSchema,
+} from "@shared/goods-received";
+import {
+  productPurchaseHistoryResultSchema,
+  supplierPurchaseHistoryResultSchema,
+} from "@shared/purchase-history";
+import {
+  getPurchaseReturnResultSchema,
+  postPurchaseReturnResultSchema,
+  printPurchaseReturnResultSchema,
+  purchaseReturnListResultSchema,
+  savePurchaseReturnPdfResultSchema,
+  purchaseReturnableNoteResultSchema,
+  purchaseReturnableResultSchema,
+} from "@shared/purchase-returns";
 import {
   cancelPurchaseOrderResultSchema,
   confirmPurchaseOrderResultSchema,
   createPurchaseOrderResultSchema,
   getPurchaseOrderResultSchema,
+  printPurchaseOrderResultSchema,
   purchaseOrderSummarySchema,
+  savePurchaseOrderPdfResultSchema,
   updatePurchaseOrderResultSchema,
 } from "@shared/purchase-orders";
 import {
@@ -135,6 +174,14 @@ const api: VendoraApi = {
     getShiftVarianceWarn: async () =>
       shiftVarianceSettingSchema.parse(
         await ipcRenderer.invoke(ipcChannels.settingsGetShiftVarianceWarn),
+      ),
+    getMarginThreshold: async () =>
+      marginThresholdSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsGetMarginThreshold),
+      ),
+    setMarginThreshold: async (thresholdBps) =>
+      marginThresholdSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsSetMarginThreshold, { thresholdBps }),
       ),
     setShiftVarianceWarn: async (warnPaisa) =>
       shiftVarianceSettingSchema.parse(
@@ -204,6 +251,42 @@ const api: VendoraApi = {
       ),
     reactivate: async (id) =>
       userActionResultSchema.parse(await ipcRenderer.invoke(ipcChannels.usersReactivate, { id })),
+  },
+  inventory: {
+    listStock: async (query) =>
+      stockListResultSchema.parse(await ipcRenderer.invoke(ipcChannels.inventoryListStock, query)),
+    stockHistory: async (query) =>
+      stockHistoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.inventoryStockHistory, query),
+      ),
+    negativeStock: async (query) =>
+      negativeStockResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.inventoryNegativeStock, query),
+      ),
+    adjustStock: async (input) =>
+      stockAdjustmentResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.inventoryAdjustStock, input),
+      ),
+    lowStock: async (query) =>
+      lowStockResultSchema.parse(await ipcRenderer.invoke(ipcChannels.inventoryLowStock, query)),
+  },
+  stocktake: {
+    current: async () =>
+      stocktakeSummarySchema
+        .nullable()
+        .parse(await ipcRenderer.invoke(ipcChannels.stocktakeCurrent)),
+    start: async (input) =>
+      startStocktakeResultSchema.parse(await ipcRenderer.invoke(ipcChannels.stocktakeStart, input)),
+    lines: async (query) =>
+      stocktakeLinesResultSchema.parse(await ipcRenderer.invoke(ipcChannels.stocktakeLines, query)),
+    scan: async (input) =>
+      stocktakeScanResultSchema.parse(await ipcRenderer.invoke(ipcChannels.stocktakeScan, input)),
+    record: async (input) =>
+      recordCountResultSchema.parse(await ipcRenderer.invoke(ipcChannels.stocktakeRecord, input)),
+    cancel: async (stocktakeId) =>
+      cancelStocktakeResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.stocktakeCancel, { stocktakeId }),
+      ),
   },
   products: {
     getMiscItem: async () =>
@@ -316,11 +399,85 @@ const api: VendoraApi = {
       cancelPurchaseOrderResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.purchaseOrdersCancel, { id }),
       ),
+    savePdf: async (id) =>
+      savePurchaseOrderPdfResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersSavePdf, { id }),
+      ),
+    print: async (id) =>
+      printPurchaseOrderResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersPrint, { id }),
+      ),
+  },
+  invoices: {
+    savePdf: async (saleId) =>
+      saveInvoicePdfResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.invoicesSavePdf, { saleId }),
+      ),
+    print: async (saleId) =>
+      printInvoiceResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.invoicesPrint, { saleId }),
+      ),
   },
   goodsReceived: {
     post: async (input) =>
       postGoodsReceivedResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.goodsReceivedPost, input),
+      ),
+    list: async (query) =>
+      goodsReceivedListResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.goodsReceivedList, query),
+      ),
+    get: async (id) =>
+      getGoodsReceivedResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.goodsReceivedGet, { id }),
+      ),
+    lastCost: async (productId) =>
+      goodsReceivedLastCostResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.goodsReceivedLastCost, { productId }),
+      ),
+    lowMargin: async (id) =>
+      lowMarginResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.goodsReceivedLowMargin, { id }),
+      ),
+  },
+  purchaseReturns: {
+    post: async (input) =>
+      postPurchaseReturnResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsPost, input),
+      ),
+    list: async (query) =>
+      purchaseReturnListResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsList, query),
+      ),
+    get: async (id) =>
+      getPurchaseReturnResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsGet, { id }),
+      ),
+    returnable: async (input) =>
+      purchaseReturnableResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsReturnable, input),
+      ),
+    fromNote: async (goodsReceivedNoteId) =>
+      purchaseReturnableNoteResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsFromNote, { id: goodsReceivedNoteId }),
+      ),
+    savePdf: async (id) =>
+      savePurchaseReturnPdfResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsSavePdf, { id }),
+      ),
+    print: async (id) =>
+      printPurchaseReturnResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseReturnsPrint, { id }),
+      ),
+  },
+  purchaseHistory: {
+    forProduct: async (query) =>
+      productPurchaseHistoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseHistoryProduct, query),
+      ),
+    forSupplier: async (query) =>
+      supplierPurchaseHistoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseHistorySupplier, query),
       ),
   },
   shifts: {
@@ -389,6 +546,11 @@ const api: VendoraApi = {
       orderListSchema.parse(await ipcRenderer.invoke(ipcChannels.salesList, query)),
     get: async (id) =>
       getOrderResultSchema.parse(await ipcRenderer.invoke(ipcChannels.salesGet, { id })),
+  },
+  audit: {
+    list: async (query) =>
+      auditPageSchema.parse(await ipcRenderer.invoke(ipcChannels.auditList, query)),
+    listUsers: async () => auditUsersSchema.parse(await ipcRenderer.invoke(ipcChannels.auditUsers)),
   },
   backup: {
     status: async () =>

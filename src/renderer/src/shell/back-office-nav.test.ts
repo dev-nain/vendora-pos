@@ -7,8 +7,16 @@ describe("back office nav", () => {
     expect(backOfficeEntries.map((entry) => entry.page)).toEqual([
       "products",
       "categories",
+      "stock",
+      "low-stock",
+      "negative-stock",
+      "stocktake",
+      "purchase-orders",
+      "goods-received",
+      "purchase-returns",
       "suppliers",
       "users",
+      "audit",
       "backup",
       "settings",
     ]);
@@ -20,9 +28,15 @@ describe("back office nav", () => {
     ).toEqual(["products", "categories"]);
   });
 
-  it("groups suppliers under Purchasing", () => {
+  it("groups stock, low stock, negative stock and stocktake under Inventory", () => {
+    expect(
+      backOfficeEntries.filter((entry) => entry.group === "Inventory").map((entry) => entry.page),
+    ).toEqual(["stock", "low-stock", "negative-stock", "stocktake"]);
+  });
+
+  it("groups purchase orders, goods received, purchase returns and suppliers under Purchasing", () => {
     expect(
       backOfficeEntries.filter((entry) => entry.group === "Purchasing").map((entry) => entry.page),
-    ).toEqual(["suppliers"]);
+    ).toEqual(["purchase-orders", "goods-received", "purchase-returns", "suppliers"]);
   });
 });

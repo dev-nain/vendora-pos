@@ -12,7 +12,9 @@ import {
 import { paymentMethods, type PaymentMethod } from "../../shared/checkout";
 import { productUnits, type ProductUnit } from "../../shared/products";
 import { storedPurchaseOrderStatuses } from "../../shared/purchase-orders";
+import { purchaseReturnReasons } from "../../shared/purchase-returns";
 import { printerKinds, printModes, type PaperWidthMm } from "../../shared/settings";
+import { stocktakeScopes, stocktakeStatuses } from "../../shared/stocktake";
 import { uuidv7 } from "./id";
 
 export { paymentMethods, productUnits, type PaymentMethod, type ProductUnit };
@@ -69,6 +71,7 @@ export const stores = sqliteTable(
     scalePricePrefix: text("scale_price_prefix").notNull().default("22"),
     miscItemEnabled: integer("misc_item_enabled", { mode: "boolean" }).notNull().default(false),
     shiftVarianceWarnPaisa: integer("shift_variance_warn_paisa").notNull().default(0),
+    marginThresholdBps: integer("margin_threshold_bps"),
     pricesIncludeTax: integer("prices_include_tax", { mode: "boolean" }).notNull().default(true),
     cashRoundingEnabled: integer("cash_rounding_enabled", { mode: "boolean" })
       .notNull()
@@ -310,6 +313,7 @@ export const stockMovementTypes = [
   "adjustment",
   "stocktake",
   "damage",
+  "purchase_return",
 ] as const;
 export type StockMovementType = (typeof stockMovementTypes)[number];
 
@@ -343,7 +347,7 @@ export const stockMovements = sqliteTable(
   (t) => [
     check(
       "stock_movements_type_check",
-      sql`${t.type} IN ('opening', 'sale', 'return', 'receipt', 'adjustment', 'stocktake', 'damage')`,
+      sql`${t.type} IN ('opening', 'sale', 'return', 'receipt', 'adjustment', 'stocktake', 'damage', 'purchase_return')`,
     ),
     check(
       "stock_movements_reason_check",
@@ -352,7 +356,7 @@ export const stockMovements = sqliteTable(
     check("stock_movements_qty_milli_check", sql`${t.qtyMilli} <> 0`),
     check("stock_movements_unit_cost_paisa_check", sql`${t.unitCostPaisa} >= 0`),
     check("stock_movements_source_check", sql`(${t.sourceType} IS NULL) = (${t.sourceId} IS NULL)`),
-    index("stock_movements_product_id_idx").on(t.productId),
+    index("stock_movements_product_id_qty_created_at_idx").on(t.productId, t.qtyMilli, t.createdAt),
     index("stock_movements_product_id_created_at_idx").on(t.productId, t.createdAt),
   ],
 );
@@ -1126,6 +1130,191 @@ export const goodsReceivedLines = sqliteTable(
   ],
 );
 
+export const stocktakes = sqliteTable(
+  "stocktakes",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    scope: text("scope", { enum: stocktakeScopes }).notNull(),
+    categoryId: text("category_id").references(() => categories.id),
+    status: text("status", { enum: stocktakeStatuses }).notNull().default("open"),
+    startedBy: text("started_by")
+      .notNull()
+      .references(() => users.id),
+    postedAt: integer("posted_at", { mode: "timestamp_ms" }),
+    postedBy: text("posted_by").references(() => users.id),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check("stocktakes_scope_check", inList(t.scope, stocktakeScopes)),
+    check("stocktakes_status_check", inList(t.status, stocktakeStatuses)),
+    check(
+      "stocktakes_scope_category_check",
+      sql`(${t.scope} = 'category') = (${t.categoryId} IS NOT NULL)`,
+    ),
+    check(
+      "stocktakes_posted_check",
+      sql`(${t.status} = 'posted') = (${t.postedAt} IS NOT NULL) AND (${t.postedAt} IS NULL) = (${t.postedBy} IS NULL)`,
+    ),
+    uniqueIndex("stocktakes_store_open_unique")
+      .on(t.storeId)
+      .where(sql`${t.status} = 'open'`),
+  ],
+);
+
+export const stocktakeLines = sqliteTable(
+  "stocktake_lines",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    stocktakeId: text("stocktake_id")
+      .notNull()
+      .references(() => stocktakes.id),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id),
+    expectedQtyMilli: integer("expected_qty_milli"),
+    countedQtyMilli: integer("counted_qty_milli"),
+    countedAt: integer("counted_at", { mode: "timestamp_ms" }),
+    unitCostPaisa: integer("unit_cost_paisa"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check(
+      "stocktake_lines_integers_check",
+      allIntegers([], [t.expectedQtyMilli, t.countedQtyMilli, t.unitCostPaisa]),
+    ),
+    check(
+      "stocktake_lines_unit_cost_paisa_check",
+      sql`${t.unitCostPaisa} IS NULL OR ${t.unitCostPaisa} >= 0`,
+    ),
+    check(
+      "stocktake_lines_counted_qty_milli_check",
+      sql`${t.countedQtyMilli} IS NULL OR ${t.countedQtyMilli} >= 0`,
+    ),
+    check(
+      "stocktake_lines_counted_set_check",
+      sql`(${t.countedQtyMilli} IS NULL) = (${t.countedAt} IS NULL) AND (${t.expectedQtyMilli} IS NULL) = (${t.countedAt} IS NULL)`,
+    ),
+    uniqueIndex("stocktake_lines_stocktake_product_unique").on(t.stocktakeId, t.productId),
+  ],
+);
+
+export const terminalPurchaseReturnSequences = sqliteTable(
+  "terminal_purchase_return_sequences",
+  {
+    terminalId: text("terminal_id")
+      .primaryKey()
+      .references(() => terminals.id),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    nextSeq: integer("next_seq").notNull().default(1),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check(
+      "terminal_purchase_return_sequences_next_seq_check",
+      sql`${isInteger(t.nextSeq)} AND ${t.nextSeq} >= 1`,
+    ),
+  ],
+);
+
+export const purchaseReturns = sqliteTable(
+  "purchase_returns",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    returnNo: text("return_no").notNull(),
+    supplierId: text("supplier_id")
+      .notNull()
+      .references(() => suppliers.id),
+    goodsReceivedNoteId: text("goods_received_note_id").references(() => goodsReceivedNotes.id),
+    reason: text("reason", { enum: purchaseReturnReasons }).notNull(),
+    notes: text("notes"),
+    totalPaisa: integer("total_paisa").notNull(),
+    actorUserId: text("actor_user_id")
+      .notNull()
+      .references(() => users.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check(
+      "purchase_returns_total_paisa_check",
+      sql`${isInteger(t.totalPaisa)} AND ${t.totalPaisa} >= 0`,
+    ),
+    check("purchase_returns_return_no_check", sql`length(${t.returnNo}) > 0`),
+    check("purchase_returns_reason_check", inList(t.reason, purchaseReturnReasons)),
+    uniqueIndex("purchase_returns_return_no_terminal_id_unique").on(t.returnNo, t.terminalId),
+    index("purchase_returns_store_id_created_at_idx").on(t.storeId, t.createdAt),
+    index("purchase_returns_supplier_id_idx").on(t.supplierId),
+    index("purchase_returns_goods_received_note_id_idx").on(t.goodsReceivedNoteId),
+  ],
+);
+
+export const purchaseReturnLines = sqliteTable(
+  "purchase_return_lines",
+  {
+    id: id(),
+    storeId: text("store_id")
+      .notNull()
+      .references(() => stores.id),
+    terminalId: text("terminal_id")
+      .notNull()
+      .references(() => terminals.id),
+    purchaseReturnId: text("purchase_return_id")
+      .notNull()
+      .references(() => purchaseReturns.id),
+    position: integer("position").notNull(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id),
+    goodsReceivedLineId: text("goods_received_line_id").references(() => goodsReceivedLines.id),
+    nameEn: text("name_en").notNull(),
+    nameUr: text("name_ur"),
+    unit: text("unit", { enum: productUnits }).notNull(),
+    qtyMilli: integer("qty_milli").notNull(),
+    unitCostPaisa: integer("unit_cost_paisa").notNull(),
+    lineTotalPaisa: integer("line_total_paisa").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check(
+      "purchase_return_lines_integers_check",
+      allIntegers([t.position, t.qtyMilli, t.unitCostPaisa, t.lineTotalPaisa]),
+    ),
+    check("purchase_return_lines_position_check", sql`${t.position} >= 0`),
+    check("purchase_return_lines_qty_milli_check", sql`${t.qtyMilli} > 0`),
+    check("purchase_return_lines_unit_cost_paisa_check", sql`${t.unitCostPaisa} >= 0`),
+    check("purchase_return_lines_line_total_paisa_check", sql`${t.lineTotalPaisa} >= 0`),
+    check("purchase_return_lines_unit_check", inList(t.unit, productUnits)),
+    uniqueIndex("purchase_return_lines_purchase_return_id_position_unique").on(
+      t.purchaseReturnId,
+      t.position,
+    ),
+    index("purchase_return_lines_product_id_idx").on(t.productId),
+    index("purchase_return_lines_goods_received_line_id_idx").on(t.goodsReceivedLineId),
+  ],
+);
+
 export const schema = {
   stores,
   terminals,
@@ -1153,5 +1342,10 @@ export const schema = {
   purchaseOrderLines,
   terminalGrnSequences,
   goodsReceivedNotes,
+  terminalPurchaseReturnSequences,
+  purchaseReturns,
+  purchaseReturnLines,
   goodsReceivedLines,
+  stocktakes,
+  stocktakeLines,
 };
