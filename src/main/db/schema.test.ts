@@ -2063,7 +2063,7 @@ describe("purchase returns migration on an existing database", () => {
       ]);
       expect(names("index", "stock_movements_%")).toEqual([
         "stock_movements_product_id_created_at_idx",
-        "stock_movements_product_id_idx",
+        "stock_movements_product_id_qty_created_at_idx",
       ]);
     } finally {
       database.sqlite.close();
