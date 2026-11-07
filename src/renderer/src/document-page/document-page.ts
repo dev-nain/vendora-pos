@@ -72,6 +72,7 @@ function build(model: DocumentModel): HTMLElement[] {
   }
 
   const nodes = [head, panels, facts, table, totals];
+  if (model.landscape) nodes.push(element("style", "", "@page { size: A4 landscape; }"));
   if (model.notes) {
     const notes = element("div", "notes");
     notes.append(element("div", "label", "Notes"), element("div", "body", model.notes));

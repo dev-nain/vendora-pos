@@ -28,4 +28,5 @@ export interface DocumentModel {
   rows: DocumentCell[][];
   totals: DocumentPair[];
   notes: string | null;
+  landscape?: boolean;
 }

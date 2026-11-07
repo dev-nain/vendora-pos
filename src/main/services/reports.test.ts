@@ -1,8 +1,13 @@
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { sql } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { DocumentModel } from "../../shared/document";
+import type { ReportExportFormat } from "../../shared/reports";
 import type { Bill, BillResult, CompleteSaleResult } from "../../shared/checkout";
 import { UnauthenticatedError } from "../auth/errors";
 import { sales, stores } from "../db/schema";
+import type { DocumentRenderer } from "../documents/document-window";
 import { createCheckoutKit, type CheckoutKit } from "./checkout-test-kit";
 import { createReportsService } from "./reports";
 import { createSalesService } from "./sales";
@@ -23,6 +28,10 @@ describe("sales by day", () => {
   let kit: CheckoutKit;
   let clock: Date;
   let service: ReturnType<typeof createReportsService>;
+  let toPdf: ReturnType<typeof vi.fn<(model: DocumentModel) => Promise<Buffer>>>;
+  let chooseSavePath: ReturnType<
+    typeof vi.fn<(name: string, format: ReportExportFormat) => Promise<string | null>>
+  >;
   let sellingService: ReturnType<typeof createSalesService>;
 
   beforeEach(() => {
@@ -37,7 +46,15 @@ describe("sales by day", () => {
       stock: kit.stock,
       now: () => clock,
     });
-    service = createReportsService({ database: kit.database, sessions: kit.sessions });
+    toPdf = vi.fn(async () => Buffer.from("%PDF-1.4 fake"));
+    chooseSavePath = vi.fn(async (name: string) => join(kit.dir, name));
+    const renderer: DocumentRenderer = { toPdf, print: vi.fn(async () => "printed" as const) };
+    service = createReportsService({
+      database: kit.database,
+      sessions: kit.sessions,
+      renderer,
+      chooseSavePath,
+    });
   });
 
   afterEach(() => kit.close());
@@ -229,5 +246,106 @@ describe("sales by day", () => {
   it("requires a session", () => {
     kit.sessions.end();
     expect(() => service.salesByDay(range("2026-11-07"))).toThrow(UnauthenticatedError);
+  });
+
+  const sellOne = () => sellAt("2026-11-07T10:00:00.000Z", product("Tea", 10000).id);
+  const strayFiles = () => readdirSync(kit.dir).filter((name) => /\.(csv|pdf|tmp)$/.test(name));
+
+  describe("export", () => {
+    it("writes the CSV with a store-day file name", async () => {
+      sellOne();
+
+      const result = await service.exportSalesByDay({
+        range: range("2026-11-01", "2026-11-07"),
+        format: "csv",
+      });
+
+      const path = join(kit.dir, "sales-by-day-2026-11-01-to-2026-11-07.csv");
+      expect(result).toEqual({ ok: true, status: "saved", path });
+      expect(chooseSavePath).toHaveBeenCalledWith(
+        "sales-by-day-2026-11-01-to-2026-11-07.csv",
+        "csv",
+      );
+      const text = readFileSync(path, "utf8");
+      expect(text.codePointAt(0)).toBe(0xfeff);
+      expect(text).toContain(
+        "Day,Bills,Pieces,Kg,Litres,Discount,Net sales,Tax,Rounding,Total\r\n",
+      );
+      expect(text).toContain("2026-11-07,1,1,0,0,0.00,100.00,0.00,0.00,100.00\r\n");
+      expect(text.endsWith("Total,1,1,0,0,0.00,100.00,0.00,0.00,100.00\r\n")).toBe(true);
+    });
+
+    it("uses one date in the file name for a single day", async () => {
+      await service.exportSalesByDay({ range: range("2026-11-07"), format: "csv" });
+      expect(chooseSavePath).toHaveBeenCalledWith("sales-by-day-2026-11-07.csv", "csv");
+    });
+
+    it("renders the PDF from database rows, not renderer data", async () => {
+      sellOne();
+
+      const result = await service.exportSalesByDay({ range: range("2026-11-07"), format: "pdf" });
+
+      expect(result).toMatchObject({ ok: true, status: "saved" });
+      expect(readFileSync(join(kit.dir, "sales-by-day-2026-11-07.pdf"), "utf8")).toBe(
+        "%PDF-1.4 fake",
+      );
+      const model = toPdf.mock.calls[0]![0];
+      expect(model).toMatchObject({ title: "Sales by day", landscape: true });
+      expect(model.rows).toHaveLength(1);
+      expect(model.rows[0]?.[0]).toEqual({ text: "7 Nov 2026" });
+    });
+
+    it("returns cancelled and writes nothing when the dialog is cancelled", async () => {
+      sellOne();
+      chooseSavePath.mockResolvedValueOnce(null);
+
+      expect(await service.exportSalesByDay({ range: range("2026-11-07"), format: "csv" })).toEqual(
+        {
+          ok: true,
+          status: "cancelled",
+        },
+      );
+      expect(strayFiles()).toEqual([]);
+    });
+
+    it("returns failed and leaves no file or temporary file when rendering fails", async () => {
+      sellOne();
+      toPdf.mockRejectedValueOnce(new Error("render"));
+
+      const result = await service.exportSalesByDay({ range: range("2026-11-07"), format: "pdf" });
+
+      expect(result).toEqual({
+        ok: false,
+        reason: "failed",
+        message: "Couldn't save the report. Check the folder and try again.",
+      });
+      expect(strayFiles()).toEqual([]);
+    });
+
+    it("returns failed when the folder cannot be written", async () => {
+      chooseSavePath.mockResolvedValueOnce(join(kit.dir, "missing", "report.csv"));
+      const result = await service.exportSalesByDay({ range: range("2026-11-07"), format: "csv" });
+      expect(result).toMatchObject({ ok: false, reason: "failed" });
+      expect(existsSync(join(kit.dir, "missing"))).toBe(false);
+    });
+
+    it("throws when signed out before the dialog", async () => {
+      kit.sessions.end();
+      await expect(
+        service.exportSalesByDay({ range: range("2026-11-07"), format: "csv" }),
+      ).rejects.toBeInstanceOf(UnauthenticatedError);
+      expect(chooseSavePath).not.toHaveBeenCalled();
+    });
+
+    it("throws when signed out while the dialog is open", async () => {
+      chooseSavePath.mockImplementationOnce(async (name) => {
+        kit.sessions.end();
+        return join(kit.dir, name);
+      });
+      await expect(
+        service.exportSalesByDay({ range: range("2026-11-07"), format: "csv" }),
+      ).rejects.toBeInstanceOf(UnauthenticatedError);
+      expect(strayFiles()).toEqual([]);
+    });
   });
 });

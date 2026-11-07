@@ -1,6 +1,8 @@
 import { writeFile } from "node:fs/promises";
 import { app } from "electron";
 import type { DocumentModel } from "../../shared/document";
+import { salesByDayColumns, type SalesByDayRow } from "../../shared/reports";
+import { buildReportDocument } from "../reports/report-document";
 import { createDocumentRenderer } from "./document-window";
 
 const rowCount = 60;
@@ -38,10 +40,54 @@ function fixedModel(): DocumentModel {
   };
 }
 
+function reportModel(): DocumentModel {
+  const rows: SalesByDayRow[] = Array.from({ length: 31 }, (_, index) => ({
+    day: `2026-10-${String(index + 1).padStart(2, "0")}`,
+    billCount: 120 + index,
+    pieceQtyMilli: 480_000 + index * 1000,
+    kgQtyMilli: 62_500,
+    litreQtyMilli: 18_250,
+    discountPaisa: 12_500,
+    netPaisa: 4_120_000,
+    taxPaisa: 741_600,
+    roundingPaisa: index % 2 === 0 ? -50 : 50,
+    totalPaisa: 4_861_600 + (index % 2 === 0 ? -50 : 50),
+  }));
+  return buildReportDocument({
+    title: "Sales by day",
+    range: { from: "2026-10-01", to: "2026-10-31" },
+    store: {
+      name: "Vendora Test Store",
+      address: "Main Bazaar, Lahore",
+      phone: null,
+      ntn: null,
+      strn: null,
+      headerEn: null,
+      headerUr: null,
+      footerEn: null,
+      footerUr: null,
+    },
+    columns: salesByDayColumns,
+    rows,
+    totals: {
+      billCount: 4_000,
+      pieceQtyMilli: 15_000_000,
+      kgQtyMilli: 1_937_500,
+      litreQtyMilli: 565_750,
+      discountPaisa: 387_500,
+      netPaisa: 127_720_000,
+      taxPaisa: 22_989_600,
+      roundingPaisa: 50,
+      totalPaisa: 150_709_650,
+    },
+  });
+}
+
 export async function runPdfCheck(path: string): Promise<void> {
   try {
-    const bytes = await createDocumentRenderer().toPdf(fixedModel());
-    await writeFile(path, bytes);
+    const renderer = createDocumentRenderer();
+    await writeFile(path, await renderer.toPdf(fixedModel()));
+    await writeFile(`${path}.report.pdf`, await renderer.toPdf(reportModel()));
     app.exit(0);
   } catch (error) {
     console.error("PDF check failed", error);

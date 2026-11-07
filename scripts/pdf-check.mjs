@@ -23,15 +23,25 @@ const result = spawnSync(electron, ["."], { stdio: "inherit", timeout: 60_000, e
 if (result.error) fail(result.error.message);
 if (result.status !== 0) fail(`electron exited with ${result.status}`);
 
-let bytes;
-try {
-  bytes = readFileSync(file);
-} catch {
-  fail("no file was written");
+function check(path, name) {
+  let bytes;
+  try {
+    bytes = readFileSync(path);
+  } catch {
+    fail(`${name}: no file was written`);
+  }
+  if (bytes.length <= 1024) fail(`${name}: file is only ${bytes.length} bytes`);
+  if (bytes.subarray(0, 5).toString("latin1") !== "%PDF-") {
+    fail(`${name}: file does not start with %PDF-`);
+  }
+  if (!bytes.subarray(-32).toString("latin1").includes("%%EOF")) {
+    fail(`${name}: file has no %%EOF trailer`);
+  }
+  return bytes.length;
 }
-if (bytes.length <= 1024) fail(`file is only ${bytes.length} bytes`);
-if (bytes.subarray(0, 5).toString("latin1") !== "%PDF-") fail("file does not start with %PDF-");
-if (!bytes.subarray(-32).toString("latin1").includes("%%EOF")) fail("file has no %%EOF trailer");
+
+const documentSize = check(file, "purchase order");
+const reportSize = check(`${file}.report.pdf`, "report");
 
 rmSync(dir, { recursive: true, force: true });
-console.log(`PDF check passed (${bytes.length} bytes)`);
+console.log(`PDF check passed (purchase order ${documentSize} bytes, report ${reportSize} bytes)`);

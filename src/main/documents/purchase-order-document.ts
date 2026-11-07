@@ -3,6 +3,7 @@ import { formatRupees } from "../../shared/money";
 import { purchaseOrderStatusLabels, type PurchaseOrder } from "../../shared/purchase-orders";
 import { formatQuantity } from "../../shared/quantity";
 import type { ReceiptSettings } from "../../shared/settings";
+import { buildStorePanel, labelled, present } from "./store-panel";
 
 export interface PurchaseOrderSupplier {
   contactPerson: string | null;
@@ -23,22 +24,8 @@ function formatDate(iso: string): string {
   return `${pad2(date.getDate())}-${pad2(date.getMonth() + 1)}-${date.getFullYear()}`;
 }
 
-const present = (value: string | null): value is string => value !== null && value.trim() !== "";
-
-function labelled(label: string, value: string | null): string[] {
-  return present(value) ? [`${label}: ${value}`] : [];
-}
-
 export function buildPurchaseOrderDocument({ order, store, supplier }: Input): DocumentModel {
-  const storePanel: DocumentPanel = {
-    lines: [
-      ...(present(store.name) ? [store.name] : []),
-      ...(present(store.address) ? [store.address] : []),
-      ...labelled("Phone", store.phone),
-      ...labelled("NTN", store.ntn),
-      ...labelled("STRN", store.strn),
-    ],
-  };
+  const storePanel = buildStorePanel(store);
   const supplierPanel: DocumentPanel = {
     label: "Supplier",
     lines: [
