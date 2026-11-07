@@ -1,5 +1,6 @@
 import {
   BoxesIcon,
+  ClipboardListIcon,
   PackageIcon,
   SettingsIcon,
   TagsIcon,
@@ -15,6 +16,7 @@ import { CategoriesScreen } from "../categories/categories-screen";
 import { LowStockScreen } from "../inventory/low-stock-screen";
 import { StockScreen } from "../inventory/stock-screen";
 import { ProductsScreen } from "../products/products-screen";
+import { PurchaseOrdersScreen } from "../purchasing/purchase-orders-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
 import { PrinterSetting } from "../settings/printer-setting";
 import { ReceiptSetting } from "../settings/receipt-setting";
@@ -28,6 +30,7 @@ const icons: Record<BackOfficePage, LucideIcon> = {
   categories: TagsIcon,
   stock: BoxesIcon,
   "low-stock": TriangleAlertIcon,
+  "purchase-orders": ClipboardListIcon,
   suppliers: TruckIcon,
   users: UsersIcon,
   settings: SettingsIcon,
@@ -97,6 +100,8 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
           <StockScreen onSessionEnded={onSessionEnded} />
         ) : page === "low-stock" ? (
           <LowStockScreen onSessionEnded={onSessionEnded} />
+        ) : page === "purchase-orders" ? (
+          <PurchaseOrdersScreen onSessionEnded={onSessionEnded} />
         ) : page === "suppliers" ? (
           <SuppliersScreen onSessionEnded={onSessionEnded} />
         ) : page === "users" ? (
