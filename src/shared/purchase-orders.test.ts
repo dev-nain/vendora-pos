@@ -3,9 +3,13 @@ import { maxPaisa } from "./checkout";
 import {
   createPurchaseOrderInputSchema,
   derivePurchaseOrderStatus,
+  isPurchaseOrderEditable,
+  printPurchaseOrderResultSchema,
   purchaseOrderLineTotalPaisa,
+  purchaseOrderStatuses,
   purchaseOrderTotalPaisa,
   remainingQtyMilli,
+  savePurchaseOrderPdfResultSchema,
   storedPurchaseOrderStatuses,
   updatePurchaseOrderInputSchema,
 } from "./purchase-orders";
@@ -98,5 +102,48 @@ describe("purchase order schemas", () => {
 
   it("rejects an extra key on the order", () => {
     expect(parse({ ...order, extra: 1 })).toBe(false);
+  });
+});
+
+const lines = (receivedQtyMilli: number) => [{ receivedQtyMilli }];
+
+describe("isPurchaseOrderEditable", () => {
+  it.each([
+    ["draft", true],
+    ["confirmed", true],
+    ["partly_received", false],
+    ["received", false],
+    ["cancelled", false],
+  ] as const)("%s with nothing received is %s", (status, expected) => {
+    expect(isPurchaseOrderEditable({ status, lines: lines(0) })).toBe(expected);
+  });
+
+  it("is false once any line is received", () => {
+    for (const status of purchaseOrderStatuses) {
+      expect(isPurchaseOrderEditable({ status, lines: [...lines(0), ...lines(1)] })).toBe(false);
+    }
+  });
+});
+
+const refused = (reason: string) => ({ ok: false, reason, message: "x" });
+const parseSave = (value: unknown) => savePurchaseOrderPdfResultSchema.safeParse(value).success;
+const parsePrint = (value: unknown) => printPurchaseOrderResultSchema.safeParse(value).success;
+
+describe("document result schemas", () => {
+  it("parses every save outcome", () => {
+    expect(parseSave({ ok: true, status: "saved", path: "a.pdf" })).toBe(true);
+    expect(parseSave({ ok: true, status: "cancelled" })).toBe(true);
+    expect(parseSave(refused("not-found"))).toBe(true);
+    expect(parseSave(refused("failed"))).toBe(true);
+    expect(parseSave(refused("other"))).toBe(false);
+    expect(parseSave({ ok: true, status: "saved" })).toBe(false);
+  });
+
+  it("parses every print outcome", () => {
+    expect(parsePrint({ ok: true, status: "printed" })).toBe(true);
+    expect(parsePrint({ ok: true, status: "cancelled" })).toBe(true);
+    expect(parsePrint(refused("not-found"))).toBe(true);
+    expect(parsePrint(refused("failed"))).toBe(true);
+    expect(parsePrint({ ok: true, status: "saved" })).toBe(false);
   });
 });
