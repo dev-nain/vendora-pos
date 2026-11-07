@@ -15,6 +15,8 @@ import { createBackupAdminService } from "./services/backup-admin";
 import { createBillDraftsService } from "./services/bill-drafts";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createCategoriesService } from "./services/categories";
+import { createGoodsReceivedService } from "./services/goods-received";
+import { createPurchaseOrdersService } from "./services/purchase-orders";
 import { createReceiptsService } from "./services/receipts";
 import { createReturnsService } from "./services/returns";
 import { createSalesService } from "./services/sales";
@@ -100,6 +102,8 @@ void app.whenReady().then(async () => {
   const products = createProductsService({ database, audit, sessions });
   const categories = createCategoriesService({ database, audit, sessions });
   const suppliers = createSuppliersService({ database, audit, sessions });
+  const purchaseOrders = createPurchaseOrdersService({ database, audit, sessions });
+  const goodsReceived = createGoodsReceivedService({ database, audit, sessions, stock });
   const taxCategories = createTaxCategoriesService({ database, audit, sessions });
   const catalogExport = createCatalogExportService({
     database,
@@ -182,7 +186,9 @@ void app.whenReady().then(async () => {
     billDrafts,
     catalogExport,
     categories,
+    goodsReceived,
     products,
+    purchaseOrders,
     receipts,
     returns,
     sales,
