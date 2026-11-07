@@ -19,6 +19,7 @@ export function lookupBarcode(
   database: VendoraDatabase,
   storeId: string,
   barcode: string,
+  { includeArchived = false }: { includeArchived?: boolean } = {},
 ): BarcodeLookup | null {
   const code = barcode.trim();
   if (code === "") return null;
@@ -38,7 +39,7 @@ export function lookupBarcode(
         isNull(productBarcodes.deletedAt),
         eq(products.storeId, storeId),
         isNull(products.deletedAt),
-        eq(products.isActive, true),
+        includeArchived ? undefined : eq(products.isActive, true),
       ),
     )
     .get();
@@ -47,13 +48,14 @@ export function lookupBarcode(
     return { source: "barcode", product, packQtyMilli, packPricePaisa };
   }
 
-  return lookupScaleBarcode(database, storeId, code);
+  return lookupScaleBarcode(database, storeId, code, includeArchived);
 }
 
 function lookupScaleBarcode(
   database: VendoraDatabase,
   storeId: string,
   code: string,
+  includeArchived: boolean,
 ): BarcodeLookup | null {
   if (!/^\d{13}$/.test(code)) return null;
 
@@ -68,7 +70,7 @@ function lookupScaleBarcode(
         eq(products.storeId, storeId),
         eq(products.internalCode, scale.itemCode),
         isNull(products.deletedAt),
-        eq(products.isActive, true),
+        includeArchived ? undefined : eq(products.isActive, true),
       ),
     )
     .get();
