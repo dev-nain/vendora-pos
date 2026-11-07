@@ -1,4 +1,4 @@
-import { ChevronLeftIcon, ChevronRightIcon, PackageCheckIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, PackageCheckIcon, PlusIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import type { GoodsReceivedListResult } from "@shared/goods-received";
@@ -6,6 +6,7 @@ import type { Supplier } from "@shared/suppliers";
 import { Button } from "@renderer/components/ui/button";
 import { Field, FieldLabel } from "@renderer/components/ui/field";
 import { Input } from "@renderer/components/ui/input";
+import { Kbd } from "@renderer/components/ui/kbd";
 import {
   Select,
   SelectContent,
@@ -24,28 +25,53 @@ import {
 import { formatDate } from "@renderer/lib/date-time";
 import { formatRupees } from "@renderer/lib/money";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
-import { PRODUCT_PAGE_SIZE, pageRangeLabel } from "../products/product-list";
+import { PRODUCT_PAGE_SIZE, isTypingTarget, pageRangeLabel } from "../products/product-list";
 import { ErrorLine } from "../users/form-parts";
 import { GrnDetail } from "./grn-detail";
+import type { GrnSource } from "./grn-form";
+import { GrnFormScreen } from "./grn-form-screen";
+import type { LeaveGuard } from "./order-form-screen";
 
 const ALL = "all";
 
-type View = { kind: "list" } | { kind: "note"; id: string; status: string | null };
+type View =
+  | { kind: "list" }
+  | { kind: "form"; source: GrnSource }
+  | { kind: "note"; id: string; status: string | null };
 
 interface GoodsReceivedScreenProps {
+  registerLeaveGuard: (guard: LeaveGuard | null) => void;
   onSessionEnded: () => void;
 }
 
-export function GoodsReceivedScreen({ onSessionEnded }: GoodsReceivedScreenProps) {
+export function GoodsReceivedScreen({
+  registerLeaveGuard,
+  onSessionEnded,
+}: GoodsReceivedScreenProps) {
   const [view, setView] = useState<View>({ kind: "list" });
   const backToList = useCallback(() => setView({ kind: "list" }), []);
 
-  return view.kind === "list" ? (
-    <NoteList
-      onSessionEnded={onSessionEnded}
-      onOpen={(id) => setView({ kind: "note", id, status: null })}
-    />
-  ) : (
+  if (view.kind === "list") {
+    return (
+      <NoteList
+        onSessionEnded={onSessionEnded}
+        onDirect={() => setView({ kind: "form", source: { kind: "direct" } })}
+        onOpen={(id) => setView({ kind: "note", id, status: null })}
+      />
+    );
+  }
+  if (view.kind === "form") {
+    return (
+      <GrnFormScreen
+        source={view.source}
+        registerLeaveGuard={registerLeaveGuard}
+        onBack={backToList}
+        onPosted={(note) => setView({ kind: "note", id: note.id, status: `Posted ${note.grnNo}.` })}
+        onSessionEnded={onSessionEnded}
+      />
+    );
+  }
+  return (
     <GrnDetail
       id={view.id}
       status={view.status}
@@ -57,10 +83,11 @@ export function GoodsReceivedScreen({ onSessionEnded }: GoodsReceivedScreenProps
 
 interface NoteListProps {
   onSessionEnded: () => void;
+  onDirect: () => void;
   onOpen: (id: string) => void;
 }
 
-function NoteList({ onSessionEnded, onOpen }: NoteListProps) {
+function NoteList({ onSessionEnded, onDirect, onOpen }: NoteListProps) {
   const [result, setResult] = useState<GoodsReceivedListResult | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +133,18 @@ function NoteList({ onSessionEnded, onOpen }: NoteListProps) {
   useEffect(() => {
     window.vendora.suppliers.list({ includeArchived: true }).then(setSuppliers).catch(fail);
   }, [fail]);
+
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.ctrlKey || event.altKey || event.metaKey || isTypingTarget(event.target)) return;
+      if (event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        onDirect();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onDirect]);
 
   const items = result?.items ?? [];
   const total = result?.total ?? 0;
@@ -215,6 +254,11 @@ function NoteList({ onSessionEnded, onOpen }: NoteListProps) {
             />
           </Field>
         </div>
+        <Button variant="secondary" onClick={onDirect}>
+          <PlusIcon aria-hidden="true" size={16} strokeWidth={2} />
+          Receive directly
+          <Kbd>N</Kbd>
+        </Button>
       </div>
       {error ? (
         <div className="flex items-center gap-300">
