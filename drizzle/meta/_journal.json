@@ -145,8 +145,22 @@
     {
       "idx": 20,
       "version": "6",
-      "when": 1794068425085,
-      "tag": "0020_sale_line_category",
+      "when": 1794040223220,
+      "tag": "0020_stocktakes",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1794040295164,
+      "tag": "0021_stocktake_posting",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1794068640225,
+      "tag": "0022_sale_line_category",
       "breakpoints": true
     }
   ]

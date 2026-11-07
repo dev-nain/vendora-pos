@@ -102,6 +102,24 @@ import type {
 } from "./inventory";
 import type { AddFromSaleInput, ReturnableResult } from "./returns";
 import type {
+  CancelStocktakeResult,
+  PastStocktakesQuery,
+  PastStocktakesResult,
+  PostStocktakeResult,
+  RecordCountInput,
+  RecordCountResult,
+  StartStocktakeInput,
+  StartStocktakeResult,
+  StocktakeLinesQuery,
+  StocktakeLinesResult,
+  StocktakeReviewLinesQuery,
+  StocktakeReviewLinesResult,
+  StocktakeReviewResult,
+  StocktakeScanInput,
+  StocktakeScanResult,
+  StocktakeSummary,
+} from "./stocktake";
+import type {
   BarcodeLookup,
   BulkUpdateProductsInput,
   BulkUpdateProductsResult,
@@ -184,6 +202,16 @@ export const ipcChannels = {
   usersReactivate: "users:reactivate",
   inventoryListStock: "inventory:list-stock",
   inventoryStockHistory: "inventory:stock-history",
+  stocktakeCurrent: "stocktake:current",
+  stocktakeStart: "stocktake:start",
+  stocktakeLines: "stocktake:lines",
+  stocktakeScan: "stocktake:scan",
+  stocktakeRecord: "stocktake:record",
+  stocktakeCancel: "stocktake:cancel",
+  stocktakeReview: "stocktake:review",
+  stocktakeReviewLines: "stocktake:review-lines",
+  stocktakePost: "stocktake:post",
+  stocktakeListPast: "stocktake:list-past",
   inventoryNegativeStock: "inventory:negative-stock",
   inventoryAdjustStock: "inventory:adjust-stock",
   inventoryLowStock: "inventory:low-stock",
@@ -317,6 +345,18 @@ export interface VendoraApi {
     negativeStock: (query: NegativeStockQuery) => Promise<NegativeStockResult>;
     adjustStock: (input: StockAdjustmentInput) => Promise<StockAdjustmentResult>;
     lowStock: (query: LowStockQuery) => Promise<LowStockResult>;
+  };
+  stocktake: {
+    current: () => Promise<StocktakeSummary | null>;
+    start: (input: StartStocktakeInput) => Promise<StartStocktakeResult>;
+    lines: (query: StocktakeLinesQuery) => Promise<StocktakeLinesResult>;
+    scan: (input: StocktakeScanInput) => Promise<StocktakeScanResult>;
+    record: (input: RecordCountInput) => Promise<RecordCountResult>;
+    cancel: (stocktakeId: string) => Promise<CancelStocktakeResult>;
+    review: (stocktakeId: string) => Promise<StocktakeReviewResult>;
+    reviewLines: (query: StocktakeReviewLinesQuery) => Promise<StocktakeReviewLinesResult>;
+    post: (stocktakeId: string) => Promise<PostStocktakeResult>;
+    listPast: (query: PastStocktakesQuery) => Promise<PastStocktakesResult>;
   };
   products: {
     getMiscItem: () => Promise<Product | null>;

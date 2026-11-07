@@ -31,6 +31,7 @@ export const auditActions = [
   "purchase_order_confirm",
   "purchase_order_cancel",
   "goods_received_post",
+  "stocktake_post",
 ] as const;
 export type AuditAction = (typeof auditActions)[number];
 
@@ -65,6 +66,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   purchase_order_confirm: "Purchase order confirmed",
   purchase_order_cancel: "Purchase order cancelled",
   goods_received_post: "Goods received",
+  stocktake_post: "Stocktake posted",
 };
 
 export const AUDIT_PAGE_SIZE = 50;

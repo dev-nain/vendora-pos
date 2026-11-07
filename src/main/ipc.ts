@@ -54,6 +54,25 @@ import {
   salesByDayResultSchema,
 } from "@shared/reports";
 import {
+  cancelStocktakeResultSchema,
+  pastStocktakesQuerySchema,
+  pastStocktakesResultSchema,
+  postStocktakeResultSchema,
+  recordCountInputSchema,
+  recordCountResultSchema,
+  startStocktakeInputSchema,
+  startStocktakeResultSchema,
+  stocktakeIdInputSchema,
+  stocktakeLinesQuerySchema,
+  stocktakeLinesResultSchema,
+  stocktakeReviewLinesQuerySchema,
+  stocktakeReviewLinesResultSchema,
+  stocktakeReviewResultSchema,
+  stocktakeScanInputSchema,
+  stocktakeScanResultSchema,
+  stocktakeSummarySchema,
+} from "@shared/stocktake";
+import {
   addFromSaleInputSchema,
   returnableInputSchema,
   returnableResultSchema,
@@ -190,6 +209,7 @@ import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
 import type { GoodsReceivedService } from "./services/goods-received";
 import type { InventoryService } from "./services/inventory";
+import type { StocktakeService } from "./services/stocktake";
 import type { ProductsService } from "./services/products";
 import type { PurchaseOrderDocumentsService } from "./services/purchase-order-documents";
 import type { PurchaseOrdersService } from "./services/purchase-orders";
@@ -227,6 +247,7 @@ interface IpcServices {
   catalogExport: CatalogExportService;
   categories: CategoriesService;
   inventory: InventoryService;
+  stocktake: StocktakeService;
   returns: ReturnsService;
   sales: SalesService;
   settings: SettingsService;
@@ -253,6 +274,7 @@ export function registerIpcHandlers({
   categories,
   goodsReceived,
   inventory,
+  stocktake,
   products,
   purchaseOrderDocuments,
   purchaseOrders,
@@ -392,6 +414,38 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.inventoryStockHistory, (_event, input) =>
     stockHistoryResultSchema.parse(inventory.history(stockHistoryQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeCurrent, () =>
+    stocktakeSummarySchema.nullable().parse(stocktake.current()),
+  );
+  handle(ipcChannels.stocktakeStart, (_event, input) =>
+    startStocktakeResultSchema.parse(stocktake.start(startStocktakeInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeLines, (_event, input) =>
+    stocktakeLinesResultSchema.parse(stocktake.lines(stocktakeLinesQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeScan, (_event, input) =>
+    stocktakeScanResultSchema.parse(stocktake.scan(stocktakeScanInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeRecord, (_event, input) =>
+    recordCountResultSchema.parse(stocktake.record(recordCountInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeCancel, (_event, input) =>
+    cancelStocktakeResultSchema.parse(stocktake.cancel(stocktakeIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeReview, (_event, input) =>
+    stocktakeReviewResultSchema.parse(stocktake.review(stocktakeIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeReviewLines, (_event, input) =>
+    stocktakeReviewLinesResultSchema.parse(
+      stocktake.reviewLines(stocktakeReviewLinesQuerySchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.stocktakePost, (_event, input) =>
+    postStocktakeResultSchema.parse(stocktake.post(stocktakeIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeListPast, (_event, input) =>
+    pastStocktakesResultSchema.parse(stocktake.listPast(pastStocktakesQuerySchema.parse(input))),
   );
   handle(ipcChannels.inventoryNegativeStock, (_event, input) =>
     negativeStockResultSchema.parse(inventory.negativeStock(negativeStockQuerySchema.parse(input))),
