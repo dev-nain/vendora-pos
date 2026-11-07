@@ -9,6 +9,7 @@ function fixedModel(): DocumentModel {
   return {
     title: "Purchase order",
     reference: "PO-T1-000001",
+    header: [],
     panels: [
       { lines: ["Vendora Test Store", "Main Bazaar, Lahore"] },
       { label: "Supplier", lines: ["Rehman Traders"] },
@@ -34,7 +35,9 @@ function fixedModel(): DocumentModel {
       { text: "Rs 9,840.00" },
     ]),
     totals: [{ label: "Total", value: "Rs 590,400.00" }],
+    summaries: [],
     notes: "Deliver before Friday.",
+    footer: [],
   };
 }
 
