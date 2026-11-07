@@ -1,0 +1,224 @@
+import { describe, expect, it, vi } from "vitest";
+import type { ProductUnit } from "./products";
+import {
+  exportReportInputSchema,
+  formatRangeLabel,
+  formatReportCell,
+  formatStoreDay,
+  isNumericColumn,
+  presetRange,
+  reportRangeSchema,
+  salesByDayColumns,
+  storeDayBounds,
+  storeDayOfBucket,
+  storeToday,
+  storeUtcOffsetMs,
+  type ReportColumn,
+} from "./reports";
+
+const iso = (date: Date) => date.toISOString();
+const at = (value: string) => new Date(value);
+const within = (start: Date, end: Date, ms: number) => ms >= start.getTime() && ms < end.getTime();
+
+describe("store day bounds", () => {
+  const { start, end } = storeDayBounds({ from: "2026-11-01", to: "2026-11-07" });
+
+  it("maps the inclusive range to the half-open UTC window", () => {
+    expect(iso(start)).toBe("2026-10-31T19:00:00.000Z");
+    expect(iso(end)).toBe("2026-11-07T19:00:00.000Z");
+  });
+
+  it("includes the first and last millisecond of the range and nothing around it", () => {
+    expect(within(start, end, Date.parse("2026-10-31T19:00:00.000Z"))).toBe(true);
+    expect(within(start, end, Date.parse("2026-11-07T18:59:59.999Z"))).toBe(true);
+    expect(within(start, end, Date.parse("2026-11-07T19:00:00.000Z"))).toBe(false);
+    expect(within(start, end, Date.parse("2026-10-31T18:59:59.999Z"))).toBe(false);
+  });
+
+  it("covers one day when from equals to", () => {
+    const one = storeDayBounds({ from: "2026-02-28", to: "2026-02-28" });
+    expect(iso(one.start)).toBe("2026-02-27T19:00:00.000Z");
+    expect(iso(one.end)).toBe("2026-02-28T19:00:00.000Z");
+  });
+});
+
+describe("presets", () => {
+  it("changes the store day at 19:00Z", () => {
+    expect(storeToday(at("2026-11-07T18:59:59.000Z"))).toBe("2026-11-07");
+    expect(storeToday(at("2026-11-07T19:00:00.000Z"))).toBe("2026-11-08");
+  });
+
+  it("gives today and yesterday", () => {
+    const now = at("2026-11-07T10:00:00.000Z");
+    expect(presetRange("today", now)).toEqual({ from: "2026-11-07", to: "2026-11-07" });
+    expect(presetRange("yesterday", now)).toEqual({ from: "2026-11-06", to: "2026-11-06" });
+  });
+
+  it("crosses a month start, a year end and a leap day", () => {
+    expect(presetRange("yesterday", at("2026-03-01T10:00:00.000Z"))).toEqual({
+      from: "2026-02-28",
+      to: "2026-02-28",
+    });
+    expect(presetRange("yesterday", at("2028-03-01T10:00:00.000Z"))).toEqual({
+      from: "2028-02-29",
+      to: "2028-02-29",
+    });
+    expect(presetRange("yesterday", at("2027-01-01T10:00:00.000Z"))).toEqual({
+      from: "2026-12-31",
+      to: "2026-12-31",
+    });
+    expect(presetRange("this-month", at("2026-12-31T10:00:00.000Z"))).toEqual({
+      from: "2026-12-01",
+      to: "2026-12-31",
+    });
+  });
+
+  it("starts the week on Sunday", () => {
+    expect(presetRange("this-week", at("2026-11-08T10:00:00.000Z"))).toEqual({
+      from: "2026-11-08",
+      to: "2026-11-08",
+    });
+    expect(presetRange("this-week", at("2026-11-07T10:00:00.000Z"))).toEqual({
+      from: "2026-11-01",
+      to: "2026-11-07",
+    });
+    expect(presetRange("this-week", at("2027-01-02T10:00:00.000Z"))).toEqual({
+      from: "2026-12-27",
+      to: "2027-01-02",
+    });
+  });
+
+  it("does not depend on the machine time zone", () => {
+    try {
+      for (const zone of ["UTC", "America/New_York"]) {
+        vi.stubEnv("TZ", zone);
+        const now = at("2026-11-07T19:00:00.000Z");
+        expect(storeToday(now)).toBe("2026-11-08");
+        expect(presetRange("this-week", now)).toEqual({ from: "2026-11-08", to: "2026-11-08" });
+        expect(iso(storeDayBounds({ from: "2026-11-08", to: "2026-11-08" }).start)).toBe(
+          "2026-11-07T19:00:00.000Z",
+        );
+        expect(formatStoreDay("2026-11-08")).toBe("8 Nov 2026");
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
+describe("store offset", () => {
+  it("matches Asia/Karachi on one date in each month", () => {
+    const karachi = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Karachi",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+    for (let month = 0; month < 12; month += 1) {
+      const instant = new Date(Date.UTC(2026, month, 15, 12, 0));
+      const parts = Object.fromEntries(
+        karachi.formatToParts(instant).map((part) => [part.type, part.value]),
+      );
+      const local = Date.UTC(
+        Number(parts.year),
+        Number(parts.month) - 1,
+        Number(parts.day),
+        Number(parts.hour),
+        Number(parts.minute),
+      );
+      expect(local - instant.getTime()).toBe(storeUtcOffsetMs);
+    }
+  });
+
+  it("turns a bucket back into its day", () => {
+    const bucket = Math.floor(
+      (Date.parse("2026-11-07T20:00:00.000Z") + storeUtcOffsetMs) / 86400000,
+    );
+    expect(storeDayOfBucket(bucket)).toBe("2026-11-08");
+  });
+});
+
+describe("range schemas", () => {
+  it("accepts a valid range and one day", () => {
+    expect(reportRangeSchema.safeParse({ from: "2026-11-01", to: "2026-11-07" }).success).toBe(
+      true,
+    );
+    expect(reportRangeSchema.safeParse({ from: "2026-11-01", to: "2026-11-01" }).success).toBe(
+      true,
+    );
+  });
+
+  it("refuses from after to, impossible dates and extra keys", () => {
+    expect(reportRangeSchema.safeParse({ from: "2026-11-08", to: "2026-11-07" }).success).toBe(
+      false,
+    );
+    expect(reportRangeSchema.safeParse({ from: "2026-02-30", to: "2026-03-01" }).success).toBe(
+      false,
+    );
+    expect(
+      reportRangeSchema.safeParse({ from: "2026-11-01", to: "2026-11-07", extra: 1 }).success,
+    ).toBe(false);
+  });
+
+  it("refuses an unknown export format and extra keys", () => {
+    const range = { from: "2026-11-01", to: "2026-11-07" };
+    expect(exportReportInputSchema.safeParse({ range, format: "csv" }).success).toBe(true);
+    expect(exportReportInputSchema.safeParse({ range, format: "xlsx" }).success).toBe(false);
+    expect(exportReportInputSchema.safeParse({ range, format: "pdf", extra: 1 }).success).toBe(
+      false,
+    );
+  });
+});
+
+describe("range labels", () => {
+  it("prints one day or a range", () => {
+    expect(formatRangeLabel({ from: "2026-11-01", to: "2026-11-07" })).toBe(
+      "1 Nov 2026 – 7 Nov 2026",
+    );
+    expect(formatRangeLabel({ from: "2026-11-07", to: "2026-11-07" })).toBe("7 Nov 2026");
+  });
+});
+
+describe("formatReportCell", () => {
+  type Row = { a: string | number };
+  type Spec =
+    | { format: "day" | "text" | "count" | "money" }
+    | { format: "quantity"; unit: ProductUnit };
+  const column = (spec: Spec): ReportColumn<Row> => ({ key: "a", label: "A", ...spec });
+
+  it("formats each kind", () => {
+    expect(formatReportCell(column({ format: "day" }), "2026-11-07")).toBe("7 Nov 2026");
+    expect(formatReportCell(column({ format: "money" }), 12050)).toBe("Rs 120.50");
+    expect(formatReportCell(column({ format: "money" }), 0)).toBe("Rs 0");
+    expect(formatReportCell(column({ format: "count" }), 1234567)).toBe("1,234,567");
+    expect(formatReportCell(column({ format: "text" }), "Tea")).toBe("Tea");
+    expect(formatReportCell(column({ format: "quantity", unit: "kg" }), 2500)).toBe("2.500 kg");
+    expect(formatReportCell(column({ format: "quantity", unit: "piece" }), 3000)).toBe("3 pcs");
+  });
+
+  it("keeps the sign on negatives, even below one rupee", () => {
+    expect(formatReportCell(column({ format: "money" }), -50)).toBe("−Rs 0.50");
+    expect(formatReportCell(column({ format: "money" }), -12050)).toBe("−Rs 120.50");
+    expect(formatReportCell(column({ format: "quantity", unit: "kg" }), -1500)).toBe("−1.500 kg");
+    expect(formatReportCell(column({ format: "quantity", unit: "piece" }), -2000)).toBe("−2 pcs");
+    expect(formatReportCell(column({ format: "count" }), -3)).toBe("−3");
+  });
+
+  it("marks day and text columns as not numeric", () => {
+    expect(salesByDayColumns.map(isNumericColumn)).toEqual([
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+    ]);
+  });
+});

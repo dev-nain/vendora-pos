@@ -37,7 +37,7 @@ Windows desktop app, installed per store. v1 targets Windows 10 and 11 (64-bit).
 
 - **Money is stored as integer paisa.** Never floats.
 - **Quantities are stored as integer milli-units** (3 decimals for weighed items).
-- Sale lines store a **snapshot** of name, price, cost and tax rate at the time of sale. Reports must not change when the catalog does.
+- Sale lines store a **snapshot** of name, price, cost, tax rate and category at the time of sale. Reports must not change when the catalog does. Lines sold before the category snapshot carry the product's category as it stood at that upgrade, and misc lines have none.
 - **Stock on hand = sum of stock movements.** A cached per-product total is allowed but must be rebuildable from the ledger.
 - Completed sales, payments, stock movements and audit entries are **append-only**. Corrections are new records (returns, adjustments), never edits.
 - Times are stored in UTC and displayed in Asia/Karachi.
@@ -48,7 +48,7 @@ Windows desktop app, installed per store. v1 targets Windows 10 and 11 (64-bit).
 - What happens to an in-progress bill when power dies mid-payment? It must be either fully saved or fully restorable.
 - How do you migrate the schema safely on hundreds of stores that update on different days?
 - Tax-inclusive vs tax-exclusive pricing and exempt items — how is tax computed and rounded per line so totals always add up?
-- Which indexes keep barcode lookup and product search under 100 ms at 30,000 products, and reports under 3 s at 500,000 sale lines?
+- Which indexes keep barcode lookup and product search under 100 ms at 30,000 products, and reports under 3 s at 500,000 sale lines? Sales by day over 500,000 sale lines and 365 days runs in about 0.3 s with the existing `sales_store_id_created_at_idx` and `sale_lines_sale_id_id_unique`, so reports add no index.
 
 ## Phase-2 Readiness
 

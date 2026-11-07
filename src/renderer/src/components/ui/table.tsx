@@ -2,11 +2,19 @@ import type { ComponentProps } from "react";
 
 import { cn } from "@renderer/lib/utils";
 
-function Table({ className, ...props }: ComponentProps<"table">) {
+function Table({
+  className,
+  container,
+  ...props
+}: ComponentProps<"table"> & { container?: ComponentProps<"div"> }) {
   return (
     <div
       data-slot="table-container"
-      className="overflow-x-auto rounded-300 border border-line-card bg-surface-secondary"
+      {...container}
+      className={cn(
+        "overflow-x-auto rounded-300 border border-line-card bg-surface-secondary",
+        container?.className,
+      )}
     >
       <table
         data-slot="table"

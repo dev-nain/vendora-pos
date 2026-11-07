@@ -141,6 +141,13 @@
       "when": 1794040131405,
       "tag": "0019_stock_movements_covering_index",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1794068425085,
+      "tag": "0020_sale_line_category",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,8 @@ import { UnauthenticatedError } from "../auth/errors";
 import {
   auditLog,
   billDrafts,
+  categories,
+  products as productTable,
   receiptPrints,
   saleLines,
   salePayments,
@@ -329,6 +331,61 @@ describe("complete a sale", () => {
         unitPricePaisa: 45000,
       });
       expect(db().select().from(stockMovements).all()).toHaveLength(0);
+    });
+
+    it("leaves the misc line without a category", () => {
+      kit.setMiscEnabled(true);
+      const draftId = draftIdOf(kit.billDrafts.addMisc({ name: "Loose tea", pricePaisa: 45000 }));
+      saleOf(complete(draftId, [{ method: "cash", amountPaisa: 45000 }]));
+
+      expect(db().select().from(saleLines).get()).toMatchObject({
+        categoryId: null,
+        categoryName: null,
+      });
+    });
+
+    it("snapshots the category and keeps it when the product moves, renames or loses it", () => {
+      const tea = price(10000, "Tea");
+      saleOf(complete(billOf(tea.id), [{ method: "cash", amountPaisa: 10000 }]));
+      const original = db()
+        .select()
+        .from(categories)
+        .where(eq(categories.id, kit.categoryId))
+        .get()!;
+      expect(db().select().from(saleLines).get()).toMatchObject({
+        categoryId: original.id,
+        categoryName: original.name,
+      });
+
+      const other = db()
+        .insert(categories)
+        .values({ storeId: kit.storeId, name: "Biscuits" })
+        .returning()
+        .get();
+      db()
+        .update(productTable)
+        .set({ categoryId: other.id })
+        .where(eq(productTable.id, tea.id))
+        .run();
+      db().update(categories).set({ name: "Renamed" }).where(eq(categories.id, original.id)).run();
+      db()
+        .update(categories)
+        .set({ deletedAt: new Date() })
+        .where(eq(categories.id, original.id))
+        .run();
+
+      expect(db().select().from(saleLines).get()).toMatchObject({
+        categoryId: original.id,
+        categoryName: original.name,
+      });
+
+      saleOf(complete(billOf(tea.id), [{ method: "cash", amountPaisa: 10000 }]));
+      const latest = db()
+        .select()
+        .from(saleLines)
+        .all()
+        .find((row) => row.categoryId === other.id);
+      expect(latest?.categoryName).toBe("Biscuits");
     });
 
     it("counts deleted lines and stores the buyer without auditing it", () => {

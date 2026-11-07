@@ -48,6 +48,12 @@ import {
   stockListResultSchema,
 } from "@shared/inventory";
 import {
+  exportReportInputSchema,
+  exportReportResultSchema,
+  reportRangeSchema,
+  salesByDayResultSchema,
+} from "@shared/reports";
+import {
   addFromSaleInputSchema,
   returnableInputSchema,
   returnableResultSchema,
@@ -145,7 +151,9 @@ import {
   createPurchaseOrderResultSchema,
   getPurchaseOrderResultSchema,
   purchaseOrderIdInputSchema,
+  printPurchaseOrderResultSchema,
   purchaseOrderSummarySchema,
+  savePurchaseOrderPdfResultSchema,
   updatePurchaseOrderInputSchema,
   updatePurchaseOrderResultSchema,
 } from "@shared/purchase-orders";
@@ -183,8 +191,10 @@ import type { CategoriesService } from "./services/categories";
 import type { GoodsReceivedService } from "./services/goods-received";
 import type { InventoryService } from "./services/inventory";
 import type { ProductsService } from "./services/products";
+import type { PurchaseOrderDocumentsService } from "./services/purchase-order-documents";
 import type { PurchaseOrdersService } from "./services/purchase-orders";
 import type { ReceiptsService } from "./services/receipts";
+import type { ReportsService } from "./services/reports";
 import type { ReturnsService } from "./services/returns";
 import type { SalesService } from "./services/sales";
 import type { BackupSettingsService } from "./services/backup-settings";
@@ -227,7 +237,9 @@ interface IpcServices {
   products: ProductsService;
   purchaseOrders: PurchaseOrdersService;
   goodsReceived: GoodsReceivedService;
+  purchaseOrderDocuments: PurchaseOrderDocumentsService;
   receipts: ReceiptsService;
+  reports: ReportsService;
 }
 
 export function registerIpcHandlers({
@@ -242,8 +254,10 @@ export function registerIpcHandlers({
   goodsReceived,
   inventory,
   products,
+  purchaseOrderDocuments,
   purchaseOrders,
   receipts,
+  reports,
   returns,
   sales,
   settings,
@@ -472,9 +486,27 @@ export function registerIpcHandlers({
       purchaseOrders.cancel(purchaseOrderIdInputSchema.parse(input)),
     ),
   );
+  handle(ipcChannels.purchaseOrdersSavePdf, async (_event, input) =>
+    savePurchaseOrderPdfResultSchema.parse(
+      await purchaseOrderDocuments.savePdf(purchaseOrderIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseOrdersPrint, async (_event, input) =>
+    printPurchaseOrderResultSchema.parse(
+      await purchaseOrderDocuments.print(purchaseOrderIdInputSchema.parse(input)),
+    ),
+  );
   handle(ipcChannels.goodsReceivedPost, (_event, input) =>
     postGoodsReceivedResultSchema.parse(
       goodsReceived.post(postGoodsReceivedInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsSalesByDay, (_event, input) =>
+    salesByDayResultSchema.parse(reports.salesByDay(reportRangeSchema.parse(input))),
+  );
+  handle(ipcChannels.reportsExportSalesByDay, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportSalesByDay(exportReportInputSchema.parse(input)),
     ),
   );
   handle(ipcChannels.taxCategoriesList, () =>

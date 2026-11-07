@@ -21,6 +21,7 @@ import {
   printResultSchema,
   saleJobResultSchema,
 } from "@shared/receipt";
+import { exportReportResultSchema, salesByDayResultSchema } from "@shared/reports";
 import {
   miscItemSettingSchema,
   printerSettingsSchema,
@@ -86,7 +87,9 @@ import {
   confirmPurchaseOrderResultSchema,
   createPurchaseOrderResultSchema,
   getPurchaseOrderResultSchema,
+  printPurchaseOrderResultSchema,
   purchaseOrderSummarySchema,
+  savePurchaseOrderPdfResultSchema,
   updatePurchaseOrderResultSchema,
 } from "@shared/purchase-orders";
 import {
@@ -342,11 +345,27 @@ const api: VendoraApi = {
       cancelPurchaseOrderResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.purchaseOrdersCancel, { id }),
       ),
+    savePdf: async (id) =>
+      savePurchaseOrderPdfResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersSavePdf, { id }),
+      ),
+    print: async (id) =>
+      printPurchaseOrderResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.purchaseOrdersPrint, { id }),
+      ),
   },
   goodsReceived: {
     post: async (input) =>
       postGoodsReceivedResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.goodsReceivedPost, input),
+      ),
+  },
+  reports: {
+    salesByDay: async (range) =>
+      salesByDayResultSchema.parse(await ipcRenderer.invoke(ipcChannels.reportsSalesByDay, range)),
+    exportSalesByDay: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportSalesByDay, input),
       ),
   },
   shifts: {

@@ -8,6 +8,7 @@ import type {
 } from "../../shared/checkout";
 import {
   auditLog,
+  categories,
   products,
   saleLines,
   salePayments,
@@ -42,6 +43,15 @@ describe("refunds and exchanges", () => {
   afterEach(() => kit.close());
 
   const db = () => kit.database.db;
+  const moveToNewCategory = (productId: string) => {
+    const other = db()
+      .insert(categories)
+      .values({ storeId: kit.storeId, name: "Biscuits" })
+      .returning()
+      .get();
+    db().update(products).set({ categoryId: other.id }).where(eq(products.id, productId)).run();
+    return other;
+  };
   const exempt = () => kit.taxCategoryId("Exempt");
   const product = (nameEn: string, salePricePaisa: number, overrides = {}) =>
     kit.addProduct({
@@ -360,6 +370,45 @@ describe("refunds and exchanges", () => {
       okSale(complete(bill.id, [{ method: "cash", amountPaisa: 5000 }]));
 
       expect(db().select().from(stockMovements).all()).toHaveLength(before);
+    });
+  });
+
+  describe("category snapshot", () => {
+    it("copies the original on a linked return and takes the current one without a receipt", () => {
+      const tea = product("Tea", 20000);
+      const sale = sellProducts(
+        [{ productId: tea.id, qtyMilli: 1000 }],
+        [{ method: "cash", amountPaisa: 20000 }],
+      );
+      const original = lineOf(sale.id, "Tea");
+      const other = moveToNewCategory(tea.id);
+
+      const linked = returnFrom(sale.id, [{ saleLineId: original.id, qtyMilli: 1000 }]);
+      const linkedSale = okSale(complete(linked.id, [{ method: "cash", amountPaisa: 20000 }]));
+      expect(original.categoryId).toBe(kit.categoryId);
+      expect(lineOf(linkedSale.id, "Tea")).toMatchObject({
+        categoryId: original.categoryId,
+        categoryName: original.categoryName,
+      });
+
+      const loose = okBill(kit.billDrafts.addProduct({ productId: tea.id, isReturn: true }));
+      const looseSale = okSale(complete(loose.id, [{ method: "cash", amountPaisa: 20000 }]));
+      expect(lineOf(looseSale.id, "Tea")).toMatchObject({
+        categoryId: other.id,
+        categoryName: "Biscuits",
+      });
+    });
+
+    it("keeps a misc return without a category", () => {
+      kit.setMiscEnabled(true);
+      const added = okBill(kit.billDrafts.addMisc({ name: "Loose", pricePaisa: 5000 }));
+      const sale = okSale(complete(added.id, [{ method: "cash", amountPaisa: 5000 }]));
+      const bill = returnFrom(sale.id, [
+        { saleLineId: lineOf(sale.id, "Loose").id, qtyMilli: 1000 },
+      ]);
+      const refund = okSale(complete(bill.id, [{ method: "cash", amountPaisa: 5000 }]));
+
+      expect(lineOf(refund.id, "Loose")).toMatchObject({ categoryId: null, categoryName: null });
     });
   });
 

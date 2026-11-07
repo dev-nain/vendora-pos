@@ -188,6 +188,7 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
   - Sales tax summary (taxable value and tax by rate)
   - Stock on hand and valuation, low stock, negative stock, movement history per product
   - Purchases by supplier, stocktake variance
+- Date ranges use store days (Asia/Karachi); the week starts on Sunday.
 - Any report over one year of data (≈ 500,000 sale lines) renders in under 3 seconds
 
 ---

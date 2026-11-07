@@ -19,8 +19,10 @@ import { createCatalogExportService } from "./services/catalog-export";
 import { createAuditLogService } from "./services/audit-log";
 import { createCategoriesService } from "./services/categories";
 import { createGoodsReceivedService } from "./services/goods-received";
+import { createPurchaseOrderDocumentsService } from "./services/purchase-order-documents";
 import { createPurchaseOrdersService } from "./services/purchase-orders";
 import { createReceiptsService } from "./services/receipts";
+import { createReportsService } from "./services/reports";
 import { createReturnsService } from "./services/returns";
 import { createSalesService } from "./services/sales";
 import { createSettingsService } from "./services/settings";
@@ -32,6 +34,8 @@ import { createSuppliersService } from "./services/suppliers";
 import { createTaxCategoriesService } from "./services/tax-categories";
 import { createUsersService } from "./services/users";
 import { createSessionStore } from "./auth/session";
+import { createDocumentRenderer } from "./documents/document-window";
+import { runPdfCheck } from "./documents/pdf-check";
 import { createRasteriser } from "./receipts/rasterise";
 import { createRenderWindow } from "./receipts/render-window";
 import { createTransport } from "./hardware/printer-transport";
@@ -62,7 +66,29 @@ async function showOnTop(options: Electron.MessageBoxOptions): Promise<void> {
   await (parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options));
 }
 
+async function chooseSavePath(
+  title: string,
+  filter: { name: string; extensions: string[] },
+  fileName: string,
+): Promise<string | null> {
+  const options = {
+    title,
+    defaultPath: join(app.getPath("documents"), fileName),
+    filters: [filter],
+  };
+  const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  const result = parent
+    ? await dialog.showSaveDialog(parent, options)
+    : await dialog.showSaveDialog(options);
+  return result.canceled || !result.filePath ? null : result.filePath;
+}
+
 void app.whenReady().then(async () => {
+  const pdfCheckPath = process.env["VENDORA_PDF_CHECK"];
+  if (!app.isPackaged && pdfCheckPath) {
+    await runPdfCheck(pdfCheckPath);
+    return;
+  }
   database = await startDatabase();
   if (!app.isPackaged && process.env.VENDORA_DEV_USERS === "1") await seedDevUsers(database);
   const audit = createAuditService(database);
@@ -124,18 +150,29 @@ void app.whenReady().then(async () => {
   const catalogExport = createCatalogExportService({
     database,
     sessions,
-    chooseSavePath: async (fileName) => {
-      const options = {
-        title: "Export catalog",
-        defaultPath: join(app.getPath("documents"), fileName),
-        filters: [{ name: "CSV file", extensions: ["csv"] }],
-      };
-      const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-      const result = parent
-        ? await dialog.showSaveDialog(parent, options)
-        : await dialog.showSaveDialog(options);
-      return result.canceled || !result.filePath ? null : result.filePath;
-    },
+    chooseSavePath: (fileName) =>
+      chooseSavePath("Export catalog", { name: "CSV file", extensions: ["csv"] }, fileName),
+  });
+  const purchaseOrderDocuments = createPurchaseOrderDocumentsService({
+    database,
+    sessions,
+    purchaseOrders,
+    renderer: createDocumentRenderer(),
+    chooseSavePath: (fileName) =>
+      chooseSavePath("Save purchase order", { name: "PDF file", extensions: ["pdf"] }, fileName),
+  });
+  const reports = createReportsService({
+    database,
+    sessions,
+    renderer: createDocumentRenderer(),
+    chooseSavePath: (fileName, format) =>
+      chooseSavePath(
+        "Export report",
+        format === "csv"
+          ? { name: "CSV file", extensions: ["csv"] }
+          : { name: "PDF file", extensions: ["pdf"] },
+        fileName,
+      ),
   });
   const restores = createRestoreService({
     databaseFile: databaseFile(),
@@ -207,8 +244,10 @@ void app.whenReady().then(async () => {
     goodsReceived,
     inventory,
     products,
+    purchaseOrderDocuments,
     purchaseOrders,
     receipts,
+    reports,
     returns,
     sales,
     settings,

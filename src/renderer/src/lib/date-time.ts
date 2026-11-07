@@ -17,6 +17,11 @@ export function formatTime(iso: string): string {
   return `${part(parts, "hour")}:${part(parts, "minute")} ${part(parts, "dayPeriod").toLowerCase()}`;
 }
 
+export function formatDate(iso: string): string {
+  const parts = dateTime.formatToParts(new Date(iso));
+  return `${part(parts, "day")} ${part(parts, "month")} ${part(parts, "year")}`;
+}
+
 export function formatDateTime(iso: string): string {
   const parts = dateTime.formatToParts(new Date(iso));
   return `${part(parts, "day")} ${part(parts, "month")} ${part(parts, "year")}, ${formatTime(iso)}`;

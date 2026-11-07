@@ -29,7 +29,9 @@ import type {
   CreatePurchaseOrderInput,
   CreatePurchaseOrderResult,
   GetPurchaseOrderResult,
+  PrintPurchaseOrderResult,
   PurchaseOrderSummary,
+  SavePurchaseOrderPdfResult,
   UpdatePurchaseOrderInput,
   UpdatePurchaseOrderResult,
 } from "./purchase-orders";
@@ -115,6 +117,12 @@ import type {
   UpdateProductInput,
   UpdateProductResult,
 } from "./products";
+import type {
+  ExportReportInput,
+  ExportReportResult,
+  ReportRange,
+  SalesByDayResult,
+} from "./reports";
 import type { GetOrderResult, OrderSummary, SalesListQuery } from "./sales";
 import type {
   CreateTaxCategoryInput,
@@ -210,6 +218,10 @@ export const ipcChannels = {
   purchaseOrdersConfirm: "purchase-orders:confirm",
   purchaseOrdersCancel: "purchase-orders:cancel",
   goodsReceivedPost: "goods-received:post",
+  purchaseOrdersSavePdf: "purchase-orders:save-pdf",
+  purchaseOrdersPrint: "purchase-orders:print",
+  reportsSalesByDay: "reports:sales-by-day",
+  reportsExportSalesByDay: "reports:export-sales-by-day",
   shiftsState: "shifts:state",
   shiftsOpen: "shifts:open",
   shiftsAddCashMove: "shifts:add-cash-move",
@@ -345,9 +357,15 @@ export interface VendoraApi {
     update: (input: UpdatePurchaseOrderInput) => Promise<UpdatePurchaseOrderResult>;
     confirm: (id: string) => Promise<ConfirmPurchaseOrderResult>;
     cancel: (id: string) => Promise<CancelPurchaseOrderResult>;
+    savePdf: (id: string) => Promise<SavePurchaseOrderPdfResult>;
+    print: (id: string) => Promise<PrintPurchaseOrderResult>;
   };
   goodsReceived: {
     post: (input: PostGoodsReceivedInput) => Promise<PostGoodsReceivedResult>;
+  };
+  reports: {
+    salesByDay: (range: ReportRange) => Promise<SalesByDayResult>;
+    exportSalesByDay: (input: ExportReportInput) => Promise<ExportReportResult>;
   };
   shifts: {
     state: () => Promise<ShiftState>;

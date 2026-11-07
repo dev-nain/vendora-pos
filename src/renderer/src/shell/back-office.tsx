@@ -1,5 +1,7 @@
 import {
   BoxesIcon,
+  ChartColumnIcon,
+  ClipboardListIcon,
   DatabaseBackupIcon,
   PackageIcon,
   ScrollTextIcon,
@@ -10,8 +12,9 @@ import {
   UsersIcon,
   type LucideIcon,
 } from "lucide-react";
-import { Fragment, useState, type KeyboardEvent } from "react";
+import { Fragment, useCallback, useState, type KeyboardEvent } from "react";
 
+import type { LowStockItem } from "@shared/inventory";
 import { cn } from "@renderer/lib/utils";
 import { AuditLogScreen } from "../audit/audit-log-screen";
 import { BackupScreen } from "../backup/backup-screen";
@@ -20,6 +23,9 @@ import { NegativeStockScreen } from "../inventory/negative-stock-screen";
 import { LowStockScreen } from "../inventory/low-stock-screen";
 import { StockScreen } from "../inventory/stock-screen";
 import { ProductsScreen } from "../products/products-screen";
+import type { LeaveGuard, OrderSeed } from "../purchasing/order-form-screen";
+import { PurchaseOrdersScreen } from "../purchasing/purchase-orders-screen";
+import { ReportsScreen } from "../reports/reports-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
 import { BackupPasswordSetting } from "../settings/backup-password-setting";
 import { BackupSetting } from "../settings/backup-setting";
@@ -38,7 +44,9 @@ const icons: Record<BackOfficePage, LucideIcon> = {
   stock: BoxesIcon,
   "negative-stock": TriangleAlertIcon,
   "low-stock": TriangleAlertIcon,
+  "purchase-orders": ClipboardListIcon,
   suppliers: TruckIcon,
+  reports: ChartColumnIcon,
   users: UsersIcon,
   audit: ScrollTextIcon,
   backup: DatabaseBackupIcon,
@@ -59,11 +67,30 @@ interface BackOfficeProps {
   currentUserId: string;
   onSessionEnded: () => void;
   focusPrinter?: boolean;
+  guarded: (go: () => void) => void;
+  registerLeaveGuard: (guard: LeaveGuard | null) => void;
 }
 
-export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: BackOfficeProps) {
+export function BackOffice({
+  currentUserId,
+  onSessionEnded,
+  focusPrinter,
+  guarded,
+  registerLeaveGuard,
+}: BackOfficeProps) {
   const [page, setPage] = useState<BackOfficePage>(focusPrinter ? "settings" : "products");
   const secondCopy = useSecondCopyStatus();
+  const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
+  const clearOrderSeed = useCallback(() => setOrderSeed(null), []);
+  const createOrder = useCallback((items: LowStockItem[]) => {
+    setOrderSeed(items);
+    setPage("purchase-orders");
+  }, []);
+
+  const goTo = (next: BackOfficePage) => {
+    if (next === page) return;
+    guarded(() => setPage(next));
+  };
 
   return (
     <div
@@ -92,7 +119,7 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
                     ? "selection-pill hover:bg-surface-selected"
                     : "hover:bg-surface-hover",
                 )}
-                onClick={() => setPage(id)}
+                onClick={() => goTo(id)}
               >
                 <Icon aria-hidden="true" size={16} strokeWidth={2} className="text-icon-muted" />
                 {label}
@@ -112,9 +139,18 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
         ) : page === "negative-stock" ? (
           <NegativeStockScreen onSessionEnded={onSessionEnded} />
         ) : page === "low-stock" ? (
-          <LowStockScreen onSessionEnded={onSessionEnded} />
+          <LowStockScreen onSessionEnded={onSessionEnded} onCreateOrder={createOrder} />
+        ) : page === "purchase-orders" ? (
+          <PurchaseOrdersScreen
+            seed={orderSeed}
+            registerLeaveGuard={registerLeaveGuard}
+            onSeedUsed={clearOrderSeed}
+            onSessionEnded={onSessionEnded}
+          />
         ) : page === "suppliers" ? (
           <SuppliersScreen onSessionEnded={onSessionEnded} />
+        ) : page === "reports" ? (
+          <ReportsScreen onSessionEnded={onSessionEnded} />
         ) : page === "users" ? (
           <UsersScreen currentUserId={currentUserId} onSessionEnded={onSessionEnded} />
         ) : page === "audit" ? (

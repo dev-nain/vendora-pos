@@ -61,6 +61,12 @@ describe("lowStockProducts", () => {
     expect(byName.has("Above")).toBe(false);
   });
 
+  it("carries the stored cost", () => {
+    const tea = product("Tea", { costPaisa: 41000 });
+    move(tea.id, 1000);
+    expect(low().items[0]).toMatchObject({ id: tea.id, costPaisa: 41000 });
+  });
+
   it("skips products without a threshold, even at negative stock", () => {
     const tea = product("Tea", { lowStockThresholdMilli: null });
     move(tea.id, -1000);
