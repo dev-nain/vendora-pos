@@ -26,6 +26,7 @@ import {
 import {
   lowStockReportColumns,
   negativeStockReportColumns,
+  purchasesBySupplierColumns,
   stockMovementsColumns,
   stockOnHandColumns,
   type ExportTodayReportInput,
@@ -33,6 +34,7 @@ import {
   type StockMovementsReportInput,
   type StockMovementsReportResult,
   type LowStockReportResult,
+  type PurchasesBySupplierResult,
   type NegativeStockReportResult,
   type StockOnHandResult,
 } from "../../shared/stock-reports";
@@ -47,6 +49,7 @@ import { reportCsv, reportCsvSections } from "../reports/report-csv";
 import { buildReportDocument, buildSectionedReportDocument } from "../reports/report-document";
 import { readGrossProfitByCategory, readGrossProfitByProduct } from "../reports/gross-profit";
 import { readSalesByDay } from "../reports/sales-by-day";
+import { readPurchasesBySupplier } from "../reports/purchases-by-supplier";
 import { readStockMovements } from "../reports/stock-movements";
 import { readLowStock, readNegativeStock, readStockOnHand } from "../reports/stock-position";
 import { readSalesTaxSummary } from "../reports/sales-tax-summary";
@@ -114,6 +117,11 @@ export function createReportsService({
   function stockMovements(input: StockMovementsReportInput): StockMovementsReportResult {
     const session = requireSession(sessions);
     return readStockMovements(database, session.storeId, input);
+  }
+
+  function purchasesBySupplier(range: ReportRange): PurchasesBySupplierResult {
+    const session = requireSession(sessions);
+    return readPurchasesBySupplier(database, session.storeId, range);
   }
 
   const asOfReference = () => `As of ${formatStoreDateTime(now().toISOString())}`;
@@ -293,6 +301,16 @@ export function createReportsService({
         },
       });
     },
+    purchasesBySupplier,
+    exportPurchasesBySupplier: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Purchases by supplier",
+        fileName: fileNameOf("purchases-by-supplier", range, format),
+        reference: () => formatRangeLabel(range),
+        format,
+        columns: purchasesBySupplierColumns,
+        read: (storeId) => readPurchasesBySupplier(database, storeId, range),
+      }),
     exportLowStock: ({ format }: ExportTodayReportInput) =>
       exportTable({
         title: "Low stock",
