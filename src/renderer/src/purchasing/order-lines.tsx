@@ -132,6 +132,7 @@ export function OrderLines({
                     <div className="flex items-center gap-100">
                       <Input
                         data-column="qty"
+                        data-product-id={line.productId}
                         aria-label={`Quantity of ${line.nameEn}`}
                         aria-invalid={lineErrors?.qty !== undefined}
                         inputMode="decimal"

@@ -39,3 +39,8 @@ export function createBurstDetector(): BurstDetector {
     },
   };
 }
+
+export function restoreField(field: HTMLInputElement, value: string): void {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(field, value);
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+}

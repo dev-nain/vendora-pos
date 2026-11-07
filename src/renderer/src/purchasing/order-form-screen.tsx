@@ -1,5 +1,6 @@
 import { ChevronLeftIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import type { LowStockItem } from "@shared/inventory";
 import { isPurchaseOrderEditable, type PurchaseOrder } from "@shared/purchase-orders";
@@ -17,11 +18,19 @@ import {
 } from "@renderer/components/ui/select";
 import { cn } from "@renderer/lib/utils";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
+import { createBurstDetector, restoreField } from "../billing/scan-burst";
+import { notFoundMessage } from "../billing/scan-input";
+import { ScanField, useDebouncedValue } from "../billing/scan-field";
+import { createScanQueue, type ScanQueue } from "../billing/scan-queue";
+import { playScanError, playScanOk } from "../billing/scan-sounds";
 import { DiscardChangesDialog } from "../products/discard-changes-dialog";
 import { ErrorLine } from "../users/form-parts";
 import { formatRupees } from "../lib/money";
 import { CancelOrderDialog } from "./cancel-order-dialog";
 import {
+  ONE_UNIT_MILLI,
+  addFromLookup,
+  addProduct,
   buildOrderPayload,
   emptyOrderForm,
   formFromLowStock,
@@ -30,9 +39,12 @@ import {
   orderTotal,
   type OrderFormErrors,
   type OrderFormValues,
+  type OrderLineDraft,
+  type OrderProduct,
 } from "./order-form";
 import { OrderLines } from "./order-lines";
 import { OrderStatusBadge } from "./order-status-badge";
+import { ProductPicker, type ProductPickerHandle } from "./product-picker";
 
 export type OrderSeed = readonly LowStockItem[];
 
@@ -47,6 +59,9 @@ interface OrderFormScreenProps {
 }
 
 const noErrors: OrderFormErrors = { line: {} };
+
+const SEARCH_DEBOUNCE_MS = 150;
+const NOTICE_MS = 4000;
 
 const cancellable = (order: PurchaseOrder) =>
   order.status !== "cancelled" && order.status !== "received";
@@ -71,9 +86,18 @@ export function OrderFormScreen({
   const [busy, setBusy] = useState(false);
   const [discard, setDiscard] = useState<{ proceed: () => void } | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [scanText, setScanText] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
+  const [hasResults, setHasResults] = useState(false);
+  const query = useDebouncedValue(scanText, SEARCH_DEBOUNCE_MS);
 
   const formRef = useRef<HTMLDivElement>(null);
   const busyRef = useRef(false);
+  const scanRef = useRef<HTMLInputElement | null>(null);
+  const pickerRef = useRef<ProductPickerHandle | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queue = useRef<ScanQueue | null>(null);
+  const processScan = useRef<(code: string) => Promise<"continue">>(async () => "continue");
 
   const dirty = isOrderFormDirty(initial, values);
   const editable = order === null || isPurchaseOrderEditable(order);
@@ -139,6 +163,111 @@ export function OrderFormScreen({
     });
     return () => registerLeaveGuard(null);
   }, [dirty, registerLeaveGuard]);
+
+  const focusScan = useCallback(() => scanRef.current?.focus(), []);
+
+  const clearNotice = useCallback(() => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = null;
+    setNotice(null);
+  }, []);
+
+  const showNotice = useCallback((text: string) => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    setNotice(text);
+    noticeTimer.current = setTimeout(() => setNotice(null), NOTICE_MS);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (orderId === null) {
+      formRef.current?.querySelector<HTMLElement>('[data-slot="select-trigger"]')?.focus();
+    }
+  }, [orderId]);
+
+  const addLines = useCallback(
+    (productId: string, add: (lines: OrderLineDraft[]) => OrderLineDraft[], focusQty: boolean) => {
+      flushSync(() => {
+        setValues((current) => ({ ...current, lines: add(current.lines) }));
+        setStatus(null);
+      });
+      if (!focusQty) return;
+      const input = formRef.current?.querySelector<HTMLInputElement>(
+        `input[data-column="qty"][data-product-id="${productId}"]`,
+      );
+      input?.focus();
+      input?.select();
+    },
+    [],
+  );
+
+  useEffect(() => {
+    queue.current = createScanQueue((code) => processScan.current(code));
+  }, []);
+
+  useEffect(() => {
+    processScan.current = async (code) => {
+      clearNotice();
+      try {
+        const lookup = await window.vendora.products.lookupBarcode(code);
+        if (lookup === null) {
+          showNotice(notFoundMessage(code));
+          playScanError();
+        } else {
+          addLines(
+            lookup.product.id,
+            (lines) => addFromLookup(lines, lookup).lines,
+            lookup.source === "scale",
+          );
+          playScanOk();
+        }
+      } catch (cause) {
+        if (isSessionError(cause)) onSessionEnded();
+        else showNotice(serviceErrorMessage);
+      }
+      return "continue";
+    };
+  }, [addLines, clearNotice, showNotice, onSessionEnded]);
+
+  const pickProduct = (product: OrderProduct) => {
+    setScanText("");
+    addLines(product.id, (lines) => addProduct(lines, product, ONE_UNIT_MILLI).lines, true);
+  };
+
+  useEffect(() => {
+    if (dialogOpen) queue.current?.pause();
+    else queue.current?.resume();
+  }, [dialogOpen]);
+
+  useEffect(() => {
+    if (!editable || dialogOpen) return;
+    const detector = createBurstDetector();
+    let snapshot: { field: HTMLInputElement; value: string } | null = null;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.target as HTMLElement | null)?.id === "scan-field") {
+        detector.reset();
+        return;
+      }
+      const result = detector.feed(event.key, event.timeStamp);
+      const field = document.activeElement;
+      if (result.startedBurst && field instanceof HTMLInputElement) {
+        snapshot = { field, value: field.value };
+      }
+      if (result.scan === null) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (snapshot) restoreField(snapshot.field, snapshot.value);
+      queue.current?.enqueue(result.scan);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [editable, dialogOpen]);
 
   const focusFirstInvalid = () =>
     requestAnimationFrame(() =>
@@ -247,6 +376,12 @@ export function OrderFormScreen({
   useEffect(() => {
     if (dialogOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "F2" && editable) {
+        event.preventDefault();
+        scanRef.current?.focus();
+        scanRef.current?.select();
+        return;
+      }
       if (event.ctrlKey && !event.altKey && !event.metaKey) {
         const key = event.key.toLowerCase();
         if (key === "s") {
@@ -270,6 +405,11 @@ export function OrderFormScreen({
 
   const setField = (patch: Partial<OrderFormValues>) => {
     setValues((current) => ({ ...current, ...patch }));
+    setStatus(null);
+  };
+
+  const updateLines = (update: (lines: OrderLineDraft[]) => OrderLineDraft[]) => {
+    setValues((current) => ({ ...current, lines: update(current.lines) }));
     setStatus(null);
   };
 
@@ -376,11 +516,7 @@ export function OrderFormScreen({
                     if (typeof next === "string") setField({ supplierId: next });
                   }}
                 >
-                  <SelectTrigger
-                    aria-label="Supplier"
-                    aria-invalid={errors.supplier !== undefined}
-                    autoFocus={order === null}
-                  >
+                  <SelectTrigger aria-label="Supplier" aria-invalid={errors.supplier !== undefined}>
                     <SelectValue placeholder="Pick a supplier" />
                   </SelectTrigger>
                   <SelectContent>
@@ -403,20 +539,41 @@ export function OrderFormScreen({
                 </p>
               ) : null}
             </Field>
+            {editable ? (
+              <div className="relative">
+                <ScanField
+                  ref={scanRef}
+                  value={scanText}
+                  notice={notice}
+                  canMoveToGrid={hasResults}
+                  onChange={setScanText}
+                  onSubmit={(code) => queue.current?.enqueue(code)}
+                  onMoveToGrid={() => pickerRef.current?.focusFirst()}
+                  onDismissNotice={() => (notice ? clearNotice() : requestLeave(onBack))}
+                />
+                <ProductPicker
+                  ref={pickerRef}
+                  query={query}
+                  visible={scanText.trim() !== ""}
+                  onPick={pickProduct}
+                  onReturnToScan={focusScan}
+                  onResultsChange={setHasResults}
+                  onSessionEnded={onSessionEnded}
+                />
+              </div>
+            ) : null}
           </div>
           <OrderLines
             lines={values.lines}
             editable={editable}
             errors={errors.line}
             onChange={(key, patch) =>
-              setField({
-                lines: values.lines.map((line) =>
-                  line.key === key ? { ...line, ...patch } : line,
-                ),
-              })
+              updateLines((lines) =>
+                lines.map((line) => (line.key === key ? { ...line, ...patch } : line)),
+              )
             }
-            onRemove={(key) => setField({ lines: values.lines.filter((line) => line.key !== key) })}
-            onReturnToScan={() => undefined}
+            onRemove={(key) => updateLines((lines) => lines.filter((line) => line.key !== key))}
+            onReturnToScan={focusScan}
           />
           {errors.lines ? <ErrorLine>{errors.lines}</ErrorLine> : null}
           <Field invalid={errors.notes !== undefined}>
