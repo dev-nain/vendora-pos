@@ -1,4 +1,4 @@
-import { isNumericColumn, type ReportColumn } from "../../shared/reports";
+import { isNumericColumn, type ReportColumn, type ReportFooterRow } from "../../shared/reports";
 import { csvCell, formatMilli, formatPaisa } from "../services/catalog-csv";
 
 type CellValue = string | number;
@@ -10,6 +10,7 @@ interface Input<Row> {
   rows: Row[];
   totals: Record<string, number>;
   totalsLabel: string;
+  footer?: ReportFooterRow[] | undefined;
 }
 
 const line = (cells: string[]) => `${cells.join(",")}\r\n`;
@@ -36,16 +37,27 @@ export function reportCsv<Row extends Record<string, CellValue>>({
   rows,
   totals,
   totalsLabel,
+  footer = [],
 }: Input<Row>): string {
   const totalCells = columns.map((column, index) => {
     if (index === 0) return csvCell(totalsLabel);
     const value = totals[column.key];
     return value === undefined || !isNumericColumn(column) ? "" : cell(column, value);
   });
+  const footerLines = footer.map((entry) =>
+    line(
+      columns.map((column, index) => {
+        if (index === 0) return csvCell(entry.label);
+        const value = entry.values[column.key];
+        return value === undefined ? "" : cell(column, value);
+      }),
+    ),
+  );
   return [
     BOM,
     line(columns.map((column) => csvCell(column.label))),
     ...rows.map((row) => line(columns.map((column) => cell(column, row[column.key] ?? "")))),
     line(totalCells),
+    ...footerLines,
   ].join("");
 }

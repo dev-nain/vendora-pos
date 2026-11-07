@@ -7,7 +7,12 @@ import {
   TableHeader,
   TableRow,
 } from "@renderer/components/ui/table";
-import { formatReportCell, isNumericColumn, type ReportColumn } from "@shared/reports";
+import {
+  formatReportCell,
+  isNumericColumn,
+  type ReportColumn,
+  type ReportFooterRow,
+} from "@shared/reports";
 import { negativeClass } from "../inventory/stock-format";
 
 interface ReportTableProps<Row extends Record<string, string | number>> {
@@ -16,6 +21,7 @@ interface ReportTableProps<Row extends Record<string, string | number>> {
   columns: ReportColumn<Row>[];
   rows: Row[];
   totals: Record<string, number>;
+  footer: ReportFooterRow[];
 }
 
 const cellClass = (column: { format: string }, value: string | number) =>
@@ -29,6 +35,7 @@ export function ReportTable<Row extends Record<string, string | number>>({
   columns,
   rows,
   totals,
+  footer,
 }: ReportTableProps<Row>) {
   return (
     <Table
@@ -74,23 +81,39 @@ export function ReportTable<Row extends Record<string, string | number>>({
           </TableRow>
         ))}
       </TableBody>
-      <TableFooter>
+      <TableFooter className="sticky bottom-0 bg-surface-secondary">
         <TableRow>
           {columns.map((column, index) => {
             const value = totals[column.key];
             return (
               <TableCell
                 key={column.key}
-                className={`sticky bottom-0 bg-surface-secondary font-semibold ${cellClass(
-                  column,
-                  value ?? "",
-                )}`}
+                className={`font-semibold ${cellClass(column, value ?? "")}`}
               >
                 {index === 0 ? "Total" : value === undefined ? "" : formatReportCell(column, value)}
               </TableCell>
             );
           })}
         </TableRow>
+        {footer.map((entry, rowIndex) => (
+          <TableRow key={rowIndex}>
+            {columns.map((column, index) => {
+              const value = entry.values[column.key];
+              return (
+                <TableCell
+                  key={column.key}
+                  className={`font-normal ${cellClass(column, value ?? "")}`}
+                >
+                  {index === 0
+                    ? entry.label
+                    : value === undefined
+                      ? ""
+                      : formatReportCell(column, value)}
+                </TableCell>
+              );
+            })}
+          </TableRow>
+        ))}
       </TableFooter>
     </Table>
   );

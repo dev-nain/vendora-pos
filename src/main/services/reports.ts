@@ -5,6 +5,7 @@ import {
   type ExportReportResult,
   type ReportColumn,
   type ReportExportFormat,
+  type ReportFooterRow,
   type ReportRange,
   type SalesByDayResult,
 } from "../../shared/reports";
@@ -31,7 +32,13 @@ interface ExportTable<Row extends Record<string, string | number>> {
   range: ReportRange;
   format: ReportExportFormat;
   columns: ReportColumn<Row>[];
-  read: (storeId: string) => { rows: Row[]; totals: Record<string, number> };
+  fileName?: string;
+  reference?: string;
+  read: (storeId: string) => {
+    rows: Row[];
+    totals: Record<string, number>;
+    footer?: ReportFooterRow[];
+  };
 }
 
 const exportFailed = {
@@ -64,15 +71,15 @@ export function createReportsService({
     table: ExportTable<Row>,
   ): Promise<ExportReportResult> {
     requireSession(sessions);
-    const path = await chooseSavePath(fileNameOf(table), table.format);
+    const path = await chooseSavePath(table.fileName ?? fileNameOf(table), table.format);
     if (path === null) return { ok: true, status: "cancelled" };
     const session = requireSession(sessions);
-    const { rows, totals } = table.read(session.storeId);
+    const { rows, totals, footer } = table.read(session.storeId);
     try {
       const bytes =
         table.format === "csv"
           ? Buffer.from(
-              reportCsv({ columns: table.columns, rows, totals, totalsLabel: "Total" }),
+              reportCsv({ columns: table.columns, rows, totals, totalsLabel: "Total", footer }),
               "utf8",
             )
           : await renderer.toPdf(
@@ -83,6 +90,8 @@ export function createReportsService({
                 columns: table.columns,
                 rows,
                 totals,
+                footer,
+                reference: table.reference,
               }),
             );
       await writeAtomic(path, bytes);

@@ -4,6 +4,7 @@ import {
   formatReportCell,
   isNumericColumn,
   type ReportColumn,
+  type ReportFooterRow,
   type ReportRange,
 } from "../../shared/reports";
 import type { ReceiptSettings } from "../../shared/settings";
@@ -18,6 +19,8 @@ interface Input<Row> {
   columns: ReportColumn<Row>[];
   rows: Row[];
   totals: Record<string, number>;
+  footer?: ReportFooterRow[] | undefined;
+  reference?: string | undefined;
 }
 
 function percentWidths<Row>(columns: ReportColumn<Row>[]): (string | undefined)[] {
@@ -34,13 +37,15 @@ export function buildReportDocument<Row extends Record<string, CellValue>>({
   columns,
   rows,
   totals,
+  footer = [],
+  reference,
 }: Input<Row>): DocumentModel {
   const storePanel = buildStorePanel(store);
   const widths = percentWidths(columns);
 
   return {
     title,
-    reference: formatRangeLabel(range),
+    reference: reference ?? formatRangeLabel(range),
     panels: storePanel.lines.length > 0 ? [storePanel] : [],
     facts: [{ label: "Times", value: "Asia/Karachi" }],
     columns: columns.map((column, index) => {
@@ -54,12 +59,22 @@ export function buildReportDocument<Row extends Record<string, CellValue>>({
     rows: rows.map((row) =>
       columns.map((column) => ({ text: formatReportCell(column, row[column.key] ?? "") })),
     ),
-    totals: columns.slice(1).flatMap((column) => {
-      const value = totals[column.key];
-      return value === undefined
-        ? []
-        : [{ label: column.label, value: formatReportCell(column, value) }];
-    }),
+    totals: [
+      ...columns.slice(1).flatMap((column) => {
+        const value = totals[column.key];
+        return value === undefined
+          ? []
+          : [{ label: column.label, value: formatReportCell(column, value) }];
+      }),
+      ...footer.flatMap((entry) =>
+        columns.slice(1).flatMap((column) => {
+          const value = entry.values[column.key];
+          return value === undefined
+            ? []
+            : [{ label: entry.label, value: formatReportCell(column, value) }];
+        }),
+      ),
+    ],
     notes: null,
     landscape: true,
   };

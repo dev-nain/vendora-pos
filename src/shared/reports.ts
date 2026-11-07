@@ -125,6 +125,14 @@ export function formatReportCell<Row>(column: ReportColumn<Row>, value: string |
 
 const countSchema = z.number().int();
 
+export const reportFooterRowSchema = z.strictObject({
+  label: z.string(),
+  values: z.record(z.string(), countSchema),
+});
+export type ReportFooterRow = z.infer<typeof reportFooterRowSchema>;
+
+export const roundingRowLabel = "Rounding";
+
 export const salesByDayTotalsSchema = z.strictObject({
   billCount: countSchema,
   pieceQtyMilli: countSchema,

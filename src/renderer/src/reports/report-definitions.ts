@@ -3,6 +3,7 @@ import {
   type ExportReportInput,
   type ExportReportResult,
   type ReportColumn,
+  type ReportFooterRow,
   type ReportRange,
   type SalesByDayResult,
   type SalesByDayRow,
@@ -16,7 +17,9 @@ export interface ReportDefinition<
   id: string;
   label: string;
   columns: ReportColumn<Row>[];
-  load: (range: ReportRange) => Promise<{ rows: Row[]; totals: Totals }>;
+  load: (
+    range: ReportRange,
+  ) => Promise<{ rows: Row[]; totals: Totals; footer?: ReportFooterRow[] }>;
   exportTo: (input: ExportReportInput) => Promise<ExportReportResult>;
 }
 

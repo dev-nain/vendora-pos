@@ -72,4 +72,15 @@ describe("reportCsv", () => {
     const text = csv([row()], { bills: 3, qty: 2500, amount: -12050 });
     expect(lines(text)[2]).toBe("Total,,3,2.5,-120.50");
   });
+
+  it("writes footer rows after the total with the label first", () => {
+    const text = reportCsv({
+      columns,
+      rows: [row()],
+      totals: { bills: 3, qty: 2500, amount: 12050 },
+      totalsLabel: "Total",
+      footer: [{ label: "Rounding", values: { amount: -50 } }],
+    });
+    expect(lines(text).slice(2, 4)).toEqual(["Total,,3,2.5,120.50", "Rounding,,,,-0.50"]);
+  });
 });

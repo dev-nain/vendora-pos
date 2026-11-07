@@ -99,4 +99,19 @@ describe("buildReportDocument", () => {
     expect(widths.every((width) => width > 0)).toBe(true);
     expect(widths.reduce((sum, width) => sum + width, 0)).toBeCloseTo(100, 0);
   });
+
+  it("appends footer rows to the totals and honours a custom reference", () => {
+    const model = buildReportDocument({
+      title: "Sales by day",
+      range: { from: "2026-11-01", to: "2026-11-07" },
+      store,
+      columns: salesByDayColumns,
+      rows: [row],
+      totals,
+      footer: [{ label: "Rounding", values: { netPaisa: -50 } }],
+      reference: "Shift 7 Nov 2026 09:00 – open",
+    });
+    expect(model.reference).toBe("Shift 7 Nov 2026 09:00 – open");
+    expect(model.totals.at(-1)).toEqual({ label: "Rounding", value: "−Rs 0.50" });
+  });
 });

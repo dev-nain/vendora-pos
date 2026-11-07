@@ -9,6 +9,7 @@ import {
   presetRange,
   reportRangeSchema,
   type ReportExportFormat,
+  type ReportFooterRow,
   type ReportPreset,
   type ReportRange,
 } from "@shared/reports";
@@ -43,7 +44,11 @@ export function ReportView<
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
   const [reloadKey, setReloadKey] = useState(0);
-  const [result, setResult] = useState<{ rows: Row[]; totals: Totals } | null>(null);
+  const [result, setResult] = useState<{
+    rows: Row[];
+    totals: Totals;
+    footer?: ReportFooterRow[];
+  } | null>(null);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -215,6 +220,7 @@ export function ReportView<
             columns={definition.columns}
             rows={rows}
             totals={result.totals}
+            footer={result.footer ?? []}
           />
         )}
       </div>
