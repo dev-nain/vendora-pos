@@ -1,5 +1,9 @@
 import {
   exportReportFailedMessage,
+  grossProfitByCategoryColumns,
+  grossProfitByProductColumns,
+  type GrossProfitByCategoryResult,
+  type GrossProfitByProductResult,
   salesByDayColumns,
   type ExportReportInput,
   type ExportReportResult,
@@ -17,6 +21,7 @@ import type { DocumentRenderer } from "../documents/document-window";
 import { writeAtomic } from "../documents/write-atomic";
 import { reportCsv } from "../reports/report-csv";
 import { buildReportDocument } from "../reports/report-document";
+import { readGrossProfitByCategory, readGrossProfitByProduct } from "../reports/gross-profit";
 import { readSalesByDay } from "../reports/sales-by-day";
 import { getReceiptSettings } from "../settings/store-settings";
 
@@ -66,6 +71,16 @@ export function createReportsService({
     return readSalesByDay(database, session.storeId, range);
   }
 
+  function grossProfitByProduct(range: ReportRange): GrossProfitByProductResult {
+    const session = requireSession(sessions);
+    return readGrossProfitByProduct(database, session.storeId, range);
+  }
+
+  function grossProfitByCategory(range: ReportRange): GrossProfitByCategoryResult {
+    const session = requireSession(sessions);
+    return readGrossProfitByCategory(database, session.storeId, range);
+  }
+
   async function exportTable<Row extends Record<string, ReportCellValue>>(
     table: ExportTable<Row>,
   ): Promise<ExportReportResult> {
@@ -101,6 +116,26 @@ export function createReportsService({
 
   return {
     salesByDay,
+    grossProfitByProduct,
+    grossProfitByCategory,
+    exportGrossProfitByProduct: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Gross profit by product",
+        fileStem: "gross-profit-by-product",
+        range,
+        format,
+        columns: grossProfitByProductColumns,
+        read: (storeId) => readGrossProfitByProduct(database, storeId, range),
+      }),
+    exportGrossProfitByCategory: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Gross profit by category",
+        fileStem: "gross-profit-by-category",
+        range,
+        format,
+        columns: grossProfitByCategoryColumns,
+        read: (storeId) => readGrossProfitByCategory(database, storeId, range),
+      }),
     exportSalesByDay: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Sales by day",
