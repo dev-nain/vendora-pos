@@ -164,6 +164,55 @@ export const purchasesBySupplierColumns: ReportColumn<PurchasesBySupplierRow>[] 
   { key: "netPaisa", label: "Net purchases", format: "money", width: "170px" },
 ];
 
+export const postedStocktakesResultSchema = z.strictObject({
+  items: z.array(z.strictObject({ id: z.uuid(), postedAt: z.iso.datetime(), label: z.string() })),
+});
+export type PostedStocktakesResult = z.infer<typeof postedStocktakesResultSchema>;
+
+export const stocktakeVarianceReportInputSchema = z.strictObject({
+  range: reportRangeSchema,
+  stocktakeId: z.uuid().nullable(),
+});
+export type StocktakeVarianceReportInput = z.infer<typeof stocktakeVarianceReportInputSchema>;
+
+export const stocktakeVarianceExportInputSchema = stocktakeVarianceReportInputSchema.extend({
+  format: z.enum(reportExportFormats),
+});
+export type StocktakeVarianceExportInput = z.infer<typeof stocktakeVarianceExportInputSchema>;
+
+const stocktakeVarianceRowSchema = z.strictObject({
+  lineId: z.uuid(),
+  postedAt: z.iso.datetime(),
+  count: z.string(),
+  product: z.string(),
+  unit: unitSchema,
+  expectedMilli: countSchema,
+  countedMilli: countSchema,
+  varianceMilli: countSchema,
+  valuePaisa: countSchema,
+});
+export type StocktakeVarianceRow = z.infer<typeof stocktakeVarianceRowSchema>;
+
+export const stocktakeVarianceResultSchema = z.strictObject({
+  countCount: countSchema,
+  shortValuePaisa: countSchema,
+  surplusValuePaisa: countSchema,
+  rows: z.array(stocktakeVarianceRowSchema),
+  totals: z.strictObject({ valuePaisa: countSchema }),
+});
+export type StocktakeVarianceResult = z.infer<typeof stocktakeVarianceResultSchema>;
+
+export const stocktakeVarianceColumns: ReportColumn<StocktakeVarianceRow>[] = [
+  { key: "postedAt", label: "Posted", format: "datetime", width: "176px" },
+  { key: "count", label: "Count", format: "text", width: "168px" },
+  { key: "product", label: "Product", format: "text", width: "240px" },
+  { key: "unit", label: "Unit", format: "unit", width: "56px" },
+  { key: "expectedMilli", label: "Expected", format: "quantity", unitKey: "unit", width: "96px" },
+  { key: "countedMilli", label: "Counted", format: "quantity", unitKey: "unit", width: "96px" },
+  { key: "varianceMilli", label: "Variance", format: "quantity", unitKey: "unit", width: "96px" },
+  { key: "valuePaisa", label: "Value", format: "money", width: "108px" },
+];
+
 export const stockMovementsColumns: ReportColumn<StockMovementReportRow>[] = [
   { key: "createdAt", label: "Date", format: "datetime", width: "176px" },
   { key: "type", label: "Type", format: "text", width: "112px" },
