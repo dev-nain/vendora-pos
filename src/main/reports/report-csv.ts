@@ -1,5 +1,6 @@
 import type { ReportSection } from "../../shared/discounts-returns-voids";
 import {
+  formatReportCell,
   formatStoreTimeCsv,
   isNumericColumn,
   type ReportCellValue,
@@ -36,7 +37,10 @@ function cell<Row>(column: ReportColumn<Row>, value: ReportCellValue): string {
     case "invoice":
       return csvCell(String(value));
     case "time":
+    case "datetime":
       return formatStoreTimeCsv(String(value));
+    case "unit":
+      return formatReportCell(column, value);
     case "money":
       return signed(Number(value), formatPaisa);
     case "quantity":
@@ -73,7 +77,7 @@ function block<Row extends Record<string, ReportCellValue>>({
   return [
     line(columns.map((column) => csvCell(column.label))),
     ...rows.map((row) => line(columns.map((column) => cell(column, row[column.key] ?? null)))),
-    ...(totals ? [line(totalCells)] : []),
+    ...(totals && Object.keys(totals).length > 0 ? [line(totalCells)] : []),
     ...footerLines,
   ];
 }

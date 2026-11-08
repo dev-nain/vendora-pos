@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { signedRupees } from "./money";
-import type { ProductUnit } from "./products";
-import { formatQuantity } from "./quantity";
+import { productUnits, type ProductUnit } from "./products";
+import { formatQuantity, formatQuantityAmount, unitSuffix } from "./quantity";
 
 export const storeUtcOffsetMs = 5 * 60 * 60 * 1000;
 const dayMs = 24 * 60 * 60 * 1000;
@@ -101,17 +101,19 @@ export type ReportColumn<Row> = {
   label: string;
   width?: string;
 } & (
-  | { format: "day" | "text" | "count" | "money" | "time" | "percent" }
+  | { format: "day" | "text" | "count" | "money" | "time" | "percent" | "unit" | "datetime" }
   | { format: "invoice"; linkKey?: Extract<keyof Row, string> }
   | { format: "quantity"; unit: ProductUnit }
-  | { format: "quantity"; unitKey: Extract<keyof Row, string> }
+  | { format: "quantity"; unitKey: Extract<keyof Row, string>; bare?: boolean }
 );
 
 export const isNumericColumn = <Row>(column: ReportColumn<Row>): boolean =>
   column.format !== "day" &&
   column.format !== "text" &&
   column.format !== "time" &&
-  column.format !== "invoice";
+  column.format !== "invoice" &&
+  column.format !== "unit" &&
+  column.format !== "datetime";
 
 const MINUS = "−";
 const EMPTY_CELL = "—";
@@ -137,6 +139,15 @@ export function formatStoreTime(iso: string): string {
   return `${formatStoreDay(day)}, ${clock}`;
 }
 
+export function formatStoreDateTime(iso: string): string {
+  const shifted = new Date(Date.parse(iso) + storeUtcOffsetMs);
+  const hours = shifted.getUTCHours();
+  const minutes = String(shifted.getUTCMinutes()).padStart(2, "0");
+  const period = hours < 12 ? "am" : "pm";
+  const day = formatStoreDay(shifted.toISOString().slice(0, 10));
+  return `${day}, ${hours % 12 === 0 ? 12 : hours % 12}:${minutes} ${period}`;
+}
+
 export function formatStoreTimeCsv(iso: string): string {
   const { day, clock } = storeTimeParts(iso);
   return `${day} ${clock}`;
@@ -156,12 +167,15 @@ export function formatReportCell<Row>(
     case "money":
       return signedRupees(Number(value));
     case "quantity": {
-      const unit =
-        "unitKey" in column
-          ? ((row?.[column.unitKey] as ProductUnit | undefined) ?? "piece")
-          : column.unit;
-      return formatQuantity(Number(value), unit).replace("-", MINUS);
+      const rowUnit = "unitKey" in column ? row?.[column.unitKey] : column.unit;
+      const unit = productUnits.find((known) => known === rowUnit) ?? "piece";
+      const format = "bare" in column && column.bare ? formatQuantityAmount : formatQuantity;
+      return format(Number(value), unit).replace("-", MINUS);
     }
+    case "unit":
+      return unitSuffix[String(value) as ProductUnit] ?? String(value);
+    case "datetime":
+      return formatStoreDateTime(String(value));
     case "count": {
       const count = Number(value);
       const grouped = String(Math.abs(count)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");

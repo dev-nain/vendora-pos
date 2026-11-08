@@ -4,11 +4,14 @@ import {
 } from "../../shared/discounts-returns-voids";
 import {
   exportReportFailedMessage,
+  formatRangeLabel,
+  formatStoreDateTime,
   grossProfitByCategoryColumns,
   grossProfitByProductColumns,
   type GrossProfitByCategoryResult,
   type GrossProfitByProductResult,
   salesByDayColumns,
+  storeToday,
   salesTaxSummaryColumns,
   type ExportReportInput,
   type ExportReportResult,
@@ -20,6 +23,15 @@ import {
   type SalesByDayResult,
   type SalesTaxSummaryResult,
 } from "../../shared/reports";
+import {
+  lowStockReportColumns,
+  negativeStockReportColumns,
+  stockOnHandColumns,
+  type ExportTodayReportInput,
+  type LowStockReportResult,
+  type NegativeStockReportResult,
+  type StockOnHandResult,
+} from "../../shared/stock-reports";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
@@ -30,6 +42,7 @@ import { reportCsv, reportCsvSections } from "../reports/report-csv";
 import { buildReportDocument, buildSectionedReportDocument } from "../reports/report-document";
 import { readGrossProfitByCategory, readGrossProfitByProduct } from "../reports/gross-profit";
 import { readSalesByDay } from "../reports/sales-by-day";
+import { readLowStock, readNegativeStock, readStockOnHand } from "../reports/stock-position";
 import { readSalesTaxSummary } from "../reports/sales-tax-summary";
 import { getReceiptSettings } from "../settings/store-settings";
 
@@ -38,18 +51,20 @@ interface ReportsDeps {
   sessions: SessionStore;
   renderer: DocumentRenderer;
   chooseSavePath: (fileName: string, format: ReportExportFormat) => Promise<string | null>;
+  now?: () => Date;
 }
 
 interface ExportTable<Row extends Record<string, ReportCellValue>> {
   title: string;
-  fileStem: string;
-  range: ReportRange;
+  fileName: string;
+  reference: () => string;
   format: ReportExportFormat;
   columns: ReportColumn<Row>[];
   read: (storeId: string) => {
     rows: Row[];
     totals: Record<string, number | null>;
     footer?: ReportFooterRow[];
+    facts?: { label: string; value: string }[];
   };
 }
 
@@ -59,11 +74,7 @@ const exportFailed = {
   message: exportReportFailedMessage,
 } as const;
 
-const fileNameOf = ({
-  fileStem,
-  range,
-  format,
-}: Pick<ExportTable<never>, "fileStem" | "range" | "format">) =>
+const fileNameOf = (fileStem: string, range: ReportRange, format: ReportExportFormat) =>
   range.from === range.to
     ? `${fileStem}-${range.from}.${format}`
     : `${fileStem}-${range.from}-to-${range.to}.${format}`;
@@ -73,11 +84,30 @@ export function createReportsService({
   sessions,
   renderer,
   chooseSavePath,
+  now = () => new Date(),
 }: ReportsDeps) {
   function salesByDay(range: ReportRange): SalesByDayResult {
     const session = requireSession(sessions);
     return readSalesByDay(database, session.storeId, range);
   }
+  function stockOnHand(): StockOnHandResult {
+    const session = requireSession(sessions);
+    return readStockOnHand(database, session.storeId, now());
+  }
+
+  function lowStock(): LowStockReportResult {
+    const session = requireSession(sessions);
+    return readLowStock(database, session.storeId, now());
+  }
+
+  function negativeStock(): NegativeStockReportResult {
+    const session = requireSession(sessions);
+    return readNegativeStock(database, session.storeId, now());
+  }
+
+  const asOfReference = () => `As of ${formatStoreDateTime(now().toISOString())}`;
+  const todayFileName = (stem: string, format: ReportExportFormat) =>
+    `${stem}-${storeToday(now())}.${format}`;
 
   function grossProfitByProduct(range: ReportRange): GrossProfitByProductResult {
     const session = requireSession(sessions);
@@ -102,11 +132,11 @@ export function createReportsService({
   }
 
   async function exportFile(
-    file: Pick<ExportTable<never>, "fileStem" | "range" | "format">,
+    file: Pick<ExportTable<never>, "fileName" | "format">,
     render: (storeId: string) => Buffer | Promise<Buffer>,
   ): Promise<ExportReportResult> {
     requireSession(sessions);
-    const path = await chooseSavePath(fileNameOf(file), file.format);
+    const path = await chooseSavePath(file.fileName, file.format);
     if (path === null) return { ok: true, status: "cancelled" };
     const session = requireSession(sessions);
     try {
@@ -121,7 +151,7 @@ export function createReportsService({
     table: ExportTable<Row>,
   ): Promise<ExportReportResult> {
     return exportFile(table, (storeId) => {
-      const { rows, totals, footer = [] } = table.read(storeId);
+      const { rows, totals, footer = [], facts } = table.read(storeId);
       return table.format === "csv"
         ? Buffer.from(
             reportCsv({ columns: table.columns, rows, totals, totalsLabel: "Total", footer }),
@@ -130,7 +160,8 @@ export function createReportsService({
         : renderer.toPdf(
             buildReportDocument({
               title: table.title,
-              range: table.range,
+              reference: table.reference(),
+              ...(facts ? { facts } : {}),
               store: getReceiptSettings(database.db, storeId),
               columns: table.columns,
               rows,
@@ -142,7 +173,8 @@ export function createReportsService({
   }
 
   function exportDiscountsReturnsVoids({ range, format }: ExportReportInput) {
-    return exportFile({ fileStem: "discounts-returns-voids", range, format }, (storeId) => {
+    const fileName = fileNameOf("discounts-returns-voids", range, format);
+    return exportFile({ fileName, format }, (storeId) => {
       const sections = discountsReturnsVoidsSections(
         readDiscountsReturnsVoids(database, storeId, range, {
           limit: format === "csv" ? null : reportDetailLimit,
@@ -168,8 +200,8 @@ export function createReportsService({
     exportGrossProfitByProduct: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Gross profit by product",
-        fileStem: "gross-profit-by-product",
-        range,
+        fileName: fileNameOf("gross-profit-by-product", range, format),
+        reference: () => formatRangeLabel(range),
         format,
         columns: grossProfitByProductColumns,
         read: (storeId) => readGrossProfitByProduct(database, storeId, range),
@@ -177,8 +209,8 @@ export function createReportsService({
     exportGrossProfitByCategory: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Gross profit by category",
-        fileStem: "gross-profit-by-category",
-        range,
+        fileName: fileNameOf("gross-profit-by-category", range, format),
+        reference: () => formatRangeLabel(range),
         format,
         columns: grossProfitByCategoryColumns,
         read: (storeId) => readGrossProfitByCategory(database, storeId, range),
@@ -189,8 +221,8 @@ export function createReportsService({
     exportSalesByDay: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Sales by day",
-        fileStem: "sales-by-day",
-        range,
+        fileName: fileNameOf("sales-by-day", range, format),
+        reference: () => formatRangeLabel(range),
         format,
         columns: salesByDayColumns,
         read: (storeId) => readSalesByDay(database, storeId, range),
@@ -198,11 +230,44 @@ export function createReportsService({
     exportSalesTaxSummary: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Sales tax summary",
-        fileStem: "sales-tax-summary",
-        range,
+        fileName: fileNameOf("sales-tax-summary", range, format),
+        reference: () => formatRangeLabel(range),
         format,
         columns: salesTaxSummaryColumns,
         read: (storeId) => readSalesTaxSummary(database, storeId, range),
+      }),
+    stockOnHand,
+    lowStock,
+    negativeStock,
+    exportStockOnHand: ({ format }: ExportTodayReportInput) =>
+      exportTable({
+        title: "Stock on hand and valuation",
+        fileName: todayFileName("stock-on-hand", format),
+        reference: asOfReference,
+        format,
+        columns: stockOnHandColumns,
+        read: (storeId) => ({
+          ...readStockOnHand(database, storeId, now()),
+          facts: [{ label: "Valued at", value: "Current average cost" }],
+        }),
+      }),
+    exportLowStock: ({ format }: ExportTodayReportInput) =>
+      exportTable({
+        title: "Low stock",
+        fileName: todayFileName("low-stock", format),
+        reference: asOfReference,
+        format,
+        columns: lowStockReportColumns,
+        read: (storeId) => readLowStock(database, storeId, now()),
+      }),
+    exportNegativeStock: ({ format }: ExportTodayReportInput) =>
+      exportTable({
+        title: "Negative stock",
+        fileName: todayFileName("negative-stock", format),
+        reference: asOfReference,
+        format,
+        columns: negativeStockReportColumns,
+        read: (storeId) => readNegativeStock(database, storeId, now()),
       }),
   };
 }

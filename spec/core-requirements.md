@@ -186,8 +186,8 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
   - Gross profit and margin by product and category (cost at time of sale; net sales exclude tax and bill rounding; misc items count in sales but not in profit or margin)
   - Discounts, returns and voids (deleted lines and discarded bills)
   - Sales tax summary (taxable value and tax by rate, with Third Schedule goods on their own rows; returns reduce the rate originally charged)
-  - Stock on hand and valuation, low stock, negative stock, movement history per product
-  - Purchases by supplier, stocktake variance
+  - Stock on hand and valuation (today's position, at the current average cost), low stock and negative stock (today's position); movement history per product
+  - Purchases by supplier (net of purchase returns), stocktake variance (per posted count or over a date range)
 - Date ranges use store days (Asia/Karachi); the week starts on Sunday.
 - Any report over one year of data (≈ 500,000 sale lines) renders in under 3 seconds
 
