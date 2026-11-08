@@ -28,12 +28,17 @@ import {
   negativeStockReportColumns,
   purchasesBySupplierColumns,
   stockMovementsColumns,
+  stocktakeVarianceColumns,
   stockOnHandColumns,
   type ExportTodayReportInput,
   type StockMovementsExportInput,
   type StockMovementsReportInput,
   type StockMovementsReportResult,
   type LowStockReportResult,
+  type PostedStocktakesResult,
+  type StocktakeVarianceExportInput,
+  type StocktakeVarianceReportInput,
+  type StocktakeVarianceResult,
   type PurchasesBySupplierResult,
   type NegativeStockReportResult,
   type StockOnHandResult,
@@ -50,6 +55,7 @@ import { buildReportDocument, buildSectionedReportDocument } from "../reports/re
 import { readGrossProfitByCategory, readGrossProfitByProduct } from "../reports/gross-profit";
 import { readSalesByDay } from "../reports/sales-by-day";
 import { readPurchasesBySupplier } from "../reports/purchases-by-supplier";
+import { readPostedStocktakes, readStocktakeVariance } from "../reports/stocktake-variance-report";
 import { readStockMovements } from "../reports/stock-movements";
 import { readLowStock, readNegativeStock, readStockOnHand } from "../reports/stock-position";
 import { readSalesTaxSummary } from "../reports/sales-tax-summary";
@@ -122,6 +128,16 @@ export function createReportsService({
   function purchasesBySupplier(range: ReportRange): PurchasesBySupplierResult {
     const session = requireSession(sessions);
     return readPurchasesBySupplier(database, session.storeId, range);
+  }
+
+  function postedStocktakes(range: ReportRange): PostedStocktakesResult {
+    const session = requireSession(sessions);
+    return readPostedStocktakes(database, session.storeId, range);
+  }
+
+  function stocktakeVariance(input: StocktakeVarianceReportInput): StocktakeVarianceResult {
+    const session = requireSession(sessions);
+    return readStocktakeVariance(database, session.storeId, input);
   }
 
   const asOfReference = () => `As of ${formatStoreDateTime(now().toISOString())}`;
@@ -311,6 +327,28 @@ export function createReportsService({
         columns: purchasesBySupplierColumns,
         read: (storeId) => readPurchasesBySupplier(database, storeId, range),
       }),
+    postedStocktakes,
+    stocktakeVariance,
+    exportStocktakeVariance: ({ range, stocktakeId, format }: StocktakeVarianceExportInput) => {
+      let countLabel = "";
+      return exportTable({
+        title: "Stocktake variance",
+        fileName: fileNameOf("stocktake-variance", range, format),
+        reference: () =>
+          countLabel ? `${formatRangeLabel(range)} · ${countLabel}` : formatRangeLabel(range),
+        format,
+        columns: stocktakeVarianceColumns,
+        read: (storeId) => {
+          const picked = stocktakeId
+            ? readPostedStocktakes(database, storeId, range).items.find(
+                (item) => item.id === stocktakeId,
+              )
+            : undefined;
+          countLabel = picked ? `${formatStoreDateTime(picked.postedAt)} · ${picked.label}` : "";
+          return readStocktakeVariance(database, storeId, { range, stocktakeId });
+        },
+      });
+    },
     exportLowStock: ({ format }: ExportTodayReportInput) =>
       exportTable({
         title: "Low stock",

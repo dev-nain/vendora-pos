@@ -7,12 +7,21 @@ import { postGoodsReceivedInputSchema } from "../../shared/goods-received";
 import { postPurchaseReturnInputSchema } from "../../shared/purchase-returns";
 import type { ReportExportFormat } from "../../shared/reports";
 import { UnauthenticatedError } from "../auth/errors";
-import { goodsReceivedLines, goodsReceivedNotes, stores, suppliers } from "../db/schema";
+import {
+  categories,
+  goodsReceivedLines,
+  goodsReceivedNotes,
+  products,
+  stockMovements,
+  stores,
+  suppliers,
+} from "../db/schema";
 import { createCheckoutKit, type CheckoutKit } from "./checkout-test-kit";
 import { createGoodsReceivedService } from "./goods-received";
 import { createPurchaseReturnsService } from "./purchase-returns";
 import { createReportsService } from "./reports";
 import { createStockService } from "./stock";
+import { createStocktakeService } from "./stocktake";
 
 const range = (from: string, to = from) => ({ from, to });
 
@@ -248,5 +257,266 @@ describe("purchases by supplier report", () => {
     );
     expect(toPdf.mock.calls[0]?.[0].reference).toBe("1 Nov 2026 – 7 Nov 2026");
     expect(toPdf.mock.calls[0]?.[0].title).toBe("Purchases by supplier");
+  });
+});
+
+describe("stocktake variance report", () => {
+  let kit: CheckoutKit;
+  let clock: Date;
+  let service: ReturnType<typeof createReportsService>;
+  let stocktake: ReturnType<typeof createStocktakeService>;
+  let toPdf: ReturnType<typeof vi.fn<(model: DocumentModel) => Promise<Buffer>>>;
+  let userId: string;
+  let snacksId: string;
+
+  const at = (iso: string) => {
+    clock = new Date(iso);
+  };
+
+  beforeEach(() => {
+    kit = createCheckoutKit();
+    userId = kit.signIn("cashier").id;
+    clock = new Date("2026-11-01T06:00:00.000Z");
+    const now = () => clock;
+    stocktake = createStocktakeService({
+      database: kit.database,
+      sessions: kit.sessions,
+      stock: createStockService({ database: kit.database, audit: kit.audit, now }),
+      audit: kit.audit,
+      now,
+    });
+    toPdf = vi.fn(async () => Buffer.from("%PDF-1.4 fake"));
+    service = createReportsService({
+      database: kit.database,
+      sessions: kit.sessions,
+      renderer: { toPdf, print: vi.fn(async () => "printed" as const) },
+      chooseSavePath: async (name: string) => join(kit.dir, name),
+      now,
+    });
+    snacksId = kit.database.db
+      .insert(categories)
+      .values({ storeId: kit.storeId, name: "Snacks" })
+      .returning()
+      .get().id;
+  });
+
+  afterEach(() => kit.close());
+
+  const stocked = (
+    nameEn: string,
+    onHandMilli: number,
+    overrides: Partial<typeof products.$inferInsert> = {},
+  ) => {
+    const product = kit.addProduct({ nameEn, searchText: nameEn.toLowerCase(), ...overrides });
+    kit.database.db
+      .insert(stockMovements)
+      .values({
+        storeId: kit.storeId,
+        terminalId: kit.terminalId,
+        productId: product.id,
+        type: "opening",
+        qtyMilli: onHandMilli,
+        unitCostPaisa: 0,
+        actorUserId: userId,
+        createdAt: new Date("2026-10-01T00:00:00.000Z"),
+      })
+      .run();
+    return product;
+  };
+
+  const countAndPost = (
+    scope: { scope: "full" } | { scope: "category"; categoryId: string },
+    counted: Record<string, number>,
+  ) => {
+    const started = stocktake.start(scope);
+    if (!started.ok) throw new Error(`start refused: ${started.reason}`);
+    const id = started.stocktake.id;
+    const lines = stocktake.lines({ stocktakeId: id, query: "", limit: 100, offset: 0 });
+    if (!lines.ok) throw new Error("lines refused");
+    for (const line of lines.items) {
+      const countedMilli = counted[line.nameEn];
+      if (countedMilli === undefined) continue;
+      const recorded = stocktake.record({ stocktakeId: id, lineId: line.id, countedMilli });
+      if (!recorded.ok) throw new Error(`record refused: ${recorded.reason}`);
+    }
+    const result = stocktake.post({ stocktakeId: id });
+    if (!result.ok) throw new Error(`post refused: ${result.reason}`);
+    return id;
+  };
+
+  const reviewOf = (stocktakeId: string) => {
+    const result = stocktake.review({ stocktakeId });
+    if (!result.ok) throw new Error("review refused");
+    return result.review;
+  };
+
+  const all = range("2026-11-01", "2026-11-07");
+
+  function seedTwoCounts() {
+    const sugar = stocked("Loose sugar", 25_000, { unit: "kg", costPaisa: 14_333 });
+    const tea = stocked("Tea", 12_000, { costPaisa: 105_050 });
+    const chips = stocked("Chips", 40_000, { costPaisa: 2_500, categoryId: snacksId });
+    at("2026-11-03T10:05:00.000Z");
+    const full = countAndPost(
+      { scope: "full" },
+      { "Loose sugar": 24_250, Tea: 12_000, Chips: 40_000 },
+    );
+    at("2026-11-04T10:05:00.000Z");
+    const category = countAndPost({ scope: "category", categoryId: snacksId }, { Chips: 41_000 });
+    return { sugar, tea, chips, full, category };
+  }
+
+  it("matches each posted count's review", () => {
+    const { full, category } = seedTwoCounts();
+
+    const report = service.stocktakeVariance({ range: all, stocktakeId: null });
+
+    for (const id of [full, category]) {
+      const review = reviewOf(id);
+      const rows = report.rows.filter(
+        (row) =>
+          row.postedAt === (id === full ? "2026-11-03T10:05:00.000Z" : "2026-11-04T10:05:00.000Z"),
+      );
+      expect(rows).toHaveLength(review.varianceLineCount);
+      expect(rows.reduce((sum, row) => sum + row.valuePaisa, 0)).toBe(review.netValuePaisa);
+    }
+    expect(report.totals.valuePaisa).toBe(
+      (reviewOf(full).netValuePaisa ?? 0) + (reviewOf(category).netValuePaisa ?? 0),
+    );
+    expect(report.shortValuePaisa).toBe(
+      (reviewOf(full).shortValuePaisa ?? 0) + (reviewOf(category).shortValuePaisa ?? 0),
+    );
+    expect(report.surplusValuePaisa).toBe(
+      (reviewOf(full).surplusValuePaisa ?? 0) + (reviewOf(category).surplusValuePaisa ?? 0),
+    );
+    expect(report.countCount).toBe(2);
+  });
+
+  it("lists only lines whose count differs, newest count first", () => {
+    seedTwoCounts();
+
+    const report = service.stocktakeVariance({ range: all, stocktakeId: null });
+
+    expect(report.rows.map((row) => [row.count, row.product, row.varianceMilli])).toEqual([
+      ["Category: Snacks", "Chips", 1_000],
+      ["Full count", "Loose sugar", -750],
+    ]);
+    expect(report.rows[1]).toMatchObject({
+      expectedMilli: 25_000,
+      countedMilli: 24_250,
+      valuePaisa: -10_750,
+    });
+  });
+
+  it("values at the cost frozen when posted, not today's cost", () => {
+    const { sugar } = seedTwoCounts();
+    const before = service.stocktakeVariance({ range: all, stocktakeId: null });
+
+    kit.database.db
+      .update(products)
+      .set({ costPaisa: 99_999 })
+      .where(eq(products.id, sugar.id))
+      .run();
+
+    expect(service.stocktakeVariance({ range: all, stocktakeId: null })).toEqual(before);
+  });
+
+  it("filters to one count and leaves out counts outside the range", () => {
+    const { full, category } = seedTwoCounts();
+
+    expect(
+      service.stocktakeVariance({ range: all, stocktakeId: full }).rows.map((row) => row.product),
+    ).toEqual(["Loose sugar"]);
+    expect(
+      service.stocktakeVariance({ range: range("2026-11-04"), stocktakeId: null }).rows,
+    ).toHaveLength(1);
+    expect(
+      service.stocktakeVariance({ range: range("2026-11-04"), stocktakeId: full }),
+    ).toMatchObject({ countCount: 0, rows: [] });
+    expect(
+      service.stocktakeVariance({ range: range("2026-11-05", "2026-11-07"), stocktakeId: category })
+        .rows,
+    ).toEqual([]);
+  });
+
+  it("leaves out open and cancelled counts and zero-variance lines", () => {
+    stocked("Tea", 12_000);
+    at("2026-11-03T10:05:00.000Z");
+    const open = stocktake.start({ scope: "full" });
+    if (!open.ok) throw new Error("start refused");
+    const lines = stocktake.lines({
+      stocktakeId: open.stocktake.id,
+      query: "",
+      limit: 10,
+      offset: 0,
+    });
+    if (!lines.ok) throw new Error("lines refused");
+    stocktake.record({
+      stocktakeId: open.stocktake.id,
+      lineId: lines.items[0]?.id ?? "",
+      countedMilli: 1_000,
+    });
+
+    expect(service.stocktakeVariance({ range: all, stocktakeId: null })).toMatchObject({
+      countCount: 0,
+      rows: [],
+    });
+
+    stocktake.cancel({ stocktakeId: open.stocktake.id });
+    expect(service.stocktakeVariance({ range: all, stocktakeId: null }).rows).toEqual([]);
+
+    countAndPost({ scope: "full" }, { Tea: 12_000 });
+    expect(service.stocktakeVariance({ range: all, stocktakeId: null })).toMatchObject({
+      countCount: 1,
+      rows: [],
+      totals: { valuePaisa: 0 },
+    });
+  });
+
+  it("lists only posted counts in range, newest first, with their labels", () => {
+    const { full, category } = seedTwoCounts();
+    stocktake.start({ scope: "full" });
+
+    expect(service.postedStocktakes(all)).toEqual({
+      items: [
+        { id: category, postedAt: "2026-11-04T10:05:00.000Z", label: "Category: Snacks" },
+        { id: full, postedAt: "2026-11-03T10:05:00.000Z", label: "Full count" },
+      ],
+    });
+    expect(service.postedStocktakes(range("2026-11-05")).items).toEqual([]);
+  });
+
+  it("refuses when signed out", async () => {
+    kit.sessions.end();
+
+    expect(() => service.postedStocktakes(all)).toThrow(UnauthenticatedError);
+    expect(() => service.stocktakeVariance({ range: all, stocktakeId: null })).toThrow(
+      UnauthenticatedError,
+    );
+    await expect(
+      service.exportStocktakeVariance({ range: all, stocktakeId: null, format: "csv" }),
+    ).rejects.toThrow(UnauthenticatedError);
+  });
+
+  it("exports with the range, or the range and the count, as the PDF reference", async () => {
+    const { full } = seedTwoCounts();
+
+    await service.exportStocktakeVariance({ range: all, stocktakeId: null, format: "pdf" });
+    await service.exportStocktakeVariance({ range: all, stocktakeId: full, format: "pdf" });
+    await service.exportStocktakeVariance({ range: all, stocktakeId: full, format: "csv" });
+
+    expect(toPdf.mock.calls.map((call) => call[0].reference)).toEqual([
+      "1 Nov 2026 – 7 Nov 2026",
+      "1 Nov 2026 – 7 Nov 2026 · 3 Nov 2026, 3:05 pm · Full count",
+    ]);
+    const lines = readFileSync(
+      join(kit.dir, "stocktake-variance-2026-11-01-to-2026-11-07.csv"),
+      "utf8",
+    )
+      .slice(1)
+      .split("\r\n");
+    expect(lines[0]).toBe("Posted,Count,Product,Unit,Expected,Counted,Variance,Value");
+    expect(lines[1]).toBe("2026-11-03 15:05,Full count,Loose sugar,kg,25,24.25,-0.75,-107.50");
+    expect(lines[2]).toBe("Total,,,,,,,-107.50");
   });
 });
