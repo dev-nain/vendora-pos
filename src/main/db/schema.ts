@@ -714,6 +714,8 @@ export const saleLines = sqliteTable(
     refundedLineId: text("refunded_line_id"),
     barcode: text("barcode"),
     packQtyMilli: integer("pack_qty_milli").notNull().default(1000),
+    categoryId: text("category_id").references(() => categories.id),
+    categoryName: text("category_name"),
     createdAt: createdAt(),
   },
   (t) => {

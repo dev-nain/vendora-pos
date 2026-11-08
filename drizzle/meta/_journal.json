@@ -169,6 +169,13 @@
       "when": 1794074412551,
       "tag": "0023_purchase_returns",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1794075967061,
+      "tag": "0024_sale_line_category",
+      "breakpoints": true
     }
   ]
 }
