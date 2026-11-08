@@ -1,7 +1,16 @@
+import { randomUUID } from "node:crypto";
 import { readdir, stat } from "node:fs/promises";
-import { join } from "node:path";
-import { backupFileNameSchema, type BackupFile, type BackupKind } from "../../shared/backup";
+import { basename, join } from "node:path";
+import {
+  backupFileNameSchema,
+  type BackupFile,
+  type BackupKind,
+  type ChosenBackup,
+  type RestoreInput,
+  type RestoreResult,
+} from "../../shared/backup";
 import { isEncryptedBackup } from "./backup-cipher";
+import type { RestoreSource } from "./restore";
 
 const kindByPrefix: Record<string, BackupKind> = {
   vendora: "backup",
@@ -44,4 +53,49 @@ export async function listBackupFiles(backupDir: string): Promise<BackupFile[]> 
   return found
     .filter((file): file is BackupFile => file !== null)
     .toSorted((a, b) => b.takenAt.localeCompare(a.takenAt));
+}
+
+export async function describePickedFile(
+  file: string,
+): Promise<{ fileName: string; takenAt: string; encrypted: boolean }> {
+  const fileName = basename(file);
+  const takenAt = parseBackupName(fileName)?.takenAt ?? (await stat(file)).mtime.toISOString();
+  return { fileName, takenAt, encrypted: await isEncryptedBackup(file) };
+}
+
+export function createRestoreSources(backupDir: string) {
+  let chosen: { token: string; source: RestoreSource } | null = null;
+
+  async function register(file: string): Promise<NonNullable<ChosenBackup>> {
+    const described = await describePickedFile(file);
+    const token = randomUUID();
+    chosen = {
+      token,
+      source: { file, fileName: described.fileName, takenAt: described.takenAt },
+    };
+    return { token, ...described };
+  }
+
+  async function resolve(input: RestoreInput): Promise<RestoreSource | null> {
+    if (input.kind === "picked") {
+      const slot = chosen;
+      chosen = null;
+      return slot && slot.token === input.token ? slot.source : null;
+    }
+    const fileName = basename(input.fileName);
+    const listed = (await listBackupFiles(backupDir)).find((file) => file.fileName === fileName);
+    return listed ? { file: join(backupDir, fileName), fileName, takenAt: listed.takenAt } : null;
+  }
+
+  function keepForRetry(input: RestoreInput, source: RestoreSource, result: RestoreResult): void {
+    if (
+      input.kind === "picked" &&
+      !result.ok &&
+      (result.reason === "password-required" || result.reason === "wrong-password")
+    ) {
+      chosen = { token: input.token, source };
+    }
+  }
+
+  return { register, resolve, keepForRetry };
 }
