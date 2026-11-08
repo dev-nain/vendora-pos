@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent, type RefObject } from "react";
 
-import type { RestoreInput, RestoreRefusal } from "@shared/backup";
+import type { RestoreInput, RestoreRefusal, RestoreResult } from "@shared/backup";
 import { Button } from "@renderer/components/ui/button";
 import {
   Dialog,
@@ -28,11 +28,18 @@ interface RestoreDialogProps {
   open: boolean;
   finalFocus: RefObject<HTMLElement | null>;
   onOpenChange: (open: boolean) => void;
+  restore: (input: RestoreInput) => Promise<RestoreResult>;
+  description: string;
+  retryable?: ReadonlySet<RestoreRefusal>;
   onRefused: () => void;
-  onSessionEnded: () => void;
+  onSessionEnded?: (() => void) | undefined;
 }
 
-const retryable = new Set<RestoreRefusal>(["backup-failed", "wrong-password", "password-required"]);
+export const defaultRetryable: ReadonlySet<RestoreRefusal> = new Set([
+  "backup-failed",
+  "wrong-password",
+  "password-required",
+]);
 
 interface Refusal {
   reason: RestoreRefusal;
@@ -41,11 +48,18 @@ interface Refusal {
 
 function RestoreForm({
   target,
+  restore,
+  description,
+  retryable,
   onClose,
   onRefused,
   onSessionEnded,
   onPendingChange,
-}: Pick<RestoreDialogProps, "target" | "onRefused" | "onSessionEnded"> & {
+}: Pick<
+  RestoreDialogProps,
+  "target" | "restore" | "description" | "onRefused" | "onSessionEnded"
+> & {
+  retryable: ReadonlySet<RestoreRefusal>;
   onClose: () => void;
   onPendingChange: (pending: boolean) => void;
 }) {
@@ -76,7 +90,7 @@ function RestoreForm({
     const sent = password;
     setPassword("");
     try {
-      const result = await window.vendora.backup.restore(
+      const result = await restore(
         target.encrypted ? { ...target.input, password: sent } : target.input,
       );
       if (result.ok) return;
@@ -84,7 +98,7 @@ function RestoreForm({
       if (retryable.has(result.reason)) focusPassword();
       else if (result.reason !== "backup-failed") onRefused();
     } catch (cause) {
-      if (isSessionError(cause)) {
+      if (onSessionEnded && isSessionError(cause)) {
         onSessionEnded();
         return;
       }
@@ -102,8 +116,7 @@ function RestoreForm({
       <DialogHeader>
         <DialogTitle>Restore backup from {formatDateTime(target.takenAt)}?</DialogTitle>
         <DialogDescription>
-          This replaces all current data with this backup. Your current data is backed up first, and
-          Vendora restarts when it's done.
+          {description}
           {target.encrypted
             ? " This backup has a password. Enter the password it was made with."
             : ""}
@@ -155,6 +168,9 @@ export function RestoreDialog({
   open,
   finalFocus,
   onOpenChange,
+  restore,
+  description,
+  retryable = defaultRetryable,
   onRefused,
   onSessionEnded,
 }: RestoreDialogProps) {
@@ -170,6 +186,9 @@ export function RestoreDialog({
       <DialogContent finalFocus={finalFocus}>
         <RestoreForm
           target={target}
+          restore={restore}
+          description={description}
+          retryable={retryable}
           onClose={() => onOpenChange(false)}
           onRefused={onRefused}
           onSessionEnded={onSessionEnded}
