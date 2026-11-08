@@ -689,11 +689,6 @@ export function registerIpcHandlers({
   handle(ipcChannels.invoicesPrint, async (_event, input) =>
     printInvoiceResultSchema.parse(await saleInvoices.print(saleIdInputSchema.parse(input))),
   );
-  handle(ipcChannels.goodsReceivedPost, (_event, input) =>
-    postGoodsReceivedResultSchema.parse(
-      goodsReceived.post(postGoodsReceivedInputSchema.parse(input)),
-    ),
-  );
   handle(ipcChannels.reportsSalesByDay, (_event, input) =>
     salesByDayResultSchema.parse(reports.salesByDay(reportRangeSchema.parse(input))),
   );
