@@ -176,6 +176,20 @@ import type {
 } from "./reports";
 import type { GetOrderResult, OrderSummary, SalesListQuery } from "./sales";
 import type {
+  ExportTodayReportInput,
+  LowStockReportResult,
+  NegativeStockReportResult,
+  PostedStocktakesResult,
+  PurchasesBySupplierResult,
+  StockMovementsExportInput,
+  StockMovementsReportInput,
+  StockMovementsReportResult,
+  StockOnHandResult,
+  StocktakeVarianceExportInput,
+  StocktakeVarianceReportInput,
+  StocktakeVarianceResult,
+} from "./stock-reports";
+import type {
   CreateTaxCategoryInput,
   CreateTaxCategoryResult,
   DeleteTaxCategoryResult,
@@ -271,6 +285,19 @@ export const ipcChannels = {
   productsExportCsv: "products:export-csv",
   reportsSalesByDay: "reports:sales-by-day",
   reportsExportSalesByDay: "reports:export-sales-by-day",
+  reportsStockOnHand: "reports:stock-on-hand",
+  reportsLowStock: "reports:low-stock",
+  reportsNegativeStock: "reports:negative-stock",
+  reportsStockMovements: "reports:stock-movements",
+  reportsPurchasesBySupplier: "reports:purchases-by-supplier",
+  reportsPostedStocktakes: "reports:posted-stocktakes",
+  reportsStocktakeVariance: "reports:stocktake-variance",
+  reportsExportStockOnHand: "reports:export-stock-on-hand",
+  reportsExportLowStock: "reports:export-low-stock",
+  reportsExportNegativeStock: "reports:export-negative-stock",
+  reportsExportStockMovements: "reports:export-stock-movements",
+  reportsExportPurchasesBySupplier: "reports:export-purchases-by-supplier",
+  reportsExportStocktakeVariance: "reports:export-stocktake-variance",
   reportsGrossProfitByProduct: "reports:gross-profit-by-product",
   reportsExportGrossProfitByProduct: "reports:export-gross-profit-by-product",
   reportsGrossProfitByCategory: "reports:gross-profit-by-category",
@@ -494,6 +521,19 @@ export interface VendoraApi {
   reports: {
     salesByDay: (range: ReportRange) => Promise<SalesByDayResult>;
     exportSalesByDay: (input: ExportReportInput) => Promise<ExportReportResult>;
+    stockOnHand: () => Promise<StockOnHandResult>;
+    lowStock: () => Promise<LowStockReportResult>;
+    negativeStock: () => Promise<NegativeStockReportResult>;
+    stockMovements: (input: StockMovementsReportInput) => Promise<StockMovementsReportResult>;
+    purchasesBySupplier: (range: ReportRange) => Promise<PurchasesBySupplierResult>;
+    postedStocktakes: (range: ReportRange) => Promise<PostedStocktakesResult>;
+    stocktakeVariance: (input: StocktakeVarianceReportInput) => Promise<StocktakeVarianceResult>;
+    exportStockOnHand: (input: ExportTodayReportInput) => Promise<ExportReportResult>;
+    exportLowStock: (input: ExportTodayReportInput) => Promise<ExportReportResult>;
+    exportNegativeStock: (input: ExportTodayReportInput) => Promise<ExportReportResult>;
+    exportStockMovements: (input: StockMovementsExportInput) => Promise<ExportReportResult>;
+    exportPurchasesBySupplier: (input: ExportReportInput) => Promise<ExportReportResult>;
+    exportStocktakeVariance: (input: StocktakeVarianceExportInput) => Promise<ExportReportResult>;
     grossProfitByProduct: (range: ReportRange) => Promise<GrossProfitByProductResult>;
     exportGrossProfitByProduct: (input: ExportReportInput) => Promise<ExportReportResult>;
     grossProfitByCategory: (range: ReportRange) => Promise<GrossProfitByCategoryResult>;

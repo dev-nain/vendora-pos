@@ -72,10 +72,10 @@ vi.mock("electron", () => ({
   },
 }));
 
-const invoke = async (channel: string, input?: unknown) => {
+const invoke = async (channel: string, ...args: unknown[]) => {
   const handler = handlers.get(channel);
   if (!handler) throw new Error(`no handler for ${channel}`);
-  return handler({}, input);
+  return handler({}, ...args);
 };
 
 const goodBackupName = "vendora-2026-11-06T12-30-00-123Z.db";
@@ -2088,6 +2088,12 @@ describe("recovery ipc", () => {
   });
 });
 
+const saved = (stem: string, extension: string) => ({
+  ok: true,
+  status: "saved",
+  path: expect.stringMatching(new RegExp(`${stem}.*\\.${extension}$`)),
+});
+
 describe("reports ipc", () => {
   let kit: CheckoutKit;
   let service: ReportsService;
@@ -2282,5 +2288,136 @@ describe("reports ipc", () => {
     await expect(
       invoke("reports:export-sales-tax-summary", { range, format: "pdf" }),
     ).rejects.toThrow(new Error(ipcErrorMessages.unauthenticated));
+  });
+
+  describe("stock and purchasing reports", () => {
+    const productId = unknownId;
+    const stocktakeId = unknownId;
+
+    it.each([
+      ["reports:stock-on-hand", "stockOnHand"],
+      ["reports:low-stock", "lowStock"],
+      ["reports:negative-stock", "negativeStock"],
+    ] as const)("%s rejects any payload", async (channel, method) => {
+      const spy = vi.spyOn(service, method);
+      await expect(invoke(channel, {})).rejects.toThrow();
+      await expect(invoke(channel, undefined)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["reports:stock-movements", "stockMovements", { productId: "x", range }],
+      ["reports:stock-movements", "stockMovements", { productId }],
+      ["reports:stock-movements", "stockMovements", { productId, range, extra: 1 }],
+      [
+        "reports:stock-movements",
+        "stockMovements",
+        { productId, range: { from: "2026-11-08", to: "2026-11-07" } },
+      ],
+      ["reports:purchases-by-supplier", "purchasesBySupplier", { ...range, extra: 1 }],
+      [
+        "reports:purchases-by-supplier",
+        "purchasesBySupplier",
+        { from: "2026-11-08", to: "2026-11-07" },
+      ],
+      ["reports:posted-stocktakes", "postedStocktakes", { from: "soon", to: "2026-11-07" }],
+      ["reports:stocktake-variance", "stocktakeVariance", { range }],
+      ["reports:stocktake-variance", "stocktakeVariance", { range, stocktakeId: "x" }],
+      ["reports:stocktake-variance", "stocktakeVariance", { range, stocktakeId, extra: 1 }],
+      ["reports:export-stock-on-hand", "exportStockOnHand", { format: "xlsx" }],
+      ["reports:export-stock-on-hand", "exportStockOnHand", {}],
+      ["reports:export-low-stock", "exportLowStock", { format: "csv", extra: 1 }],
+      ["reports:export-negative-stock", "exportNegativeStock", { format: "doc" }],
+      [
+        "reports:export-stock-movements",
+        "exportStockMovements",
+        { productId: "x", range, format: "csv" },
+      ],
+      ["reports:export-stock-movements", "exportStockMovements", { productId, range }],
+      ["reports:export-purchases-by-supplier", "exportPurchasesBySupplier", { range }],
+      ["reports:export-stocktake-variance", "exportStocktakeVariance", { range, format: "csv" }],
+      [
+        "reports:export-stocktake-variance",
+        "exportStocktakeVariance",
+        { range, stocktakeId: "x", format: "pdf" },
+      ],
+    ] as const)("%s rejects bad input", async (channel, method, input) => {
+      const spy = vi.spyOn(service, method);
+      await expect(invoke(channel, input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("returns each read", async () => {
+      expect(await invoke("reports:stock-on-hand")).toMatchObject({
+        rows: [],
+        totals: { stockValuePaisa: 0 },
+      });
+      expect(await invoke("reports:low-stock")).toMatchObject({ rows: [], totals: {} });
+      expect(await invoke("reports:negative-stock")).toMatchObject({
+        rows: [],
+        totals: { stockValuePaisa: 0 },
+      });
+      expect(await invoke("reports:stock-movements", { productId, range })).toEqual({
+        product: null,
+        openingMilli: 0,
+        closingMilli: 0,
+        rows: [],
+        totals: { valuePaisa: 0 },
+      });
+      expect(await invoke("reports:purchases-by-supplier", range)).toMatchObject({ rows: [] });
+      expect(await invoke("reports:posted-stocktakes", range)).toEqual({ items: [] });
+      expect(
+        await invoke("reports:stocktake-variance", { range, stocktakeId: null }),
+      ).toMatchObject({ countCount: 0, rows: [], totals: { valuePaisa: 0 } });
+    });
+
+    it("exports each report", async () => {
+      expect(await invoke("reports:export-stock-on-hand", { format: "csv" })).toEqual(
+        saved("stock-on-hand", "csv"),
+      );
+      expect(await invoke("reports:export-low-stock", { format: "pdf" })).toEqual(
+        saved("low-stock", "pdf"),
+      );
+      expect(await invoke("reports:export-negative-stock", { format: "csv" })).toEqual(
+        saved("negative-stock", "csv"),
+      );
+      expect(
+        await invoke("reports:export-stock-movements", { productId, range, format: "csv" }),
+      ).toEqual(saved("stock-movements", "csv"));
+      expect(
+        await invoke("reports:export-purchases-by-supplier", { range, format: "csv" }),
+      ).toEqual(saved("purchases-by-supplier", "csv"));
+      expect(
+        await invoke("reports:export-stocktake-variance", {
+          range,
+          stocktakeId: null,
+          format: "pdf",
+        }),
+      ).toEqual(saved("stocktake-variance", "pdf"));
+    });
+
+    it("is refused when signed out", async () => {
+      kit.sessions.end();
+      const requests: [string, unknown?][] = [
+        ["reports:stock-on-hand"],
+        ["reports:low-stock"],
+        ["reports:negative-stock"],
+        ["reports:stock-movements", { productId, range }],
+        ["reports:purchases-by-supplier", range],
+        ["reports:posted-stocktakes", range],
+        ["reports:stocktake-variance", { range, stocktakeId: null }],
+        ["reports:export-stock-on-hand", { format: "csv" }],
+        ["reports:export-low-stock", { format: "csv" }],
+        ["reports:export-negative-stock", { format: "csv" }],
+        ["reports:export-stock-movements", { productId, range, format: "csv" }],
+        ["reports:export-purchases-by-supplier", { range, format: "csv" }],
+        ["reports:export-stocktake-variance", { range, stocktakeId: null, format: "csv" }],
+      ];
+      for (const [channel, ...args] of requests) {
+        await expect(invoke(channel, ...args)).rejects.toThrow(
+          new Error(ipcErrorMessages.unauthenticated),
+        );
+      }
+    });
   });
 });
