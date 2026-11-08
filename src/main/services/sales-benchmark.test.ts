@@ -1,5 +1,7 @@
 import { eq } from "drizzle-orm";
+import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { startBackgroundCheckpoints, type BackgroundCheckpoints } from "../db/checkpointer";
 import { productBarcodes, saleLines } from "../db/schema";
 import { createCheckoutKit, type CheckoutKit } from "./checkout-test-kit";
 import { createSalesService } from "./sales";
@@ -28,6 +30,7 @@ describe("checkout benchmark", () => {
   let kit: CheckoutKit;
   let sales: ReturnType<typeof createSalesService>;
   const productIds: string[] = [];
+  let checkpoints: BackgroundCheckpoints;
 
   beforeAll(() => {
     kit = createCheckoutKit();
@@ -85,9 +88,16 @@ describe("checkout benchmark", () => {
       sessions: kit.sessions,
       stock: createStockService({ database: kit.database, audit: kit.audit }),
     });
+    checkpoints = startBackgroundCheckpoints(
+      kit.database,
+      resolve(process.cwd(), "src/main/db/checkpoint-worker.ts"),
+    );
   }, 180_000);
 
-  afterAll(() => kit.close());
+  afterAll(async () => {
+    await checkpoints.stop();
+    kit.close();
+  });
 
   it("completes a 50-line sale inside the payment-to-print target", () => {
     const draftIds: string[] = [];
