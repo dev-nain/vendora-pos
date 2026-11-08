@@ -16,6 +16,16 @@ export type PurchaseOrderStatus = (typeof purchaseOrderStatuses)[number];
 export const storedPurchaseOrderStatuses = ["draft", "confirmed", "cancelled"] as const;
 export type StoredPurchaseOrderStatus = (typeof storedPurchaseOrderStatuses)[number];
 
+export const purchaseOrderStatusLabels: Record<PurchaseOrderStatus, string> = {
+  draft: "Draft",
+  confirmed: "Confirmed",
+  partly_received: "Partly received",
+  received: "Received",
+  cancelled: "Cancelled",
+};
+
+export const PURCHASE_ORDER_MAX_LINES = 1000;
+
 export const purchaseOrderMessages = {
   notFound: "That purchase order no longer exists. Refresh the list.",
   supplierUnavailable: "That supplier is no longer available.",
@@ -23,6 +33,8 @@ export const purchaseOrderMessages = {
   notEditable: "This purchase order can no longer be changed.",
   notConfirmable: "Only a draft purchase order can be confirmed.",
   notCancellable: "This purchase order can't be cancelled.",
+  pdfFailed: "Couldn't save the PDF. If it's open in another program, close it and try again.",
+  printFailed: "Couldn't print. Check the printer in Windows and try again.",
 } as const;
 
 type OrderedReceived = { orderedQtyMilli: number; receivedQtyMilli: number };
@@ -50,6 +62,16 @@ export function derivePurchaseOrderStatus(
   return "confirmed";
 }
 
+export function isPurchaseOrderEditable(order: {
+  status: PurchaseOrderStatus;
+  lines: readonly { receivedQtyMilli: number }[];
+}): boolean {
+  return (
+    (order.status === "draft" || order.status === "confirmed") &&
+    order.lines.every((line) => line.receivedQtyMilli === 0)
+  );
+}
+
 export function remainingQtyMilli(status: PurchaseOrderStatus, line: OrderedReceived): number {
   if (status === "cancelled") return 0;
   return Math.max(0, line.orderedQtyMilli - line.receivedQtyMilli);
@@ -74,7 +96,10 @@ export const purchaseOrderLineInputSchema = z
 const orderShape = {
   supplierId: z.uuid(),
   notes: textField(500, "Notes are up to 500 characters."),
-  lines: z.array(purchaseOrderLineInputSchema).min(1, "Add at least one line.").max(1000),
+  lines: z
+    .array(purchaseOrderLineInputSchema)
+    .min(1, "Add at least one line.")
+    .max(PURCHASE_ORDER_MAX_LINES),
 };
 
 export const createPurchaseOrderInputSchema = z.strictObject(orderShape);
@@ -148,6 +173,19 @@ export const cancelPurchaseOrderResultSchema = z.union([
   refusal("not-cancellable"),
 ]);
 
+export const savePurchaseOrderPdfResultSchema = z.union([
+  z.strictObject({ ok: z.literal(true), status: z.literal("saved"), path: z.string() }),
+  z.strictObject({ ok: z.literal(true), status: z.literal("cancelled") }),
+  refusal("not-found"),
+  refusal("failed"),
+]);
+
+export const printPurchaseOrderResultSchema = z.union([
+  z.strictObject({ ok: z.literal(true), status: z.enum(["printed", "cancelled"]) }),
+  refusal("not-found"),
+  refusal("failed"),
+]);
+
 export type PurchaseOrderLine = z.infer<typeof purchaseOrderLineSchema>;
 export type PurchaseOrderSummary = z.infer<typeof purchaseOrderSummarySchema>;
 export type PurchaseOrder = z.infer<typeof purchaseOrderSchema>;
@@ -160,3 +198,5 @@ export type CreatePurchaseOrderResult = z.infer<typeof createPurchaseOrderResult
 export type UpdatePurchaseOrderResult = z.infer<typeof updatePurchaseOrderResultSchema>;
 export type ConfirmPurchaseOrderResult = z.infer<typeof confirmPurchaseOrderResultSchema>;
 export type CancelPurchaseOrderResult = z.infer<typeof cancelPurchaseOrderResultSchema>;
+export type SavePurchaseOrderPdfResult = z.infer<typeof savePurchaseOrderPdfResultSchema>;
+export type PrintPurchaseOrderResult = z.infer<typeof printPurchaseOrderResultSchema>;

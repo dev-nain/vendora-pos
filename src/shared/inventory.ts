@@ -14,6 +14,7 @@ const movementTypes = [
   "adjustment",
   "stocktake",
   "damage",
+  "purchase_return",
 ] as const;
 export const movementReasons = ["damage", "expiry", "theft", "correction"] as const;
 export type StockMovementReason = (typeof movementReasons)[number];
@@ -52,6 +53,7 @@ export const lowStockItemSchema = z.strictObject({
   nameUr: z.string().nullable(),
   categoryId: z.string().nullable(),
   unit: productSearchItemSchema.shape.unit,
+  costPaisa: z.int().nonnegative(),
   onHandMilli: z.int(),
   thresholdMilli: z.int().nonnegative(),
   shortfallMilli: z.int().nonnegative(),

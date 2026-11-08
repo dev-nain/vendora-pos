@@ -1,8 +1,11 @@
-import { ChevronLeftIcon, ChevronRightIcon, PackageIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, ClipboardListIcon, PackageIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 
-import type { LowStockResult } from "@shared/inventory";
+import type { LowStockItem, LowStockResult } from "@shared/inventory";
+import { PURCHASE_ORDER_MAX_LINES } from "@shared/purchase-orders";
 import { Button } from "@renderer/components/ui/button";
+import { Checkbox } from "@renderer/components/ui/checkbox";
+import { Kbd } from "@renderer/components/ui/kbd";
 import {
   Select,
   SelectContent,
@@ -20,7 +23,13 @@ import {
 } from "@renderer/components/ui/table";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { ProductNameCell } from "../products/product-cells";
-import { PRODUCT_PAGE_SIZE, pageRangeLabel } from "../products/product-list";
+import { PRODUCT_PAGE_SIZE, isTypingTarget, pageRangeLabel } from "../products/product-list";
+import {
+  pageState,
+  setPage as setPageSelection,
+  toggleOne,
+  type Selection,
+} from "../products/product-selection";
 import { ErrorLine } from "../users/form-parts";
 import { negativeClass, onHandText } from "./stock-format";
 
@@ -28,6 +37,7 @@ const ALL_CATEGORIES = "all";
 
 interface LowStockScreenProps {
   onSessionEnded: () => void;
+  onCreateOrder: (items: LowStockItem[]) => void;
 }
 
 const dash = <span className="text-tertiary">—</span>;
@@ -35,7 +45,7 @@ const dash = <span className="text-tertiary">—</span>;
 const requestKey = (categoryId: string | null, page: number, reloadKey: number): string =>
   JSON.stringify([categoryId, page, reloadKey]);
 
-export function LowStockScreen({ onSessionEnded }: LowStockScreenProps) {
+export function LowStockScreen({ onSessionEnded, onCreateOrder }: LowStockScreenProps) {
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
@@ -44,6 +54,8 @@ export function LowStockScreen({ onSessionEnded }: LowStockScreenProps) {
   const [categories, setCategories] = useState<{ id: string; name: string }[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [selection, setSelection] = useState<Selection<LowStockItem>>(new Map());
+  const [capped, setCapped] = useState(false);
 
   const bodyRef = useRef<HTMLTableSectionElement>(null);
   const requestId = useRef(0);
@@ -90,6 +102,24 @@ export function LowStockScreen({ onSessionEnded }: LowStockScreenProps) {
 
   const items = result?.items ?? [];
 
+  const applySelection = (outcome: { selection: Selection<LowStockItem>; capped: boolean }) => {
+    setSelection(outcome.selection);
+    setCapped(outcome.capped);
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.ctrlKey || event.altKey || event.metaKey || selection.size === 0) return;
+      if (isTypingTarget(event.target)) return;
+      if (event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        onCreateOrder([...selection.values()]);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selection, onCreateOrder]);
+
   const focusRow = (index: number) => {
     setActiveIndex(index);
     const row = bodyRef.current?.querySelectorAll<HTMLElement>("tr")[index];
@@ -113,6 +143,10 @@ export function LowStockScreen({ onSessionEnded }: LowStockScreenProps) {
     if (target !== null) {
       event.preventDefault();
       focusRow(target);
+    } else if (event.key === " ") {
+      event.preventDefault();
+      const item = items[index];
+      if (item) applySelection(toggleOne(selection, item, PURCHASE_ORDER_MAX_LINES));
     }
   };
 
@@ -123,6 +157,7 @@ export function LowStockScreen({ onSessionEnded }: LowStockScreenProps) {
   ];
 
   const total = result?.total ?? 0;
+  const pageSelection = pageState(selection, items);
   const empty =
     categoryId === null
       ? {
@@ -164,6 +199,39 @@ export function LowStockScreen({ onSessionEnded }: LowStockScreenProps) {
           </SelectContent>
         </Select>
       </div>
+      <div className="flex min-h-[var(--height-control-md)] items-center justify-between gap-300">
+        <div className="flex items-center gap-300">
+          {selection.size === 0 ? (
+            <p className="m-0 text-secondary">No products selected</p>
+          ) : (
+            <>
+              <p className="m-0 font-semibold text-foreground tabular-nums">
+                {selection.size} selected
+              </p>
+              <Button
+                variant="ghost"
+                onClick={() => applySelection({ selection: new Map(), capped: false })}
+              >
+                Clear selection
+              </Button>
+            </>
+          )}
+          {capped ? (
+            <p className="m-0 text-secondary">
+              You can order up to {PURCHASE_ORDER_MAX_LINES.toLocaleString("en-US")} products at
+              once.
+            </p>
+          ) : null}
+        </div>
+        <Button
+          disabled={selection.size === 0}
+          onClick={() => onCreateOrder([...selection.values()])}
+        >
+          <ClipboardListIcon aria-hidden="true" size={16} strokeWidth={2} />
+          Create purchase order
+          <Kbd>P</Kbd>
+        </Button>
+      </div>
       {error ? (
         <div className="flex items-center gap-300">
           <ErrorLine>{error}</ErrorLine>
@@ -191,6 +259,7 @@ export function LowStockScreen({ onSessionEnded }: LowStockScreenProps) {
           aria-busy={loadedKey !== requestKey(categoryId, page, reloadKey)}
         >
           <colgroup>
+            <col className="w-[56px]" />
             <col />
             <col className="w-[200px]" />
             <col className="w-[128px]" />
@@ -199,6 +268,19 @@ export function LowStockScreen({ onSessionEnded }: LowStockScreenProps) {
           </colgroup>
           <TableHeader>
             <TableRow>
+              <TableHead className="px-0">
+                <Checkbox
+                  aria-label="Select all on this page"
+                  className="mx-auto"
+                  checked={pageSelection === "all"}
+                  indeterminate={pageSelection === "some"}
+                  onCheckedChange={(checked) =>
+                    applySelection(
+                      setPageSelection(selection, items, checked, PURCHASE_ORDER_MAX_LINES),
+                    )
+                  }
+                />
+              </TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Category</TableHead>
               <TableHead className="text-right">On hand</TableHead>
@@ -214,10 +296,20 @@ export function LowStockScreen({ onSessionEnded }: LowStockScreenProps) {
                   key={item.id}
                   tabIndex={index === activeIndex ? 0 : -1}
                   aria-selected={index === activeIndex}
-                  className="outline-none focus-visible:shadow-focus"
+                  className={`outline-none focus-visible:shadow-focus${selection.has(item.id) ? " bg-surface-selected" : ""}`}
                   onFocus={() => setActiveIndex(index)}
                   onKeyDown={(event) => onRowKeyDown(event, index)}
                 >
+                  <TableCell className="px-0">
+                    <Checkbox
+                      aria-label={`Select ${item.nameEn}`}
+                      className="mx-auto"
+                      checked={selection.has(item.id)}
+                      onCheckedChange={() =>
+                        applySelection(toggleOne(selection, item, PURCHASE_ORDER_MAX_LINES))
+                      }
+                    />
+                  </TableCell>
                   <TableCell className="py-100">
                     <ProductNameCell item={item} />
                   </TableCell>

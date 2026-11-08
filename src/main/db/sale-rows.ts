@@ -80,6 +80,8 @@ export function saleLineRow(input: {
     mrpPaisa: number | null;
     pctCode: string | null;
     isThirdSchedule: boolean;
+    categoryId: string | null;
+    categoryName: string | null;
   };
   taxRateBps: number;
   line: {
@@ -127,6 +129,8 @@ export function saleLineRow(input: {
     refundedLineId: line.refundedLineId,
     barcode: line.barcode,
     packQtyMilli: line.packQtyMilli,
+    categoryId: product.categoryId,
+    categoryName: product.categoryName,
   };
 }
 

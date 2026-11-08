@@ -91,12 +91,16 @@ const paymentHints: Hint[] = [
 const receiptHints: Hint[] = [
   ["Enter", "New bill"],
   ["Ctrl+P", "Print"],
+  ["Ctrl+Shift+P", "Print invoice"],
+  ["Ctrl+Shift+S", "Save invoice PDF"],
   ["Ctrl+L", "Switch user"],
 ];
 
 const receiptAskHints: Hint[] = [
   ["Enter", "Print"],
   ["Esc", "Skip"],
+  ["Ctrl+Shift+P", "Print invoice"],
+  ["Ctrl+Shift+S", "Save invoice PDF"],
   ["Ctrl+L", "Switch user"],
 ];
 

@@ -38,6 +38,7 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, "src/renderer/index.html"),
           receipt: resolve(__dirname, "src/renderer/receipt.html"),
+          document: resolve(__dirname, "src/renderer/document.html"),
         },
       },
     },
