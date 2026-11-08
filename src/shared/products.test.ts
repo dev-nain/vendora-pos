@@ -5,6 +5,8 @@ import {
   bulkUpdateProductsInputSchema,
   barcodeLookupSchema,
   createProductInputSchema,
+  priceUpdateInput,
+  type Product,
   productSearchInputSchema,
   productIdInputSchema,
   updateProductInputSchema,
@@ -212,5 +214,40 @@ describe("bulkUpdateProductsInputSchema", () => {
       change: { kind: "set-price", salePricePaisa: 100 },
     });
     expect(parsed.productIds).toEqual([id]);
+  });
+});
+
+describe("priceUpdateInput", () => {
+  const product: Product = {
+    id: categoryId,
+    nameEn: "Tapal",
+    nameUr: "Tapal Urdu",
+    categoryId,
+    taxCategoryId,
+    brand: "Tapal",
+    unit: "piece",
+    internalCode: "T1",
+    costPaisa: 105000,
+    salePricePaisa: 125000,
+    mrpPaisa: 130000,
+    pctCode: "0902",
+    lowStockThresholdMilli: 5000,
+    isActive: true,
+    barcodes: [
+      { barcode: "8964000000011", packQtyMilli: 1000, salePricePaisa: null },
+      { barcode: "8964000000012", packQtyMilli: 12000, salePricePaisa: 1400000 },
+    ],
+  };
+
+  it("copies every field and replaces only the sale price", () => {
+    const { isActive: _isActive, ...rest } = product;
+    expect(priceUpdateInput(product, 129000)).toEqual({ ...rest, salePricePaisa: 129000 });
+  });
+
+  it("fails the update schema on mrpPaisa when the price is over the MRP", () => {
+    const result = updateProductInputSchema.safeParse(priceUpdateInput(product, 140000));
+    expect(result.success ? [] : result.error.issues.map((issue) => issue.path.join("."))).toEqual([
+      "mrpPaisa",
+    ]);
   });
 });

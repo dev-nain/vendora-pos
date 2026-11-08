@@ -11,6 +11,11 @@ export interface BurstDetector {
   reset(): void;
 }
 
+export function restoreField(field: HTMLInputElement, value: string) {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(field, value);
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 const modifierKeys = new Set(["Shift", "CapsLock", "Control", "Alt", "Meta"]);
 
 export function createBurstDetector(): BurstDetector {
@@ -38,9 +43,4 @@ export function createBurstDetector(): BurstDetector {
       return { startedBurst: false, scan };
     },
   };
-}
-
-export function restoreField(field: HTMLInputElement, value: string): void {
-  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(field, value);
-  field.dispatchEvent(new Event("input", { bubbles: true }));
 }

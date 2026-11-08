@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 
 import {
   Select,
@@ -7,45 +7,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@renderer/components/ui/select";
-import { salesByDayReport, type ReportDefinition } from "./report-definitions";
+import {
+  discountsReturnsVoidsReport,
+  grossProfitByCategoryReport,
+  grossProfitByProductReport,
+  reportDefinitions,
+  salesByDayReport,
+  salesTaxSummaryReport,
+} from "./report-definitions";
 import { ReportView } from "./report-view";
 
 interface ReportsScreenProps {
   onSessionEnded: () => void;
+  onOpenSale?: ((invoiceNo: string) => void) | undefined;
 }
 
-interface ReportEntry {
-  id: string;
-  label: string;
-  render: (picker: ReactNode, onSessionEnded: () => void) => ReactNode;
-}
+const reportItems = reportDefinitions.map((report) => ({ value: report.id, label: report.label }));
 
-function reportEntry<
-  Row extends Record<string, string | number>,
-  Totals extends Record<string, number>,
->(definition: ReportDefinition<Row, Totals>): ReportEntry {
-  return {
-    id: definition.id,
-    label: definition.label,
-    render: (picker, onSessionEnded) => (
-      <ReportView
-        key={definition.id}
-        definition={definition}
-        picker={picker}
-        onSessionEnded={onSessionEnded}
-      />
-    ),
-  };
-}
-
-const entries: readonly [ReportEntry, ...ReportEntry[]] = [reportEntry(salesByDayReport)];
-
-const reportItems = entries.map((entry) => ({ value: entry.id, label: entry.label }));
-
-export function ReportsScreen({ onSessionEnded }: ReportsScreenProps) {
-  const [reportId, setReportId] = useState<string>(entries[0].id);
-  const entry = entries.find((candidate) => candidate.id === reportId);
-  if (!entry) return null;
+export function ReportsScreen({ onSessionEnded, onOpenSale }: ReportsScreenProps) {
+  const [reportId, setReportId] = useState<string>(reportDefinitions[0].id);
 
   const picker = (
     <Select
@@ -68,5 +48,53 @@ export function ReportsScreen({ onSessionEnded }: ReportsScreenProps) {
     </Select>
   );
 
-  return entry.render(picker, onSessionEnded);
+  if (reportId === discountsReturnsVoidsReport.id) {
+    return (
+      <ReportView
+        key={reportId}
+        definition={discountsReturnsVoidsReport}
+        picker={picker}
+        onSessionEnded={onSessionEnded}
+        onOpenSale={onOpenSale}
+      />
+    );
+  }
+  if (reportId === grossProfitByProductReport.id) {
+    return (
+      <ReportView
+        key={reportId}
+        definition={grossProfitByProductReport}
+        picker={picker}
+        onSessionEnded={onSessionEnded}
+      />
+    );
+  }
+  if (reportId === grossProfitByCategoryReport.id) {
+    return (
+      <ReportView
+        key={reportId}
+        definition={grossProfitByCategoryReport}
+        picker={picker}
+        onSessionEnded={onSessionEnded}
+      />
+    );
+  }
+  if (reportId === salesTaxSummaryReport.id) {
+    return (
+      <ReportView
+        key={reportId}
+        definition={salesTaxSummaryReport}
+        picker={picker}
+        onSessionEnded={onSessionEnded}
+      />
+    );
+  }
+  return (
+    <ReportView
+      key={reportId}
+      definition={salesByDayReport}
+      picker={picker}
+      onSessionEnded={onSessionEnded}
+    />
+  );
 }

@@ -7,32 +7,41 @@ import {
   TableHeader,
   TableRow,
 } from "@renderer/components/ui/table";
-import { formatReportCell, isNumericColumn, type ReportColumn } from "@shared/reports";
+import {
+  formatReportCell,
+  isNumericColumn,
+  type ReportCellValue,
+  type ReportColumn,
+  type ReportFooterRow,
+} from "@shared/reports";
 import { negativeClass } from "../inventory/stock-format";
 
-interface ReportTableProps<Row extends Record<string, string | number>> {
+interface ReportTableProps<Row extends Record<string, ReportCellValue>> {
   label: string;
   busy: boolean;
   columns: ReportColumn<Row>[];
   rows: Row[];
-  offset: number;
-  totals: Record<string, number>;
+  rowKey?: Extract<keyof Row, string>;
+  totals?: Record<string, number | null> | null;
+  footer?: ReportFooterRow[];
+  onOpenSale?: ((invoiceNo: string) => void) | undefined;
 }
 
-const cellClass = <Row,>(column: ReportColumn<Row>, value: string | number) =>
+const cellClass = <Row,>(column: ReportColumn<Row>, value: ReportCellValue) =>
   `px-200 whitespace-nowrap ${
-    isNumericColumn(column) ? "text-right tabular-nums" : column.format === "text" ? "truncate" : ""
+    isNumericColumn(column) ? "text-right tabular-nums" : ""
   } ${typeof value === "number" ? negativeClass(value) : ""}`;
 
-export function ReportTable<Row extends Record<string, string | number>>({
+export function ReportTable<Row extends Record<string, ReportCellValue>>({
   label,
   busy,
   columns,
   rows,
-  offset,
+  rowKey,
   totals,
+  footer = [],
+  onOpenSale,
 }: ReportTableProps<Row>) {
-  const hasTotals = Object.keys(totals).length > 0;
   return (
     <Table
       className="table-fixed"
@@ -64,25 +73,34 @@ export function ReportTable<Row extends Record<string, string | number>>({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {rows.map((row, index) => (
-          <TableRow key={offset + index}>
+        {rows.map((row, rowIndex) => (
+          <TableRow key={rowKey ? String(row[rowKey]) : rowIndex}>
             {columns.map((column) => {
-              const value = row[column.key] ?? "";
+              const value = row[column.key] ?? null;
               const text = formatReportCell(column, value, row);
+              const invoiceNo =
+                column.format === "invoice" ? String(row[column.linkKey ?? column.key] ?? "") : "";
               return (
-                <TableCell
-                  key={column.key}
-                  className={cellClass(column, value)}
-                  title={column.format === "text" ? text : undefined}
-                >
-                  {text}
+                <TableCell key={column.key} className={cellClass(column, value)}>
+                  {invoiceNo !== "" && onOpenSale ? (
+                    <button
+                      type="button"
+                      aria-label={`Open bill ${invoiceNo} on the Orders screen`}
+                      className="-mx-100 min-h-[var(--height-control-md)] rounded-100 px-100 text-[color:var(--color-text-link)] outline-none hover:underline focus-visible:shadow-focus"
+                      onClick={() => onOpenSale(invoiceNo)}
+                    >
+                      {text}
+                    </button>
+                  ) : (
+                    text
+                  )}
                 </TableCell>
               );
             })}
           </TableRow>
         ))}
       </TableBody>
-      {hasTotals ? (
+      {totals ? (
         <TableFooter>
           <TableRow>
             {columns.map((column, index) => {
@@ -92,7 +110,7 @@ export function ReportTable<Row extends Record<string, string | number>>({
                   key={column.key}
                   className={`sticky bottom-0 bg-surface-secondary font-semibold ${cellClass(
                     column,
-                    value ?? "",
+                    value ?? null,
                   )}`}
                 >
                   {index === 0
@@ -104,6 +122,25 @@ export function ReportTable<Row extends Record<string, string | number>>({
               );
             })}
           </TableRow>
+          {footer.map((entry) => (
+            <TableRow key={entry.label}>
+              {columns.map((column, index) => {
+                const value = entry.values[column.key];
+                return (
+                  <TableCell
+                    key={column.key}
+                    className={`sticky bottom-0 bg-surface-secondary ${cellClass(column, value ?? null)}`}
+                  >
+                    {index === 0
+                      ? entry.label
+                      : value === undefined
+                        ? ""
+                        : formatReportCell(column, value)}
+                  </TableCell>
+                );
+              })}
+            </TableRow>
+          ))}
         </TableFooter>
       ) : null}
     </Table>

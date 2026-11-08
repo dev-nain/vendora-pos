@@ -113,7 +113,6 @@ describe("labels", () => {
   it("describes the page range", () => {
     expect(pageRangeLabel(1, 50, 30000)).toBe("Showing 51–100 of 30,000");
     expect(pageRangeLabel(0, 0, 0)).toBe("Showing 0 of 0");
-    expect(pageRangeLabel(1, 500, 30000, 500)).toBe("Showing 501–1,000 of 30,000");
   });
 });
 

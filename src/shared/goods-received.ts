@@ -130,6 +130,28 @@ export const goodsReceivedLastCostResultSchema = z.strictObject({
   unitCostPaisa: z.int().nullable(),
 });
 
+export const lowMarginItemSchema = z.strictObject({
+  productId: z.string(),
+  nameEn: z.string(),
+  nameUr: z.string().nullable(),
+  unit: z.enum(productUnits),
+  costPaisa: z.int(),
+  salePricePaisa: z.int(),
+  mrpPaisa: z.int().nullable(),
+  marginBps: z.int().nullable(),
+});
+
+export const lowMarginResultSchema = z.union([
+  z.strictObject({
+    ok: z.literal(true),
+    thresholdBps: z.int().nullable(),
+    items: z.array(lowMarginItemSchema),
+  }),
+  refusal("not-found"),
+]);
+
+export type LowMarginItem = z.infer<typeof lowMarginItemSchema>;
+export type LowMarginResult = z.infer<typeof lowMarginResultSchema>;
 export type GoodsReceivedLine = z.infer<typeof goodsReceivedLineSchema>;
 export type GoodsReceivedNote = z.infer<typeof goodsReceivedNoteSchema>;
 export type PostGoodsReceivedInput = z.input<typeof postGoodsReceivedInputSchema>;

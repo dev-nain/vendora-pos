@@ -17,13 +17,15 @@ import {
   users,
 } from "./db/schema";
 import { seedStoreAndTerminal } from "./db/seed";
-import { registerIpcHandlers } from "./ipc";
+import { registerIpcHandlers, registerStartupHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
+import { createRecoveryService } from "./services/recovery";
 import { createBackupSettingsService } from "./services/backup-settings";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createProductsService, type ProductsService } from "./services/products";
 import { createCheckoutKit, type CheckoutKit } from "./services/checkout-test-kit";
 import { createSalesService, type SalesService } from "./services/sales";
+import { createSettingsService, type SettingsService } from "./services/settings";
 import {
   createPurchaseOrderDocumentsService,
   type PurchaseOrderDocumentsService,
@@ -33,6 +35,7 @@ import {
   type PurchaseOrdersService,
 } from "./services/purchase-orders";
 import { createReportsService, type ReportsService } from "./services/reports";
+import { createSaleInvoicesService, type SaleInvoicesService } from "./services/sale-invoices";
 import { createShiftsService, type ShiftsService } from "./services/shifts";
 import { createSuppliersService, type SuppliersService } from "./services/suppliers";
 import { createGoodsReceivedService, type GoodsReceivedService } from "./services/goods-received";
@@ -62,6 +65,7 @@ vi.mock("electron", () => ({
   app: { getVersion: () => "0.0.0" },
   ipcMain: {
     handle: (channel: string, listener: (event: unknown, ...args: unknown[]) => unknown) => {
+      if (handlers.has(channel)) throw new Error(`second handler for ${channel}`);
       handlers.set(channel, listener);
     },
     on: () => undefined,
@@ -94,15 +98,17 @@ describe("products ipc", () => {
   let dir: string;
   let database: VendoraDatabase;
   let sessions: SessionStore;
-  let service: ProductsService;
-  let suppliersService: SuppliersService;
-  let purchaseOrdersService: PurchaseOrdersService;
-  let goodsReceivedService: GoodsReceivedService;
   let purchaseReturnsService: PurchaseReturnsService;
   let purchaseHistoryService: PurchaseHistoryService;
   let purchaseReturnDocumentsService: PurchaseReturnDocumentsService;
+  let service: ProductsService;
+  let suppliersService: SuppliersService;
+  let purchaseOrdersService: PurchaseOrdersService;
+  let settingsService: SettingsService;
   let purchaseOrderDocumentsService: PurchaseOrderDocumentsService;
+  let saleInvoicesService: SaleInvoicesService;
   const renderer = { toPdf: vi.fn(async () => Buffer.from("%PDF-")), print: vi.fn() };
+  let goodsReceivedService: GoodsReceivedService;
   let exportPath: string | null;
   let categoryId: string;
   let taxCategoryId: string;
@@ -181,6 +187,11 @@ describe("products ipc", () => {
       sessions,
       stock: createStockService({ database, audit: createAuditService(database) }),
     });
+    settingsService = createSettingsService({
+      database,
+      audit: createAuditService(database),
+      sessions,
+    });
     purchaseReturnsService = createPurchaseReturnsService({
       database,
       audit: createAuditService(database),
@@ -201,6 +212,18 @@ describe("products ipc", () => {
       purchaseOrders: purchaseOrdersService,
       renderer,
       chooseSavePath: async () => join(dir, "order.pdf"),
+    });
+    saleInvoicesService = createSaleInvoicesService({
+      database,
+      sessions,
+      renderer,
+      chooseSavePath: async () => join(dir, "invoice.pdf"),
+    });
+    goodsReceivedService = createGoodsReceivedService({
+      database,
+      audit: createAuditService(database),
+      sessions,
+      stock: createStockService({ database, audit: createAuditService(database) }),
     });
     exportPath = join(dir, "catalog.csv");
     const catalogExport = createCatalogExportService({
@@ -229,8 +252,9 @@ describe("products ipc", () => {
       receipts: stub,
       reports: stub,
       returns: stub,
+      saleInvoices: saleInvoicesService,
       sales: stub,
-      settings: stub,
+      settings: settingsService,
       shifts: stub,
       stocktake: stub,
       suppliers: suppliersService,
@@ -431,6 +455,8 @@ describe("products ipc", () => {
       ["goods-received:get", "get", { id: unknownId, extra: 1 }],
       ["goods-received:last-cost", "lastCost", { productId: "x" }],
       ["goods-received:last-cost", "lastCost", {}],
+      ["goods-received:low-margin", "lowMargin", { id: "x" }],
+      ["goods-received:low-margin", "lowMargin", { id: unknownId, extra: 1 }],
     ] as const)("rejects bad %s input before the service runs", async (channel, method, input) => {
       signIn("owner");
       const spy = vi.spyOn(goodsReceivedService, method);
@@ -442,6 +468,7 @@ describe("products ipc", () => {
       ["goods-received:list", { limit: 10, offset: 0 }],
       ["goods-received:get", { id: unknownId }],
       ["goods-received:last-cost", { productId: unknownId }],
+      ["goods-received:low-margin", { id: unknownId }],
     ] as const)("refuses %s when signed out", async (channel, input) => {
       sessions.end();
       await expect(invoke(channel, input)).rejects.toThrow(
@@ -474,6 +501,69 @@ describe("products ipc", () => {
       });
       expect(await invoke("goods-received:last-cost", { productId: product.id })).toEqual({
         unitCostPaisa: 12000,
+      });
+    });
+  });
+
+  describe("margin threshold", () => {
+    it.each([
+      { thresholdBps: 1.5 },
+      { thresholdBps: -1 },
+      { thresholdBps: 10001 },
+      { thresholdBps: "15" },
+      { thresholdBps: 1500, extra: 1 },
+      {},
+    ])("rejects bad input %j before the service runs", async (input) => {
+      signIn("owner");
+      const spy = vi.spyOn(settingsService, "setMarginThreshold");
+      await expect(invoke("settings:set-margin-threshold", input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("refuses both channels when signed out", async () => {
+      const expected = new Error(ipcErrorMessages.unauthenticated);
+      await expect(invoke("settings:get-margin-threshold")).rejects.toThrow(expected);
+      await expect(invoke("settings:set-margin-threshold", { thresholdBps: 1500 })).rejects.toThrow(
+        expected,
+      );
+    });
+
+    it("saves, reads back and turns off", async () => {
+      signIn("owner");
+      expect(await invoke("settings:get-margin-threshold")).toEqual({ thresholdBps: null });
+      expect(await invoke("settings:set-margin-threshold", { thresholdBps: 1500 })).toEqual({
+        thresholdBps: 1500,
+      });
+      expect(await invoke("settings:get-margin-threshold")).toEqual({ thresholdBps: 1500 });
+      expect(await invoke("settings:set-margin-threshold", { thresholdBps: null })).toEqual({
+        thresholdBps: null,
+      });
+    });
+
+    it("returns the parsed low-margin list for a posted note", async () => {
+      signIn("cashier");
+      const product = seedProduct();
+      const created = (await invoke("suppliers:create", {
+        name: "Al-Noor",
+        contactPerson: null,
+        phone: null,
+        ntn: null,
+        notes: null,
+      })) as { supplier: { id: string } };
+      const posted = (await invoke(
+        "goods-received:post",
+        directGrn(created.supplier.id, product.id),
+      )) as { note: { id: string } };
+      await invoke("settings:set-margin-threshold", { thresholdBps: 10000 });
+
+      expect(await invoke("goods-received:low-margin", { id: posted.note.id })).toMatchObject({
+        ok: true,
+        thresholdBps: 10000,
+        items: [{ productId: product.id }],
+      });
+      expect(await invoke("goods-received:low-margin", { id: unknownId })).toMatchObject({
+        ok: false,
+        reason: "not-found",
       });
     });
   });
@@ -652,6 +742,27 @@ describe("products ipc", () => {
       expect(spy).not.toHaveBeenCalled();
     });
 
+    it.each([
+      ["invoices:save-pdf", "savePdf", { saleId: "x" }],
+      ["invoices:save-pdf", "savePdf", { saleId: unknownId, extra: 1 }],
+      ["invoices:print", "print", { saleId: "x" }],
+      ["invoices:print", "print", {}],
+    ] as const)("%s rejects bad input", async (channel, method, input) => {
+      signIn("owner");
+      const spy = vi.spyOn(saleInvoicesService, method);
+      await expect(invoke(channel, input)).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("refuses invoice requests when signed out", async () => {
+      sessions.end();
+      for (const channel of ["invoices:save-pdf", "invoices:print"]) {
+        await expect(invoke(channel, { saleId: unknownId })).rejects.toThrow(
+          new Error(ipcErrorMessages.unauthenticated),
+        );
+      }
+    });
+
     it("is refused when signed out", async () => {
       sessions.end();
       const requests: [string, unknown][] = [
@@ -810,6 +921,7 @@ describe("shifts ipc", () => {
       receipts: receipts as never,
       reports: stub,
       returns: stub,
+      saleInvoices: stub,
       sales: stub,
       settings: stub,
       shifts: service,
@@ -972,6 +1084,7 @@ describe("checkout ipc", () => {
       receipts: receipts as never,
       reports: stub,
       returns: kit.returns,
+      saleInvoices: stub,
       sales,
       settings: stub,
       shifts: kit.shifts,
@@ -1219,11 +1332,15 @@ describe("backup settings ipc", () => {
       goodsReceived: stub,
       inventory: stub,
       products: stub,
+      purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
+      purchaseReturns: stub,
       receipts: stub,
       reports: stub,
       returns: stub,
+      saleInvoices: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
@@ -1231,9 +1348,6 @@ describe("backup settings ipc", () => {
       suppliers: stub,
       taxCategories: stub,
       users: stub,
-      purchaseHistory: stub,
-      purchaseReturnDocuments: stub,
-      purchaseReturns: stub,
     });
   });
 
@@ -1272,11 +1386,15 @@ describe("backup ipc", () => {
       goodsReceived: stub,
       inventory: stub,
       products: stub,
+      purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
+      purchaseReturns: stub,
       receipts: stub,
       reports: stub,
       returns: stub,
+      saleInvoices: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
@@ -1284,9 +1402,6 @@ describe("backup ipc", () => {
       suppliers: stub,
       taxCategories: stub,
       users: stub,
-      purchaseHistory: stub,
-      purchaseReturnDocuments: stub,
-      purchaseReturns: stub,
     });
   });
 
@@ -1355,11 +1470,15 @@ describe("backup password ipc", () => {
       goodsReceived: stub,
       inventory: stub,
       products: stub,
+      purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
+      purchaseReturns: stub,
       receipts: stub,
       reports: stub,
       returns: stub,
+      saleInvoices: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
@@ -1367,9 +1486,6 @@ describe("backup password ipc", () => {
       suppliers: stub,
       taxCategories: stub,
       users: stub,
-      purchaseHistory: stub,
-      purchaseReturnDocuments: stub,
-      purchaseReturns: stub,
     });
   });
 
@@ -1453,6 +1569,7 @@ describe("inventory ipc", () => {
       receipts: stub,
       reports: stub,
       returns: stub,
+      saleInvoices: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
@@ -1622,11 +1739,15 @@ describe("audit log ipc", () => {
       goodsReceived: stub,
       inventory: stub,
       products: stub,
+      purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
+      purchaseReturns: stub,
       receipts: stub,
       reports: stub,
       returns: stub,
+      saleInvoices: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
@@ -1634,9 +1755,6 @@ describe("audit log ipc", () => {
       suppliers: stub,
       taxCategories: stub,
       users: stub,
-      purchaseHistory: stub,
-      purchaseReturnDocuments: stub,
-      purchaseReturns: stub,
     });
   });
 
@@ -1718,11 +1836,15 @@ describe("stocktake ipc", () => {
       goodsReceived: stub,
       inventory: stub,
       products: stub,
+      purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
+      purchaseReturns: stub,
       receipts: stub,
       reports: stub,
       returns: stub,
+      saleInvoices: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
@@ -1730,9 +1852,6 @@ describe("stocktake ipc", () => {
       suppliers: stub,
       taxCategories: stub,
       users: stub,
-      purchaseHistory: stub,
-      purchaseReturnDocuments: stub,
-      purchaseReturns: stub,
     });
     userId = kit.signIn("cashier").id;
   });
@@ -1909,6 +2028,66 @@ describe("stocktake ipc", () => {
   });
 });
 
+const buildRecovery = (state: Parameters<typeof createRecoveryService>[0]["state"]) => {
+  const restore = vi.fn();
+  const relaunch = vi.fn();
+  registerStartupHandlers(
+    createRecoveryService({
+      state,
+      backupDir: join(tmpdir(), "vendora-no-backups"),
+      migrationsFolder: join(process.cwd(), "drizzle"),
+      chooseFile: async () => null,
+      restores: { restore },
+      relaunch,
+    }),
+  );
+  return { restore, relaunch };
+};
+
+describe("recovery ipc", () => {
+  beforeEach(() => {
+    handlers.clear();
+  });
+
+  it("answers app info and the startup state in any mode", async () => {
+    buildRecovery({ mode: "normal" });
+
+    expect(await invoke("app:get-info")).toEqual({ version: "0.0.0" });
+    expect(await invoke("startup:state")).toEqual({ mode: "normal" });
+  });
+
+  it.each([
+    ["recovery:scan", undefined],
+    ["recovery:choose-file", undefined],
+    ["recovery:restore", { kind: "listed", fileName: goodBackupName }],
+    ["recovery:retry", undefined],
+  ])("refuses %s outside recovery mode", async (channel, input) => {
+    const { restore, relaunch } = buildRecovery({ mode: "normal" });
+
+    await expect(invoke(channel, input)).rejects.toThrow(
+      new Error(ipcErrorMessages.recoveryUnavailable),
+    );
+    expect(restore).not.toHaveBeenCalled();
+    expect(relaunch).not.toHaveBeenCalled();
+  });
+
+  it("parses the restore input before the service runs", async () => {
+    const { restore } = buildRecovery({ mode: "damaged" });
+
+    await expect(
+      invoke("recovery:restore", { kind: "listed", fileName: "../x.db" }),
+    ).rejects.toThrow();
+    await expect(invoke("recovery:restore", { kind: "picked", token: "nope" })).rejects.toThrow();
+    expect(restore).not.toHaveBeenCalled();
+  });
+
+  it("scans in recovery mode", async () => {
+    buildRecovery({ mode: "damaged" });
+
+    expect(await invoke("recovery:scan")).toEqual({ backups: [], lastGood: null });
+  });
+});
+
 const saved = (stem: string, extension: string) => ({
   ok: true,
   status: "saved",
@@ -1942,11 +2121,15 @@ describe("reports ipc", () => {
       goodsReceived: stub,
       inventory: stub,
       products: stub,
+      purchaseHistory: stub,
       purchaseOrderDocuments: stub,
       purchaseOrders: stub,
+      purchaseReturnDocuments: stub,
+      purchaseReturns: stub,
       receipts: stub,
       reports: service,
       returns: stub,
+      saleInvoices: stub,
       sales: stub,
       settings: stub,
       shifts: stub,
@@ -1954,9 +2137,6 @@ describe("reports ipc", () => {
       suppliers: stub,
       taxCategories: stub,
       users: stub,
-      purchaseHistory: stub,
-      purchaseReturnDocuments: stub,
-      purchaseReturns: stub,
     });
     kit.signIn("cashier");
   });
@@ -1978,6 +2158,56 @@ describe("reports ipc", () => {
       { range: { from: "2026-11-08", to: "2026-11-07" }, format: "pdf" },
     ],
     ["reports:export-sales-by-day", "exportSalesByDay", { range }],
+    [
+      "reports:gross-profit-by-product",
+      "grossProfitByProduct",
+      { from: "2026-13-01", to: range.to },
+    ],
+    ["reports:gross-profit-by-product", "grossProfitByProduct", { ...range, extra: 1 }],
+    [
+      "reports:gross-profit-by-category",
+      "grossProfitByCategory",
+      { from: range.to, to: range.from },
+    ],
+    ["reports:gross-profit-by-category", "grossProfitByCategory", { ...range, extra: 1 }],
+    [
+      "reports:export-gross-profit-by-product",
+      "exportGrossProfitByProduct",
+      { range, format: "xlsx" },
+    ],
+    ["reports:export-gross-profit-by-product", "exportGrossProfitByProduct", { range }],
+    [
+      "reports:export-gross-profit-by-category",
+      "exportGrossProfitByCategory",
+      { range, format: "csv", extra: 1 },
+    ],
+    ["reports:export-gross-profit-by-category", "exportGrossProfitByCategory", { range }],
+    [
+      "reports:discounts-returns-voids",
+      "discountsReturnsVoids",
+      { from: "2026-11-08", to: "2026-11-07" },
+    ],
+    ["reports:discounts-returns-voids", "discountsReturnsVoids", { ...range, extra: 1 }],
+    [
+      "reports:export-discounts-returns-voids",
+      "exportDiscountsReturnsVoids",
+      { range, format: "xlsx" },
+    ],
+    [
+      "reports:export-discounts-returns-voids",
+      "exportDiscountsReturnsVoids",
+      { range, format: "csv", extra: 1 },
+    ],
+    ["reports:sales-tax-summary", "salesTaxSummary", { from: "2026-13-01", to: "2026-11-07" }],
+    ["reports:sales-tax-summary", "salesTaxSummary", { from: "2026-11-08", to: "2026-11-07" }],
+    ["reports:sales-tax-summary", "salesTaxSummary", { ...range, extra: 1 }],
+    ["reports:export-sales-tax-summary", "exportSalesTaxSummary", { range, format: "xlsx" }],
+    [
+      "reports:export-sales-tax-summary",
+      "exportSalesTaxSummary",
+      { range, format: "csv", extra: 1 },
+    ],
+    ["reports:export-sales-tax-summary", "exportSalesTaxSummary", { range }],
   ] as const)("%s rejects bad input", async (channel, method, input) => {
     const spy = vi.spyOn(service, method);
     await expect(invoke(channel, input)).rejects.toThrow();
@@ -1994,16 +2224,70 @@ describe("reports ipc", () => {
       status: "saved",
       path: join(kit.dir, "sales-by-day-2026-11-01-to-2026-11-07.csv"),
     });
+    expect(await invoke("reports:sales-tax-summary", range)).toEqual({
+      rows: [],
+      totals: { taxablePaisa: 0, taxPaisa: 0, totalPaisa: 0 },
+    });
+    expect(await invoke("reports:export-sales-tax-summary", { range, format: "csv" })).toEqual({
+      ok: true,
+      status: "saved",
+      path: join(kit.dir, "sales-tax-summary-2026-11-01-to-2026-11-07.csv"),
+    });
+  });
+
+  it("returns an empty discounts, returns and voids report and exports it", async () => {
+    expect(await invoke("reports:discounts-returns-voids", range)).toMatchObject({
+      discounts: { billCount: 0, bills: [] },
+      returns: { lineCount: 0, lines: [] },
+      voids: { deletedLines: { count: 0 }, discardedBills: { count: 0 } },
+    });
+    expect(
+      await invoke("reports:export-discounts-returns-voids", { range, format: "csv" }),
+    ).toEqual({
+      ok: true,
+      status: "saved",
+      path: join(kit.dir, "discounts-returns-voids-2026-11-01-to-2026-11-07.csv"),
+    });
+  });
+
+  it.each(["product", "category"])("returns an empty gross profit by %s report", async (by) => {
+    expect(await invoke(`reports:gross-profit-by-${by}`, range)).toMatchObject({
+      rows: [],
+      totals: { netPaisa: 0, marginBps: null },
+      footer: [],
+    });
+    expect(await invoke(`reports:export-gross-profit-by-${by}`, { range, format: "csv" })).toEqual({
+      ok: true,
+      status: "saved",
+      path: join(kit.dir, `gross-profit-by-${by}-2026-11-01-to-2026-11-07.csv`),
+    });
   });
 
   it("is refused when signed out", async () => {
     kit.sessions.end();
+    await expect(invoke("reports:discounts-returns-voids", range)).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
     await expect(invoke("reports:sales-by-day", range)).rejects.toThrow(
       new Error(ipcErrorMessages.unauthenticated),
     );
     await expect(invoke("reports:export-sales-by-day", { range, format: "pdf" })).rejects.toThrow(
       new Error(ipcErrorMessages.unauthenticated),
     );
+    for (const by of ["product", "category"]) {
+      await expect(invoke(`reports:gross-profit-by-${by}`, range)).rejects.toThrow(
+        new Error(ipcErrorMessages.unauthenticated),
+      );
+      await expect(
+        invoke(`reports:export-gross-profit-by-${by}`, { range, format: "pdf" }),
+      ).rejects.toThrow(new Error(ipcErrorMessages.unauthenticated));
+    }
+    await expect(invoke("reports:sales-tax-summary", range)).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
+    await expect(
+      invoke("reports:export-sales-tax-summary", { range, format: "pdf" }),
+    ).rejects.toThrow(new Error(ipcErrorMessages.unauthenticated));
   });
 
   describe("stock and purchasing reports", () => {
