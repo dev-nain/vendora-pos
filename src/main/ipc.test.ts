@@ -65,6 +65,7 @@ vi.mock("electron", () => ({
   app: { getVersion: () => "0.0.0" },
   ipcMain: {
     handle: (channel: string, listener: (event: unknown, ...args: unknown[]) => unknown) => {
+      if (handlers.has(channel)) throw new Error(`second handler for ${channel}`);
       handlers.set(channel, listener);
     },
     on: () => undefined,
