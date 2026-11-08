@@ -23,6 +23,7 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, "src/main/index.ts"),
           "backup-worker": resolve(__dirname, "src/main/backup/backup-worker.ts"),
+          "checkpoint-worker": resolve(__dirname, "src/main/db/checkpoint-worker.ts"),
         },
       },
     },
