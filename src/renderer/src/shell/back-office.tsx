@@ -76,6 +76,7 @@ interface BackOfficeProps {
   currentUserId: string;
   onSessionEnded: () => void;
   focusPrinter?: boolean;
+  onOpenSale: (invoiceNo: string) => void;
   guarded: (go: () => void) => void;
   registerLeaveGuard: (guard: LeaveGuard | null) => void;
 }
@@ -84,6 +85,7 @@ export function BackOffice({
   currentUserId,
   onSessionEnded,
   focusPrinter,
+  onOpenSale,
   guarded,
   registerLeaveGuard,
 }: BackOfficeProps) {
@@ -180,7 +182,7 @@ export function BackOffice({
         ) : page === "suppliers" ? (
           <SuppliersScreen onSessionEnded={onSessionEnded} />
         ) : page === "reports" ? (
-          <ReportsScreen onSessionEnded={onSessionEnded} />
+          <ReportsScreen onSessionEnded={onSessionEnded} onOpenSale={onOpenSale} />
         ) : page === "users" ? (
           <UsersScreen currentUserId={currentUserId} onSessionEnded={onSessionEnded} />
         ) : page === "audit" ? (
