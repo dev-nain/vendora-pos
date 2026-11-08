@@ -101,12 +101,17 @@ export type ReportColumn<Row> = {
   label: string;
   width?: string;
 } & (
-  | { format: "day" | "text" | "count" | "money" | "percent" }
+  | { format: "day" | "text" | "count" | "money" | "time" | "percent" }
+  | { format: "invoice"; linkKey?: Extract<keyof Row, string> }
   | { format: "quantity"; unit: ProductUnit }
+  | { format: "quantity"; unitKey: Extract<keyof Row, string> }
 );
 
 export const isNumericColumn = <Row>(column: ReportColumn<Row>): boolean =>
-  column.format !== "day" && column.format !== "text";
+  column.format !== "day" &&
+  column.format !== "text" &&
+  column.format !== "time" &&
+  column.format !== "invoice";
 
 const MINUS = "−";
 const EMPTY_CELL = "—";
@@ -117,15 +122,46 @@ export function formatPercentBps(bps: number): string {
   return `${bps < 0 ? MINUS : ""}${Math.trunc(magnitude / 100)}.${hundredths}%`;
 }
 
-export function formatReportCell<Row>(column: ReportColumn<Row>, value: ReportCellValue): string {
+const pad = (value: number): string => String(value).padStart(2, "0");
+
+function storeTimeParts(iso: string) {
+  const local = new Date(Date.parse(iso) + storeUtcOffsetMs);
+  return {
+    day: local.toISOString().slice(0, 10),
+    clock: `${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`,
+  };
+}
+
+export function formatStoreTime(iso: string): string {
+  const { day, clock } = storeTimeParts(iso);
+  return `${formatStoreDay(day)}, ${clock}`;
+}
+
+export function formatStoreTimeCsv(iso: string): string {
+  const { day, clock } = storeTimeParts(iso);
+  return `${day} ${clock}`;
+}
+
+export function formatReportCell<Row>(
+  column: ReportColumn<Row>,
+  value: ReportCellValue,
+  row?: Partial<Record<string, ReportCellValue>>,
+): string {
   if (value === null) return EMPTY_CELL;
   switch (column.format) {
     case "day":
       return formatStoreDay(String(value));
+    case "time":
+      return formatStoreTime(String(value));
     case "money":
       return signedRupees(Number(value));
-    case "quantity":
-      return formatQuantity(Number(value), column.unit).replace("-", MINUS);
+    case "quantity": {
+      const unit =
+        "unitKey" in column
+          ? ((row?.[column.unitKey] as ProductUnit | undefined) ?? "piece")
+          : column.unit;
+      return formatQuantity(Number(value), unit).replace("-", MINUS);
+    }
     case "count": {
       const count = Number(value);
       const grouped = String(Math.abs(count)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -134,6 +170,7 @@ export function formatReportCell<Row>(column: ReportColumn<Row>, value: ReportCe
     case "percent":
       return formatPercentBps(Number(value));
     case "text":
+    case "invoice":
       return String(value);
   }
 }
@@ -179,6 +216,29 @@ export const salesByDayColumns: ReportColumn<SalesByDayRow>[] = [
   { key: "taxPaisa", label: "Tax", format: "money", width: "108px" },
   { key: "roundingPaisa", label: "Rounding", format: "money", width: "80px" },
   { key: "totalPaisa", label: "Total", format: "money", width: "136px" },
+];
+
+export const salesTaxSummaryTotalsSchema = z.strictObject({
+  taxablePaisa: countSchema,
+  taxPaisa: countSchema,
+  totalPaisa: countSchema,
+});
+export type SalesTaxSummaryTotals = z.infer<typeof salesTaxSummaryTotalsSchema>;
+
+export const salesTaxSummaryRowSchema = salesTaxSummaryTotalsSchema.extend({ rate: z.string() });
+export type SalesTaxSummaryRow = z.infer<typeof salesTaxSummaryRowSchema>;
+
+export const salesTaxSummaryResultSchema = z.strictObject({
+  rows: z.array(salesTaxSummaryRowSchema),
+  totals: salesTaxSummaryTotalsSchema,
+});
+export type SalesTaxSummaryResult = z.infer<typeof salesTaxSummaryResultSchema>;
+
+export const salesTaxSummaryColumns: ReportColumn<SalesTaxSummaryRow>[] = [
+  { key: "rate", label: "Tax rate", format: "text", width: "340px" },
+  { key: "taxablePaisa", label: "Taxable value", format: "money", width: "232px" },
+  { key: "taxPaisa", label: "Tax", format: "money", width: "232px" },
+  { key: "totalPaisa", label: "Total", format: "money", width: "232px" },
 ];
 
 export const miscItemsLabel = "Misc items (no cost)";

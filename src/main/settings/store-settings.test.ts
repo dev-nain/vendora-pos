@@ -8,6 +8,7 @@ import { stores } from "../db/schema";
 import { seedStoreAndTerminal } from "../db/seed";
 import {
   getCheckoutSettings,
+  getMarginThresholdBps,
   getMiscItemEnabled,
   getScalePrefixes,
   getShiftVarianceWarnPaisa,
@@ -54,6 +55,15 @@ describe("store settings", () => {
     database.db.update(stores).set({ shiftVarianceWarnPaisa: 15000 }).run();
     expect(getShiftVarianceWarnPaisa(database, storeId())).toBe(15000);
     expect(() => getShiftVarianceWarnPaisa(database, "missing")).toThrow("Store not found");
+  });
+
+  it("reads the margin threshold, null when off", () => {
+    runMigrations(database, { migrationsFolder, backupDir });
+    seedStoreAndTerminal(database);
+    expect(getMarginThresholdBps(database.db, storeId())).toBeNull();
+    database.db.update(stores).set({ marginThresholdBps: 2000 }).run();
+    expect(getMarginThresholdBps(database.db, storeId())).toBe(2000);
+    expect(() => getMarginThresholdBps(database.db, "missing")).toThrow("Store not found");
   });
 
   it("reads checkout settings and derives the rounding mode", () => {

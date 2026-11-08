@@ -1,5 +1,11 @@
 import { Menu } from "@base-ui/react/menu";
-import { ArchiveIcon, ArchiveRestoreIcon, EllipsisIcon, PencilIcon } from "lucide-react";
+import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
+  EllipsisIcon,
+  HistoryIcon,
+  PencilIcon,
+} from "lucide-react";
 
 import type { Supplier } from "@shared/suppliers";
 import { Button } from "@renderer/components/ui/button";
@@ -9,10 +15,16 @@ import { itemClasses } from "../products/product-row-menu";
 interface SupplierRowMenuProps {
   supplier: Supplier;
   onEdit: () => void;
+  onHistory: () => void;
   onToggleArchive: () => void;
 }
 
-export function SupplierRowMenu({ supplier, onEdit, onToggleArchive }: SupplierRowMenuProps) {
+export function SupplierRowMenu({
+  supplier,
+  onEdit,
+  onHistory,
+  onToggleArchive,
+}: SupplierRowMenuProps) {
   const ArchiveToggleIcon = supplier.isArchived ? ArchiveRestoreIcon : ArchiveIcon;
   return (
     <Menu.Root>
@@ -35,6 +47,11 @@ export function SupplierRowMenu({ supplier, onEdit, onToggleArchive }: SupplierR
               <PencilIcon aria-hidden="true" size={16} strokeWidth={2} />
               Edit
               <Kbd className="ml-auto">Enter</Kbd>
+            </Menu.Item>
+            <Menu.Item className={itemClasses} onClick={onHistory}>
+              <HistoryIcon aria-hidden="true" size={16} strokeWidth={2} />
+              Purchase history
+              <Kbd className="ml-auto">H</Kbd>
             </Menu.Item>
             <Menu.Item className={itemClasses} onClick={onToggleArchive}>
               <ArchiveToggleIcon aria-hidden="true" size={16} strokeWidth={2} />
