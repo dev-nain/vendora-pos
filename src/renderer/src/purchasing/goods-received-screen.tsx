@@ -32,6 +32,7 @@ import { GrnDetail } from "./grn-detail";
 import type { GrnSource } from "./grn-form";
 import { GrnFormScreen } from "./grn-form-screen";
 import type { LeaveGuard } from "./order-form-screen";
+import { MarginPromptDialog } from "./margin-prompt-dialog";
 import { ReceiveOrderDialog } from "./receive-order-dialog";
 
 const ALL = "all";
@@ -39,7 +40,7 @@ const ALL = "all";
 type View =
   | { kind: "list" }
   | { kind: "form"; source: GrnSource }
-  | { kind: "note"; id: string; status: string | null };
+  | { kind: "note"; id: string; status: string | null; checkMargin: boolean };
 
 interface GoodsReceivedScreenProps {
   registerLeaveGuard: (guard: LeaveGuard | null) => void;
@@ -54,6 +55,21 @@ export function GoodsReceivedScreen({
 }: GoodsReceivedScreenProps) {
   const [view, setView] = useState<View>({ kind: "list" });
   const backToList = useCallback(() => setView({ kind: "list" }), []);
+  const backRef = useRef<HTMLButtonElement>(null);
+  const finishMarginCheck = useCallback((updated: number) => {
+    setView((current) =>
+      current.kind !== "note"
+        ? current
+        : {
+            ...current,
+            checkMargin: false,
+            status:
+              updated > 0
+                ? `${current.status ?? ""} Updated ${updated} ${updated === 1 ? "sale price" : "sale prices"}.`.trim()
+                : current.status,
+          },
+    );
+  }, []);
 
   if (view.kind === "list") {
     return (
@@ -61,7 +77,7 @@ export function GoodsReceivedScreen({
         onSessionEnded={onSessionEnded}
         onDirect={() => setView({ kind: "form", source: { kind: "direct" } })}
         onOrder={(order) => setView({ kind: "form", source: { kind: "order", order } })}
-        onOpen={(id) => setView({ kind: "note", id, status: null })}
+        onOpen={(id) => setView({ kind: "note", id, status: null, checkMargin: false })}
       />
     );
   }
@@ -71,19 +87,32 @@ export function GoodsReceivedScreen({
         source={view.source}
         registerLeaveGuard={registerLeaveGuard}
         onBack={backToList}
-        onPosted={(note) => setView({ kind: "note", id: note.id, status: `Posted ${note.grnNo}.` })}
+        onPosted={(note) =>
+          setView({ kind: "note", id: note.id, status: `Posted ${note.grnNo}.`, checkMargin: true })
+        }
         onSessionEnded={onSessionEnded}
       />
     );
   }
   return (
-    <GrnDetail
-      id={view.id}
-      status={view.status}
-      onBack={backToList}
-      onReturn={onReturn}
-      onSessionEnded={onSessionEnded}
-    />
+    <>
+      <GrnDetail
+        id={view.id}
+        status={view.status}
+        backRef={backRef}
+        onBack={backToList}
+        onReturn={onReturn}
+        onSessionEnded={onSessionEnded}
+      />
+      {view.checkMargin ? (
+        <MarginPromptDialog
+          noteId={view.id}
+          finalFocus={backRef}
+          onDone={finishMarginCheck}
+          onSessionEnded={onSessionEnded}
+        />
+      ) : null}
+    </>
   );
 }
 

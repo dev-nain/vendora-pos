@@ -67,7 +67,14 @@ export const stockOnHandColumns: ReportColumn<StockOnHandRow>[] = [
   { key: "product", label: "Product", format: "text", width: "340px" },
   { key: "category", label: "Category", format: "text", width: "180px" },
   { key: "unit", label: "Unit", format: "unit", width: "64px" },
-  { key: "onHandMilli", label: "On hand", format: "quantity", unitKey: "unit", width: "120px" },
+  {
+    key: "onHandMilli",
+    label: "On hand",
+    format: "quantity",
+    unitKey: "unit",
+    bare: true,
+    width: "120px",
+  },
   { key: "costPaisa", label: "Average cost", format: "money", width: "136px" },
   { key: "stockValuePaisa", label: "Value", format: "money", width: "196px" },
 ];
@@ -76,12 +83,20 @@ export const lowStockReportColumns: ReportColumn<LowStockReportRow>[] = [
   { key: "product", label: "Product", format: "text", width: "360px" },
   { key: "category", label: "Category", format: "text", width: "200px" },
   { key: "unit", label: "Unit", format: "unit", width: "64px" },
-  { key: "onHandMilli", label: "On hand", format: "quantity", unitKey: "unit", width: "136px" },
+  {
+    key: "onHandMilli",
+    label: "On hand",
+    format: "quantity",
+    unitKey: "unit",
+    bare: true,
+    width: "136px",
+  },
   {
     key: "thresholdMilli",
     label: "Low-stock level",
     format: "quantity",
     unitKey: "unit",
+    bare: true,
     width: "140px",
   },
   {
@@ -89,6 +104,7 @@ export const lowStockReportColumns: ReportColumn<LowStockReportRow>[] = [
     label: "Shortfall",
     format: "quantity",
     unitKey: "unit",
+    bare: true,
     width: "136px",
   },
 ];
@@ -96,7 +112,14 @@ export const lowStockReportColumns: ReportColumn<LowStockReportRow>[] = [
 export const negativeStockReportColumns: ReportColumn<NegativeStockReportRow>[] = [
   { key: "product", label: "Product", format: "text", width: "380px" },
   { key: "unit", label: "Unit", format: "unit", width: "64px" },
-  { key: "onHandMilli", label: "On hand", format: "quantity", unitKey: "unit", width: "136px" },
+  {
+    key: "onHandMilli",
+    label: "On hand",
+    format: "quantity",
+    unitKey: "unit",
+    bare: true,
+    width: "136px",
+  },
   { key: "stockValuePaisa", label: "Value", format: "money", width: "176px" },
   { key: "lastMovementAt", label: "Last movement", format: "datetime", width: "280px" },
 ];
@@ -169,8 +192,22 @@ export const stockMovementsColumns: ReportColumn<StockMovementReportRow>[] = [
   { key: "type", label: "Type", format: "text", width: "112px" },
   { key: "reference", label: "Reference", format: "text", width: "160px" },
   { key: "unit", label: "Unit", format: "unit", width: "56px" },
-  { key: "qtyMilli", label: "Quantity", format: "quantity", unitKey: "unit", width: "108px" },
-  { key: "balanceMilli", label: "Balance", format: "quantity", unitKey: "unit", width: "108px" },
+  {
+    key: "qtyMilli",
+    label: "Quantity",
+    format: "quantity",
+    unitKey: "unit",
+    bare: true,
+    width: "108px",
+  },
+  {
+    key: "balanceMilli",
+    label: "Balance",
+    format: "quantity",
+    unitKey: "unit",
+    bare: true,
+    width: "108px",
+  },
   { key: "valuePaisa", label: "Value", format: "money", width: "136px" },
   { key: "userName", label: "By", format: "text", width: "180px" },
 ];

@@ -16,6 +16,9 @@ import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { backupKindLabel, formatBackupSize } from "./backup-format";
 import { RestoreDialog, type RestoreTarget } from "./restore-dialog";
 
+const restoreDescription =
+  "This replaces all current data with this backup. Your current data is backed up first, and Vendora restarts when it's done.";
+
 type LoadState = { name: "loading" } | { name: "error" } | { name: "ready"; status: BackupStatus };
 
 interface BackupScreenProps {
@@ -245,6 +248,8 @@ export function BackupScreen({ onSessionEnded }: BackupScreenProps) {
           open={dialogOpen}
           finalFocus={opener}
           onOpenChange={setDialogOpen}
+          restore={window.vendora.backup.restore}
+          description={restoreDescription}
           onRefused={load}
           onSessionEnded={onSessionEnded}
         />

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c21ece6a-daf8-4eef-b6d3-7764d36f2b0d",
+  "id": "d70c37ad-e225-4ca8-a64d-eb52daa4336d",
   "prevId": "f0f154f9-493d-4858-bf26-304418ab3fe8",
   "tables": {
     "audit_log": {
@@ -2507,20 +2507,6 @@
           "autoincrement": false,
           "default": 1000
         },
-        "category_id": {
-          "name": "category_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "category_name": {
-          "name": "category_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -2608,19 +2594,6 @@
           "tableTo": "products",
           "columnsFrom": [
             "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "sale_lines_category_id_categories_id_fk": {
-          "name": "sale_lines_category_id_categories_id_fk",
-          "tableFrom": "sale_lines",
-          "tableTo": "categories",
-          "columnsFrom": [
-            "category_id"
           ],
           "columnsTo": [
             "id"
@@ -4350,6 +4323,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": 0
+        },
+        "margin_threshold_bps": {
+          "name": "margin_threshold_bps",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "prices_include_tax": {
           "name": "prices_include_tax",

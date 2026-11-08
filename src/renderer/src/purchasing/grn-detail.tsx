@@ -1,5 +1,5 @@
 import { ChevronLeftIcon, PackageMinusIcon } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type RefObject } from "react";
 
 import type { GoodsReceivedNote } from "@shared/goods-received";
 import { Button } from "@renderer/components/ui/button";
@@ -15,6 +15,7 @@ import { OrderLines } from "./order-lines";
 interface GrnDetailProps {
   id: string;
   status: string | null;
+  backRef?: RefObject<HTMLButtonElement | null>;
   onBack: () => void;
   onReturn: (noteId: string) => void;
   onSessionEnded: () => void;
@@ -34,7 +35,14 @@ function Fact({ label, children }: { label: string; children: string }) {
   );
 }
 
-export function GrnDetail({ id, status, onBack, onReturn, onSessionEnded }: GrnDetailProps) {
+export function GrnDetail({
+  id,
+  status,
+  backRef,
+  onBack,
+  onReturn,
+  onSessionEnded,
+}: GrnDetailProps) {
   const [note, setNote] = useState<GoodsReceivedNote | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,7 +89,7 @@ export function GrnDetail({ id, status, onBack, onReturn, onSessionEnded }: GrnD
     <div className="flex flex-col gap-500">
       <div className="flex flex-col items-start gap-300">
         <div className="flex items-center gap-300">
-          <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+          <Button ref={backRef} type="button" variant="ghost" size="sm" onClick={onBack}>
             <ChevronLeftIcon aria-hidden="true" size={16} strokeWidth={2} />
             Goods received
             <Kbd>Esc</Kbd>

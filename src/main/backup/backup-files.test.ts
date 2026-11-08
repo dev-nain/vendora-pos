@@ -1,10 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { sealBackupFile } from "./backup-cipher";
-import { listBackupFiles, parseBackupName } from "./backup-files";
+import { describePickedFile, listBackupFiles, parseBackupName } from "./backup-files";
 
 describe("parseBackupName", () => {
   it("parses all three kinds", () => {
@@ -79,5 +79,39 @@ describe("listBackupFiles", () => {
 
   it("returns an empty list for a missing folder", async () => {
     expect(await listBackupFiles(join(dir, "missing"))).toEqual([]);
+  });
+});
+
+describe("describePickedFile", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "vendora-picked-file-"));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("dates a file from the timestamp in its name", async () => {
+    const file = join(dir, "vendora-2026-11-05T01-00-00-000Z.db");
+    writeFileSync(file, "SQLite format 3\0 rest");
+
+    expect(await describePickedFile(file)).toEqual({
+      fileName: "vendora-2026-11-05T01-00-00-000Z.db",
+      takenAt: "2026-11-05T01:00:00.000Z",
+      encrypted: false,
+    });
+  });
+
+  it("falls back to the modified time when the name has no timestamp", async () => {
+    const file = join(dir, "my-backup.db");
+    writeFileSync(file, "SQLite format 3\0 rest");
+    utimesSync(file, new Date("2026-10-01T08:00:00.000Z"), new Date("2026-10-01T08:00:00.000Z"));
+
+    expect(await describePickedFile(file)).toMatchObject({
+      fileName: "my-backup.db",
+      takenAt: "2026-10-01T08:00:00.000Z",
+    });
   });
 });
