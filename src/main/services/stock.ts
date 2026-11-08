@@ -17,8 +17,19 @@ type Executor = VendoraDatabase["db"] | Tx;
 
 const ON_HAND_CHUNK = 500;
 
-const recordableTypes = ["sale", "return", "receipt", "adjustment", "stocktake", "damage"] as const;
+const recordableTypes = [
+  "sale",
+  "return",
+  "receipt",
+  "adjustment",
+  "stocktake",
+  "damage",
+  "purchase_return",
+] as const;
 const reasonedTypes: readonly StockMovementType[] = ["adjustment", "damage"];
+
+export const movementTypeForReason = (reason: StockMovementReason): "adjustment" | "damage" =>
+  reason === "correction" ? "adjustment" : "damage";
 
 export const recordMovementInputSchema = z
   .strictObject({
@@ -36,7 +47,10 @@ export const recordMovementInputSchema = z
       ctx.addIssue({ code: "custom", path: [path], message });
 
     if (input.qtyMilli === 0) issue("qtyMilli", "Quantity must not be zero");
-    if ((input.type === "sale" || input.type === "damage") && input.qtyMilli > 0) {
+    if (
+      (input.type === "sale" || input.type === "damage" || input.type === "purchase_return") &&
+      input.qtyMilli > 0
+    ) {
       issue("qtyMilli", "Quantity must be negative");
     }
     if ((input.type === "return" || input.type === "receipt") && input.qtyMilli < 0) {
@@ -57,6 +71,13 @@ export const recordMovementInputSchema = z
     if (!reasonedTypes.includes(input.type) && hasReason) {
       issue("reason", "This movement takes no reason");
     }
+    if (
+      reasonedTypes.includes(input.type) &&
+      input.reason &&
+      movementTypeForReason(input.reason) !== input.type
+    ) {
+      issue("reason", "This reason does not match the movement type");
+    }
 
     if ((input.sourceType === undefined) !== (input.sourceId === undefined)) {
       issue("sourceId", "Source type and id go together");
@@ -67,6 +88,7 @@ export type RecordMovementInput = z.input<typeof recordMovementInputSchema>;
 export const setOnHandInputSchema = z.strictObject({
   productId: z.uuid(),
   onHandMilli: z.int(),
+  reason: z.enum(stockMovementReasons),
   actorUserId: z.uuid(),
 });
 export type SetOnHandInput = z.input<typeof setOnHandInputSchema>;
@@ -180,10 +202,24 @@ export function createStockService({ database, audit, now = () => new Date() }: 
           .set({ costPaisa: averaged, updatedAt: now() })
           .where(eq(products.id, product.id))
           .run();
+        audit.record(
+          {
+            action: "cost_change",
+            actorUserId: input.actorUserId,
+            entityType: "product",
+            entityId: product.id,
+            details: { oldPaisa: product.costPaisa, newPaisa: averaged },
+          },
+          tx,
+        );
       }
     }
 
-    if (input.type === "adjustment" || input.type === "opening") {
+    if (
+      input.type === "adjustment" ||
+      input.type === "opening" ||
+      (input.type === "damage" && input.sourceType === undefined)
+    ) {
       audit.record(
         {
           action: "stock_adjustment",
@@ -215,23 +251,20 @@ export function createStockService({ database, audit, now = () => new Date() }: 
       tx: Tx,
       input: SetOnHandInput,
     ): { movement: StockMovement | null; onHandMilli: number } {
-      const { productId, onHandMilli, actorUserId } = setOnHandInputSchema.parse(input);
+      const { productId, onHandMilli, reason, actorUserId } = setOnHandInputSchema.parse(input);
       const current = onHandOf(tx, productId);
-      const diff = onHandMilli - current;
-      if (diff === 0) return { movement: null, onHandMilli: current };
+      const qtyMilli = onHandMilli - current;
+      if (qtyMilli === 0) return { movement: null, onHandMilli: current };
 
-      const hasMovements =
-        tx
-          .select({ id: stockMovements.id })
-          .from(stockMovements)
-          .where(eq(stockMovements.productId, productId))
-          .limit(1)
-          .get() !== undefined;
       const movement = insertMovement(
         tx,
-        hasMovements
-          ? { productId, type: "adjustment", qtyMilli: diff, reason: "correction", actorUserId }
-          : { productId, type: "opening", qtyMilli: diff, actorUserId },
+        recordMovementInputSchema.parse({
+          productId,
+          type: movementTypeForReason(reason),
+          qtyMilli,
+          reason,
+          actorUserId,
+        }),
       );
       return { movement, onHandMilli };
     },

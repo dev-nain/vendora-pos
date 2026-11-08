@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 
 import {
   Select,
@@ -7,55 +7,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@renderer/components/ui/select";
-import type { ReportCellValue } from "@shared/reports";
 import {
+  discountsReturnsVoidsReport,
   grossProfitByCategoryReport,
   grossProfitByProductReport,
+  reportDefinitions,
   salesByDayReport,
-  type ReportDefinition,
+  salesTaxSummaryReport,
 } from "./report-definitions";
 import { ReportView } from "./report-view";
 
 interface ReportsScreenProps {
   onSessionEnded: () => void;
+  onOpenSale?: ((invoiceNo: string) => void) | undefined;
 }
 
-interface ReportEntry {
-  id: string;
-  label: string;
-  render: (picker: ReactNode, onSessionEnded: () => void) => ReactNode;
-}
+const reportItems = reportDefinitions.map((report) => ({ value: report.id, label: report.label }));
 
-function reportEntry<
-  Row extends Record<string, ReportCellValue>,
-  Totals extends Record<string, number | null>,
->(definition: ReportDefinition<Row, Totals>): ReportEntry {
-  return {
-    id: definition.id,
-    label: definition.label,
-    render: (picker, onSessionEnded) => (
-      <ReportView
-        key={definition.id}
-        definition={definition}
-        picker={picker}
-        onSessionEnded={onSessionEnded}
-      />
-    ),
-  };
-}
-
-const reportEntries = [
-  reportEntry(salesByDayReport),
-  reportEntry(grossProfitByProductReport),
-  reportEntry(grossProfitByCategoryReport),
-];
-
-const reportItems = reportEntries.map((report) => ({ value: report.id, label: report.label }));
-
-export function ReportsScreen({ onSessionEnded }: ReportsScreenProps) {
-  const [reportId, setReportId] = useState<string>(reportEntries[0]!.id);
-  const entry = reportEntries.find((report) => report.id === reportId);
-  if (!entry) return null;
+export function ReportsScreen({ onSessionEnded, onOpenSale }: ReportsScreenProps) {
+  const [reportId, setReportId] = useState<string>(reportDefinitions[0].id);
 
   const picker = (
     <Select
@@ -65,7 +35,7 @@ export function ReportsScreen({ onSessionEnded }: ReportsScreenProps) {
         if (typeof next === "string") setReportId(next);
       }}
     >
-      <SelectTrigger aria-label="Report" className="w-[220px]" autoFocus>
+      <SelectTrigger aria-label="Report" className="w-[280px]" autoFocus>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -78,5 +48,53 @@ export function ReportsScreen({ onSessionEnded }: ReportsScreenProps) {
     </Select>
   );
 
-  return entry.render(picker, onSessionEnded);
+  if (reportId === discountsReturnsVoidsReport.id) {
+    return (
+      <ReportView
+        key={reportId}
+        definition={discountsReturnsVoidsReport}
+        picker={picker}
+        onSessionEnded={onSessionEnded}
+        onOpenSale={onOpenSale}
+      />
+    );
+  }
+  if (reportId === grossProfitByProductReport.id) {
+    return (
+      <ReportView
+        key={reportId}
+        definition={grossProfitByProductReport}
+        picker={picker}
+        onSessionEnded={onSessionEnded}
+      />
+    );
+  }
+  if (reportId === grossProfitByCategoryReport.id) {
+    return (
+      <ReportView
+        key={reportId}
+        definition={grossProfitByCategoryReport}
+        picker={picker}
+        onSessionEnded={onSessionEnded}
+      />
+    );
+  }
+  if (reportId === salesTaxSummaryReport.id) {
+    return (
+      <ReportView
+        key={reportId}
+        definition={salesTaxSummaryReport}
+        picker={picker}
+        onSessionEnded={onSessionEnded}
+      />
+    );
+  }
+  return (
+    <ReportView
+      key={reportId}
+      definition={salesByDayReport}
+      picker={picker}
+      onSessionEnded={onSessionEnded}
+    />
+  );
 }

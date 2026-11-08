@@ -29,7 +29,7 @@ describe("loadSaleSnapshot", () => {
         { method: "card", amountPaisa: 10000, reference: "4321" },
         { method: "cash", amountPaisa: 15000 },
       ],
-      buyer: { name: "Bilal", ntn: "1234567-8" },
+      buyer: { name: "Bilal", ntn: "1234567-8", cnic: "35202-1234567-1", phone: "03001234567" },
     });
     if (!result.ok) throw new Error("sale failed");
     saleId = result.sale.id;
@@ -49,6 +49,8 @@ describe("loadSaleSnapshot", () => {
         totalPaisa: 23600,
         buyerName: "Bilal",
         buyerNtn: "1234567-8",
+        buyerCnic: "35202-1234567-1",
+        buyerPhone: "03001234567",
       },
       cashierName: "cashier name",
       paperWidthMm: 58,
