@@ -5,6 +5,7 @@ import {
   formatRangeLabel,
   formatReportCell,
   formatStoreDay,
+  formatStoreTimeCsv,
   isNumericColumn,
   presetRange,
   reportRangeSchema,
@@ -183,9 +184,9 @@ describe("range labels", () => {
 });
 
 describe("formatReportCell", () => {
-  type Row = { a: string | number };
+  type Row = { a: string | number | null };
   type Spec =
-    | { format: "day" | "text" | "count" | "money" }
+    | { format: "day" | "text" | "count" | "money" | "time" | "invoice" | "percent" }
     | { format: "quantity"; unit: ProductUnit };
   const column = (spec: Spec): ReportColumn<Row> => ({ key: "a", label: "A", ...spec });
 
@@ -199,12 +200,56 @@ describe("formatReportCell", () => {
     expect(formatReportCell(column({ format: "quantity", unit: "piece" }), 3000)).toBe("3 pcs");
   });
 
+  it("shows an instant in store time", () => {
+    expect(formatReportCell(column({ format: "time" }), "2026-11-07T10:04:00.000Z")).toBe(
+      "7 Nov 2026, 15:04",
+    );
+    expect(formatReportCell(column({ format: "time" }), "2026-11-07T19:00:00.000Z")).toBe(
+      "8 Nov 2026, 00:00",
+    );
+    expect(formatStoreTimeCsv("2026-11-07T10:04:00.000Z")).toBe("2026-11-07 15:04");
+  });
+
+  it("takes a quantity unit from the row", () => {
+    const byRow: ReportColumn<{ a: number; unit: string }> = {
+      key: "a",
+      label: "A",
+      format: "quantity",
+      unitKey: "unit",
+    };
+    expect(formatReportCell(byRow, 2500, { unit: "kg" })).toBe("2.500 kg");
+    expect(formatReportCell(byRow, -3000, { unit: "piece" })).toBe("−3 pcs");
+  });
+
+  it("shows an invoice as text", () => {
+    expect(formatReportCell(column({ format: "invoice" }), "T1-000004")).toBe("T1-000004");
+  });
+
   it("keeps the sign on negatives, even below one rupee", () => {
     expect(formatReportCell(column({ format: "money" }), -50)).toBe("−Rs 0.50");
     expect(formatReportCell(column({ format: "money" }), -12050)).toBe("−Rs 120.50");
     expect(formatReportCell(column({ format: "quantity", unit: "kg" }), -1500)).toBe("−1.500 kg");
     expect(formatReportCell(column({ format: "quantity", unit: "piece" }), -2000)).toBe("−2 pcs");
     expect(formatReportCell(column({ format: "count" }), -3)).toBe("−3");
+  });
+
+  it("marks time and invoice columns as not numeric", () => {
+    expect(isNumericColumn(column({ format: "time" }))).toBe(false);
+    expect(isNumericColumn(column({ format: "invoice" }))).toBe(false);
+  });
+
+  it("formats percent from basis points", () => {
+    expect(formatReportCell(column({ format: "percent" }), 2345)).toBe("23.45%");
+    expect(formatReportCell(column({ format: "percent" }), -500)).toBe("−5.00%");
+    expect(formatReportCell(column({ format: "percent" }), 0)).toBe("0.00%");
+    expect(formatReportCell(column({ format: "percent" }), 7)).toBe("0.07%");
+    expect(formatReportCell(column({ format: "percent" }), -7)).toBe("−0.07%");
+  });
+
+  it("shows an empty cell for null in every format", () => {
+    for (const format of ["day", "text", "count", "money", "percent"] as const)
+      expect(formatReportCell(column({ format }), null)).toBe("—");
+    expect(formatReportCell(column({ format: "quantity", unit: "kg" }), null)).toBe("—");
   });
 
   it("marks day and text columns as not numeric", () => {

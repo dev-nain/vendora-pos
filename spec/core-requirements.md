@@ -114,7 +114,7 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 - The whole receipt is rendered as one image and printed as raster at 384 px (58 mm) or 576 px (80 mm), so Urdu prints correctly (printer fonts lack Urdu)
 - Any past receipt can be reprinted from the Orders screen (Ctrl+O): find it in the current shift, by invoice number (typed or scanned, digits only works) or by day. A reprint is rebuilt from the sale with the current store header and is not marked as a duplicate; every successful print is counted ("Printed N times")
 - Print modes per terminal: print the receipt, ask first, or don't print. They do not apply to a bill with return lines: its credit note ("Credit note", or "Exchange" when the bill nets to zero or more) always prints, with the original invoice number and negative quantities. With no printer set up the sale completes and the receipt screen and the shift strip say "No printer set up"
-- The A4 invoice PDF for business customers is deferred to its own ticket
+- Any sale can be saved as an A4 invoice PDF or printed on A4 from Orders or the receipt screen (Ctrl+Shift+P print, Ctrl+Shift+S save); refunds are credit notes pointing to the original invoice
 
 ---
 
@@ -183,9 +183,9 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 - Dashboard: today's sales, bill count, average bill, gross profit, low-stock count
 - Reports with date range, exportable to CSV and PDF:
   - Sales by day/hour, product, category, cashier, payment method
-  - Gross profit and margin by product and category (cost at time of sale)
-  - Discounts, returns, voids and overrides
-  - Sales tax summary (taxable value and tax by rate)
+  - Gross profit and margin by product and category (cost at time of sale; net sales exclude tax and bill rounding; misc items count in sales but not in profit or margin)
+  - Discounts, returns and voids (deleted lines and discarded bills)
+  - Sales tax summary (taxable value and tax by rate, with Third Schedule goods on their own rows; returns reduce the rate originally charged)
   - Stock on hand and valuation, low stock, negative stock, movement history per product
   - Purchases by supplier, stocktake variance
 - Date ranges use store days (Asia/Karachi); the week starts on Sunday.
@@ -203,6 +203,7 @@ The database lives on one PC. Losing it means losing the business's records.
 - Second copy to a user-chosen folder (USB drive or a synced folder such as Google Drive); onboarding asks for it
 - Manual "Backup now"; **Restore** checks integrity and takes a backup of the current data first
 - Writes survive a power cut; the app checks database integrity at startup and tells the user exactly what to do if something is wrong
+- If the database file is damaged, a recovery screen (no login) shows the last good backup and restores it. The damaged file is kept, renamed aside, instead of being backed up first, because it can't be copied reliably
 - Optional password-protected backups
 
 ---

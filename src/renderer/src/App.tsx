@@ -1,13 +1,18 @@
 import { Activity, useCallback, useEffect, useRef, useState } from "react";
 
 import type { SafeUser } from "@shared/auth";
+import type { StartupState } from "@shared/recovery";
 import { AppShell } from "./shell/app-shell";
 import { CreateFirstUserScreen } from "./auth/create-first-user-screen";
 import { LoginScreen } from "./auth/login-screen";
 import { PinSwitchScreen } from "./auth/pin-switch-screen";
+import { RecoveryScreen } from "./recovery/recovery-screen";
+import { StartupProblemScreen } from "./recovery/startup-problem-screen";
 
 type AuthView =
   | { name: "starting" }
+  | { name: "recovery" }
+  | { name: "startup-problem"; state: Exclude<StartupState, { mode: "normal" | "damaged" }> }
   | { name: "setup" }
   | { name: "login" }
   | { name: "signed-in"; user: SafeUser; switching: boolean };
@@ -17,14 +22,24 @@ export function App() {
   const savedFocus = useRef<Element | null>(null);
 
   useEffect(() => {
-    void window.vendora.auth
-      .current()
-      .then(async (state) => {
-        if (state) return setView({ name: "signed-in", user: state.user, switching: false });
-        const needsSetup = await window.vendora.auth.needsSetup();
-        setView(needsSetup ? { name: "setup" } : { name: "login" });
-      })
-      .catch(() => setView({ name: "login" }));
+    const toAuth = () =>
+      window.vendora.auth
+        .current()
+        .then(async (state) => {
+          if (state) return setView({ name: "signed-in", user: state.user, switching: false });
+          const needsSetup = await window.vendora.auth.needsSetup();
+          setView(needsSetup ? { name: "setup" } : { name: "login" });
+        })
+        .catch(() => setView({ name: "login" }));
+
+    void window.vendora.startup
+      .state()
+      .catch((): StartupState => ({ mode: "normal" }))
+      .then((startup) => {
+        if (startup.mode === "damaged") return setView({ name: "recovery" });
+        if (startup.mode !== "normal") return setView({ name: "startup-problem", state: startup });
+        return toAuth();
+      });
   }, []);
 
   const toLogin = useCallback(() => {
@@ -66,6 +81,10 @@ export function App() {
   switch (view.name) {
     case "starting":
       return <div className="min-h-screen bg-page" />;
+    case "recovery":
+      return <RecoveryScreen />;
+    case "startup-problem":
+      return <StartupProblemScreen state={view.state} />;
     case "setup":
       return <CreateFirstUserScreen onCreated={signedIn} onAccountExists={toLogin} />;
     case "login":

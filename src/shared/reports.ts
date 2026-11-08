@@ -94,36 +94,94 @@ export function formatRangeLabel(range: ReportRange): string {
     : `${formatStoreDay(range.from)} – ${formatStoreDay(range.to)}`;
 }
 
+export type ReportCellValue = string | number | null;
+
 export type ReportColumn<Row> = {
   key: Extract<keyof Row, string>;
   label: string;
   width?: string;
-} & ({ format: "day" | "text" | "count" | "money" } | { format: "quantity"; unit: ProductUnit });
+} & (
+  | { format: "day" | "text" | "count" | "money" | "time" | "percent" }
+  | { format: "invoice"; linkKey?: Extract<keyof Row, string> }
+  | { format: "quantity"; unit: ProductUnit }
+  | { format: "quantity"; unitKey: Extract<keyof Row, string> }
+);
 
 export const isNumericColumn = <Row>(column: ReportColumn<Row>): boolean =>
-  column.format !== "day" && column.format !== "text";
+  column.format !== "day" &&
+  column.format !== "text" &&
+  column.format !== "time" &&
+  column.format !== "invoice";
 
 const MINUS = "−";
+const EMPTY_CELL = "—";
 
-export function formatReportCell<Row>(column: ReportColumn<Row>, value: string | number): string {
+export function formatPercentBps(bps: number): string {
+  const magnitude = Math.abs(Math.trunc(bps));
+  const hundredths = String(magnitude % 100).padStart(2, "0");
+  return `${bps < 0 ? MINUS : ""}${Math.trunc(magnitude / 100)}.${hundredths}%`;
+}
+
+const pad = (value: number): string => String(value).padStart(2, "0");
+
+function storeTimeParts(iso: string) {
+  const local = new Date(Date.parse(iso) + storeUtcOffsetMs);
+  return {
+    day: local.toISOString().slice(0, 10),
+    clock: `${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`,
+  };
+}
+
+export function formatStoreTime(iso: string): string {
+  const { day, clock } = storeTimeParts(iso);
+  return `${formatStoreDay(day)}, ${clock}`;
+}
+
+export function formatStoreTimeCsv(iso: string): string {
+  const { day, clock } = storeTimeParts(iso);
+  return `${day} ${clock}`;
+}
+
+export function formatReportCell<Row>(
+  column: ReportColumn<Row>,
+  value: ReportCellValue,
+  row?: Partial<Record<string, ReportCellValue>>,
+): string {
+  if (value === null) return EMPTY_CELL;
   switch (column.format) {
     case "day":
       return formatStoreDay(String(value));
+    case "time":
+      return formatStoreTime(String(value));
     case "money":
       return signedRupees(Number(value));
-    case "quantity":
-      return formatQuantity(Number(value), column.unit).replace("-", MINUS);
+    case "quantity": {
+      const unit =
+        "unitKey" in column
+          ? ((row?.[column.unitKey] as ProductUnit | undefined) ?? "piece")
+          : column.unit;
+      return formatQuantity(Number(value), unit).replace("-", MINUS);
+    }
     case "count": {
       const count = Number(value);
       const grouped = String(Math.abs(count)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
       return count < 0 ? `${MINUS}${grouped}` : grouped;
     }
+    case "percent":
+      return formatPercentBps(Number(value));
     case "text":
+    case "invoice":
       return String(value);
   }
 }
 
 const countSchema = z.number().int();
+
+export const reportFooterRowSchema = z.strictObject({
+  label: z.string(),
+  values: z.record(z.string(), countSchema),
+});
+export type ReportFooterRow = z.infer<typeof reportFooterRowSchema>;
 
 export const salesByDayTotalsSchema = z.strictObject({
   billCount: countSchema,
@@ -158,6 +216,101 @@ export const salesByDayColumns: ReportColumn<SalesByDayRow>[] = [
   { key: "taxPaisa", label: "Tax", format: "money", width: "108px" },
   { key: "roundingPaisa", label: "Rounding", format: "money", width: "80px" },
   { key: "totalPaisa", label: "Total", format: "money", width: "136px" },
+];
+
+export const salesTaxSummaryTotalsSchema = z.strictObject({
+  taxablePaisa: countSchema,
+  taxPaisa: countSchema,
+  totalPaisa: countSchema,
+});
+export type SalesTaxSummaryTotals = z.infer<typeof salesTaxSummaryTotalsSchema>;
+
+export const salesTaxSummaryRowSchema = salesTaxSummaryTotalsSchema.extend({ rate: z.string() });
+export type SalesTaxSummaryRow = z.infer<typeof salesTaxSummaryRowSchema>;
+
+export const salesTaxSummaryResultSchema = z.strictObject({
+  rows: z.array(salesTaxSummaryRowSchema),
+  totals: salesTaxSummaryTotalsSchema,
+});
+export type SalesTaxSummaryResult = z.infer<typeof salesTaxSummaryResultSchema>;
+
+export const salesTaxSummaryColumns: ReportColumn<SalesTaxSummaryRow>[] = [
+  { key: "rate", label: "Tax rate", format: "text", width: "340px" },
+  { key: "taxablePaisa", label: "Taxable value", format: "money", width: "232px" },
+  { key: "taxPaisa", label: "Tax", format: "money", width: "232px" },
+  { key: "totalPaisa", label: "Total", format: "money", width: "232px" },
+];
+
+export const miscItemsLabel = "Misc items (no cost)";
+export const roundingRowLabel = "Rounding";
+
+const optionalCountSchema = countSchema.nullable();
+
+export const grossProfitTotalsSchema = z.strictObject({
+  pieceQtyMilli: countSchema,
+  kgQtyMilli: countSchema,
+  litreQtyMilli: countSchema,
+  netPaisa: countSchema,
+  costPaisa: countSchema,
+  grossProfitPaisa: countSchema,
+  marginBps: optionalCountSchema,
+});
+export type GrossProfitTotals = z.infer<typeof grossProfitTotalsSchema>;
+
+const grossProfitLine = {
+  pieceQtyMilli: countSchema,
+  kgQtyMilli: countSchema,
+  litreQtyMilli: countSchema,
+  netPaisa: countSchema,
+  costPaisa: optionalCountSchema,
+  grossProfitPaisa: optionalCountSchema,
+  marginBps: optionalCountSchema,
+};
+
+export const grossProfitByProductRowSchema = z.strictObject({
+  product: z.string(),
+  ...grossProfitLine,
+});
+export type GrossProfitByProductRow = z.infer<typeof grossProfitByProductRowSchema>;
+
+export const grossProfitByCategoryRowSchema = z.strictObject({
+  category: z.string(),
+  ...grossProfitLine,
+});
+export type GrossProfitByCategoryRow = z.infer<typeof grossProfitByCategoryRowSchema>;
+
+export const grossProfitByProductResultSchema = z.strictObject({
+  rows: z.array(grossProfitByProductRowSchema),
+  totals: grossProfitTotalsSchema,
+  footer: z.array(reportFooterRowSchema),
+});
+export type GrossProfitByProductResult = z.infer<typeof grossProfitByProductResultSchema>;
+
+export const grossProfitByCategoryResultSchema = z.strictObject({
+  rows: z.array(grossProfitByCategoryRowSchema),
+  totals: grossProfitTotalsSchema,
+  footer: z.array(reportFooterRowSchema),
+});
+export type GrossProfitByCategoryResult = z.infer<typeof grossProfitByCategoryResultSchema>;
+
+const grossProfitNumericColumns = [
+  { key: "pieceQtyMilli", label: "Pieces", format: "quantity", unit: "piece", width: "96px" },
+  { key: "kgQtyMilli", label: "Kg", format: "quantity", unit: "kg", width: "104px" },
+  { key: "litreQtyMilli", label: "Litres", format: "quantity", unit: "litre", width: "96px" },
+  { key: "netPaisa", label: "Net sales", format: "money", width: "136px" },
+  { key: "costPaisa", label: "Cost", format: "money", width: "128px" },
+  { key: "grossProfitPaisa", label: "Gross profit", format: "money", width: "136px" },
+  { key: "marginBps", label: "Margin", format: "percent", width: "80px" },
+] as const satisfies ReportColumn<GrossProfitByProductRow>[];
+
+export const grossProfitByProductColumns: ReportColumn<GrossProfitByProductRow>[] = [
+  { key: "product", label: "Product", format: "text", width: "260px" },
+  ...grossProfitNumericColumns,
+];
+
+export const grossProfitByCategoryColumns: ReportColumn<GrossProfitByCategoryRow>[] = [
+  { key: "category", label: "Category", format: "text", width: "260px" },
+  ...grossProfitNumericColumns,
 ];
 
 export const exportReportFailedMessage =

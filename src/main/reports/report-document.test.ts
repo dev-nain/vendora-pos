@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { salesByDayColumns, type SalesByDayRow, type SalesByDayTotals } from "../../shared/reports";
+import {
+  salesByDayColumns,
+  type ReportColumn,
+  type SalesByDayRow,
+  type SalesByDayTotals,
+} from "../../shared/reports";
 import type { ReceiptSettings } from "../../shared/settings";
-import { buildReportDocument } from "./report-document";
+import type { ReportSection } from "../../shared/discounts-returns-voids";
+import { buildReportDocument, buildSectionedReportDocument } from "./report-document";
 
 const store: ReceiptSettings = {
   name: "Noor General Store",
@@ -40,6 +46,20 @@ const totals: SalesByDayTotals = {
 };
 
 const row: SalesByDayRow = { day: "2026-11-07", ...totals };
+
+type ProfitRow = {
+  product: string;
+  netPaisa: number;
+  costPaisa: number | null;
+  marginBps: number | null;
+};
+
+const profitColumns: ReportColumn<ProfitRow>[] = [
+  { key: "product", label: "Product", format: "text" },
+  { key: "netPaisa", label: "Net sales", format: "money" },
+  { key: "costPaisa", label: "Cost", format: "money" },
+  { key: "marginBps", label: "Margin", format: "percent" },
+];
 
 const build = (store_: ReceiptSettings = store) =>
   buildReportDocument({
@@ -98,5 +118,93 @@ describe("buildReportDocument", () => {
     const widths = build().columns.map((column) => Number.parseFloat(column.width ?? "0"));
     expect(widths.every((width) => width > 0)).toBe(true);
     expect(widths.reduce((sum, width) => sum + width, 0)).toBeCloseTo(100, 0);
+  });
+
+  it("shows null cells and totals as a dash and appends footer rows", () => {
+    const model = buildReportDocument({
+      title: "Gross profit by product",
+      range: { from: "2026-11-07", to: "2026-11-07" },
+      store,
+      columns: profitColumns,
+      rows: [
+        { product: "Misc items (no cost)", netPaisa: 15000, costPaisa: null, marginBps: null },
+      ],
+      totals: { netPaisa: 15000, costPaisa: 0, marginBps: null },
+      footer: [{ label: "Rounding", values: { netPaisa: -50 } }],
+    });
+    expect(model.rows[0]?.map((cell) => cell.text).slice(-2)).toEqual(["—", "—"]);
+    expect(model.totals.find((total) => total.label === "Margin")).toEqual({
+      label: "Margin",
+      value: "—",
+    });
+    expect(model.totals.find((total) => total.label === "Rounding")).toEqual({
+      label: "Rounding",
+      value: "−Rs 0.50",
+    });
+    expect(model.columns).toHaveLength(4);
+  });
+});
+
+describe("buildSectionedReportDocument", () => {
+  const section: ReportSection = {
+    id: "deleted-lines",
+    title: "Deleted lines",
+    rowKey: "auditId",
+    columns: [
+      { key: "createdAt", label: "Time", format: "time", width: "100px" },
+      { key: "qtyMilli", label: "Qty", format: "quantity", unitKey: "unit", width: "50px" },
+      { key: "grossPaisa", label: "Gross before discount", format: "money", width: "50px" },
+    ],
+    rows: [
+      {
+        auditId: "a1",
+        createdAt: "2026-11-07T10:04:00.000Z",
+        unit: "kg",
+        qtyMilli: 1500,
+        grossPaisa: 5000,
+      },
+    ],
+    totals: { grossPaisa: 5000 },
+    shown: 1,
+    total: 340,
+  };
+
+  const model = buildSectionedReportDocument({
+    title: "Discounts, returns and voids",
+    range: { from: "2026-11-07", to: "2026-11-07" },
+    store,
+    sections: [section],
+  });
+
+  it("has the report frame and no main table", () => {
+    expect(model).toMatchObject({
+      title: "Discounts, returns and voids",
+      reference: "7 Nov 2026",
+      landscape: true,
+      columns: [],
+      rows: [],
+      totals: [],
+    });
+    expect(model.facts).toEqual([{ label: "Times", value: "Asia/Karachi" }]);
+  });
+
+  it("fills a section with its heading, cells, totals and the cap note", () => {
+    expect(model.sections).toEqual([
+      {
+        heading: "Deleted lines",
+        columns: [
+          { label: "Time", align: "left", width: "50.0%" },
+          { label: "Qty", align: "right", width: "25.0%" },
+          { label: "Gross before discount", align: "right", width: "25.0%" },
+        ],
+        rows: [[{ text: "7 Nov 2026, 15:04" }, { text: "1.500 kg" }, { text: "Rs 50" }]],
+        totals: [{ label: "Gross before discount", value: "Rs 50" }],
+        note: "Showing the latest 1 of 340. The CSV export has every row.",
+      },
+    ]);
+  });
+
+  it("leaves single-table documents without sections", () => {
+    expect(build().sections).toBeUndefined();
   });
 });
