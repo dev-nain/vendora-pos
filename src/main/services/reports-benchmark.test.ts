@@ -4,10 +4,13 @@ import {
   reportDetailLimit,
 } from "../../shared/discounts-returns-voids";
 import {
+  grossProfitByCategoryResultSchema,
+  grossProfitByProductResultSchema,
   salesByDayResultSchema,
   salesTaxSummaryResultSchema,
   type ReportRange,
 } from "../../shared/reports";
+import { divRoundHalfUp } from "../../shared/rounding";
 import { fixtureCounts, seedReportFixture } from "./report-benchmark-fixture";
 import { createCheckoutKit, type CheckoutKit } from "./checkout-test-kit";
 import { createReportsService } from "./reports";
@@ -20,9 +23,9 @@ const percentile = (sorted: number[], p: number) =>
 const rowCount = (kit: CheckoutKit, table: string) =>
   (kit.database.sqlite.prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number }).n;
 
-function timeReport<Result>(label: string, run: () => Result) {
-  const durations: number[] = [];
+function timed<T>(name: string, run: () => T): { last: T; p95: number } {
   let last = run();
+  const durations: number[] = [];
   for (let i = 0; i < runs; i++) {
     const start = performance.now();
     last = run();
@@ -31,7 +34,7 @@ function timeReport<Result>(label: string, run: () => Result) {
   const sorted = durations.toSorted((a, b) => a - b);
   const p95 = percentile(sorted, 0.95);
   console.log(
-    `${label}, full year: p50 ${percentile(sorted, 0.5).toFixed(1)} ms / p95 ${p95.toFixed(1)} ms / max ${sorted.at(-1)!.toFixed(1)} ms`,
+    `${name}: p50 ${percentile(sorted, 0.5).toFixed(1)} ms / p95 ${p95.toFixed(1)} ms / max ${sorted.at(-1)!.toFixed(1)} ms`,
   );
   return { last, p95 };
 }
@@ -53,7 +56,9 @@ describe("reports benchmark", () => {
     expect(rowCount(kit, "sale_payments")).toBe(fixtureCounts.sales);
   });
 
-  const reportsService = () =>
+  const count = (query: string) => (kit.database.sqlite.prepare(query).get() as { n: number }).n;
+
+  const reports = () =>
     createReportsService({
       database: kit.database,
       sessions: kit.sessions,
@@ -62,8 +67,8 @@ describe("reports benchmark", () => {
     });
 
   it("renders sales by day for a full year in under 3 seconds", () => {
-    const service = reportsService();
-    const { last, p95 } = timeReport("sales by day", () =>
+    const service = reports();
+    const { last, p95 } = timed("sales by day, full year", () =>
       salesByDayResultSchema.parse(service.salesByDay(range)),
     );
 
@@ -76,9 +81,24 @@ describe("reports benchmark", () => {
     expect(p95).toBeLessThan(3000);
   }, 120_000);
 
+  function expectedGrossProfitTotals() {
+    const net = kit.database.sqlite
+      .prepare("SELECT sum(total_paisa - tax_paisa) AS net FROM sale_lines")
+      .get() as { net: number };
+    const lines = kit.database.sqlite
+      .prepare("SELECT qty_milli, pack_qty_milli, cost_paisa FROM sale_lines")
+      .all() as { qty_milli: number; pack_qty_milli: number; cost_paisa: number }[];
+    let cost = 0;
+    for (const line of lines) {
+      const base = divRoundHalfUp(BigInt(line.qty_milli) * BigInt(line.pack_qty_milli), 1000n);
+      cost += divRoundHalfUp(BigInt(base) * BigInt(line.cost_paisa), 1000n);
+    }
+    return { net: net.net, cost };
+  }
+
   it("renders the sales tax summary for a full year in under 3 seconds", () => {
-    const service = reportsService();
-    const { last, p95 } = timeReport("sales tax summary", () =>
+    const service = reports();
+    const { last, p95 } = timed("sales tax summary, full year", () =>
       salesTaxSummaryResultSchema.parse(service.salesTaxSummary(range)),
     );
 
@@ -97,26 +117,11 @@ describe("reports benchmark", () => {
   }, 120_000);
 
   it("renders discounts, returns and voids for a full year in under 3 seconds", () => {
-    const service = createReportsService({
-      database: kit.database,
-      sessions: kit.sessions,
-      renderer: { toPdf: async () => Buffer.alloc(0), print: async () => "printed" },
-      chooseSavePath: async () => null,
-    });
-    const durations: number[] = [];
-    let last = discountsReturnsVoidsResultSchema.parse(service.discountsReturnsVoids(range));
-    for (let run = 0; run < runs; run++) {
-      const start = performance.now();
-      last = discountsReturnsVoidsResultSchema.parse(service.discountsReturnsVoids(range));
-      durations.push(performance.now() - start);
-    }
-    const sorted = durations.toSorted((a, b) => a - b);
-    const p95 = percentile(sorted, 0.95);
-    console.log(
-      `discounts, returns and voids, full year: p50 ${percentile(sorted, 0.5).toFixed(1)} ms / p95 ${p95.toFixed(1)} ms / max ${sorted.at(-1)!.toFixed(1)} ms`,
+    const service = reports();
+    const { last, p95 } = timed("discounts, returns and voids, full year", () =>
+      discountsReturnsVoidsResultSchema.parse(service.discountsReturnsVoids(range)),
     );
 
-    const count = (query: string) => (kit.database.sqlite.prepare(query).get() as { n: number }).n;
     expect(last.discounts.billCount).toBe(
       count("SELECT count(*) AS n FROM sales WHERE discount_paisa <> 0"),
     );
@@ -138,6 +143,32 @@ describe("reports benchmark", () => {
     );
     expect(last.voids.deletedLines.rows[0]!.billState).toBe("sold");
     expect(last.voids.discardedBills.count).toBe(fixtureCounts.discardedBills);
+    expect(p95).toBeLessThan(3000);
+  }, 120_000);
+
+  it("renders gross profit by product for a full year in under 3 seconds", () => {
+    const service = reports();
+    const { last, p95 } = timed("gross profit by product, full year", () =>
+      grossProfitByProductResultSchema.parse(service.grossProfitByProduct(range)),
+    );
+
+    const expected = expectedGrossProfitTotals();
+    expect(last.rows).toHaveLength(fixtureCounts.products);
+    expect(last.totals.netPaisa).toBe(expected.net);
+    expect(last.totals.costPaisa).toBe(expected.cost);
+    expect(p95).toBeLessThan(3000);
+  }, 120_000);
+
+  it("renders gross profit by category for a full year in under 3 seconds", () => {
+    const service = reports();
+    const { last, p95 } = timed("gross profit by category, full year", () =>
+      grossProfitByCategoryResultSchema.parse(service.grossProfitByCategory(range)),
+    );
+
+    const expected = expectedGrossProfitTotals();
+    expect(last.rows).toHaveLength(fixtureCounts.categories);
+    expect(last.totals.netPaisa).toBe(expected.net);
+    expect(last.totals.costPaisa).toBe(expected.cost);
     expect(p95).toBeLessThan(3000);
   }, 120_000);
 
@@ -168,5 +199,17 @@ describe("reports benchmark", () => {
     console.log(
       `plan, audit entries: ${planOf(`SELECT count(*), sum(json_extract(audit_log.details, '$.grossPaisa')) FROM audit_log WHERE audit_log.store_id = ? AND audit_log.action = 'line_delete' AND audit_log.created_at >= ? AND audit_log.created_at < ?`)}`,
     );
+  });
+
+  it("logs the gross profit query plan", () => {
+    const query = `SELECT sale_lines.product_id, max(sale_lines.created_at), sum(sale_lines.total_paisa - sale_lines.tax_paisa) FROM sale_lines INNER JOIN sales ON sales.id = sale_lines.sale_id WHERE sales.store_id = ? AND sales.created_at >= ? AND sales.created_at < ? GROUP BY sale_lines.product_id`;
+    const plan = (
+      kit.database.sqlite
+        .prepare(`EXPLAIN QUERY PLAN ${query}`)
+        .all(kit.storeId, 0, Date.now() * 2) as { detail: string }[]
+    )
+      .map((row) => row.detail)
+      .join(" | ");
+    console.log(`plan, gross profit line aggregate: ${plan}`);
   });
 });

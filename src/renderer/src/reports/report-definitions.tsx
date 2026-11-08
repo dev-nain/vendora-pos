@@ -2,10 +2,14 @@ import type { ComponentType } from "react";
 
 import type { DiscountsReturnsVoidsResult } from "@shared/discounts-returns-voids";
 import {
+  grossProfitByCategoryColumns,
+  grossProfitByProductColumns,
   salesByDayColumns,
   salesTaxSummaryColumns,
   type ExportReportInput,
   type ExportReportResult,
+  type GrossProfitByCategoryResult,
+  type GrossProfitByProductResult,
   type ReportRange,
   type SalesByDayResult,
   type SalesTaxSummaryResult,
@@ -75,6 +79,52 @@ export const salesTaxSummaryReport: ReportDefinition<SalesTaxSummaryResult> = {
   Body: SalesTaxSummaryBody,
 };
 
+function GrossProfitByProductBody({ result, busy }: ReportBodyProps<GrossProfitByProductResult>) {
+  return (
+    <ReportTable
+      label="Gross profit by product table"
+      busy={busy}
+      columns={grossProfitByProductColumns}
+      rows={result.rows}
+      totals={result.totals}
+      footer={result.footer}
+    />
+  );
+}
+
+function GrossProfitByCategoryBody({ result, busy }: ReportBodyProps<GrossProfitByCategoryResult>) {
+  return (
+    <ReportTable
+      label="Gross profit by category table"
+      busy={busy}
+      columns={grossProfitByCategoryColumns}
+      rows={result.rows}
+      totals={result.totals}
+      footer={result.footer}
+    />
+  );
+}
+
+export const grossProfitByProductReport: ReportDefinition<GrossProfitByProductResult> = {
+  id: "gross-profit-by-product",
+  label: "Gross profit by product",
+  emptyTitle: "No sales in this period",
+  load: (range) => window.vendora.reports.grossProfitByProduct(range),
+  exportTo: (input) => window.vendora.reports.exportGrossProfitByProduct(input),
+  isEmpty: (result) => result.rows.length === 0,
+  Body: GrossProfitByProductBody,
+};
+
+export const grossProfitByCategoryReport: ReportDefinition<GrossProfitByCategoryResult> = {
+  id: "gross-profit-by-category",
+  label: "Gross profit by category",
+  emptyTitle: "No sales in this period",
+  load: (range) => window.vendora.reports.grossProfitByCategory(range),
+  exportTo: (input) => window.vendora.reports.exportGrossProfitByCategory(input),
+  isEmpty: (result) => result.rows.length === 0,
+  Body: GrossProfitByCategoryBody,
+};
+
 export const discountsReturnsVoidsReport: ReportDefinition<DiscountsReturnsVoidsResult> = {
   id: "discounts-returns-voids",
   label: "Discounts, returns and voids",
@@ -91,6 +141,8 @@ export const discountsReturnsVoidsReport: ReportDefinition<DiscountsReturnsVoids
 
 export const reportDefinitions = [
   salesByDayReport,
+  grossProfitByProductReport,
+  grossProfitByCategoryReport,
   salesTaxSummaryReport,
   discountsReturnsVoidsReport,
 ] as const;

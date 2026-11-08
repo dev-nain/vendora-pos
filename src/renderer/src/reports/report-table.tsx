@@ -21,7 +21,7 @@ interface ReportTableProps<Row extends Record<string, ReportCellValue>> {
   busy: boolean;
   columns: ReportColumn<Row>[];
   rows: Row[];
-  rowKey: Extract<keyof Row, string>;
+  rowKey?: Extract<keyof Row, string>;
   totals?: Record<string, number | null> | null;
   footer?: ReportFooterRow[];
   onOpenSale?: ((invoiceNo: string) => void) | undefined;
@@ -73,8 +73,8 @@ export function ReportTable<Row extends Record<string, ReportCellValue>>({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {rows.map((row) => (
-          <TableRow key={String(row[rowKey])}>
+        {rows.map((row, rowIndex) => (
+          <TableRow key={rowKey ? String(row[rowKey]) : rowIndex}>
             {columns.map((column) => {
               const value = row[column.key] ?? null;
               const text = formatReportCell(column, value, row);

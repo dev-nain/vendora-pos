@@ -9,6 +9,8 @@ import {
 } from "@renderer/components/ui/select";
 import {
   discountsReturnsVoidsReport,
+  grossProfitByCategoryReport,
+  grossProfitByProductReport,
   reportDefinitions,
   salesByDayReport,
   salesTaxSummaryReport,
@@ -54,6 +56,26 @@ export function ReportsScreen({ onSessionEnded, onOpenSale }: ReportsScreenProps
         picker={picker}
         onSessionEnded={onSessionEnded}
         onOpenSale={onOpenSale}
+      />
+    );
+  }
+  if (reportId === grossProfitByProductReport.id) {
+    return (
+      <ReportView
+        key={reportId}
+        definition={grossProfitByProductReport}
+        picker={picker}
+        onSessionEnded={onSessionEnded}
+      />
+    );
+  }
+  if (reportId === grossProfitByCategoryReport.id) {
+    return (
+      <ReportView
+        key={reportId}
+        definition={grossProfitByCategoryReport}
+        picker={picker}
+        onSessionEnded={onSessionEnded}
       />
     );
   }
