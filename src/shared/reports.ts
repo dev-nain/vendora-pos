@@ -241,6 +241,78 @@ export const salesTaxSummaryColumns: ReportColumn<SalesTaxSummaryRow>[] = [
   { key: "totalPaisa", label: "Total", format: "money", width: "232px" },
 ];
 
+export const miscItemsLabel = "Misc items (no cost)";
+export const roundingRowLabel = "Rounding";
+
+const optionalCountSchema = countSchema.nullable();
+
+export const grossProfitTotalsSchema = z.strictObject({
+  pieceQtyMilli: countSchema,
+  kgQtyMilli: countSchema,
+  litreQtyMilli: countSchema,
+  netPaisa: countSchema,
+  costPaisa: countSchema,
+  grossProfitPaisa: countSchema,
+  marginBps: optionalCountSchema,
+});
+export type GrossProfitTotals = z.infer<typeof grossProfitTotalsSchema>;
+
+const grossProfitLine = {
+  pieceQtyMilli: countSchema,
+  kgQtyMilli: countSchema,
+  litreQtyMilli: countSchema,
+  netPaisa: countSchema,
+  costPaisa: optionalCountSchema,
+  grossProfitPaisa: optionalCountSchema,
+  marginBps: optionalCountSchema,
+};
+
+export const grossProfitByProductRowSchema = z.strictObject({
+  product: z.string(),
+  ...grossProfitLine,
+});
+export type GrossProfitByProductRow = z.infer<typeof grossProfitByProductRowSchema>;
+
+export const grossProfitByCategoryRowSchema = z.strictObject({
+  category: z.string(),
+  ...grossProfitLine,
+});
+export type GrossProfitByCategoryRow = z.infer<typeof grossProfitByCategoryRowSchema>;
+
+export const grossProfitByProductResultSchema = z.strictObject({
+  rows: z.array(grossProfitByProductRowSchema),
+  totals: grossProfitTotalsSchema,
+  footer: z.array(reportFooterRowSchema),
+});
+export type GrossProfitByProductResult = z.infer<typeof grossProfitByProductResultSchema>;
+
+export const grossProfitByCategoryResultSchema = z.strictObject({
+  rows: z.array(grossProfitByCategoryRowSchema),
+  totals: grossProfitTotalsSchema,
+  footer: z.array(reportFooterRowSchema),
+});
+export type GrossProfitByCategoryResult = z.infer<typeof grossProfitByCategoryResultSchema>;
+
+const grossProfitNumericColumns = [
+  { key: "pieceQtyMilli", label: "Pieces", format: "quantity", unit: "piece", width: "96px" },
+  { key: "kgQtyMilli", label: "Kg", format: "quantity", unit: "kg", width: "104px" },
+  { key: "litreQtyMilli", label: "Litres", format: "quantity", unit: "litre", width: "96px" },
+  { key: "netPaisa", label: "Net sales", format: "money", width: "136px" },
+  { key: "costPaisa", label: "Cost", format: "money", width: "128px" },
+  { key: "grossProfitPaisa", label: "Gross profit", format: "money", width: "136px" },
+  { key: "marginBps", label: "Margin", format: "percent", width: "80px" },
+] as const satisfies ReportColumn<GrossProfitByProductRow>[];
+
+export const grossProfitByProductColumns: ReportColumn<GrossProfitByProductRow>[] = [
+  { key: "product", label: "Product", format: "text", width: "260px" },
+  ...grossProfitNumericColumns,
+];
+
+export const grossProfitByCategoryColumns: ReportColumn<GrossProfitByCategoryRow>[] = [
+  { key: "category", label: "Category", format: "text", width: "260px" },
+  ...grossProfitNumericColumns,
+];
+
 export const exportReportFailedMessage =
   "Couldn't save the report. Check the folder and try again.";
 

@@ -53,6 +53,8 @@ import { discountsReturnsVoidsResultSchema } from "@shared/discounts-returns-voi
 import {
   exportReportInputSchema,
   exportReportResultSchema,
+  grossProfitByCategoryResultSchema,
+  grossProfitByProductResultSchema,
   reportRangeSchema,
   salesByDayResultSchema,
   salesTaxSummaryResultSchema,
@@ -696,6 +698,26 @@ export function registerIpcHandlers({
   handle(ipcChannels.reportsExportDiscountsReturnsVoids, async (_event, input) =>
     exportReportResultSchema.parse(
       await reports.exportDiscountsReturnsVoids(exportReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsGrossProfitByProduct, (_event, input) =>
+    grossProfitByProductResultSchema.parse(
+      reports.grossProfitByProduct(reportRangeSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportGrossProfitByProduct, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportGrossProfitByProduct(exportReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsGrossProfitByCategory, (_event, input) =>
+    grossProfitByCategoryResultSchema.parse(
+      reports.grossProfitByCategory(reportRangeSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportGrossProfitByCategory, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportGrossProfitByCategory(exportReportInputSchema.parse(input)),
     ),
   );
   handle(ipcChannels.taxCategoriesList, () =>

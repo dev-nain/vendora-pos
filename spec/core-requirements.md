@@ -183,7 +183,7 @@ The billing screen is where Vendora wins or loses. It must be fast, keyboard-fir
 - Dashboard: today's sales, bill count, average bill, gross profit, low-stock count
 - Reports with date range, exportable to CSV and PDF:
   - Sales by day/hour, product, category, cashier, payment method
-  - Gross profit and margin by product and category (cost at time of sale)
+  - Gross profit and margin by product and category (cost at time of sale; net sales exclude tax and bill rounding; misc items count in sales but not in profit or margin)
   - Discounts, returns and voids (deleted lines and discarded bills)
   - Sales tax summary (taxable value and tax by rate, with Third Schedule goods on their own rows; returns reduce the rate originally charged)
   - Stock on hand and valuation, low stock, negative stock, movement history per product

@@ -4,6 +4,10 @@ import {
 } from "../../shared/discounts-returns-voids";
 import {
   exportReportFailedMessage,
+  grossProfitByCategoryColumns,
+  grossProfitByProductColumns,
+  type GrossProfitByCategoryResult,
+  type GrossProfitByProductResult,
   salesByDayColumns,
   salesTaxSummaryColumns,
   type ExportReportInput,
@@ -24,6 +28,7 @@ import { writeAtomic } from "../documents/write-atomic";
 import { readDiscountsReturnsVoids } from "../reports/discounts-returns-voids";
 import { reportCsv, reportCsvSections } from "../reports/report-csv";
 import { buildReportDocument, buildSectionedReportDocument } from "../reports/report-document";
+import { readGrossProfitByCategory, readGrossProfitByProduct } from "../reports/gross-profit";
 import { readSalesByDay } from "../reports/sales-by-day";
 import { readSalesTaxSummary } from "../reports/sales-tax-summary";
 import { getReceiptSettings } from "../settings/store-settings";
@@ -72,6 +77,16 @@ export function createReportsService({
   function salesByDay(range: ReportRange): SalesByDayResult {
     const session = requireSession(sessions);
     return readSalesByDay(database, session.storeId, range);
+  }
+
+  function grossProfitByProduct(range: ReportRange): GrossProfitByProductResult {
+    const session = requireSession(sessions);
+    return readGrossProfitByProduct(database, session.storeId, range);
+  }
+
+  function grossProfitByCategory(range: ReportRange): GrossProfitByCategoryResult {
+    const session = requireSession(sessions);
+    return readGrossProfitByCategory(database, session.storeId, range);
   }
 
   function salesTaxSummary(range: ReportRange): SalesTaxSummaryResult {
@@ -148,6 +163,26 @@ export function createReportsService({
 
   return {
     salesByDay,
+    grossProfitByProduct,
+    grossProfitByCategory,
+    exportGrossProfitByProduct: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Gross profit by product",
+        fileStem: "gross-profit-by-product",
+        range,
+        format,
+        columns: grossProfitByProductColumns,
+        read: (storeId) => readGrossProfitByProduct(database, storeId, range),
+      }),
+    exportGrossProfitByCategory: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Gross profit by category",
+        fileStem: "gross-profit-by-category",
+        range,
+        format,
+        columns: grossProfitByCategoryColumns,
+        read: (storeId) => readGrossProfitByCategory(database, storeId, range),
+      }),
     discountsReturnsVoids,
     salesTaxSummary,
     exportDiscountsReturnsVoids,

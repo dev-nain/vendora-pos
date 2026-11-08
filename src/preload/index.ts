@@ -25,6 +25,8 @@ import {
 import { discountsReturnsVoidsResultSchema } from "@shared/discounts-returns-voids";
 import {
   exportReportResultSchema,
+  grossProfitByCategoryResultSchema,
+  grossProfitByProductResultSchema,
   salesByDayResultSchema,
   salesTaxSummaryResultSchema,
 } from "@shared/reports";
@@ -509,6 +511,22 @@ const api: VendoraApi = {
     exportDiscountsReturnsVoids: async (input) =>
       exportReportResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.reportsExportDiscountsReturnsVoids, input),
+      ),
+    grossProfitByProduct: async (range) =>
+      grossProfitByProductResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsGrossProfitByProduct, range),
+      ),
+    exportGrossProfitByProduct: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportGrossProfitByProduct, input),
+      ),
+    grossProfitByCategory: async (range) =>
+      grossProfitByCategoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsGrossProfitByCategory, range),
+      ),
+    exportGrossProfitByCategory: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportGrossProfitByCategory, input),
       ),
   },
   shifts: {

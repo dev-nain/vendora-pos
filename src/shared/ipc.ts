@@ -162,6 +162,8 @@ import type { DiscountsReturnsVoidsResult } from "./discounts-returns-voids";
 import type {
   ExportReportInput,
   ExportReportResult,
+  GrossProfitByCategoryResult,
+  GrossProfitByProductResult,
   ReportRange,
   SalesByDayResult,
   SalesTaxSummaryResult,
@@ -259,6 +261,10 @@ export const ipcChannels = {
   productsExportCsv: "products:export-csv",
   reportsSalesByDay: "reports:sales-by-day",
   reportsExportSalesByDay: "reports:export-sales-by-day",
+  reportsGrossProfitByProduct: "reports:gross-profit-by-product",
+  reportsExportGrossProfitByProduct: "reports:export-gross-profit-by-product",
+  reportsGrossProfitByCategory: "reports:gross-profit-by-category",
+  reportsExportGrossProfitByCategory: "reports:export-gross-profit-by-category",
   reportsDiscountsReturnsVoids: "reports:discounts-returns-voids",
   reportsExportDiscountsReturnsVoids: "reports:export-discounts-returns-voids",
   productsGetMiscItem: "products:get-misc-item",
@@ -474,6 +480,10 @@ export interface VendoraApi {
   reports: {
     salesByDay: (range: ReportRange) => Promise<SalesByDayResult>;
     exportSalesByDay: (input: ExportReportInput) => Promise<ExportReportResult>;
+    grossProfitByProduct: (range: ReportRange) => Promise<GrossProfitByProductResult>;
+    exportGrossProfitByProduct: (input: ExportReportInput) => Promise<ExportReportResult>;
+    grossProfitByCategory: (range: ReportRange) => Promise<GrossProfitByCategoryResult>;
+    exportGrossProfitByCategory: (input: ExportReportInput) => Promise<ExportReportResult>;
     discountsReturnsVoids: (range: ReportRange) => Promise<DiscountsReturnsVoidsResult>;
     exportDiscountsReturnsVoids: (input: ExportReportInput) => Promise<ExportReportResult>;
     salesTaxSummary: (range: ReportRange) => Promise<SalesTaxSummaryResult>;
