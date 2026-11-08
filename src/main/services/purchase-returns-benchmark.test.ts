@@ -1,11 +1,12 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { postPurchaseReturnInputSchema } from "../../shared/purchase-returns";
 import { createSessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
 import { seedStoreAndTerminal } from "../db/seed";
+import { startBackgroundCheckpoints, type BackgroundCheckpoints } from "../db/checkpointer";
 import { openMigratedDatabase } from "../db/test-database";
 import { categories, stores, taxCategories, terminals, users } from "../db/schema";
 import { createAuditService } from "./audit";
@@ -46,6 +47,8 @@ describe("purchase returns and history benchmark", () => {
   let database: VendoraDatabase;
   let returns: ReturnType<typeof createPurchaseReturnsService>;
   let history: ReturnType<typeof createPurchaseHistoryService>;
+
+  let checkpoints: BackgroundCheckpoints;
 
   beforeAll(() => {
     dir = mkdtempSync(join(tmpdir(), "vendora-prn-bench-"));
@@ -150,9 +153,14 @@ describe("purchase returns and history benchmark", () => {
       stock: createStockService({ database, audit }),
     });
     history = createPurchaseHistoryService({ database, sessions });
+    checkpoints = startBackgroundCheckpoints(
+      database,
+      resolve(process.cwd(), "src/main/db/checkpoint-worker.ts"),
+    );
   }, 240_000);
 
-  afterAll(() => {
+  afterAll(async () => {
+    await checkpoints.stop();
     database.sqlite.close();
     rmSync(dir, { recursive: true, force: true });
   });
