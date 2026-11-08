@@ -918,17 +918,15 @@ describe("createStocktakeService", () => {
       const rice = product("Rice");
       move(tea.id, 5000);
       move(rice.id, 5000);
-      let calls = 0;
       const failing = createStocktakeService({
         database: kit.database,
         sessions: kit.sessions,
         audit: kit.audit,
         stock: {
           ...kit.stock,
-          record: (tx, input) => {
-            calls += 1;
-            if (calls === 2) throw new Error("disk full");
-            return kit.stock.record(tx, input);
+          recordStocktakeMovements: (tx, inputs) => {
+            kit.stock.recordStocktakeMovements(tx, inputs);
+            throw new Error("disk full");
           },
         },
       });

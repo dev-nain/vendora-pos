@@ -16,6 +16,7 @@ type Tx = Parameters<Parameters<VendoraDatabase["db"]["transaction"]>[0]>[0];
 type Executor = VendoraDatabase["db"] | Tx;
 
 const ON_HAND_CHUNK = 500;
+const MOVEMENT_INSERT_CHUNK = 500;
 
 const recordableTypes = [
   "sale",
@@ -152,16 +153,20 @@ const onHandOf = (executor: Executor, productId: string): number =>
     .where(eq(stockMovements.productId, productId))
     .get()?.total ?? 0;
 
+const terminalOf = (tx: Tx) => {
+  const terminal = tx
+    .select({ id: terminals.id, storeId: terminals.storeId })
+    .from(terminals)
+    .orderBy(asc(terminals.id))
+    .limit(1)
+    .get();
+  if (!terminal) throw new Error("No terminal is configured");
+  return terminal;
+};
+
 export function createStockService({ database, audit, now = () => new Date() }: StockDeps) {
-  let terminal: { id: string; storeId: string } | undefined;
   const insertMovement = (tx: Tx, input: NewMovement) => {
-    terminal ??= tx
-      .select({ id: terminals.id, storeId: terminals.storeId })
-      .from(terminals)
-      .orderBy(asc(terminals.id))
-      .limit(1)
-      .get();
-    if (!terminal) throw new Error("No terminal is configured");
+    const terminal = terminalOf(tx);
 
     const product = tx
       .select({ id: products.id, costPaisa: products.costPaisa })
@@ -248,6 +253,48 @@ export function createStockService({ database, audit, now = () => new Date() }: 
   return {
     record(tx: Tx, input: RecordMovementInput): StockMovement {
       return insertMovement(tx, recordMovementInputSchema.parse(input));
+    },
+
+    recordStocktakeMovements(tx: Tx, inputs: Omit<RecordMovementInput, "type">[]): void {
+      const parsed = inputs.map((input) =>
+        recordMovementInputSchema.parse({ ...input, type: "stocktake" }),
+      );
+      if (parsed.length === 0) return;
+      const terminal = terminalOf(tx);
+      const createdAt = now();
+      for (let start = 0; start < parsed.length; start += MOVEMENT_INSERT_CHUNK) {
+        const chunk = parsed.slice(start, start + MOVEMENT_INSERT_CHUNK);
+        const ids = [...new Set(chunk.map((input) => input.productId))];
+        const known = new Map(
+          tx
+            .select({ id: products.id, costPaisa: products.costPaisa })
+            .from(products)
+            .where(and(inArray(products.id, ids), eq(products.storeId, terminal.storeId)))
+            .all()
+            .map((product) => [product.id, product.costPaisa]),
+        );
+        tx.insert(stockMovements)
+          .values(
+            chunk.map((input) => {
+              const costPaisa = known.get(input.productId);
+              if (costPaisa === undefined) throw new Error("Product not found");
+              return {
+                storeId: terminal.storeId,
+                terminalId: terminal.id,
+                productId: input.productId,
+                type: input.type,
+                qtyMilli: input.qtyMilli,
+                unitCostPaisa: input.unitCostPaisa ?? costPaisa,
+                sourceType: input.sourceType ?? null,
+                sourceId: input.sourceId ?? null,
+                reason: input.reason ?? null,
+                actorUserId: input.actorUserId,
+                createdAt,
+              };
+            }),
+          )
+          .run();
+      }
     },
 
     setOnHand(

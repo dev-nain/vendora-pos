@@ -584,6 +584,7 @@ describe("createStockService", () => {
     it("exposes no update or delete path", () => {
       expect(Object.keys(service)).toEqual([
         "record",
+        "recordStocktakeMovements",
         "setOnHand",
         "onHand",
         "onHandMany",
