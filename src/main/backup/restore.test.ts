@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   closeSync,
   cpSync,
@@ -11,6 +11,7 @@ import {
   writeFileSync,
   writeSync,
 } from "node:fs";
+import { rename } from "node:fs/promises";
 import { basename, join } from "node:path";
 import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,7 +22,12 @@ import { createCheckoutKit, type CheckoutKit } from "../services/checkout-test-k
 import { sealBackupFile } from "./backup-cipher";
 import { deriveBackupKey } from "./backup-key";
 import { createBackupService } from "./backup-service";
-import { createRestoreService, restoreMessages, type RestoreSource } from "./restore";
+import {
+  createRecoveryRestore,
+  createRestoreService,
+  restoreMessages,
+  type RestoreSource,
+} from "./restore";
 import type { CopyDatabase } from "./worker-copy";
 
 const migrationsFolder = join(process.cwd(), "drizzle");
@@ -88,6 +94,15 @@ function productNames(file: string): string[] {
     sqlite.close();
   }
 }
+
+const sha = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex");
+
+const failingRename =
+  (when: (from: string, to: string) => boolean, code: string) =>
+  async (from: string, to: string) => {
+    if (when(from, to)) throw Object.assign(new Error("rename failed"), { code });
+    await rename(from, to);
+  };
 
 describe("createRestoreService", () => {
   let kit: CheckoutKit;
@@ -158,6 +173,19 @@ describe("createRestoreService", () => {
     vi.restoreAllMocks();
     kit.close();
   });
+
+  const damagedFiles = () =>
+    readdirSync(kit.dir).filter((name) => name.startsWith("vendora-damaged-"));
+
+  const createRecovery = (overrides: Partial<Parameters<typeof createRecoveryRestore>[0]> = {}) =>
+    createRecoveryRestore({
+      databaseFile,
+      backupDir,
+      migrationsFolder,
+      restart,
+      now: () => new Date("2026-11-07T10:00:00.000Z"),
+      ...overrides,
+    });
 
   describe("refusals", () => {
     it("rejects a corrupt file and changes nothing", async () => {
@@ -565,6 +593,121 @@ describe("createRestoreService", () => {
       expect(logged).not.toContain(marker);
       expect(logged).not.toContain("wrong guess");
       expect(JSON.stringify(restoreRows(databaseFile))).not.toContain(marker);
+    });
+  });
+
+  describe("recovery restore", () => {
+    const walBytes = Buffer.from("pretend write-ahead log");
+    let backupFile: string;
+    let damagedHash: string;
+
+    beforeEach(() => {
+      kit.signIn("cashier");
+      kit.addProduct({ nameEn: "In the backup" });
+      backupFile = takeBackup();
+      kit.database.sqlite.close();
+      scribble(databaseFile);
+      writeFileSync(`${databaseFile}-wal`, walBytes);
+      damagedHash = sha(databaseFile);
+    });
+
+    it("puts the backup in place, keeps the damaged file renamed, and takes no pre-restore backup", async () => {
+      const result = await createRecovery().restore(sourceOf(backupFile));
+
+      expect(result).toEqual({ ok: true });
+      expect(existsSync(`${databaseFile}-wal`)).toBe(false);
+      expect(productNames(databaseFile)).toContain("In the backup");
+      const damaged = damagedFiles().filter((name) => name.endsWith(".db"));
+      expect(damaged).toHaveLength(1);
+      expect(sha(join(kit.dir, damaged[0]!))).toBe(damagedHash);
+      expect(readFileSync(join(kit.dir, `${damaged[0]!}-wal`))).toEqual(walBytes);
+      expect(readdirSync(backupDir).filter((name) => name.startsWith("pre-restore-"))).toEqual([]);
+      expect(restart).toHaveBeenCalledTimes(1);
+      expect(restart).toHaveBeenCalledWith(null);
+      expect(stagedLeftovers()).toEqual([]);
+    });
+
+    it("records the restore with no actor", async () => {
+      await createRecovery().restore(sourceOf(backupFile));
+
+      const [row] = restoreRows(databaseFile);
+      expect(row?.actor_user_id).toBeNull();
+      expect(JSON.parse(row!.details)).toEqual({
+        fileName: basename(backupFile),
+        takenAt: "2026-11-01T00:00:00.000Z",
+        damagedFile: damagedFiles().find((name) => name.endsWith(".db")),
+        recovery: true,
+      });
+    });
+
+    describe("password-protected backups", () => {
+      const password = "blue horse 7";
+      const smallKdf = { memoryKiB: 64, iterations: 1, parallelism: 1 };
+      let sealed: string;
+
+      beforeEach(async () => {
+        const salt = randomBytes(16);
+        const key = await deriveBackupKey(password, salt, smallKdf);
+        sealed = join(kit.dir, "sealed.db");
+        sealBackupFile(backupFile, sealed, { key, salt, kdf: smallKdf });
+      });
+
+      it("asks for a password and moves nothing when it is missing or wrong", async () => {
+        expect(await createRecovery().restore(sourceOf(sealed))).toMatchObject({
+          ok: false,
+          reason: "password-required",
+        });
+        expect(await createRecovery().restore(sourceOf(sealed), "green horse 8")).toMatchObject({
+          ok: false,
+          reason: "wrong-password",
+        });
+        expect(sha(databaseFile)).toBe(damagedHash);
+        expect(damagedFiles()).toEqual([]);
+        expect(restart).not.toHaveBeenCalled();
+      });
+
+      it("restores with the right password", async () => {
+        expect(await createRecovery().restore(sourceOf(sealed), password)).toEqual({ ok: true });
+        expect(productNames(databaseFile)).toContain("In the backup");
+      });
+    });
+
+    it("refuses a backup that fails the check and leaves the damaged file where it is", async () => {
+      const notABackup = join(kit.dir, "note.db");
+      writeFileSync(notABackup, "not sqlite");
+
+      const result = await createRecovery().restore(sourceOf(notABackup));
+
+      expect(result).toMatchObject({ ok: false, reason: "not-vendora" });
+      expect(sha(databaseFile)).toBe(damagedHash);
+      expect(damagedFiles()).toEqual([]);
+      expect(restart).not.toHaveBeenCalled();
+    });
+
+    it("stops with a reason when the damaged file can't be moved", async () => {
+      const result = await createRecovery({
+        renameFile: failingRename(() => true, "EBUSY"),
+      }).restore(sourceOf(backupFile));
+
+      expect(result).toMatchObject({ ok: false, reason: "set-aside-failed" });
+      expect(result).toMatchObject({ message: expect.stringContaining("another program") });
+      expect(sha(databaseFile)).toBe(damagedHash);
+      expect(damagedFiles()).toEqual([]);
+      expect(stagedLeftovers()).toEqual([]);
+      expect(restart).not.toHaveBeenCalled();
+    });
+
+    it("puts the damaged file back when the final rename fails", async () => {
+      const result = await createRecovery({
+        renameFile: failingRename((_from, to) => to === databaseFile, "EPERM"),
+      }).restore(sourceOf(backupFile));
+
+      expect(result).toMatchObject({ ok: false, reason: "swap-failed" });
+      expect(sha(databaseFile)).toBe(damagedHash);
+      expect(readFileSync(`${databaseFile}-wal`)).toEqual(walBytes);
+      expect(damagedFiles()).toEqual([]);
+      expect(stagedLeftovers()).toEqual([]);
+      expect(restart).not.toHaveBeenCalled();
     });
   });
 });

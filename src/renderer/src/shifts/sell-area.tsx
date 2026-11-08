@@ -23,7 +23,7 @@ const reportHints: Hint[] = [["Enter", "Done"], ...baseHints];
 type Mode =
   | { name: "main" }
   | { name: "closing" }
-  | { name: "orders" }
+  | { name: "orders"; invoiceNo: string | null }
   | { name: "z-report"; report: ShiftReport; warnPaisa: number };
 
 type Dialog =
@@ -32,6 +32,7 @@ type Dialog =
   | null;
 
 interface SellAreaProps {
+  openInvoiceNo: string | null;
   onSessionEnded: () => void;
   onHintsChange: (hints: Hint[]) => void;
   onOpenPrinterSettings: () => void;
@@ -82,11 +83,18 @@ function ZReport({ report, warnPaisa, onDone, onPrinterChanged, onSessionEnded }
   );
 }
 
-export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings }: SellAreaProps) {
+export function SellArea({
+  openInvoiceNo,
+  onSessionEnded,
+  onHintsChange,
+  onOpenPrinterSettings,
+}: SellAreaProps) {
   const [state, setState] = useState<ShiftState | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
-  const [mode, setMode] = useState<Mode>({ name: "main" });
+  const [mode, setMode] = useState<Mode>(
+    openInvoiceNo ? { name: "orders", invoiceNo: openInvoiceNo } : { name: "main" },
+  );
   const [billingHints, setBillingHints] = useState<Hint[]>(baseHints);
   const [ordersHints, setOrdersHints] = useState<Hint[]>(baseHints);
   const [billingStep, setBillingStep] = useState<BillingStep>("products");
@@ -157,7 +165,7 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === "o") {
         event.preventDefault();
-        setMode({ name: "orders" });
+        setMode({ name: "orders", invoiceNo: null });
         return;
       }
       if (event.ctrlKey || event.altKey || event.metaKey) return;
@@ -223,6 +231,7 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
       ) : mode.name === "orders" ? (
         <OrdersScreen
           active={dialog === null}
+          initialInvoiceNo={mode.invoiceNo}
           onBack={() => setMode({ name: "main" })}
           onSessionEnded={onSessionEnded}
           onPrinterChanged={refreshPrinter}
@@ -257,7 +266,7 @@ export function SellArea({ onSessionEnded, onHintsChange, onOpenPrinterSettings 
               openedBy={state.shift.openedBy}
               printerStatus={printerStatus}
               onOpenPrinterSettings={onOpenPrinterSettings}
-              onOrders={() => setMode({ name: "orders" })}
+              onOrders={() => setMode({ name: "orders", invoiceNo: null })}
               onCashIn={(opener) => openDialog({ kind: "cash-move", moveKind: "in" }, opener)}
               onCashOut={(opener) => openDialog({ kind: "cash-move", moveKind: "out" }, opener)}
               onXReport={(opener) => openDialog({ kind: "x-report" }, opener)}

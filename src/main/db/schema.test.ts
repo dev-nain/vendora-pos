@@ -200,6 +200,17 @@ describe("catalog schema", () => {
       expect(() => database.db.insert(stores).values({ standardTaxRateBps: rate }).run()).toThrow();
     }
   });
+
+  it("adds a nullable margin threshold that is off by default, without rebuilding stores", () => {
+    const column = database.sqlite
+      .prepare("SELECT \"notnull\" AS nn FROM pragma_table_info('stores') WHERE name = ?")
+      .get("margin_threshold_bps");
+    expect(column).toEqual({ nn: 0 });
+    expect(database.db.select().from(stores).get()?.marginThresholdBps).toBeNull();
+    const sqlText = readFileSync(join(migrationsFolder, "0022_margin_prompt.sql"), "utf8");
+    expect(sqlText).not.toContain("__new_stores");
+    expect(sqlText).toContain("ALTER TABLE `stores` ADD `margin_threshold_bps`");
+  });
 });
 
 describe("product schema", () => {
@@ -1075,6 +1086,7 @@ describe("remove roles and lock migration on an existing database", () => {
         "receipt_header_ur",
         "receipt_footer_en",
         "receipt_footer_ur",
+        "margin_threshold_bps",
       ]);
       expect(columnsOf(database, "users")).not.toContain("role");
       expect(columnsOf(database, "audit_log")).not.toContain("approver_user_id");
@@ -1102,6 +1114,7 @@ describe("remove roles and lock migration on an existing database", () => {
           receipt_header_ur: null,
           receipt_footer_en: null,
           receipt_footer_ur: null,
+          margin_threshold_bps: null,
         },
       ]);
       expect(database.sqlite.prepare("SELECT * FROM users ORDER BY id").all()).toEqual([

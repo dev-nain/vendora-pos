@@ -9,6 +9,7 @@ import type {
   RestoreInput,
   RestoreResult,
 } from "./backup";
+import type { RecoveryScan, StartupState } from "./recovery";
 import type {
   AuthResult,
   CreateFirstUserInput,
@@ -22,11 +23,13 @@ import type {
   DeleteCategoryResult,
   RenameCategoryResult,
 } from "./categories";
+import type { PrintInvoiceResult, SaveInvoicePdfResult } from "./invoices";
 import type {
   GetGoodsReceivedResult,
   GoodsReceivedLastCostResult,
   GoodsReceivedListQuery,
   GoodsReceivedListResult,
+  LowMarginResult,
   PostGoodsReceivedInput,
   PostGoodsReceivedResult,
 } from "./goods-received";
@@ -77,6 +80,7 @@ import type {
   SaleJobResult,
 } from "./receipt";
 import type {
+  MarginThresholdSetting,
   MiscItemSetting,
   PrinterSettings,
   ReceiptSettings,
@@ -160,11 +164,15 @@ import type {
   UpdateProductInput,
   UpdateProductResult,
 } from "./products";
+import type { DiscountsReturnsVoidsResult } from "./discounts-returns-voids";
 import type {
   ExportReportInput,
   ExportReportResult,
+  GrossProfitByCategoryResult,
+  GrossProfitByProductResult,
   ReportRange,
   SalesByDayResult,
+  SalesTaxSummaryResult,
 } from "./reports";
 import type { GetOrderResult, OrderSummary, SalesListQuery } from "./sales";
 import type {
@@ -201,6 +209,8 @@ export const ipcChannels = {
   settingsSetMiscItemEnabled: "settings:set-misc-item-enabled",
   settingsGetShiftVarianceWarn: "settings:get-shift-variance-warn",
   settingsSetShiftVarianceWarn: "settings:set-shift-variance-warn",
+  settingsGetMarginThreshold: "settings:get-margin-threshold",
+  settingsSetMarginThreshold: "settings:set-margin-threshold",
   settingsGetReceipt: "settings:get-receipt",
   settingsSetReceipt: "settings:set-receipt",
   settingsGetSecondCopy: "settings:get-second-copy",
@@ -243,6 +253,15 @@ export const ipcChannels = {
   productsSearch: "products:search",
   productsGet: "products:get",
   productsCreate: "products:create",
+  purchaseReturnsPost: "purchase-returns:post",
+  purchaseReturnsList: "purchase-returns:list",
+  purchaseReturnsGet: "purchase-returns:get",
+  purchaseReturnsReturnable: "purchase-returns:returnable",
+  purchaseReturnsFromNote: "purchase-returns:from-note",
+  purchaseReturnsSavePdf: "purchase-returns:save-pdf",
+  purchaseReturnsPrint: "purchase-returns:print",
+  purchaseHistoryProduct: "purchase-history:product",
+  purchaseHistorySupplier: "purchase-history:supplier",
   productsUpdate: "products:update",
   productsArchive: "products:archive",
   productsRestore: "products:restore",
@@ -250,6 +269,14 @@ export const ipcChannels = {
   productsBulkUpdate: "products:bulk-update",
   productsLookupBarcode: "products:lookup-barcode",
   productsExportCsv: "products:export-csv",
+  reportsSalesByDay: "reports:sales-by-day",
+  reportsExportSalesByDay: "reports:export-sales-by-day",
+  reportsGrossProfitByProduct: "reports:gross-profit-by-product",
+  reportsExportGrossProfitByProduct: "reports:export-gross-profit-by-product",
+  reportsGrossProfitByCategory: "reports:gross-profit-by-category",
+  reportsExportGrossProfitByCategory: "reports:export-gross-profit-by-category",
+  reportsDiscountsReturnsVoids: "reports:discounts-returns-voids",
+  reportsExportDiscountsReturnsVoids: "reports:export-discounts-returns-voids",
   productsGetMiscItem: "products:get-misc-item",
   categoriesList: "categories:list",
   categoriesCreate: "categories:create",
@@ -274,19 +301,13 @@ export const ipcChannels = {
   goodsReceivedList: "goods-received:list",
   goodsReceivedGet: "goods-received:get",
   goodsReceivedLastCost: "goods-received:last-cost",
-  purchaseReturnsPost: "purchase-returns:post",
-  purchaseReturnsList: "purchase-returns:list",
-  purchaseReturnsGet: "purchase-returns:get",
-  purchaseReturnsReturnable: "purchase-returns:returnable",
-  purchaseReturnsFromNote: "purchase-returns:from-note",
-  purchaseReturnsSavePdf: "purchase-returns:save-pdf",
-  purchaseReturnsPrint: "purchase-returns:print",
-  purchaseHistoryProduct: "purchase-history:product",
-  purchaseHistorySupplier: "purchase-history:supplier",
+  goodsReceivedLowMargin: "goods-received:low-margin",
   purchaseOrdersSavePdf: "purchase-orders:save-pdf",
   purchaseOrdersPrint: "purchase-orders:print",
-  reportsSalesByDay: "reports:sales-by-day",
-  reportsExportSalesByDay: "reports:export-sales-by-day",
+  reportsSalesTaxSummary: "reports:sales-tax-summary",
+  reportsExportSalesTaxSummary: "reports:export-sales-tax-summary",
+  invoicesSavePdf: "invoices:save-pdf",
+  invoicesPrint: "invoices:print",
   shiftsState: "shifts:state",
   shiftsOpen: "shifts:open",
   shiftsAddCashMove: "shifts:add-cash-move",
@@ -322,10 +343,16 @@ export const ipcChannels = {
   backupPasswordTurnOn: "backup:password-turn-on",
   backupPasswordChange: "backup:password-change",
   backupPasswordTurnOff: "backup:password-turn-off",
+  startupState: "startup:state",
+  recoveryScan: "recovery:scan",
+  recoveryChooseFile: "recovery:choose-file",
+  recoveryRestore: "recovery:restore",
+  recoveryRetry: "recovery:retry",
 } as const;
 
 export const ipcErrorMessages = {
   unauthenticated: "Log in to continue.",
+  recoveryUnavailable: "This is only available when Vendora can't open its data.",
 } as const;
 
 export interface VendoraApi {
@@ -347,6 +374,8 @@ export interface VendoraApi {
     setMiscItemEnabled: (enabled: boolean) => Promise<MiscItemSetting>;
     getShiftVarianceWarn: () => Promise<ShiftVarianceSetting>;
     setShiftVarianceWarn: (warnPaisa: number) => Promise<ShiftVarianceSetting>;
+    getMarginThreshold: () => Promise<MarginThresholdSetting>;
+    setMarginThreshold: (thresholdBps: number | null) => Promise<MarginThresholdSetting>;
     getReceipt: () => Promise<ReceiptSettings>;
     setReceipt: (input: ReceiptSettingsInput) => Promise<ReceiptSettings>;
     getSecondCopy: () => Promise<SecondCopyStatus>;
@@ -437,11 +466,17 @@ export interface VendoraApi {
     savePdf: (id: string) => Promise<SavePurchaseOrderPdfResult>;
     print: (id: string) => Promise<PrintPurchaseOrderResult>;
   };
+  invoices: {
+    savePdf: (saleId: string) => Promise<SaveInvoicePdfResult>;
+    print: (saleId: string) => Promise<PrintInvoiceResult>;
+  };
+
   goodsReceived: {
     post: (input: PostGoodsReceivedInput) => Promise<PostGoodsReceivedResult>;
     list: (query: GoodsReceivedListQuery) => Promise<GoodsReceivedListResult>;
     get: (id: string) => Promise<GetGoodsReceivedResult>;
     lastCost: (productId: string) => Promise<GoodsReceivedLastCostResult>;
+    lowMargin: (id: string) => Promise<LowMarginResult>;
   };
   purchaseReturns: {
     post: (input: PostPurchaseReturnInput) => Promise<PostPurchaseReturnResult>;
@@ -459,6 +494,14 @@ export interface VendoraApi {
   reports: {
     salesByDay: (range: ReportRange) => Promise<SalesByDayResult>;
     exportSalesByDay: (input: ExportReportInput) => Promise<ExportReportResult>;
+    grossProfitByProduct: (range: ReportRange) => Promise<GrossProfitByProductResult>;
+    exportGrossProfitByProduct: (input: ExportReportInput) => Promise<ExportReportResult>;
+    grossProfitByCategory: (range: ReportRange) => Promise<GrossProfitByCategoryResult>;
+    exportGrossProfitByCategory: (input: ExportReportInput) => Promise<ExportReportResult>;
+    discountsReturnsVoids: (range: ReportRange) => Promise<DiscountsReturnsVoidsResult>;
+    exportDiscountsReturnsVoids: (input: ExportReportInput) => Promise<ExportReportResult>;
+    salesTaxSummary: (range: ReportRange) => Promise<SalesTaxSummaryResult>;
+    exportSalesTaxSummary: (input: ExportReportInput) => Promise<ExportReportResult>;
   };
   shifts: {
     state: () => Promise<ShiftState>;
@@ -506,5 +549,14 @@ export interface VendoraApi {
     turnOnPassword: (password: string) => Promise<BackupPasswordResult>;
     changePassword: (current: string, next: string) => Promise<BackupPasswordResult>;
     turnOffPassword: (current: string) => Promise<BackupPasswordResult>;
+  };
+  startup: {
+    state: () => Promise<StartupState>;
+  };
+  recovery: {
+    scan: () => Promise<RecoveryScan>;
+    chooseFile: () => Promise<ChosenBackup>;
+    restore: (input: RestoreInput) => Promise<RestoreResult>;
+    retry: () => Promise<void>;
   };
 }
