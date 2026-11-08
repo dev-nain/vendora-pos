@@ -8,10 +8,10 @@ export type BackupCheck =
   | { ok: false; reason: "not-vendora" | "corrupt" | "newer-version" };
 
 const sqliteHeader = Buffer.from("SQLite format 3\0", "latin1");
-const requiredTables = ["__drizzle_migrations", "stores", "terminals", "users", "audit_log"];
+export const requiredTables = ["__drizzle_migrations", "stores", "terminals", "users", "audit_log"];
 const appliedAtSchema = z.int().positive();
 
-function hasSqliteHeader(file: string): boolean {
+export function hasSqliteHeader(file: string): boolean {
   const fd = openSync(file, "r");
   try {
     const header = Buffer.alloc(sqliteHeader.length);

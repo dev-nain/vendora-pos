@@ -17,6 +17,7 @@ import { StatusBadge } from "../products/product-cells";
 import { isTypingTarget } from "../products/product-list";
 import { ErrorLine } from "../users/form-parts";
 import { SupplierDialog } from "./supplier-dialog";
+import { SupplierHistory } from "./supplier-history";
 import { SupplierRowMenu } from "./supplier-row-menu";
 
 interface SuppliersScreenProps {
@@ -41,6 +42,7 @@ function TextCell({ value, className }: { value: string | null; className?: stri
 }
 
 export function SuppliersScreen({ onSessionEnded }: SuppliersScreenProps) {
+  const [historyOf, setHistoryOf] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +116,8 @@ export function SuppliersScreen({ onSessionEnded }: SuppliersScreenProps) {
 
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.ctrlKey || event.altKey || event.metaKey || dialog?.open) return;
+      if (event.ctrlKey || event.altKey || event.metaKey || dialog?.open || historyOf !== null)
+        return;
       if (isTypingTarget(event.target)) return;
       if (event.key.toLowerCase() === "n") {
         event.preventDefault();
@@ -123,7 +126,7 @@ export function SuppliersScreen({ onSessionEnded }: SuppliersScreenProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dialog?.open, openDialog]);
+  }, [dialog?.open, historyOf, openDialog]);
 
   const items = suppliers ?? [];
 
@@ -147,6 +150,15 @@ export function SuppliersScreen({ onSessionEnded }: SuppliersScreenProps) {
       event.preventDefault();
       const supplier = items[index];
       if (supplier) openDialog(supplier);
+    } else if (
+      event.key.toLowerCase() === "h" &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.metaKey
+    ) {
+      event.preventDefault();
+      const supplier = items[index];
+      if (supplier) setHistoryOf(supplier.id);
     }
   };
 
@@ -171,6 +183,16 @@ export function SuppliersScreen({ onSessionEnded }: SuppliersScreenProps) {
   };
 
   const showEmpty = suppliers !== null && items.length === 0;
+
+  if (historyOf !== null) {
+    return (
+      <SupplierHistory
+        supplierId={historyOf}
+        onBack={() => setHistoryOf(null)}
+        onSessionEnded={onSessionEnded}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-500">
@@ -267,6 +289,7 @@ export function SuppliersScreen({ onSessionEnded }: SuppliersScreenProps) {
                   <SupplierRowMenu
                     supplier={supplier}
                     onEdit={() => openDialog(supplier)}
+                    onHistory={() => setHistoryOf(supplier.id)}
                     onToggleArchive={() => void toggleArchive(supplier, index)}
                   />
                 </TableCell>

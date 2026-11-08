@@ -1,9 +1,15 @@
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { checkoutMessages } from "../../shared/checkout";
 import {
   goodsReceivedMessages,
+  type GetGoodsReceivedResult,
+  type GoodsReceivedLastCostResult,
+  type GoodsReceivedListQuery,
+  type GoodsReceivedListResult,
   type GoodsReceivedNote,
+  type LowMarginItem,
+  type LowMarginResult,
   type PostGoodsReceivedResult,
   type postGoodsReceivedInputSchema,
 } from "../../shared/goods-received";
@@ -12,6 +18,7 @@ import {
   purchaseOrderLineTotalPaisa,
   purchaseOrderTotalPaisa,
 } from "../../shared/purchase-orders";
+import { resolveTaxRateBps } from "../db/sale-rows";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
@@ -23,9 +30,13 @@ import {
   purchaseOrderLines,
   purchaseOrders,
   suppliers,
+  taxCategories,
 } from "../db/schema";
 import { currentTerminal, type DbExecutor } from "../db/terminal";
+import { getCheckoutSettings, getMarginThresholdBps } from "../settings/store-settings";
 import type { createAuditService } from "./audit";
+import { localDayBounds } from "./sales";
+import { exTaxPricePaisa, isBelowThreshold, marginBps } from "./margin";
 import type { StockService } from "./stock";
 
 type PostInput = z.output<typeof postGoodsReceivedInputSchema>;
@@ -42,6 +53,9 @@ interface GoodsReceivedDeps {
   now?: () => Date;
 }
 
+type NoteRow = typeof goodsReceivedNotes.$inferSelect;
+type LineRow = typeof goodsReceivedLines.$inferSelect;
+
 const refuse = <Reason extends string>(reason: Reason, message: string) =>
   ({ ok: false, reason, message }) as const;
 
@@ -53,12 +67,13 @@ const productUnavailable = refuse("product-unavailable", goodsReceivedMessages.p
 const wholeUnits = refuse("whole-units", checkoutMessages.wholeUnits);
 const orderNotFound = refuse("order-not-found", goodsReceivedMessages.orderNotFound);
 const orderNotReceivable = refuse("order-not-receivable", goodsReceivedMessages.orderNotReceivable);
+const noteNotFound = refuse("not-found", goodsReceivedMessages.notFound);
 const orderLineUnavailable = refuse(
   "order-line-unavailable",
   goodsReceivedMessages.orderLineUnavailable,
 );
 
-function findLiveSupplier(tx: DbExecutor, storeId: string, supplierId: string) {
+export function findLiveSupplier(tx: DbExecutor, storeId: string, supplierId: string) {
   return tx
     .select({ id: suppliers.id, name: suppliers.name })
     .from(suppliers)
@@ -69,6 +84,29 @@ function findLiveSupplier(tx: DbExecutor, storeId: string, supplierId: string) {
         isNull(suppliers.deletedAt),
       ),
     )
+    .get();
+}
+
+export function lastReceipt(tx: DbExecutor, storeId: string, productId: string) {
+  return tx
+    .select({
+      unitCostPaisa: goodsReceivedLines.unitCostPaisa,
+      supplierId: goodsReceivedNotes.supplierId,
+      supplierName: suppliers.name,
+      grnNo: goodsReceivedNotes.grnNo,
+      receivedAt: goodsReceivedLines.createdAt,
+    })
+    .from(goodsReceivedLines)
+    .innerJoin(
+      goodsReceivedNotes,
+      eq(goodsReceivedNotes.id, goodsReceivedLines.goodsReceivedNoteId),
+    )
+    .innerJoin(suppliers, eq(suppliers.id, goodsReceivedNotes.supplierId))
+    .where(
+      and(eq(goodsReceivedLines.storeId, storeId), eq(goodsReceivedLines.productId, productId)),
+    )
+    .orderBy(desc(goodsReceivedLines.createdAt), desc(goodsReceivedLines.position))
+    .limit(1)
     .get();
 }
 
@@ -103,6 +141,43 @@ function resolveOrder(tx: DbExecutor, storeId: string, input: PostInput & { kind
     });
   }
   return { order, lines };
+}
+
+function toNote(tx: DbExecutor, note: NoteRow, lines: LineRow[]): GoodsReceivedNote {
+  const supplier = tx
+    .select({ name: suppliers.name })
+    .from(suppliers)
+    .where(eq(suppliers.id, note.supplierId))
+    .get();
+  const order = note.purchaseOrderId
+    ? tx
+        .select({ orderNo: purchaseOrders.orderNo })
+        .from(purchaseOrders)
+        .where(eq(purchaseOrders.id, note.purchaseOrderId))
+        .get()
+    : undefined;
+  return {
+    id: note.id,
+    grnNo: note.grnNo,
+    supplierId: note.supplierId,
+    supplierName: supplier?.name ?? "",
+    purchaseOrderId: note.purchaseOrderId,
+    orderNo: order?.orderNo ?? null,
+    supplierInvoiceNo: note.supplierInvoiceNo,
+    totalPaisa: note.totalPaisa,
+    createdAt: note.createdAt.toISOString(),
+    lines: lines.map((line) => ({
+      id: line.id,
+      productId: line.productId,
+      purchaseOrderLineId: line.purchaseOrderLineId,
+      nameEn: line.nameEn,
+      nameUr: line.nameUr,
+      unit: line.unit,
+      qtyMilli: line.qtyMilli,
+      unitCostPaisa: line.unitCostPaisa,
+      lineTotalPaisa: line.lineTotalPaisa,
+    })),
+  };
 }
 
 export function createGoodsReceivedService({
@@ -246,36 +321,146 @@ export function createGoodsReceivedService({
         tx,
       );
 
-      const supplier = tx
-        .select({ name: suppliers.name })
-        .from(suppliers)
-        .where(eq(suppliers.id, supplierId))
-        .get();
-      const result: GoodsReceivedNote = {
-        id: note.id,
-        grnNo,
-        supplierId,
-        supplierName: supplier?.name ?? "",
-        purchaseOrderId,
-        supplierInvoiceNo: note.supplierInvoiceNo,
-        totalPaisa,
-        createdAt: note.createdAt.toISOString(),
-        lines: saved.map((line) => ({
-          id: line.id,
-          productId: line.productId,
-          purchaseOrderLineId: line.purchaseOrderLineId,
-          nameEn: line.nameEn,
-          nameUr: line.nameUr,
-          unit: line.unit,
-          qtyMilli: line.qtyMilli,
-          unitCostPaisa: line.unitCostPaisa,
-          lineTotalPaisa: line.lineTotalPaisa,
-        })),
-      };
-      return { ok: true, note: result };
+      return { ok: true, note: toNote(tx, note, saved) };
     });
   }
 
-  return { post };
+  function list(query: GoodsReceivedListQuery): GoodsReceivedListResult {
+    const session = requireSession(sessions);
+    const conditions = [eq(goodsReceivedNotes.storeId, session.storeId)];
+    if (query.supplierId) conditions.push(eq(goodsReceivedNotes.supplierId, query.supplierId));
+    if (query.from)
+      conditions.push(gte(goodsReceivedNotes.createdAt, localDayBounds(query.from).start));
+    if (query.to) conditions.push(lt(goodsReceivedNotes.createdAt, localDayBounds(query.to).end));
+    const where = and(...conditions);
+
+    const rows = db
+      .select({
+        id: goodsReceivedNotes.id,
+        grnNo: goodsReceivedNotes.grnNo,
+        supplierId: goodsReceivedNotes.supplierId,
+        supplierName: suppliers.name,
+        purchaseOrderId: goodsReceivedNotes.purchaseOrderId,
+        orderNo: purchaseOrders.orderNo,
+        supplierInvoiceNo: goodsReceivedNotes.supplierInvoiceNo,
+        totalPaisa: goodsReceivedNotes.totalPaisa,
+        createdAt: goodsReceivedNotes.createdAt,
+      })
+      .from(goodsReceivedNotes)
+      .innerJoin(suppliers, eq(suppliers.id, goodsReceivedNotes.supplierId))
+      .leftJoin(purchaseOrders, eq(purchaseOrders.id, goodsReceivedNotes.purchaseOrderId))
+      .where(where)
+      .orderBy(desc(goodsReceivedNotes.createdAt), desc(goodsReceivedNotes.id))
+      .limit(query.limit)
+      .offset(query.offset)
+      .all();
+
+    const lineCounts = new Map(
+      rows.length === 0
+        ? []
+        : db
+            .select({
+              noteId: goodsReceivedLines.goodsReceivedNoteId,
+              lineCount: count(),
+            })
+            .from(goodsReceivedLines)
+            .where(
+              inArray(
+                goodsReceivedLines.goodsReceivedNoteId,
+                rows.map((row) => row.id),
+              ),
+            )
+            .groupBy(goodsReceivedLines.goodsReceivedNoteId)
+            .all()
+            .map((row) => [row.noteId, row.lineCount] as const),
+    );
+    const total =
+      db.select({ total: count() }).from(goodsReceivedNotes).where(where).get()?.total ?? 0;
+
+    return {
+      items: rows.map((row) => ({
+        ...row,
+        lineCount: lineCounts.get(row.id) ?? 0,
+        createdAt: row.createdAt.toISOString(),
+      })),
+      total,
+    };
+  }
+
+  function get({ id }: { id: string }): GetGoodsReceivedResult {
+    const session = requireSession(sessions);
+    const note = db
+      .select()
+      .from(goodsReceivedNotes)
+      .where(and(eq(goodsReceivedNotes.id, id), eq(goodsReceivedNotes.storeId, session.storeId)))
+      .get();
+    if (!note) return noteNotFound;
+    const lines = db
+      .select()
+      .from(goodsReceivedLines)
+      .where(eq(goodsReceivedLines.goodsReceivedNoteId, note.id))
+      .orderBy(asc(goodsReceivedLines.position))
+      .all();
+    return { ok: true, note: toNote(db, note, lines) };
+  }
+
+  function lastCost({ productId }: { productId: string }): GoodsReceivedLastCostResult {
+    const session = requireSession(sessions);
+    return { unitCostPaisa: lastReceipt(db, session.storeId, productId)?.unitCostPaisa ?? null };
+  }
+
+  function lowMargin({ id }: { id: string }): LowMarginResult {
+    const session = requireSession(sessions);
+    const note = db
+      .select({ id: goodsReceivedNotes.id })
+      .from(goodsReceivedNotes)
+      .where(and(eq(goodsReceivedNotes.id, id), eq(goodsReceivedNotes.storeId, session.storeId)))
+      .get();
+    if (!note) return noteNotFound;
+    const thresholdBps = getMarginThresholdBps(db, session.storeId);
+    if (thresholdBps === null) return { ok: true, thresholdBps, items: [] };
+
+    const { pricesIncludeTax, standardTaxRateBps } = getCheckoutSettings(db, session.storeId);
+    const rows = db
+      .select({
+        productId: products.id,
+        nameEn: products.nameEn,
+        nameUr: products.nameUr,
+        unit: products.unit,
+        costPaisa: products.costPaisa,
+        salePricePaisa: products.salePricePaisa,
+        mrpPaisa: products.mrpPaisa,
+        categoryRateBps: taxCategories.rateBps,
+      })
+      .from(goodsReceivedLines)
+      .innerJoin(products, eq(products.id, goodsReceivedLines.productId))
+      .innerJoin(taxCategories, eq(taxCategories.id, products.taxCategoryId))
+      .where(
+        and(
+          eq(goodsReceivedLines.goodsReceivedNoteId, note.id),
+          isNull(products.deletedAt),
+          eq(products.isSystem, false),
+        ),
+      )
+      .orderBy(asc(goodsReceivedLines.position))
+      .all();
+
+    const seen = new Set<string>();
+    const items: LowMarginItem[] = [];
+    for (const { categoryRateBps, ...row } of rows) {
+      if (seen.has(row.productId)) continue;
+      seen.add(row.productId);
+      const exTax = exTaxPricePaisa(
+        row.salePricePaisa,
+        resolveTaxRateBps(categoryRateBps, standardTaxRateBps),
+        pricesIncludeTax,
+      );
+      if (!isBelowThreshold(exTax, row.costPaisa, thresholdBps)) continue;
+      items.push({ ...row, marginBps: marginBps(exTax, row.costPaisa) });
+    }
+    return { ok: true, thresholdBps, items };
+  }
+
+  return { post, list, get, lastCost, lowMargin };
 }
 export type GoodsReceivedService = ReturnType<typeof createGoodsReceivedService>;

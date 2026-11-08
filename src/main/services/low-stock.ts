@@ -25,6 +25,7 @@ export function lowStockProducts(
       nameUr: products.nameUr,
       categoryId: products.categoryId,
       unit: products.unit,
+      costPaisa: products.costPaisa,
       thresholdMilli: products.lowStockThresholdMilli,
       onHandMilli: onHand,
     })

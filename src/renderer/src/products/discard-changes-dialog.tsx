@@ -9,7 +9,7 @@ import {
 } from "@renderer/components/ui/dialog";
 
 interface DiscardChangesDialogProps {
-  noun: "product" | "supplier";
+  noun: "product" | "supplier" | "purchase order" | "goods received note" | "purchase return";
   open: boolean;
   onKeepEditing: () => void;
   onDiscard: () => void;

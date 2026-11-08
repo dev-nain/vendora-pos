@@ -46,6 +46,8 @@ const product = {
   mrpPaisa: 160,
   pctCode: null,
   isThirdSchedule: false,
+  categoryId: null,
+  categoryName: null,
 };
 const lineInput = {
   position: 0,
@@ -106,6 +108,18 @@ describe("saleLineRow", () => {
     expect(row.nameEn).toBe("Loose rice");
     expect(row.discountPaisa).toBe(8);
     expect(saleLineRow(base).nameEn).toBe("Tapal");
+  });
+
+  it("writes the category snapshot and keeps null as null", () => {
+    const row = saleLineRow({
+      ...base,
+      product: { ...base.product, categoryId: "cat1", categoryName: "Tea" },
+    });
+    expect(row.categoryId).toBe("cat1");
+    expect(row.categoryName).toBe("Tea");
+    const none = saleLineRow(base);
+    expect(none.categoryId).toBeNull();
+    expect(none.categoryName).toBeNull();
   });
 
   it("copies the refunded sale only when there is a refunded line", () => {

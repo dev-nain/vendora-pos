@@ -17,7 +17,15 @@ type Executor = VendoraDatabase["db"] | Tx;
 
 const ON_HAND_CHUNK = 500;
 
-const recordableTypes = ["sale", "return", "receipt", "adjustment", "stocktake", "damage"] as const;
+const recordableTypes = [
+  "sale",
+  "return",
+  "receipt",
+  "adjustment",
+  "stocktake",
+  "damage",
+  "purchase_return",
+] as const;
 const reasonedTypes: readonly StockMovementType[] = ["adjustment", "damage"];
 
 export const movementTypeForReason = (reason: StockMovementReason): "adjustment" | "damage" =>
@@ -39,7 +47,10 @@ export const recordMovementInputSchema = z
       ctx.addIssue({ code: "custom", path: [path], message });
 
     if (input.qtyMilli === 0) issue("qtyMilli", "Quantity must not be zero");
-    if ((input.type === "sale" || input.type === "damage") && input.qtyMilli > 0) {
+    if (
+      (input.type === "sale" || input.type === "damage" || input.type === "purchase_return") &&
+      input.qtyMilli > 0
+    ) {
       issue("qtyMilli", "Quantity must be negative");
     }
     if ((input.type === "return" || input.type === "receipt") && input.qtyMilli < 0) {

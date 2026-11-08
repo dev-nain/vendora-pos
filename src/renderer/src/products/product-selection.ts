@@ -1,13 +1,13 @@
 import { BULK_UPDATE_MAX_IDS, type ProductSearchItem } from "@shared/products";
 
-export type Selection = ReadonlyMap<string, ProductSearchItem>;
+export type Selection<T extends { id: string } = ProductSearchItem> = ReadonlyMap<string, T>;
 export type PageState = "none" | "some" | "all";
 
-export function toggleOne(
-  selection: Selection,
-  item: ProductSearchItem,
+export function toggleOne<T extends { id: string }>(
+  selection: Selection<T>,
+  item: T,
   limit = BULK_UPDATE_MAX_IDS,
-): { selection: Selection; capped: boolean } {
+): { selection: Selection<T>; capped: boolean } {
   const next = new Map(selection);
   if (next.delete(item.id)) return { selection: next, capped: false };
   if (next.size >= limit) return { selection, capped: true };
@@ -15,12 +15,12 @@ export function toggleOne(
   return { selection: next, capped: false };
 }
 
-export function setPage(
-  selection: Selection,
-  pageItems: readonly ProductSearchItem[],
+export function setPage<T extends { id: string }>(
+  selection: Selection<T>,
+  pageItems: readonly T[],
   checked: boolean,
   limit = BULK_UPDATE_MAX_IDS,
-): { selection: Selection; capped: boolean } {
+): { selection: Selection<T>; capped: boolean } {
   const next = new Map(selection);
   let capped = false;
   for (const item of pageItems) {
@@ -37,9 +37,9 @@ export function setPage(
   return { selection: next, capped };
 }
 
-export function pageState(
-  selection: Selection,
-  pageItems: readonly ProductSearchItem[],
+export function pageState<T extends { id: string }>(
+  selection: Selection<T>,
+  pageItems: readonly T[],
 ): PageState {
   const selected = pageItems.filter((item) => selection.has(item.id)).length;
   if (selected === 0) return "none";

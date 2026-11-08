@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { SafeUser } from "@shared/auth";
 import { serviceErrorMessage } from "../auth/messages";
+import type { LeaveGuard } from "../purchasing/order-form-screen";
 import { SellArea } from "../shifts/sell-area";
 import { BackOffice } from "./back-office";
 import { HintBar, type Hint } from "./hint-bar";
@@ -22,12 +23,42 @@ export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
   const [error, setError] = useState<string | null>(null);
   const [area, setAreaState] = useState<Area>("sell");
   const [printerFocus, setPrinterFocus] = useState(false);
+  const [orderLink, setOrderLink] = useState<string | null>(null);
+  const leaveGuard = useRef<LeaveGuard | null>(null);
   const [sellHints, setSellHints] = useState<Hint[]>([["Ctrl+L", "Switch user"]]);
 
-  const setArea = useCallback((next: Area) => {
-    setPrinterFocus(false);
-    setAreaState(next);
+  const registerLeaveGuard = useCallback((guard: LeaveGuard | null) => {
+    leaveGuard.current = guard;
   }, []);
+
+  const guarded = useCallback((go: () => void) => {
+    if (leaveGuard.current?.(go)) return;
+    go();
+  }, []);
+
+  const setArea = useCallback(
+    (next: Area) => {
+      if (next === area) return;
+      guarded(() => {
+        setPrinterFocus(false);
+        setOrderLink(null);
+        setAreaState(next);
+      });
+    },
+    [area, guarded],
+  );
+
+  const openSale = useCallback(
+    (invoiceNo: string) =>
+      guarded(() => {
+        setPrinterFocus(false);
+        setOrderLink(invoiceNo);
+        setAreaState("sell");
+      }),
+    [guarded],
+  );
+
+  const switchUser = useCallback(() => guarded(onSwitchUser), [guarded, onSwitchUser]);
 
   const openPrinterSettings = useCallback(() => {
     setPrinterFocus(true);
@@ -40,7 +71,7 @@ export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
       const key = event.key.toLowerCase();
       if (key === "l") {
         event.preventDefault();
-        onSwitchUser();
+        switchUser();
       } else if (key === "1") {
         event.preventDefault();
         setArea("sell");
@@ -51,7 +82,7 @@ export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onSwitchUser, setArea]);
+  }, [switchUser, setArea]);
 
   const logOut = async () => {
     try {
@@ -62,17 +93,20 @@ export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
     }
   };
 
+  const requestLogOut = () => guarded(() => void logOut());
+
   return (
     <div className="grid h-screen grid-rows-[var(--height-title-bar)_minmax(0,1fr)_var(--height-hint-bar)] overflow-hidden bg-page">
       <TitleBar
         user={user}
         area={area}
         onAreaChange={setArea}
-        onSwitchUser={onSwitchUser}
-        onLogOut={() => void logOut()}
+        onSwitchUser={switchUser}
+        onLogOut={requestLogOut}
       />
       {area === "sell" ? (
         <SellArea
+          openInvoiceNo={orderLink}
           onSessionEnded={onLoggedOut}
           onHintsChange={setSellHints}
           onOpenPrinterSettings={openPrinterSettings}
@@ -82,6 +116,9 @@ export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
           currentUserId={user.id}
           onSessionEnded={onLoggedOut}
           focusPrinter={printerFocus}
+          onOpenSale={openSale}
+          guarded={guarded}
+          registerLeaveGuard={registerLeaveGuard}
         />
       )}
       <HintBar hints={area === "sell" ? sellHints : backOfficeHints} error={error} />
