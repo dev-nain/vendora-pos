@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { VendoraDatabase } from "../db/client";
 import { categories, stores, taxCategories, terminals, users } from "../db/schema";
@@ -10,6 +10,7 @@ import { createAuditService } from "./audit";
 import { createInventoryService } from "./inventory";
 import { createStockService } from "./stock";
 import { createStocktakeService } from "./stocktake";
+import { startBackgroundCheckpoints, type BackgroundCheckpoints } from "../db/checkpointer";
 import { openMigratedDatabase } from "../db/test-database";
 import {
   lowStockResultSchema,
@@ -64,6 +65,7 @@ describe("stock on-hand benchmark", () => {
   let stocktake: ReturnType<typeof createStocktakeService>;
   let secondCategoryId: string;
   const productIds: string[] = [];
+  let checkpoints: BackgroundCheckpoints;
   const totals = new Float64Array(productCount);
 
   beforeAll(() => {
@@ -149,9 +151,14 @@ describe("stock on-hand benchmark", () => {
     sessions.start({ userId: actorId, storeId, loggedInAt: new Date(0) });
     inventory = createInventoryService({ database, sessions, stock: service });
     stocktake = createStocktakeService({ database, sessions, stock: service, audit });
+    checkpoints = startBackgroundCheckpoints(
+      database,
+      resolve(process.cwd(), "src/main/db/checkpoint-worker.ts"),
+    );
   }, 180_000);
 
-  afterAll(() => {
+  afterAll(async () => {
+    await checkpoints.stop();
     database.sqlite.close();
     rmSync(dir, { recursive: true, force: true });
   });

@@ -9,6 +9,7 @@ import {
   chosenBackupSchema,
   restoreResultSchema,
 } from "@shared/backup";
+import { recoveryScanSchema, startupStateSchema } from "@shared/recovery";
 import {
   authResultSchema,
   createFirstUserResultSchema,
@@ -21,7 +22,14 @@ import {
   printResultSchema,
   saleJobResultSchema,
 } from "@shared/receipt";
-import { exportReportResultSchema, salesByDayResultSchema } from "@shared/reports";
+import { discountsReturnsVoidsResultSchema } from "@shared/discounts-returns-voids";
+import {
+  exportReportResultSchema,
+  grossProfitByCategoryResultSchema,
+  grossProfitByProductResultSchema,
+  salesByDayResultSchema,
+  salesTaxSummaryResultSchema,
+} from "@shared/reports";
 import {
   lowStockReportResultSchema,
   negativeStockReportResultSchema,
@@ -32,6 +40,7 @@ import {
   stocktakeVarianceResultSchema,
 } from "@shared/stock-reports";
 import {
+  marginThresholdSettingSchema,
   miscItemSettingSchema,
   printerSettingsSchema,
   receiptSettingsSchema,
@@ -102,10 +111,12 @@ import {
   taxCategorySchema,
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
+import { printInvoiceResultSchema, saveInvoicePdfResultSchema } from "@shared/invoices";
 import {
   getGoodsReceivedResultSchema,
   goodsReceivedLastCostResultSchema,
   goodsReceivedListResultSchema,
+  lowMarginResultSchema,
   postGoodsReceivedResultSchema,
 } from "@shared/goods-received";
 import {
@@ -185,6 +196,14 @@ const api: VendoraApi = {
     getShiftVarianceWarn: async () =>
       shiftVarianceSettingSchema.parse(
         await ipcRenderer.invoke(ipcChannels.settingsGetShiftVarianceWarn),
+      ),
+    getMarginThreshold: async () =>
+      marginThresholdSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsGetMarginThreshold),
+      ),
+    setMarginThreshold: async (thresholdBps) =>
+      marginThresholdSettingSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.settingsSetMarginThreshold, { thresholdBps }),
       ),
     setShiftVarianceWarn: async (warnPaisa) =>
       shiftVarianceSettingSchema.parse(
@@ -427,6 +446,16 @@ const api: VendoraApi = {
         await ipcRenderer.invoke(ipcChannels.purchaseOrdersPrint, { id }),
       ),
   },
+  invoices: {
+    savePdf: async (saleId) =>
+      saveInvoicePdfResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.invoicesSavePdf, { saleId }),
+      ),
+    print: async (saleId) =>
+      printInvoiceResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.invoicesPrint, { saleId }),
+      ),
+  },
   goodsReceived: {
     post: async (input) =>
       postGoodsReceivedResultSchema.parse(
@@ -443,6 +472,10 @@ const api: VendoraApi = {
     lastCost: async (productId) =>
       goodsReceivedLastCostResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.goodsReceivedLastCost, { productId }),
+      ),
+    lowMargin: async (id) =>
+      lowMarginResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.goodsReceivedLowMargin, { id }),
       ),
   },
   purchaseReturns: {
@@ -491,6 +524,38 @@ const api: VendoraApi = {
     exportSalesByDay: async (input) =>
       exportReportResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.reportsExportSalesByDay, input),
+      ),
+    salesTaxSummary: async (range) =>
+      salesTaxSummaryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsSalesTaxSummary, range),
+      ),
+    exportSalesTaxSummary: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportSalesTaxSummary, input),
+      ),
+    discountsReturnsVoids: async (range) =>
+      discountsReturnsVoidsResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsDiscountsReturnsVoids, range),
+      ),
+    exportDiscountsReturnsVoids: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportDiscountsReturnsVoids, input),
+      ),
+    grossProfitByProduct: async (range) =>
+      grossProfitByProductResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsGrossProfitByProduct, range),
+      ),
+    exportGrossProfitByProduct: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportGrossProfitByProduct, input),
+      ),
+    grossProfitByCategory: async (range) =>
+      grossProfitByCategoryResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsGrossProfitByCategory, range),
+      ),
+    exportGrossProfitByCategory: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportGrossProfitByCategory, input),
       ),
     stockOnHand: async () =>
       stockOnHandResultSchema.parse(await ipcRenderer.invoke(ipcChannels.reportsStockOnHand)),
@@ -635,6 +700,19 @@ const api: VendoraApi = {
       backupPasswordResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.backupPasswordTurnOff, { current }),
       ),
+  },
+  startup: {
+    state: async () => startupStateSchema.parse(await ipcRenderer.invoke(ipcChannels.startupState)),
+  },
+  recovery: {
+    scan: async () => recoveryScanSchema.parse(await ipcRenderer.invoke(ipcChannels.recoveryScan)),
+    chooseFile: async () =>
+      chosenBackupSchema.parse(await ipcRenderer.invoke(ipcChannels.recoveryChooseFile)),
+    restore: async (input) =>
+      restoreResultSchema.parse(await ipcRenderer.invoke(ipcChannels.recoveryRestore, input)),
+    retry: async () => {
+      await ipcRenderer.invoke(ipcChannels.recoveryRetry);
+    },
   },
 };
 
