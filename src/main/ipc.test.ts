@@ -2098,6 +2098,7 @@ describe("reports ipc", () => {
   let kit: CheckoutKit;
   let service: ReportsService;
   const range = { from: "2026-11-01", to: "2026-11-07" };
+  const shiftId = "019a0000-0000-7000-8000-000000000001";
 
   beforeEach(() => {
     handlers.clear();
@@ -2158,6 +2159,49 @@ describe("reports ipc", () => {
       { range: { from: "2026-11-08", to: "2026-11-07" }, format: "pdf" },
     ],
     ["reports:export-sales-by-day", "exportSalesByDay", { range }],
+    ["reports:sales-by-hour", "salesByHour", { from: "2026-13-01", to: "2026-11-07" }],
+    ["reports:sales-by-hour", "salesByHour", { from: "2026-11-08", to: "2026-11-07" }],
+    ["reports:sales-by-hour", "salesByHour", { ...range, extra: 1 }],
+    ["reports:export-sales-by-hour", "exportSalesByHour", { range, format: "xlsx" }],
+    ["reports:export-sales-by-hour", "exportSalesByHour", { range, format: "csv", extra: 1 }],
+    ["reports:export-sales-by-hour", "exportSalesByHour", { range }],
+    ["reports:sales-by-product", "salesByProduct", { from: "2026-13-01", to: "2026-11-07" }],
+    ["reports:sales-by-product", "salesByProduct", { from: "2026-11-08", to: "2026-11-07" }],
+    ["reports:sales-by-product", "salesByProduct", { ...range, extra: 1 }],
+    ["reports:export-sales-by-product", "exportSalesByProduct", { range, format: "xlsx" }],
+    ["reports:export-sales-by-product", "exportSalesByProduct", { range, format: "csv", extra: 1 }],
+    ["reports:export-sales-by-product", "exportSalesByProduct", { range }],
+    ["reports:sales-by-category", "salesByCategory", { from: "2026-13-01", to: "2026-11-07" }],
+    ["reports:sales-by-category", "salesByCategory", { from: "2026-11-08", to: "2026-11-07" }],
+    ["reports:sales-by-category", "salesByCategory", { ...range, extra: 1 }],
+    ["reports:export-sales-by-category", "exportSalesByCategory", { range, format: "xlsx" }],
+    [
+      "reports:export-sales-by-category",
+      "exportSalesByCategory",
+      { range, format: "csv", extra: 1 },
+    ],
+    ["reports:export-sales-by-category", "exportSalesByCategory", { range }],
+    ["reports:sales-by-cashier", "salesByCashier", { from: "2026-13-01", to: "2026-11-07" }],
+    ["reports:sales-by-cashier", "salesByCashier", { from: "2026-11-08", to: "2026-11-07" }],
+    ["reports:sales-by-cashier", "salesByCashier", { ...range, extra: 1 }],
+    ["reports:export-sales-by-cashier", "exportSalesByCashier", { range, format: "xlsx" }],
+    ["reports:export-sales-by-cashier", "exportSalesByCashier", { range, format: "csv", extra: 1 }],
+    ["reports:export-sales-by-cashier", "exportSalesByCashier", { range }],
+    ["reports:payment-methods", "paymentMethods", { range, extra: 1 }],
+    ["reports:payment-methods", "paymentMethods", { range, shiftId }],
+    ["reports:payment-methods", "paymentMethods", { shiftId: "nope" }],
+    ["reports:payment-methods", "paymentMethods", { shiftId, extra: 1 }],
+    ["reports:payment-methods", "paymentMethods", {}],
+    ["reports:export-payment-methods", "exportPaymentMethods", { range, format: "xlsx" }],
+    ["reports:export-payment-methods", "exportPaymentMethods", { range, shiftId, format: "csv" }],
+    ["reports:export-payment-methods", "exportPaymentMethods", { shiftId: "nope", format: "csv" }],
+    [
+      "reports:export-payment-methods",
+      "exportPaymentMethods",
+      { shiftId, format: "csv", extra: 1 },
+    ],
+    ["reports:shifts", "reportShifts", { from: "2026-11-08", to: "2026-11-07" }],
+    ["reports:shifts", "reportShifts", { ...range, extra: 1 }],
     [
       "reports:gross-profit-by-product",
       "grossProfitByProduct",
@@ -2224,6 +2268,23 @@ describe("reports ipc", () => {
       status: "saved",
       path: join(kit.dir, "sales-by-day-2026-11-01-to-2026-11-07.csv"),
     });
+    for (const n of ["hour", "product", "category", "cashier"]) {
+      expect(await invoke(`reports:sales-by-${n}`, range)).toMatchObject({ rows: [] });
+      expect(await invoke(`reports:export-sales-by-${n}`, { range, format: "csv" })).toEqual({
+        ok: true,
+        status: "saved",
+        path: join(kit.dir, `sales-by-${n}-2026-11-01-to-2026-11-07.csv`),
+      });
+    }
+    expect(await invoke("reports:payment-methods", { range })).toMatchObject({ rows: [] });
+    expect(await invoke("reports:payment-methods", { shiftId })).toMatchObject({ rows: [] });
+    expect(await invoke("reports:shifts", range)).toEqual([]);
+    expect(
+      await invoke("reports:export-payment-methods", { shiftId, format: "csv" }),
+    ).toMatchObject({
+      ok: false,
+      reason: "failed",
+    });
     expect(await invoke("reports:sales-tax-summary", range)).toEqual({
       rows: [],
       totals: { taxablePaisa: 0, taxPaisa: 0, totalPaisa: 0 },
@@ -2274,6 +2335,23 @@ describe("reports ipc", () => {
     await expect(invoke("reports:export-sales-by-day", { range, format: "pdf" })).rejects.toThrow(
       new Error(ipcErrorMessages.unauthenticated),
     );
+    for (const [channel, input] of [
+      ["reports:sales-by-hour", range],
+      ["reports:sales-by-product", range],
+      ["reports:sales-by-category", range],
+      ["reports:sales-by-cashier", range],
+      ["reports:payment-methods", { range }],
+      ["reports:shifts", range],
+      ["reports:export-sales-by-hour", { range, format: "csv" }],
+      ["reports:export-sales-by-product", { range, format: "csv" }],
+      ["reports:export-sales-by-category", { range, format: "csv" }],
+      ["reports:export-sales-by-cashier", { range, format: "csv" }],
+      ["reports:export-payment-methods", { range, format: "csv" }],
+    ] as const) {
+      await expect(invoke(channel, input)).rejects.toThrow(
+        new Error(ipcErrorMessages.unauthenticated),
+      );
+    }
     for (const by of ["product", "category"]) {
       await expect(invoke(`reports:gross-profit-by-${by}`, range)).rejects.toThrow(
         new Error(ipcErrorMessages.unauthenticated),

@@ -81,7 +81,11 @@ export function ReportTable<Row extends Record<string, ReportCellValue>>({
               const invoiceNo =
                 column.format === "invoice" ? String(row[column.linkKey ?? column.key] ?? "") : "";
               return (
-                <TableCell key={column.key} className={cellClass(column, value)}>
+                <TableCell
+                  key={column.key}
+                  className={`${cellClass(column, value)} ${column.format === "text" ? "truncate" : ""}`}
+                  title={column.format === "text" ? text : undefined}
+                >
                   {invoiceNo !== "" && onOpenSale ? (
                     <button
                       type="button"

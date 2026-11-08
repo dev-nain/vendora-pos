@@ -6,11 +6,13 @@ import { Kbd } from "@renderer/components/ui/kbd";
 import {
   exportReportFailedMessage,
   formatRangeLabel,
+  formatShiftLabel,
   presetRange,
   reportRangeSchema,
   type ReportExportFormat,
   type ReportPreset,
   type ReportRange,
+  type ReportShift,
 } from "@shared/reports";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { ErrorLine } from "../users/form-parts";
@@ -18,6 +20,7 @@ import { DateRangeControl } from "./date-range-control";
 import type { ReportDefinition, ReportQuery } from "./report-definitions";
 import { ReportProductField } from "./report-product-field";
 import { ReportStocktakeSelect } from "./report-stocktake-select";
+import { ShiftPicker } from "./shift-picker";
 
 interface ReportViewProps<Result> {
   definition: ReportDefinition<Result>;
@@ -45,6 +48,11 @@ export function ReportView<Result>({
   const [to, setTo] = useState(initial.to);
   const [productId, setProductId] = useState<string | null>(null);
   const [stocktakeId, setStocktakeId] = useState<string | null>(null);
+  const [shiftId, setShiftId] = useState<string | null>(null);
+  const [loadedShifts, setLoadedShifts] = useState<{
+    rangeKey: string;
+    list: ReportShift[];
+  } | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [result, setResult] = useState<Result | null>(null);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
@@ -62,11 +70,33 @@ export function ReportView<Result>({
   const isRange = (definition.period ?? "range") === "range";
   const query = useMemo<ReportQuery | null>(() => {
     const effective = isRange ? range : initial;
-    return effective ? { range: effective, productId, stocktakeId } : null;
-  }, [isRange, range, initial, productId, stocktakeId]);
+    return effective ? { range: effective, productId, stocktakeId, shiftId } : null;
+  }, [isRange, range, initial, productId, stocktakeId, shiftId]);
   const key = query
-    ? JSON.stringify([isRange ? query.range : null, productId, stocktakeId, reloadKey])
+    ? JSON.stringify([isRange ? query.range : null, productId, stocktakeId, shiftId, reloadKey])
     : null;
+
+  const listShifts = definition.listShifts;
+  useEffect(() => {
+    if (!range || !listShifts) return;
+    let current = true;
+    const rangeKey = JSON.stringify(range);
+    listShifts(range)
+      .then((list) => {
+        if (current) setLoadedShifts({ rangeKey, list });
+      })
+      .catch((cause: unknown) => {
+        if (!current) return;
+        setLoadedShifts({ rangeKey, list: [] });
+        if (isSessionError(cause)) onSessionEnded();
+      });
+    return () => {
+      current = false;
+    };
+  }, [range, listShifts, onSessionEnded]);
+  const shiftList =
+    range && loadedShifts?.rangeKey === JSON.stringify(range) ? loadedShifts.list : null;
+  const chosenShift = shiftList?.find((shift) => shift.id === shiftId) ?? null;
 
   const fail = useCallback(
     (cause: unknown) => {
@@ -143,6 +173,7 @@ export function ReportView<Result>({
 
   const choosePreset = (next: ReportPreset) => {
     setPreset(next);
+    setShiftId(null);
     if (next === "custom") return;
     const nextRange = presetRange(next, new Date());
     setFrom(nextRange.from);
@@ -180,9 +211,19 @@ export function ReportView<Result>({
             to={to}
             error={range ? null : rangeError(from, to)}
             onPreset={choosePreset}
-            onFromChange={setFrom}
-            onToChange={setTo}
-          />
+            onFromChange={(value) => {
+              setShiftId(null);
+              setFrom(value);
+            }}
+            onToChange={(value) => {
+              setShiftId(null);
+              setTo(value);
+            }}
+          >
+            {definition.subject === "shift" ? (
+              <ShiftPicker shifts={shiftList} value={shiftId} onChange={setShiftId} />
+            ) : null}
+          </DateRangeControl>
         ) : null}
         {definition.subject === "product" ? (
           <ReportProductField onChange={setProductId} onSessionEnded={onSessionEnded} />
@@ -203,7 +244,8 @@ export function ReportView<Result>({
       <div className="col-span-2 row-start-3 grid gap-200">
         {isRange && range ? (
           <p className="m-0 text-[length:var(--font-size-350)] text-secondary">
-            {formatRangeLabel(range)} · Asia/Karachi time
+            {chosenShift ? `Shift ${formatShiftLabel(chosenShift)}` : formatRangeLabel(range)} ·
+            Asia/Karachi time
           </p>
         ) : null}
         {caption ? (
