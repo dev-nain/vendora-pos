@@ -6,6 +6,7 @@ import { createRecoveryRestore, createRestoreService } from "./backup/restore";
 import { createWorkerCopy } from "./backup/worker-copy";
 import type { VendoraDatabase } from "./db/client";
 import { seedDevUsers } from "./db/dev-users";
+import { startBackgroundCheckpoints, type BackgroundCheckpoints } from "./db/checkpointer";
 import { openAppDatabase, type StartupOutcome } from "./db/startup";
 import { registerIpcHandlers, registerStartupHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
@@ -50,6 +51,7 @@ import { createMainWindow } from "./window";
 let database: VendoraDatabase | null = null;
 let backups: BackupService | null = null;
 let backupsStopped = false;
+let checkpoints: BackgroundCheckpoints | null = null;
 
 const backupDir = () => join(app.getPath("userData"), "backups");
 const databaseFile = () => join(app.getPath("userData"), "vendora.db");
@@ -142,6 +144,7 @@ void app.whenReady().then(async () => {
     return;
   }
   database = outcome.database;
+  checkpoints = startBackgroundCheckpoints(database, join(__dirname, "checkpoint-worker.js"));
   if (!app.isPackaged && process.env.VENDORA_DEV_USERS === "1") await seedDevUsers(database);
   const audit = createAuditService(database);
   const keys = createBackupKeyStore({
@@ -240,6 +243,8 @@ void app.whenReady().then(async () => {
     closeDatabase: async () => {
       await backups?.stop();
       backupsStopped = true;
+      await checkpoints?.stop();
+      checkpoints = null;
       const current = database;
       if (!current) return;
       const [checkpoint] = current.sqlite.pragma("wal_checkpoint(TRUNCATE)") as {
@@ -330,6 +335,13 @@ app.on("before-quit", (event) => {
       backupsStopped = true;
       app.quit();
     });
+    return;
+  }
+  if (checkpoints) {
+    event.preventDefault();
+    const stopping = checkpoints;
+    checkpoints = null;
+    void stopping.stop().finally(() => app.quit());
     return;
   }
   database?.sqlite.close();
