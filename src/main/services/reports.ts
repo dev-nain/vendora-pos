@@ -4,6 +4,10 @@ import {
 } from "../../shared/discounts-returns-voids";
 import {
   exportReportFailedMessage,
+  formatShiftLabel,
+  paymentMethodColumns,
+  storeDateTime,
+  storeToday,
   formatRangeLabel,
   formatStoreDateTime,
   grossProfitByCategoryColumns,
@@ -11,18 +15,27 @@ import {
   type GrossProfitByCategoryResult,
   type GrossProfitByProductResult,
   salesByDayColumns,
+  salesByCashierColumns,
+  salesByCategoryColumns,
   salesByHourColumns,
-  storeToday,
+  salesByProductColumns,
+  type ExportPaymentMethodsInput,
   salesTaxSummaryColumns,
   type ExportReportInput,
+  type PaymentMethodsQuery,
+  type PaymentMethodsResult,
+  type ReportShift,
   type ExportReportResult,
   type ReportCellValue,
   type ReportColumn,
   type ReportExportFormat,
   type ReportFooterRow,
   type ReportRange,
+  type SalesByCashierResult,
+  type SalesByCategoryResult,
   type SalesByDayResult,
   type SalesByHourResult,
+  type SalesByProductResult,
   type SalesTaxSummaryResult,
 } from "../../shared/reports";
 import {
@@ -55,7 +68,13 @@ import { readDiscountsReturnsVoids } from "../reports/discounts-returns-voids";
 import { reportCsv, reportCsvSections } from "../reports/report-csv";
 import { buildReportDocument, buildSectionedReportDocument } from "../reports/report-document";
 import { readGrossProfitByCategory, readGrossProfitByProduct } from "../reports/gross-profit";
+import { findReportShift, listReportShifts, readPaymentMethods } from "../reports/payment-methods";
 import { readSalesByDay, readSalesByHour } from "../reports/sales-by-day";
+import {
+  readSalesByCashier,
+  readSalesByCategory,
+  readSalesByProduct,
+} from "../reports/sales-by-line";
 import { readPurchasesBySupplier } from "../reports/purchases-by-supplier";
 import { readPostedStocktakes, readStocktakeVariance } from "../reports/stocktake-variance-report";
 import { readStockMovements } from "../reports/stock-movements";
@@ -112,6 +131,58 @@ export function createReportsService({
     const session = requireSession(sessions);
     return readSalesByHour(database, session.storeId, range);
   }
+
+  function salesByProduct(range: ReportRange): SalesByProductResult {
+    const session = requireSession(sessions);
+    return readSalesByProduct(database, session.storeId, range);
+  }
+
+  function salesByCategory(range: ReportRange): SalesByCategoryResult {
+    const session = requireSession(sessions);
+    return readSalesByCategory(database, session.storeId, range);
+  }
+
+  function salesByCashier(range: ReportRange): SalesByCashierResult {
+    const session = requireSession(sessions);
+    return readSalesByCashier(database, session.storeId, range);
+  }
+
+  function paymentMethods(query: PaymentMethodsQuery): PaymentMethodsResult {
+    const session = requireSession(sessions);
+    return readPaymentMethods(database, session.storeId, query);
+  }
+
+  function reportShifts(range: ReportRange): ReportShift[] {
+    const session = requireSession(sessions);
+    return listReportShifts(database, session.storeId, range);
+  }
+
+  async function exportPaymentMethods(input: ExportPaymentMethodsInput) {
+    const base = {
+      title: "Sales by payment method",
+      columns: paymentMethodColumns,
+      format: input.format,
+    };
+    if ("range" in input) {
+      return exportTable({
+        ...base,
+        fileName: fileNameOf("sales-by-payment-method", input.range, input.format),
+        reference: () => formatRangeLabel(input.range),
+        read: (storeId) => readPaymentMethods(database, storeId, { range: input.range }),
+      });
+    }
+    const session = requireSession(sessions);
+    const shift = findReportShift(database, session.storeId, input.shiftId);
+    if (!shift) return exportFailed;
+    const opened = storeDateTime(shift.openedAt);
+    return exportTable({
+      ...base,
+      fileName: `payment-methods-shift-${opened.day}-${opened.time.replace(":", "")}.${input.format}`,
+      reference: () => `Shift ${formatShiftLabel(shift)}`,
+      read: (storeId) => readPaymentMethods(database, storeId, { shiftId: input.shiftId }),
+    });
+  }
+
   function stockOnHand(): StockOnHandResult {
     const session = requireSession(sessions);
     return readStockOnHand(database, session.storeId, now());
@@ -247,6 +318,9 @@ export function createReportsService({
         columns: salesByHourColumns,
         read: (storeId) => readSalesByHour(database, storeId, range),
       }),
+    paymentMethods,
+    reportShifts,
+    exportPaymentMethods,
     grossProfitByProduct,
     grossProfitByCategory,
     exportGrossProfitByProduct: ({ range, format }: ExportReportInput) =>
@@ -270,6 +344,36 @@ export function createReportsService({
     discountsReturnsVoids,
     salesTaxSummary,
     exportDiscountsReturnsVoids,
+    salesByProduct,
+    exportSalesByProduct: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Sales by product",
+        fileName: fileNameOf("sales-by-product", range, format),
+        reference: () => formatRangeLabel(range),
+        format,
+        columns: salesByProductColumns,
+        read: (storeId) => readSalesByProduct(database, storeId, range),
+      }),
+    salesByCategory,
+    exportSalesByCategory: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Sales by category",
+        fileName: fileNameOf("sales-by-category", range, format),
+        reference: () => formatRangeLabel(range),
+        format,
+        columns: salesByCategoryColumns,
+        read: (storeId) => readSalesByCategory(database, storeId, range),
+      }),
+    salesByCashier,
+    exportSalesByCashier: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Sales by cashier",
+        fileName: fileNameOf("sales-by-cashier", range, format),
+        reference: () => formatRangeLabel(range),
+        format,
+        columns: salesByCashierColumns,
+        read: (storeId) => readSalesByCashier(database, storeId, range),
+      }),
     exportSalesByDay: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Sales by day",
