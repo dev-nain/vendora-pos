@@ -163,6 +163,7 @@ import type {
   ExportReportResult,
   ReportRange,
   SalesByDayResult,
+  SalesTaxSummaryResult,
 } from "./reports";
 import type { GetOrderResult, OrderSummary, SalesListQuery } from "./sales";
 import type {
@@ -284,6 +285,8 @@ export const ipcChannels = {
   goodsReceivedLowMargin: "goods-received:low-margin",
   purchaseOrdersSavePdf: "purchase-orders:save-pdf",
   purchaseOrdersPrint: "purchase-orders:print",
+  reportsSalesTaxSummary: "reports:sales-tax-summary",
+  reportsExportSalesTaxSummary: "reports:export-sales-tax-summary",
   invoicesSavePdf: "invoices:save-pdf",
   invoicesPrint: "invoices:print",
   shiftsState: "shifts:state",
@@ -468,6 +471,8 @@ export interface VendoraApi {
   reports: {
     salesByDay: (range: ReportRange) => Promise<SalesByDayResult>;
     exportSalesByDay: (input: ExportReportInput) => Promise<ExportReportResult>;
+    salesTaxSummary: (range: ReportRange) => Promise<SalesTaxSummaryResult>;
+    exportSalesTaxSummary: (input: ExportReportInput) => Promise<ExportReportResult>;
   };
   shifts: {
     state: () => Promise<ShiftState>;

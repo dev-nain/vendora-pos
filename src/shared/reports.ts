@@ -160,6 +160,29 @@ export const salesByDayColumns: ReportColumn<SalesByDayRow>[] = [
   { key: "totalPaisa", label: "Total", format: "money", width: "136px" },
 ];
 
+export const salesTaxSummaryTotalsSchema = z.strictObject({
+  taxablePaisa: countSchema,
+  taxPaisa: countSchema,
+  totalPaisa: countSchema,
+});
+export type SalesTaxSummaryTotals = z.infer<typeof salesTaxSummaryTotalsSchema>;
+
+export const salesTaxSummaryRowSchema = salesTaxSummaryTotalsSchema.extend({ rate: z.string() });
+export type SalesTaxSummaryRow = z.infer<typeof salesTaxSummaryRowSchema>;
+
+export const salesTaxSummaryResultSchema = z.strictObject({
+  rows: z.array(salesTaxSummaryRowSchema),
+  totals: salesTaxSummaryTotalsSchema,
+});
+export type SalesTaxSummaryResult = z.infer<typeof salesTaxSummaryResultSchema>;
+
+export const salesTaxSummaryColumns: ReportColumn<SalesTaxSummaryRow>[] = [
+  { key: "rate", label: "Tax rate", format: "text", width: "340px" },
+  { key: "taxablePaisa", label: "Taxable value", format: "money", width: "232px" },
+  { key: "taxPaisa", label: "Tax", format: "money", width: "232px" },
+  { key: "totalPaisa", label: "Total", format: "money", width: "232px" },
+];
+
 export const exportReportFailedMessage =
   "Couldn't save the report. Check the folder and try again.";
 

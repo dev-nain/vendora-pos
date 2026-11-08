@@ -54,6 +54,7 @@ import {
   exportReportResultSchema,
   reportRangeSchema,
   salesByDayResultSchema,
+  salesTaxSummaryResultSchema,
 } from "@shared/reports";
 import {
   cancelStocktakeResultSchema,
@@ -676,6 +677,14 @@ export function registerIpcHandlers({
   handle(ipcChannels.reportsExportSalesByDay, async (_event, input) =>
     exportReportResultSchema.parse(
       await reports.exportSalesByDay(exportReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsSalesTaxSummary, (_event, input) =>
+    salesTaxSummaryResultSchema.parse(reports.salesTaxSummary(reportRangeSchema.parse(input))),
+  );
+  handle(ipcChannels.reportsExportSalesTaxSummary, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportSalesTaxSummary(exportReportInputSchema.parse(input)),
     ),
   );
   handle(ipcChannels.taxCategoriesList, () =>

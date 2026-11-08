@@ -1,5 +1,6 @@
 import {
   salesByDayColumns,
+  salesTaxSummaryColumns,
   type ExportReportInput,
   type ExportReportResult,
   type ReportColumn,
@@ -7,6 +8,9 @@ import {
   type SalesByDayResult,
   type SalesByDayRow,
   type SalesByDayTotals,
+  type SalesTaxSummaryResult,
+  type SalesTaxSummaryRow,
+  type SalesTaxSummaryTotals,
 } from "@shared/reports";
 
 export interface ReportDefinition<
@@ -28,4 +32,10 @@ export const salesByDayReport: ReportDefinition<SalesByDayRow, SalesByDayTotals>
   exportTo: (input) => window.vendora.reports.exportSalesByDay(input),
 };
 
-export const reportDefinitions = [salesByDayReport] as const;
+export const salesTaxSummaryReport: ReportDefinition<SalesTaxSummaryRow, SalesTaxSummaryTotals> = {
+  id: "sales-tax-summary",
+  label: "Sales tax summary",
+  columns: salesTaxSummaryColumns,
+  load: (range): Promise<SalesTaxSummaryResult> => window.vendora.reports.salesTaxSummary(range),
+  exportTo: (input) => window.vendora.reports.exportSalesTaxSummary(input),
+};
