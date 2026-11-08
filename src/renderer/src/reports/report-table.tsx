@@ -100,7 +100,7 @@ export function ReportTable<Row extends Record<string, ReportCellValue>>({
           </TableRow>
         ))}
       </TableBody>
-      {totals ? (
+      {totals && Object.keys(totals).length > 0 ? (
         <TableFooter>
           <TableRow>
             {columns.map((column, index) => {

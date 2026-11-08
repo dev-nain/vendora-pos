@@ -1,4 +1,4 @@
-import { ChartColumnIcon, DownloadIcon } from "lucide-react";
+import { ChartColumnIcon, DownloadIcon, PackageSearchIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "@renderer/components/ui/button";
@@ -15,7 +15,9 @@ import {
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { ErrorLine } from "../users/form-parts";
 import { DateRangeControl } from "./date-range-control";
-import type { ReportDefinition } from "./report-definitions";
+import type { ReportDefinition, ReportQuery } from "./report-definitions";
+import { ReportProductField } from "./report-product-field";
+import { ReportStocktakeSelect } from "./report-stocktake-select";
 
 interface ReportViewProps<Result> {
   definition: ReportDefinition<Result>;
@@ -41,9 +43,12 @@ export function ReportView<Result>({
   const [initial] = useState(() => presetRange("today", new Date()));
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
+  const [productId, setProductId] = useState<string | null>(null);
+  const [stocktakeId, setStocktakeId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [result, setResult] = useState<Result | null>(null);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
@@ -54,7 +59,14 @@ export function ReportView<Result>({
     const parsed = reportRangeSchema.safeParse({ from, to });
     return parsed.success ? parsed.data : null;
   }, [from, to]);
-  const key = range ? JSON.stringify([range, reloadKey]) : null;
+  const isRange = (definition.period ?? "range") === "range";
+  const query = useMemo<ReportQuery | null>(() => {
+    const effective = isRange ? range : initial;
+    return effective ? { range: effective, productId, stocktakeId } : null;
+  }, [isRange, range, initial, productId, stocktakeId]);
+  const key = query
+    ? JSON.stringify([isRange ? query.range : null, productId, stocktakeId, reloadKey])
+    : null;
 
   const fail = useCallback(
     (cause: unknown) => {
@@ -65,13 +77,13 @@ export function ReportView<Result>({
   );
 
   useEffect(() => {
-    if (!range || !key) return;
+    if (!query || !key) return;
     const id = ++requestId.current;
-    definition
-      .load(range)
+    Promise.resolve(definition.load(query))
       .then((loaded) => {
         if (id !== requestId.current) return;
         setResult(loaded);
+        setWaiting(loaded === null);
         setLoadFailed(false);
         setLoadedKey(key);
       })
@@ -80,10 +92,10 @@ export function ReportView<Result>({
         setLoadedKey(key);
         fail(cause);
       });
-  }, [range, key, definition, fail]);
+  }, [query, key, definition, fail]);
 
   const canExport =
-    range !== null &&
+    query !== null &&
     !exporting &&
     loadedKey === key &&
     result !== null &&
@@ -91,11 +103,13 @@ export function ReportView<Result>({
 
   const exportAs = useCallback(
     async (format: ReportExportFormat) => {
-      if (!range || !canExport) return;
+      if (!query || !canExport) return;
+      const pending = definition.exportTo(query, format);
+      if (pending === null) return;
       setExporting(true);
       setExportError(null);
       try {
-        const outcome = await definition.exportTo({ range, format });
+        const outcome = await pending;
         if (outcome.ok && outcome.status === "saved")
           setExportMessage(`Report saved to ${outcome.path}.`);
         else if (!outcome.ok) {
@@ -112,7 +126,7 @@ export function ReportView<Result>({
         setExporting(false);
       }
     },
-    [range, canExport, definition, onSessionEnded],
+    [query, canExport, definition, onSessionEnded],
   );
 
   useEffect(() => {
@@ -150,6 +164,7 @@ export function ReportView<Result>({
   );
 
   const busy = key !== null && loadedKey !== key;
+  const caption = result !== null && definition.caption ? definition.caption(result) : null;
 
   return (
     <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto_auto_minmax(0,1fr)] gap-x-300 gap-y-500">
@@ -158,25 +173,41 @@ export function ReportView<Result>({
       </h1>
       <div className="col-span-2 row-start-2 flex flex-wrap items-center gap-300">
         {picker}
-        <DateRangeControl
-          preset={preset}
-          from={from}
-          to={to}
-          error={range ? null : rangeError(from, to)}
-          onPreset={choosePreset}
-          onFromChange={setFrom}
-          onToChange={setTo}
-        />
+        {isRange ? (
+          <DateRangeControl
+            preset={preset}
+            from={from}
+            to={to}
+            error={range ? null : rangeError(from, to)}
+            onPreset={choosePreset}
+            onFromChange={setFrom}
+            onToChange={setTo}
+          />
+        ) : null}
+        {definition.subject === "product" ? (
+          <ReportProductField onChange={setProductId} onSessionEnded={onSessionEnded} />
+        ) : null}
+        {definition.subject === "stocktake" ? (
+          <ReportStocktakeSelect
+            range={range}
+            stocktakeId={stocktakeId}
+            onChange={setStocktakeId}
+            onSessionEnded={onSessionEnded}
+          />
+        ) : null}
       </div>
       <div className="col-start-2 row-start-1 flex items-center gap-200">
         {exportButton("csv", "Export CSV", "Ctrl+E")}
         {exportButton("pdf", "Export PDF", "Ctrl+P")}
       </div>
       <div className="col-span-2 row-start-3 grid gap-200">
-        {range ? (
+        {isRange && range ? (
           <p className="m-0 text-[length:var(--font-size-350)] text-secondary">
             {formatRangeLabel(range)} · Asia/Karachi time
           </p>
+        ) : null}
+        {caption ? (
+          <p className="m-0 text-[length:var(--font-size-350)] text-secondary">{caption}</p>
         ) : null}
         {exportMessage ? (
           <p role="status" className="m-0 text-[length:var(--font-size-350)] text-secondary">
@@ -194,7 +225,17 @@ export function ReportView<Result>({
         ) : null}
       </div>
       <div className="col-span-2 row-start-4 flex min-h-0 flex-col">
-        {result === null ? (
+        {waiting ? (
+          <div className="flex flex-col items-center gap-100 rounded-300 border border-line-card bg-surface-secondary py-1200 text-center">
+            <PackageSearchIcon
+              aria-hidden="true"
+              size={24}
+              strokeWidth={2}
+              className="text-icon-muted"
+            />
+            <p className="m-0 text-secondary">{definition.waitingText ?? ""}</p>
+          </div>
+        ) : result === null ? (
           loadFailed ? null : (
             <p className="m-0 text-secondary">Loading…</p>
           )
@@ -209,10 +250,12 @@ export function ReportView<Result>({
             <p className="m-0 text-[length:var(--font-size-450)] font-semibold text-foreground">
               {definition.emptyTitle}
             </p>
-            <p className="m-0 text-secondary">Try another date range.</p>
+            <p className="m-0 text-secondary">
+              {definition.emptyHint ?? "Try another date range."}
+            </p>
           </div>
         ) : (
-          <definition.Body result={result} busy={busy} onOpenSale={onOpenSale} />
+          <definition.Body key={loadedKey} result={result} busy={busy} onOpenSale={onOpenSale} />
         )}
       </div>
     </div>
