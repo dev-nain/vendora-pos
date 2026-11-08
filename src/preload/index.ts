@@ -9,6 +9,7 @@ import {
   chosenBackupSchema,
   restoreResultSchema,
 } from "@shared/backup";
+import { recoveryScanSchema, startupStateSchema } from "@shared/recovery";
 import {
   authResultSchema,
   createFirstUserResultSchema,
@@ -622,6 +623,19 @@ const api: VendoraApi = {
       backupPasswordResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.backupPasswordTurnOff, { current }),
       ),
+  },
+  startup: {
+    state: async () => startupStateSchema.parse(await ipcRenderer.invoke(ipcChannels.startupState)),
+  },
+  recovery: {
+    scan: async () => recoveryScanSchema.parse(await ipcRenderer.invoke(ipcChannels.recoveryScan)),
+    chooseFile: async () =>
+      chosenBackupSchema.parse(await ipcRenderer.invoke(ipcChannels.recoveryChooseFile)),
+    restore: async (input) =>
+      restoreResultSchema.parse(await ipcRenderer.invoke(ipcChannels.recoveryRestore, input)),
+    retry: async () => {
+      await ipcRenderer.invoke(ipcChannels.recoveryRetry);
+    },
   },
 };
 
