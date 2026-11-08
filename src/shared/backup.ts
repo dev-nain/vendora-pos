@@ -65,6 +65,7 @@ export const restoreRefusals = [
   "migration-failed",
   "backup-failed",
   "swap-failed",
+  "set-aside-failed",
   "password-required",
   "wrong-password",
 ] as const;
