@@ -1,6 +1,3 @@
-import { randomUUID } from "node:crypto";
-import { stat } from "node:fs/promises";
-import { basename, join } from "node:path";
 import { desc, eq } from "drizzle-orm";
 import type {
   BackupNowResult,
@@ -12,10 +9,9 @@ import type {
 import type { ShiftState } from "../../shared/shifts";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
-import { listBackupFiles, parseBackupName } from "../backup/backup-files";
-import { isEncryptedBackup } from "../backup/backup-cipher";
+import { createRestoreSources, listBackupFiles } from "../backup/backup-files";
 import type { BackupService } from "../backup/backup-service";
-import { restoreMessages, type RestoreService, type RestoreSource } from "../backup/restore";
+import { restoreMessages, type RestoreService } from "../backup/restore";
 import type { VendoraDatabase } from "../db/client";
 import { backupRecords, users } from "../db/schema";
 import type { ShiftsService } from "./shifts";
@@ -48,7 +44,7 @@ export function createBackupAdminService({
   backupDir,
   chooseFile,
 }: BackupAdminDeps) {
-  let chosen: { token: string; source: RestoreSource } | null = null;
+  const sources = createRestoreSources(backupDir);
 
   async function status(): Promise<BackupStatus> {
     requireSession(sessions);
@@ -84,23 +80,7 @@ export function createBackupAdminService({
     const file = await chooseFile();
     if (file === null) return null;
     requireSession(sessions);
-    const fileName = basename(file);
-    const takenAt = parseBackupName(fileName)?.takenAt ?? (await stat(file)).mtime.toISOString();
-    const encrypted = await isEncryptedBackup(file);
-    const token = randomUUID();
-    chosen = { token, source: { file, fileName, takenAt } };
-    return { token, fileName, takenAt, encrypted };
-  }
-
-  async function resolveSource(input: RestoreInput): Promise<RestoreSource | null> {
-    if (input.kind === "picked") {
-      const slot = chosen;
-      chosen = null;
-      return slot && slot.token === input.token ? slot.source : null;
-    }
-    const fileName = basename(input.fileName);
-    const listed = (await listBackupFiles(backupDir)).find((file) => file.fileName === fileName);
-    return listed ? { file: join(backupDir, fileName), fileName, takenAt: listed.takenAt } : null;
+    return sources.register(file);
   }
 
   async function restore(input: RestoreInput): Promise<RestoreResult> {
@@ -108,7 +88,7 @@ export function createBackupAdminService({
     const message = restoreBlocker(shifts.state());
     if (message !== null) return { ok: false, reason: "open-work", message };
 
-    const source = await resolveSource(input);
+    const source = await sources.resolve(input);
     if (!source) {
       return {
         ok: false,
@@ -126,13 +106,7 @@ export function createBackupAdminService({
       user ? { userId: session.userId, displayName: user.displayName } : null,
       input.password,
     );
-    if (
-      input.kind === "picked" &&
-      !result.ok &&
-      (result.reason === "password-required" || result.reason === "wrong-password")
-    ) {
-      chosen = { token: input.token, source };
-    }
+    sources.keepForRetry(input, source, result);
     return result;
   }
 
