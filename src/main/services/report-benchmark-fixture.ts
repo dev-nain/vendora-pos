@@ -7,6 +7,8 @@ export const fixtureCounts = {
   sales: 100_000,
   linesPerSale: 5,
   refundEvery: 50,
+  deleteEvery: 10,
+  discardedBills: 2_000,
 } as const;
 
 export const fixtureRange: ReportRange = { from: "2026-01-01", to: "2026-12-31" };
@@ -15,7 +17,7 @@ const yearStartUtcMs = Date.UTC(2025, 11, 31, 19);
 const yearMs = 365 * 24 * 60 * 60 * 1000;
 
 const integerParams =
-  /@(categoryCount|productCount|saleCount|lineCount|linesPerSale|refundEvery|start|step)\b/g;
+  /@(categoryCount|productCount|saleCount|lineCount|linesPerSale|refundEvery|deleteEvery|discardCount|start|step|discardStep)\b/g;
 
 // better-sqlite3 binds JS numbers as REAL, which would turn the integer arithmetic below into float arithmetic.
 const integers = (text: string) => text.replaceAll(integerParams, "CAST(@$1 AS INTEGER)");
@@ -39,6 +41,9 @@ export function seedReportFixture(kit: CheckoutKit): ReportRange {
     refundEvery: fixtureCounts.refundEvery,
     start: yearStartUtcMs,
     step: Math.floor(yearMs / fixtureCounts.sales),
+    deleteEvery: fixtureCounts.deleteEvery,
+    discardCount: fixtureCounts.discardedBills,
+    discardStep: Math.floor(yearMs / fixtureCounts.discardedBills),
   };
 
   sqlite.transaction(() => {
@@ -130,6 +135,72 @@ export function seedReportFixture(kit: CheckoutKit): ReportRange {
          SELECT replace(id, '-8001-', '-8004-'), @storeId, @terminalId, id, 0,
                 CASE WHEN abs(total_paisa) % 3 = 0 THEN 'card' ELSE 'cash' END, total_paisa, @userId, created_at
          FROM sales`),
+      )
+      .run(params);
+
+    sqlite
+      .prepare(
+        integers(`INSERT INTO stock_movements (id, store_id, terminal_id, product_id, type, qty_milli, unit_cost_paisa, source_type, source_id, actor_user_id, created_at)
+         SELECT replace(id, '-8002-', '-8005-'), @storeId, @terminalId, product_id,
+                CASE WHEN is_return THEN 'return' ELSE 'sale' END, -qty_milli, cost_paisa, 'sale_line', id, @userId, created_at
+         FROM sale_lines`),
+      )
+      .run(params);
+
+    sqlite
+      .prepare(
+        integers(`INSERT INTO stock_movements (id, store_id, terminal_id, product_id, type, qty_milli, unit_cost_paisa, reason, source_type, source_id, actor_user_id, created_at)
+         SELECT replace(id, '-8002-', '-8006-'), @storeId, @terminalId, product_id, 'damage', qty_milli, cost_paisa, 'damage',
+                'sale_line', id, @userId, created_at
+         FROM sale_lines WHERE is_return AND CAST(substr(id, -12) AS INTEGER) % 2 = 0`),
+      )
+      .run(params);
+
+    sqlite
+      .prepare(
+        integers(`WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + @deleteEvery FROM n WHERE i + @deleteEvery < @saleCount)
+         INSERT INTO bill_draft_lines (id, store_id, terminal_id, draft_id, position, product_id, qty_milli, unit_price_paisa,
+                                       deleted_at, deleted_by, created_at, updated_at)
+         SELECT printf('00000000-0000-7000-8007-%012d', i), @storeId, @terminalId,
+                printf('00000000-0000-7000-8003-%012d', i), 0,
+                printf('00000000-0000-7000-8000-%012d', i % @productCount), 1000, 1500,
+                @start + i * @step, @userId, @start + i * @step, @start + i * @step
+         FROM n`),
+      )
+      .run(params);
+
+    sqlite
+      .prepare(
+        integers(`WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + @deleteEvery FROM n WHERE i + @deleteEvery < @saleCount)
+         INSERT INTO audit_log (id, store_id, terminal_id, actor_user_id, action, entity_type, entity_id, details, created_at)
+         SELECT printf('00000000-0000-7000-8008-%012d', i), @storeId, @terminalId, @userId, 'line_delete', 'bill_draft_line',
+                printf('00000000-0000-7000-8007-%012d', i),
+                json_object('draftId', printf('00000000-0000-7000-8003-%012d', i),
+                            'productId', printf('00000000-0000-7000-8000-%012d', i % @productCount),
+                            'qtyMilli', 1000, 'grossPaisa', 1500),
+                @start + i * @step
+         FROM n`),
+      )
+      .run(params);
+
+    sqlite
+      .prepare(
+        integers(`WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < @discardCount - 1)
+         INSERT INTO bill_drafts (id, store_id, terminal_id, shift_id, state, created_by, created_at, updated_at)
+         SELECT printf('00000000-0000-7000-8009-%012d', i), @storeId, @terminalId, @shiftId, 'cancelled', @userId,
+                @start + i * @discardStep, @start + i * @discardStep
+         FROM n`),
+      )
+      .run(params);
+
+    sqlite
+      .prepare(
+        integers(`WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < @discardCount - 1)
+         INSERT INTO audit_log (id, store_id, terminal_id, actor_user_id, action, entity_type, entity_id, details, created_at)
+         SELECT printf('00000000-0000-7000-800a-%012d', i), @storeId, @terminalId, @userId, 'bill_discard', 'bill_draft',
+                printf('00000000-0000-7000-8009-%012d', i),
+                json_object('lineCount', 2, 'totalPaisa', 3000 + i % 7), @start + i * @discardStep
+         FROM n`),
       )
       .run(params);
   })();
