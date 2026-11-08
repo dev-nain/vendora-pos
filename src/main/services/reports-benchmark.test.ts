@@ -30,7 +30,12 @@ describe("reports benchmark", () => {
   });
 
   it("renders sales by day for a full year in under 3 seconds", () => {
-    const service = createReportsService({ database: kit.database, sessions: kit.sessions });
+    const service = createReportsService({
+      database: kit.database,
+      sessions: kit.sessions,
+      renderer: { toPdf: async () => Buffer.alloc(0), print: async () => "printed" },
+      chooseSavePath: async () => null,
+    });
     const durations: number[] = [];
     let last = salesByDayResultSchema.parse(service.salesByDay(range));
     for (let run = 0; run < runs; run++) {

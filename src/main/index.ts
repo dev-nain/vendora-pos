@@ -26,6 +26,7 @@ import { createGoodsReceivedService } from "./services/goods-received";
 import { createRecoveryService } from "./services/recovery";
 import { createPurchaseOrdersService } from "./services/purchase-orders";
 import { createReceiptsService } from "./services/receipts";
+import { createReportsService } from "./services/reports";
 import { createReturnsService } from "./services/returns";
 import { createSalesService } from "./services/sales";
 import { createSettingsService } from "./services/settings";
@@ -259,6 +260,19 @@ void app.whenReady().then(async () => {
     backupDir: backupDir(),
     chooseFile: chooseBackupFile,
   });
+  const reports = createReportsService({
+    database,
+    sessions,
+    renderer: documentRenderer,
+    chooseSavePath: (fileName, format) =>
+      chooseSavePath(
+        "Export report",
+        format === "csv"
+          ? { name: "CSV file", extensions: ["csv"] }
+          : { name: "PDF file", extensions: ["pdf"] },
+        fileName,
+      ),
+  });
   const fakePrinterDir = process.env["VENDORA_FAKE_PRINTER"];
   const renderWindow = createRenderWindow();
   const receipts = createReceiptsService({
@@ -290,6 +304,7 @@ void app.whenReady().then(async () => {
     purchaseReturnDocuments,
     purchaseReturns,
     receipts,
+    reports,
     returns,
     saleInvoices,
     sales,

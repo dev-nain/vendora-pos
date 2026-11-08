@@ -50,6 +50,12 @@ import {
   stockListResultSchema,
 } from "@shared/inventory";
 import {
+  exportReportInputSchema,
+  exportReportResultSchema,
+  reportRangeSchema,
+  salesByDayResultSchema,
+} from "@shared/reports";
+import {
   cancelStocktakeResultSchema,
   recordCountInputSchema,
   recordCountResultSchema,
@@ -237,6 +243,7 @@ import type { PurchaseOrderDocumentsService } from "./services/purchase-order-do
 import type { PurchaseOrdersService } from "./services/purchase-orders";
 import type { SaleInvoicesService } from "./services/sale-invoices";
 import type { ReceiptsService } from "./services/receipts";
+import type { ReportsService } from "./services/reports";
 import type { ReturnsService } from "./services/returns";
 import type { SalesService } from "./services/sales";
 import type { BackupSettingsService } from "./services/backup-settings";
@@ -288,6 +295,7 @@ interface IpcServices {
   settings: SettingsService;
   shifts: ShiftsService;
   suppliers: SuppliersService;
+  reports: ReportsService;
   taxCategories: TaxCategoriesService;
   users: UsersService;
   products: ProductsService;
@@ -320,6 +328,7 @@ export function registerIpcHandlers({
   purchaseReturnDocuments,
   purchaseReturns,
   receipts,
+  reports,
   returns,
   saleInvoices,
   sales,
@@ -659,6 +668,14 @@ export function registerIpcHandlers({
   handle(ipcChannels.goodsReceivedPost, (_event, input) =>
     postGoodsReceivedResultSchema.parse(
       goodsReceived.post(postGoodsReceivedInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsSalesByDay, (_event, input) =>
+    salesByDayResultSchema.parse(reports.salesByDay(reportRangeSchema.parse(input))),
+  );
+  handle(ipcChannels.reportsExportSalesByDay, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportSalesByDay(exportReportInputSchema.parse(input)),
     ),
   );
   handle(ipcChannels.taxCategoriesList, () =>

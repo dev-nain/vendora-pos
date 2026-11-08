@@ -42,4 +42,5 @@ export interface DocumentModel {
   summaries: DocumentTable[];
   notes: string | null;
   footer: DocumentText[];
+  landscape?: boolean;
 }

@@ -23,7 +23,7 @@ const result = spawnSync(electron, ["."], { stdio: "inherit", timeout: 60_000, e
 if (result.error) fail(result.error.message);
 if (result.status !== 0) fail(`electron exited with ${result.status}`);
 
-const files = [file, join(dir, "invoice.pdf")];
+const files = [file, join(dir, "invoice.pdf"), join(dir, "report.pdf")];
 const sizes = [];
 for (const path of files) {
   const name = basename(path);

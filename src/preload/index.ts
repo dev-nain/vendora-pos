@@ -22,6 +22,7 @@ import {
   printResultSchema,
   saleJobResultSchema,
 } from "@shared/receipt";
+import { exportReportResultSchema, salesByDayResultSchema } from "@shared/reports";
 import {
   marginThresholdSettingSchema,
   miscItemSettingSchema,
@@ -479,6 +480,14 @@ const api: VendoraApi = {
     forSupplier: async (query) =>
       supplierPurchaseHistoryResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.purchaseHistorySupplier, query),
+      ),
+  },
+  reports: {
+    salesByDay: async (range) =>
+      salesByDayResultSchema.parse(await ipcRenderer.invoke(ipcChannels.reportsSalesByDay, range)),
+    exportSalesByDay: async (input) =>
+      exportReportResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.reportsExportSalesByDay, input),
       ),
   },
   shifts: {
