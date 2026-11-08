@@ -77,6 +77,7 @@ describe("labels", () => {
       adjustment: "Adjustment",
       stocktake: "Stocktake",
       damage: "Damage",
+      purchase_return: "Purchase return",
     });
   });
 

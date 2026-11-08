@@ -19,6 +19,7 @@ Windows desktop app, installed per store. v1 targets Windows 10 and 11 (64-bit).
 - The **main process** owns the database, printing, cash drawer, licensing, backups and session checks.
 - The **renderer** displays data and calls a narrow, typed IPC API through the preload script. It never touches the database, filesystem or hardware directly.
 - Every IPC input is validated with Zod in main, and every data call requires a signed-in session checked in main — hiding a button in the UI is not a check.
+- Exception: when the database file is damaged or can't be opened, the recovery calls (startup state, backup scan, backup file picker, restore, retry) work without a session. Main allows them only in that startup mode and refuses them otherwise.
 - Electron hardening: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, no remote content loaded into windows.
 
 ## Database
@@ -29,15 +30,22 @@ Windows desktop app, installed per store. v1 targets Windows 10 and 11 (64-bit).
 - Products, barcodes, pack conversions, categories, suppliers
 - Sales, sale lines, payments, returns, held bills
 - Stock movements, stocktakes
-- Purchase orders, goods receipts
+- Purchase orders, goods receipts, purchase returns
 - Shifts, cash movements
 - Audit log, backup records
+
+**Startup check:**
+
+- SQLite runs with `journal_mode = WAL` and `synchronous = FULL`, so a committed write is on disk before the call returns.
+- Before the app opens the database it checks the file on a read-only connection with `PRAGMA quick_check`. On 30,000 products and 500,000 sale lines (276 MiB) `quick_check` took about 550 ms and `integrity_check` about 2,000 ms on the dev machine, so `quick_check` is used to keep cold start to login under 5 seconds.
+- Damaged means: SQLite corruption, not a database, a zero-byte file, or missing Vendora tables. Only a missing file is a first run. Other open errors (file locked, access denied, disk error) show a plain message with Retry; the file is never moved. A database from a newer Vendora, or one whose migration fails, shows its own message and stays where it is.
+- A recovery restore renames the damaged file (and its `-wal` and `-shm`) to `vendora-damaged-<timestamp>.db` in the user data folder and puts the chosen backup in place. It never deletes the damaged file.
 
 **Data rules:**
 
 - **Money is stored as integer paisa.** Never floats.
 - **Quantities are stored as integer milli-units** (3 decimals for weighed items).
-- Sale lines store a **snapshot** of name, price, cost and tax rate at the time of sale. Reports must not change when the catalog does.
+- Sale lines store a **snapshot** of name, price, cost, tax rate and category at the time of sale. Reports must not change when the catalog does. Lines sold before the category snapshot carry the product's category as it stood at that upgrade, and misc lines have none.
 - **Stock on hand = sum of stock movements.** A cached per-product total is allowed but must be rebuildable from the ledger.
 - Completed sales, payments, stock movements and audit entries are **append-only**. Corrections are new records (returns, adjustments), never edits.
 - Times are stored in UTC and displayed in Asia/Karachi.
@@ -48,7 +56,7 @@ Windows desktop app, installed per store. v1 targets Windows 10 and 11 (64-bit).
 - What happens to an in-progress bill when power dies mid-payment? It must be either fully saved or fully restorable.
 - How do you migrate the schema safely on hundreds of stores that update on different days?
 - Tax-inclusive vs tax-exclusive pricing and exempt items — how is tax computed and rounded per line so totals always add up?
-- Which indexes keep barcode lookup and product search under 100 ms at 30,000 products, and reports under 3 s at 500,000 sale lines?
+- Which indexes keep barcode lookup and product search under 100 ms at 30,000 products, and reports under 3 s at 500,000 sale lines? Sales by day over 500,000 sale lines and 365 days runs in about 0.3 s with the existing `sales_store_id_created_at_idx` and `sale_lines_sale_id_id_unique`, so reports add no index.
 
 ## Phase-2 Readiness
 
@@ -99,6 +107,7 @@ The receipt is one dithered 1-bit raster image sent with `GS v 0` in bands of at
 ## Security
 
 - Passwords and PINs hashed with argon2id; PIN lockout after 5 failed attempts.
+- The recovery calls are the one exception to the signed-in session rule. They exist only while the database is damaged, take a Zod-parsed backup name or a main-issued token (never a path), and record the restore in the audit log with no actor.
 - License data stored encrypted at rest (Windows DPAPI).
 - Every data IPC call requires a signed-in session, enforced in the main process.
 - No telemetry containing business data. Crash reports are opt-in and scrub personal data.

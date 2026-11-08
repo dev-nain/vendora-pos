@@ -72,7 +72,7 @@ export const pair = (
 const rule: ReceiptBlock = { type: "rule" };
 const gap = (heightPx: number): ReceiptBlock => ({ type: "gap", heightPx });
 
-function linesOf(value: string | null): string[] {
+export function linesOf(value: string | null): string[] {
   return value ? value.split(/\r?\n/).filter((line) => line.trim() !== "") : [];
 }
 
@@ -108,16 +108,19 @@ export function barcodeBlock(value: string, widthPx: ReceiptWidthPx): ReceiptBlo
   };
 }
 
-function quantityText(line: SnapshotLine): string {
-  const price = formatRupees(line.unitPricePaisa);
+export function quantityLabel(line: SnapshotLine): string {
   const isPack = line.packQtyMilli !== 1000;
   const isWeighed = line.unit !== "piece" && !isPack;
   const qty = (
     isWeighed ? formatQuantity(line.qtyMilli, line.unit) : String(line.qtyMilli / 1000)
   ).replace(/^-/, MINUS);
-  const base = isPack
-    ? `${qty} × Pack (${formatQuantity(line.packQtyMilli, line.unit)}) at ${price}`
-    : `${qty} × ${price}`;
+  return isPack ? `${qty} × Pack (${formatQuantity(line.packQtyMilli, line.unit)})` : qty;
+}
+
+function quantityText(line: SnapshotLine): string {
+  const price = formatRupees(line.unitPricePaisa);
+  const isPack = line.packQtyMilli !== 1000;
+  const base = isPack ? `${quantityLabel(line)} at ${price}` : `${quantityLabel(line)} × ${price}`;
   return `${line.isReturn ? "Return · " : ""}${base} · ${rateText(line.taxRateBps)}`;
 }
 
@@ -131,17 +134,38 @@ function lineBlocks(line: SnapshotLine): ReceiptBlock[] {
   return blocks;
 }
 
-function taxRows(lines: SnapshotLine[]): string[][] {
-  const byRate = new Map<number, { taxable: number; tax: number }>();
+export interface TaxSummaryRow {
+  rateBps: number;
+  taxablePaisa: number;
+  taxPaisa: number;
+}
+
+export function taxSummary(lines: SnapshotLine[]): TaxSummaryRow[] {
+  const byRate = new Map<number, TaxSummaryRow>();
   for (const line of lines) {
-    const entry = byRate.get(line.taxRateBps) ?? { taxable: 0, tax: 0 };
-    entry.taxable += line.totalPaisa - line.taxPaisa;
-    entry.tax += line.taxPaisa;
+    const entry = byRate.get(line.taxRateBps) ?? {
+      rateBps: line.taxRateBps,
+      taxablePaisa: 0,
+      taxPaisa: 0,
+    };
+    entry.taxablePaisa += line.totalPaisa - line.taxPaisa;
+    entry.taxPaisa += line.taxPaisa;
     byRate.set(line.taxRateBps, entry);
   }
-  return [...byRate.entries()]
-    .toSorted(([a], [b]) => a - b)
-    .map(([rate, { taxable, tax }]) => [rateText(rate), signedRupees(taxable), signedRupees(tax)]);
+  return [...byRate.values()].toSorted((a, b) => a.rateBps - b.rateBps);
+}
+
+function taxRows(lines: SnapshotLine[]): string[][] {
+  return taxSummary(lines).map((row) => [
+    rateText(row.rateBps),
+    signedRupees(row.taxablePaisa),
+    signedRupees(row.taxPaisa),
+  ]);
+}
+
+export function saleDocumentTitle(snapshot: SaleSnapshot): "Invoice" | "Credit note" | "Exchange" {
+  if (snapshot.sale.type === "refund") return "Credit note";
+  return snapshot.lines.some((line) => line.isReturn) ? "Exchange" : "Invoice";
 }
 
 export function buildReceiptModel(snapshot: SaleSnapshot, widthPx: ReceiptWidthPx): ReceiptModel {
@@ -150,15 +174,9 @@ export function buildReceiptModel(snapshot: SaleSnapshot, widthPx: ReceiptWidthP
   const billDiscountPaisa = lines.reduce((sum, line) => sum + line.billDiscountPaisa, 0);
 
   const blocks: ReceiptBlock[] = [...headerBlocks(snapshot.store), gap(8), rule];
-  const hasReturn = lines.some((line) => line.isReturn);
-  if (sale.type === "refund" || hasReturn) {
-    blocks.push(
-      text(sale.type === "refund" ? "Credit note" : "Exchange", {
-        align: "center",
-        size: "title",
-        weight: "bold",
-      }),
-    );
+  const title = saleDocumentTitle(snapshot);
+  if (title !== "Invoice") {
+    blocks.push(text(title, { align: "center", size: "title", weight: "bold" }));
   }
   blocks.push(pair("Invoice", sale.invoiceNo, { weight: "bold" }));
   if (sale.refundedInvoiceNo) blocks.push(pair("Original invoice", sale.refundedInvoiceNo));

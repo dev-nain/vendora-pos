@@ -2,15 +2,17 @@ import { join } from "node:path";
 import { app, BrowserWindow, dialog, safeStorage } from "electron";
 import { createBackupKeyStore } from "./backup/backup-key";
 import { createBackupService, type BackupService } from "./backup/backup-service";
-import { createRestoreService, removeStagedRestore } from "./backup/restore";
+import { createRecoveryRestore, createRestoreService } from "./backup/restore";
 import { createWorkerCopy } from "./backup/worker-copy";
-import { openDatabase, type VendoraDatabase } from "./db/client";
+import type { VendoraDatabase } from "./db/client";
 import { seedDevUsers } from "./db/dev-users";
-import { runMigrations } from "./db/migrate";
-import { seedStoreAndTerminal } from "./db/seed";
-import { registerIpcHandlers } from "./ipc";
+import { openAppDatabase, type StartupOutcome } from "./db/startup";
+import { registerIpcHandlers, registerStartupHandlers } from "./ipc";
 import { createAuditService } from "./services/audit";
 import { createAuthService } from "./services/auth";
+import { createPurchaseHistoryService } from "./services/purchase-history";
+import { createPurchaseReturnDocumentsService } from "./services/purchase-return-documents";
+import { createPurchaseReturnsService } from "./services/purchase-returns";
 import { createBackupSettingsService } from "./services/backup-settings";
 import { createBackupAdminService } from "./services/backup-admin";
 import { createBackupPasswordService } from "./services/backup-password";
@@ -18,9 +20,13 @@ import { createBillDraftsService } from "./services/bill-drafts";
 import { createCatalogExportService } from "./services/catalog-export";
 import { createAuditLogService } from "./services/audit-log";
 import { createCategoriesService } from "./services/categories";
+import { createSaleInvoicesService } from "./services/sale-invoices";
+import { createPurchaseOrderDocumentsService } from "./services/purchase-order-documents";
 import { createGoodsReceivedService } from "./services/goods-received";
+import { createRecoveryService } from "./services/recovery";
 import { createPurchaseOrdersService } from "./services/purchase-orders";
 import { createReceiptsService } from "./services/receipts";
+import { createReportsService } from "./services/reports";
 import { createReturnsService } from "./services/returns";
 import { createSalesService } from "./services/sales";
 import { createSettingsService } from "./services/settings";
@@ -32,7 +38,10 @@ import { createStockService } from "./services/stock";
 import { createSuppliersService } from "./services/suppliers";
 import { createTaxCategoriesService } from "./services/tax-categories";
 import { createUsersService } from "./services/users";
+import type { StartupState } from "../shared/recovery";
 import { createSessionStore } from "./auth/session";
+import { createDocumentRenderer } from "./documents/document-window";
+import { runPdfCheck } from "./documents/pdf-check";
 import { createRasteriser } from "./receipts/rasterise";
 import { createRenderWindow } from "./receipts/render-window";
 import { createTransport } from "./hardware/printer-transport";
@@ -47,15 +56,24 @@ const databaseFile = () => join(app.getPath("userData"), "vendora.db");
 const migrationsFolder = () =>
   app.isPackaged ? join(process.resourcesPath, "drizzle") : join(app.getAppPath(), "drizzle");
 
-async function startDatabase(): Promise<VendoraDatabase> {
-  await removeStagedRestore(databaseFile());
-  const opened = openDatabase(databaseFile());
-  const migration = runMigrations(opened, {
-    migrationsFolder: migrationsFolder(),
-    backupDir: backupDir(),
-  });
-  if (migration !== "no-journal") seedStoreAndTerminal(opened);
-  return opened;
+async function chooseSavePath(
+  title: string,
+  filter: { name: string; extensions: string[] },
+  fileName: string,
+): Promise<string | null> {
+  const devSaveDir = process.env["VENDORA_DEV_SAVE_DIR"];
+  // Dev-only: lets the screenshot capture save PDFs without the native dialog.
+  if (devSaveDir && !app.isPackaged) return join(devSaveDir, fileName);
+  const options = {
+    title,
+    defaultPath: join(app.getPath("documents"), fileName),
+    filters: [filter],
+  };
+  const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  const result = parent
+    ? await dialog.showSaveDialog(parent, options)
+    : await dialog.showSaveDialog(options);
+  return result.canceled || !result.filePath ? null : result.filePath;
 }
 
 async function showOnTop(options: Electron.MessageBoxOptions): Promise<void> {
@@ -63,8 +81,67 @@ async function showOnTop(options: Electron.MessageBoxOptions): Promise<void> {
   await (parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options));
 }
 
+async function chooseBackupFile(): Promise<string | null> {
+  const options = {
+    title: "Choose a Vendora backup",
+    defaultPath: backupDir(),
+    properties: ["openFile" as const],
+    filters: [{ name: "Vendora backup", extensions: ["db"] }],
+  };
+  const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  const result = parent
+    ? await dialog.showOpenDialog(parent, options)
+    : await dialog.showOpenDialog(options);
+  return result.canceled ? null : (result.filePaths[0] ?? null);
+}
+
+async function restartApp(failure: string | null): Promise<void> {
+  if (failure) {
+    await showOnTop({ type: "error", title: "Vendora", message: failure });
+  }
+  app.relaunch();
+  app.quit();
+}
+
+function startupStateOf(outcome: StartupOutcome): StartupState {
+  if (outcome.mode === "open-failed") return { mode: "open-failed", failure: outcome.failure };
+  return { mode: outcome.mode };
+}
+
 void app.whenReady().then(async () => {
-  database = await startDatabase();
+  const pdfCheckPath = process.env["VENDORA_PDF_CHECK"];
+  if (!app.isPackaged && pdfCheckPath) {
+    await runPdfCheck(pdfCheckPath);
+    return;
+  }
+  const outcome = await openAppDatabase({
+    databaseFile: databaseFile(),
+    migrationsFolder: migrationsFolder(),
+    backupDir: backupDir(),
+  });
+  registerStartupHandlers(
+    createRecoveryService({
+      state: startupStateOf(outcome),
+      backupDir: backupDir(),
+      migrationsFolder: migrationsFolder(),
+      chooseFile: chooseBackupFile,
+      restores: createRecoveryRestore({
+        databaseFile: databaseFile(),
+        backupDir: backupDir(),
+        migrationsFolder: migrationsFolder(),
+        restart: restartApp,
+      }),
+      relaunch: () => restartApp(null),
+    }),
+  );
+  if (outcome.mode !== "normal") {
+    createMainWindow();
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+    });
+    return;
+  }
+  database = outcome.database;
   if (!app.isPackaged && process.env.VENDORA_DEV_USERS === "1") await seedDevUsers(database);
   const audit = createAuditService(database);
   const keys = createBackupKeyStore({
@@ -122,22 +199,38 @@ void app.whenReady().then(async () => {
   const suppliers = createSuppliersService({ database, audit, sessions });
   const purchaseOrders = createPurchaseOrdersService({ database, audit, sessions });
   const goodsReceived = createGoodsReceivedService({ database, audit, sessions, stock });
+  const purchaseReturns = createPurchaseReturnsService({ database, audit, sessions, stock });
+  const purchaseHistory = createPurchaseHistoryService({ database, sessions });
   const taxCategories = createTaxCategoriesService({ database, audit, sessions });
   const catalogExport = createCatalogExportService({
     database,
     sessions,
-    chooseSavePath: async (fileName) => {
-      const options = {
-        title: "Export catalog",
-        defaultPath: join(app.getPath("documents"), fileName),
-        filters: [{ name: "CSV file", extensions: ["csv"] }],
-      };
-      const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-      const result = parent
-        ? await dialog.showSaveDialog(parent, options)
-        : await dialog.showSaveDialog(options);
-      return result.canceled || !result.filePath ? null : result.filePath;
-    },
+    chooseSavePath: (fileName) =>
+      chooseSavePath("Export catalog", { name: "CSV file", extensions: ["csv"] }, fileName),
+  });
+  const documentRenderer = createDocumentRenderer();
+  const purchaseOrderDocuments = createPurchaseOrderDocumentsService({
+    database,
+    sessions,
+    purchaseOrders,
+    renderer: documentRenderer,
+    chooseSavePath: (fileName) =>
+      chooseSavePath("Save purchase order", { name: "PDF file", extensions: ["pdf"] }, fileName),
+  });
+  const purchaseReturnDocuments = createPurchaseReturnDocumentsService({
+    database,
+    sessions,
+    purchaseReturns,
+    renderer: documentRenderer,
+    chooseSavePath: (fileName) =>
+      chooseSavePath("Save purchase return", { name: "PDF file", extensions: ["pdf"] }, fileName),
+  });
+  const saleInvoices = createSaleInvoicesService({
+    database,
+    sessions,
+    renderer: documentRenderer,
+    chooseSavePath: (fileName) =>
+      chooseSavePath("Save invoice", { name: "PDF file", extensions: ["pdf"] }, fileName),
   });
   const restores = createRestoreService({
     databaseFile: databaseFile(),
@@ -156,13 +249,7 @@ void app.whenReady().then(async () => {
       current.sqlite.close();
       database = null;
     },
-    restart: async (failure) => {
-      if (failure) {
-        await showOnTop({ type: "error", title: "Vendora", message: failure });
-      }
-      app.relaunch();
-      app.quit();
-    },
+    restart: restartApp,
   });
   const backupAdmin = createBackupAdminService({
     database,
@@ -171,19 +258,20 @@ void app.whenReady().then(async () => {
     restores,
     shifts,
     backupDir: backupDir(),
-    chooseFile: async () => {
-      const options = {
-        title: "Choose a Vendora backup",
-        defaultPath: backupDir(),
-        properties: ["openFile" as const],
-        filters: [{ name: "Vendora backup", extensions: ["db"] }],
-      };
-      const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
-      const result = parent
-        ? await dialog.showOpenDialog(parent, options)
-        : await dialog.showOpenDialog(options);
-      return result.canceled ? null : (result.filePaths[0] ?? null);
-    },
+    chooseFile: chooseBackupFile,
+  });
+  const reports = createReportsService({
+    database,
+    sessions,
+    renderer: documentRenderer,
+    chooseSavePath: (fileName, format) =>
+      chooseSavePath(
+        "Export report",
+        format === "csv"
+          ? { name: "CSV file", extensions: ["csv"] }
+          : { name: "PDF file", extensions: ["pdf"] },
+        fileName,
+      ),
   });
   const fakePrinterDir = process.env["VENDORA_FAKE_PRINTER"];
   const renderWindow = createRenderWindow();
@@ -210,9 +298,15 @@ void app.whenReady().then(async () => {
     inventory,
     stocktake,
     products,
+    purchaseHistory,
+    purchaseOrderDocuments,
     purchaseOrders,
+    purchaseReturnDocuments,
+    purchaseReturns,
     receipts,
+    reports,
     returns,
+    saleInvoices,
     sales,
     settings,
     shifts,

@@ -208,6 +208,10 @@ const summarisers: Record<AuditAction, (entry: AuditEntry) => string> = {
     const details = detailsOf(entry);
     return join([text(details.grnNo), lines(details.lineCount), rupees(details.totalPaisa)]);
   },
+  purchase_return_post: (entry) => {
+    const details = detailsOf(entry);
+    return join([text(details.returnNo), lines(details.lineCount), rupees(details.totalPaisa)]);
+  },
   stocktake_post: (entry) => {
     const details = detailsOf(entry);
     const adjustments = whole(details.adjustmentCount);

@@ -1,8 +1,11 @@
 import {
   BoxesIcon,
+  ChartColumnIcon,
   ClipboardListIcon,
+  PackageCheckIcon,
   DatabaseBackupIcon,
   PackageIcon,
+  PackageMinusIcon,
   ScrollTextIcon,
   SettingsIcon,
   TagsIcon,
@@ -11,8 +14,9 @@ import {
   UsersIcon,
   type LucideIcon,
 } from "lucide-react";
-import { Fragment, useState, type KeyboardEvent } from "react";
+import { Fragment, useCallback, useState, type KeyboardEvent } from "react";
 
+import type { LowStockItem } from "@shared/inventory";
 import { cn } from "@renderer/lib/utils";
 import { AuditLogScreen } from "../audit/audit-log-screen";
 import { BackupScreen } from "../backup/backup-screen";
@@ -20,13 +24,19 @@ import { CategoriesScreen } from "../categories/categories-screen";
 import { NegativeStockScreen } from "../inventory/negative-stock-screen";
 import { LowStockScreen } from "../inventory/low-stock-screen";
 import { StockScreen } from "../inventory/stock-screen";
+import { GoodsReceivedScreen } from "../purchasing/goods-received-screen";
 import { StocktakeScreen } from "../inventory/stocktake-screen";
 import { ProductsScreen } from "../products/products-screen";
+import type { LeaveGuard, OrderSeed } from "../purchasing/order-form-screen";
+import { PurchaseOrdersScreen } from "../purchasing/purchase-orders-screen";
+import { ReportsScreen } from "../reports/reports-screen";
+import { PurchaseReturnsScreen } from "../purchasing/purchase-returns-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
 import { BackupPasswordSetting } from "../settings/backup-password-setting";
 import { BackupSetting } from "../settings/backup-setting";
 import { PrinterSetting } from "../settings/printer-setting";
 import { ReceiptSetting } from "../settings/receipt-setting";
+import { MarginThresholdSetting } from "../settings/margin-threshold-setting";
 import { SecondCopyNotice } from "../settings/second-copy-notice";
 import { useSecondCopyStatus } from "../settings/use-second-copy-status";
 import { ShiftVarianceSetting } from "../settings/shift-variance-setting";
@@ -41,7 +51,11 @@ const icons: Record<BackOfficePage, LucideIcon> = {
   stocktake: ClipboardListIcon,
   "negative-stock": TriangleAlertIcon,
   "low-stock": TriangleAlertIcon,
+  "purchase-orders": ClipboardListIcon,
+  "goods-received": PackageCheckIcon,
+  "purchase-returns": PackageMinusIcon,
   suppliers: TruckIcon,
+  reports: ChartColumnIcon,
   users: UsersIcon,
   audit: ScrollTextIcon,
   backup: DatabaseBackupIcon,
@@ -62,10 +76,37 @@ interface BackOfficeProps {
   currentUserId: string;
   onSessionEnded: () => void;
   focusPrinter?: boolean;
+  onOpenSale: (invoiceNo: string) => void;
+  guarded: (go: () => void) => void;
+  registerLeaveGuard: (guard: LeaveGuard | null) => void;
 }
 
-export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: BackOfficeProps) {
+export function BackOffice({
+  currentUserId,
+  onSessionEnded,
+  focusPrinter,
+  onOpenSale,
+  guarded,
+  registerLeaveGuard,
+}: BackOfficeProps) {
   const [page, setPage] = useState<BackOfficePage>(focusPrinter ? "settings" : "products");
+  const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
+  const clearOrderSeed = useCallback(() => setOrderSeed(null), []);
+  const [returnSeed, setReturnSeed] = useState<string | null>(null);
+  const clearReturnSeed = useCallback(() => setReturnSeed(null), []);
+  const returnToSupplier = useCallback((noteId: string) => {
+    setReturnSeed(noteId);
+    setPage("purchase-returns");
+  }, []);
+  const createOrder = useCallback((items: LowStockItem[]) => {
+    setOrderSeed(items);
+    setPage("purchase-orders");
+  }, []);
+
+  const goTo = (next: BackOfficePage) => {
+    if (next === page) return;
+    guarded(() => setPage(next));
+  };
   const secondCopy = useSecondCopyStatus();
 
   return (
@@ -95,7 +136,7 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
                     ? "selection-pill hover:bg-surface-selected"
                     : "hover:bg-surface-hover",
                 )}
-                onClick={() => setPage(id)}
+                onClick={() => goTo(id)}
               >
                 <Icon aria-hidden="true" size={16} strokeWidth={2} className="text-icon-muted" />
                 {label}
@@ -117,9 +158,31 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
         ) : page === "negative-stock" ? (
           <NegativeStockScreen onSessionEnded={onSessionEnded} />
         ) : page === "low-stock" ? (
-          <LowStockScreen onSessionEnded={onSessionEnded} />
+          <LowStockScreen onSessionEnded={onSessionEnded} onCreateOrder={createOrder} />
+        ) : page === "purchase-orders" ? (
+          <PurchaseOrdersScreen
+            seed={orderSeed}
+            registerLeaveGuard={registerLeaveGuard}
+            onSeedUsed={clearOrderSeed}
+            onSessionEnded={onSessionEnded}
+          />
+        ) : page === "goods-received" ? (
+          <GoodsReceivedScreen
+            registerLeaveGuard={registerLeaveGuard}
+            onReturn={returnToSupplier}
+            onSessionEnded={onSessionEnded}
+          />
+        ) : page === "purchase-returns" ? (
+          <PurchaseReturnsScreen
+            seed={returnSeed}
+            registerLeaveGuard={registerLeaveGuard}
+            onSeedUsed={clearReturnSeed}
+            onSessionEnded={onSessionEnded}
+          />
         ) : page === "suppliers" ? (
           <SuppliersScreen onSessionEnded={onSessionEnded} />
+        ) : page === "reports" ? (
+          <ReportsScreen onSessionEnded={onSessionEnded} onOpenSale={onOpenSale} />
         ) : page === "users" ? (
           <UsersScreen currentUserId={currentUserId} onSessionEnded={onSessionEnded} />
         ) : page === "audit" ? (
@@ -133,6 +196,7 @@ export function BackOffice({ currentUserId, onSessionEnded, focusPrinter }: Back
             </h1>
             <MiscItemSetting />
             <ShiftVarianceSetting />
+            <MarginThresholdSetting />
             <PrinterSetting focusOnReady={focusPrinter === true} />
             <BackupSetting {...secondCopy} />
             <BackupPasswordSetting onSessionEnded={onSessionEnded} />

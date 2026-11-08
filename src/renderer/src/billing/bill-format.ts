@@ -41,10 +41,7 @@ export function billDiscountLabel(discount: Discount): string {
     : `Bill discount ${formatRupees(discount.amountPaisa)}`;
 }
 
-export const negativeRupees = (paisa: number): string => `${MINUS}${formatRupees(paisa)}`;
-
-export const signedRupees = (paisa: number): string =>
-  paisa < 0 ? negativeRupees(-paisa) : formatRupees(paisa);
+export { negativeRupees, signedRupees } from "@shared/money";
 
 export const itemCountText = (count: number): string =>
   `${count} ${count === 1 ? "item" : "items"}`;
