@@ -18,6 +18,15 @@ const shared = resolve(__dirname, "src/shared");
 
 export default defineConfig({
   main: {
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve(__dirname, "src/main/index.ts"),
+          "backup-worker": resolve(__dirname, "src/main/backup/backup-worker.ts"),
+          "checkpoint-worker": resolve(__dirname, "src/main/db/checkpoint-worker.ts"),
+        },
+      },
+    },
     resolve: { alias: { "@shared": shared } },
   },
   preload: {

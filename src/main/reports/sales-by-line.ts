@@ -1,6 +1,6 @@
 import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
 import {
-  miscItemsLabel,
+  miscSalesLabel,
   noCategoryLabel,
   roundingRowLabel,
   type ReportFooterRow,
@@ -143,7 +143,7 @@ export function readSalesByProduct(
   const rows = ordered(
     groups.map(({ key, label, ...totals }) => ({
       ...totals,
-      label: key === misc ? miscItemsLabel : (label ?? ""),
+      label: key === misc ? miscSalesLabel : (label ?? ""),
       isMisc: key === misc,
     })),
   ).map((row) => ({ product: row.label, ...lineValues(row) }));
@@ -172,7 +172,7 @@ export function readSalesByCategory(
     groups.map(({ key, label, ...totals }) => ({
       ...totals,
       label:
-        key === "" ? miscItemsLabel : key === "-" ? noCategoryLabel : (label ?? noCategoryLabel),
+        key === "" ? miscSalesLabel : key === "-" ? noCategoryLabel : (label ?? noCategoryLabel),
       isMisc: key === "",
     })),
   ).map((row) => ({ category: row.label, ...lineValues(row) }));

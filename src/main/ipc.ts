@@ -1,4 +1,5 @@
 import { app, ipcMain, type IpcMainInvokeEvent } from "electron";
+import { recoveryScanSchema, startupStateSchema } from "@shared/recovery";
 import {
   authResultSchema,
   createFirstUserInputSchema,
@@ -33,8 +34,14 @@ import {
   setDamagedInputSchema,
   updateLineInputSchema,
 } from "@shared/checkout";
+import { auditListQuerySchema, auditPageSchema, auditUsersSchema } from "@shared/audit";
 import { appInfoSchema, ipcChannels } from "@shared/ipc";
+import { printInvoiceResultSchema, saveInvoicePdfResultSchema } from "@shared/invoices";
 import {
+  negativeStockQuerySchema,
+  negativeStockResultSchema,
+  stockAdjustmentInputSchema,
+  stockAdjustmentResultSchema,
   lowStockQuerySchema,
   lowStockResultSchema,
   stockHistoryQuerySchema,
@@ -42,12 +49,15 @@ import {
   stockListQuerySchema,
   stockListResultSchema,
 } from "@shared/inventory";
+import { discountsReturnsVoidsResultSchema } from "@shared/discounts-returns-voids";
 import {
   exportPaymentMethodsInputSchema,
   exportReportInputSchema,
   exportReportResultSchema,
   paymentMethodsQuerySchema,
   paymentMethodsResultSchema,
+  grossProfitByCategoryResultSchema,
+  grossProfitByProductResultSchema,
   reportRangeSchema,
   reportShiftListSchema,
   salesByCashierResultSchema,
@@ -55,7 +65,41 @@ import {
   salesByDayResultSchema,
   salesByHourResultSchema,
   salesByProductResultSchema,
+  salesTaxSummaryResultSchema,
 } from "@shared/reports";
+import {
+  exportTodayReportInputSchema,
+  lowStockReportResultSchema,
+  negativeStockReportResultSchema,
+  postedStocktakesResultSchema,
+  purchasesBySupplierResultSchema,
+  stockMovementsExportInputSchema,
+  stockMovementsReportInputSchema,
+  stockMovementsReportResultSchema,
+  stockOnHandResultSchema,
+  stocktakeVarianceExportInputSchema,
+  stocktakeVarianceReportInputSchema,
+  stocktakeVarianceResultSchema,
+} from "@shared/stock-reports";
+import {
+  cancelStocktakeResultSchema,
+  pastStocktakesQuerySchema,
+  pastStocktakesResultSchema,
+  postStocktakeResultSchema,
+  recordCountInputSchema,
+  recordCountResultSchema,
+  startStocktakeInputSchema,
+  startStocktakeResultSchema,
+  stocktakeIdInputSchema,
+  stocktakeLinesQuerySchema,
+  stocktakeLinesResultSchema,
+  stocktakeReviewLinesQuerySchema,
+  stocktakeReviewLinesResultSchema,
+  stocktakeReviewResultSchema,
+  stocktakeScanInputSchema,
+  stocktakeScanResultSchema,
+  stocktakeSummarySchema,
+} from "@shared/stocktake";
 import {
   addFromSaleInputSchema,
   returnableInputSchema,
@@ -67,6 +111,18 @@ import {
   orderListSchema,
   salesListQuerySchema,
 } from "@shared/sales";
+import {
+  backupNowResultSchema,
+  backupPasswordResultSchema,
+  backupPasswordStatusSchema,
+  changeBackupPasswordInputSchema,
+  backupStatusSchema,
+  chosenBackupSchema,
+  restoreInputSchema,
+  restoreResultSchema,
+  turnOffBackupPasswordInputSchema,
+  turnOnBackupPasswordInputSchema,
+} from "@shared/backup";
 import {
   barcodeLookupInputSchema,
   barcodeLookupSchema,
@@ -95,11 +151,14 @@ import {
   saleJobResultSchema,
 } from "@shared/receipt";
 import {
+  marginThresholdInputSchema,
+  marginThresholdSettingSchema,
   miscItemInputSchema,
   miscItemSettingSchema,
   printerSettingsSchema,
   receiptSettingsInputSchema,
   receiptSettingsSchema,
+  secondCopyStatusSchema,
   scalePrefixesInputSchema,
   scalePrefixesSettingSchema,
   shiftVarianceInputSchema,
@@ -130,6 +189,36 @@ import {
   updateTaxCategoryInputSchema,
   updateTaxCategoryResultSchema,
 } from "@shared/tax-categories";
+import {
+  getGoodsReceivedResultSchema,
+  goodsReceivedIdInputSchema,
+  goodsReceivedLastCostInputSchema,
+  goodsReceivedLastCostResultSchema,
+  goodsReceivedListQuerySchema,
+  goodsReceivedListResultSchema,
+  lowMarginResultSchema,
+  postGoodsReceivedInputSchema,
+  postGoodsReceivedResultSchema,
+} from "@shared/goods-received";
+import {
+  productPurchaseHistoryQuerySchema,
+  productPurchaseHistoryResultSchema,
+  supplierPurchaseHistoryQuerySchema,
+  supplierPurchaseHistoryResultSchema,
+} from "@shared/purchase-history";
+import {
+  getPurchaseReturnResultSchema,
+  postPurchaseReturnInputSchema,
+  postPurchaseReturnResultSchema,
+  purchaseReturnIdInputSchema,
+  purchaseReturnListQuerySchema,
+  printPurchaseReturnResultSchema,
+  purchaseReturnListResultSchema,
+  savePurchaseReturnPdfResultSchema,
+  purchaseReturnableInputSchema,
+  purchaseReturnableNoteResultSchema,
+  purchaseReturnableResultSchema,
+} from "@shared/purchase-returns";
 import {
   cancelPurchaseOrderResultSchema,
   confirmPurchaseOrderResultSchema,
@@ -167,18 +256,29 @@ import {
 } from "@shared/users";
 import { z } from "zod";
 import { toIpcError } from "./ipc-errors";
+import type { AuditLogService } from "./services/audit-log";
 import type { AuthService } from "./services/auth";
 import type { BillDraftsService } from "./services/bill-drafts";
+import type { RecoveryService } from "./services/recovery";
+import type { BackupAdminService } from "./services/backup-admin";
+import type { BackupPasswordService } from "./services/backup-password";
 import type { CatalogExportService } from "./services/catalog-export";
 import type { CategoriesService } from "./services/categories";
+import type { GoodsReceivedService } from "./services/goods-received";
+import type { PurchaseReturnDocumentsService } from "./services/purchase-return-documents";
+import type { PurchaseHistoryService } from "./services/purchase-history";
+import type { PurchaseReturnsService } from "./services/purchase-returns";
 import type { InventoryService } from "./services/inventory";
+import type { StocktakeService } from "./services/stocktake";
 import type { ProductsService } from "./services/products";
 import type { PurchaseOrderDocumentsService } from "./services/purchase-order-documents";
 import type { PurchaseOrdersService } from "./services/purchase-orders";
+import type { SaleInvoicesService } from "./services/sale-invoices";
 import type { ReceiptsService } from "./services/receipts";
 import type { ReportsService } from "./services/reports";
 import type { ReturnsService } from "./services/returns";
 import type { SalesService } from "./services/sales";
+import type { BackupSettingsService } from "./services/backup-settings";
 import type { SettingsService } from "./services/settings";
 import type { ShiftsService } from "./services/shifts";
 import type { SuppliersService } from "./services/suppliers";
@@ -198,38 +298,73 @@ function handle(
   });
 }
 
+export function registerStartupHandlers(recovery: RecoveryService): void {
+  handle(ipcChannels.appGetInfo, () => appInfoSchema.parse({ version: app.getVersion() }));
+  handle(ipcChannels.startupState, () => startupStateSchema.parse(recovery.state()));
+  handle(ipcChannels.recoveryScan, async () => recoveryScanSchema.parse(await recovery.scan()));
+  handle(ipcChannels.recoveryChooseFile, async () =>
+    chosenBackupSchema.parse(await recovery.chooseFile()),
+  );
+  handle(ipcChannels.recoveryRestore, async (_event, input) =>
+    restoreResultSchema.parse(await recovery.restore(restoreInputSchema.parse(input))),
+  );
+  handle(ipcChannels.recoveryRetry, () => recovery.retry());
+}
+
+const noPayloadSchema = z.tuple([]);
+
 interface IpcServices {
+  auditLog: AuditLogService;
   auth: AuthService;
+  backupSettings: BackupSettingsService;
+  backupAdmin: BackupAdminService;
+  backupPassword: BackupPasswordService;
   billDrafts: BillDraftsService;
   catalogExport: CatalogExportService;
   categories: CategoriesService;
   inventory: InventoryService;
+  stocktake: StocktakeService;
   returns: ReturnsService;
   sales: SalesService;
   settings: SettingsService;
   shifts: ShiftsService;
   suppliers: SuppliersService;
+  reports: ReportsService;
   taxCategories: TaxCategoriesService;
   users: UsersService;
   products: ProductsService;
   purchaseOrderDocuments: PurchaseOrderDocumentsService;
   purchaseOrders: PurchaseOrdersService;
+  goodsReceived: GoodsReceivedService;
+  purchaseReturns: PurchaseReturnsService;
+  purchaseReturnDocuments: PurchaseReturnDocumentsService;
+  purchaseHistory: PurchaseHistoryService;
   receipts: ReceiptsService;
-  reports: ReportsService;
+  saleInvoices: SaleInvoicesService;
 }
 
 export function registerIpcHandlers({
+  auditLog,
   auth,
+  backupSettings,
+  backupAdmin,
+  backupPassword,
   billDrafts,
   catalogExport,
   categories,
+  goodsReceived,
   inventory,
+  stocktake,
   products,
+  purchaseHistory,
   purchaseOrderDocuments,
   purchaseOrders,
+  purchaseReturnDocuments,
+  purchaseReturns,
   receipts,
   reports,
   returns,
+  saleInvoices,
   sales,
   settings,
   shifts,
@@ -237,7 +372,6 @@ export function registerIpcHandlers({
   taxCategories,
   users,
 }: IpcServices): void {
-  handle(ipcChannels.appGetInfo, () => appInfoSchema.parse({ version: app.getVersion() }));
   handle(ipcChannels.authLogin, async (_event, input) =>
     authResultSchema.parse(await auth.login(loginInputSchema.parse(input))),
   );
@@ -263,6 +397,14 @@ export function registerIpcHandlers({
   handle(ipcChannels.settingsGetShiftVarianceWarn, () =>
     shiftVarianceSettingSchema.parse(settings.getShiftVarianceWarn()),
   );
+  handle(ipcChannels.settingsGetMarginThreshold, () =>
+    marginThresholdSettingSchema.parse(settings.getMarginThreshold()),
+  );
+  handle(ipcChannels.settingsSetMarginThreshold, (_event, input) =>
+    marginThresholdSettingSchema.parse(
+      settings.setMarginThreshold(marginThresholdInputSchema.parse(input)),
+    ),
+  );
   handle(ipcChannels.settingsSetShiftVarianceWarn, (_event, input) =>
     shiftVarianceSettingSchema.parse(
       settings.setShiftVarianceWarn(shiftVarianceInputSchema.parse(input)),
@@ -271,6 +413,15 @@ export function registerIpcHandlers({
   handle(ipcChannels.settingsGetReceipt, () => receiptSettingsSchema.parse(settings.getReceipt()));
   handle(ipcChannels.settingsSetReceipt, (_event, input) =>
     receiptSettingsSchema.parse(settings.setReceipt(receiptSettingsInputSchema.parse(input))),
+  );
+  handle(ipcChannels.settingsGetSecondCopy, () =>
+    secondCopyStatusSchema.parse(backupSettings.getSecondCopy()),
+  );
+  handle(ipcChannels.settingsChooseSecondCopyFolder, async () =>
+    secondCopyStatusSchema.parse(await backupSettings.chooseSecondCopyFolder()),
+  );
+  handle(ipcChannels.settingsClearSecondCopyFolder, () =>
+    secondCopyStatusSchema.parse(backupSettings.clearSecondCopyFolder()),
   );
   handle(ipcChannels.printerGetSettings, () => printerSettingsSchema.parse(settings.getPrinter()));
   handle(ipcChannels.printerSetSettings, (_event, input) =>
@@ -354,6 +505,46 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.inventoryStockHistory, (_event, input) =>
     stockHistoryResultSchema.parse(inventory.history(stockHistoryQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeCurrent, () =>
+    stocktakeSummarySchema.nullable().parse(stocktake.current()),
+  );
+  handle(ipcChannels.stocktakeStart, (_event, input) =>
+    startStocktakeResultSchema.parse(stocktake.start(startStocktakeInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeLines, (_event, input) =>
+    stocktakeLinesResultSchema.parse(stocktake.lines(stocktakeLinesQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeScan, (_event, input) =>
+    stocktakeScanResultSchema.parse(stocktake.scan(stocktakeScanInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeRecord, (_event, input) =>
+    recordCountResultSchema.parse(stocktake.record(recordCountInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeCancel, (_event, input) =>
+    cancelStocktakeResultSchema.parse(stocktake.cancel(stocktakeIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeReview, (_event, input) =>
+    stocktakeReviewResultSchema.parse(stocktake.review(stocktakeIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeReviewLines, (_event, input) =>
+    stocktakeReviewLinesResultSchema.parse(
+      stocktake.reviewLines(stocktakeReviewLinesQuerySchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.stocktakePost, (_event, input) =>
+    postStocktakeResultSchema.parse(stocktake.post(stocktakeIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeListPast, (_event, input) =>
+    pastStocktakesResultSchema.parse(stocktake.listPast(pastStocktakesQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.inventoryNegativeStock, (_event, input) =>
+    negativeStockResultSchema.parse(inventory.negativeStock(negativeStockQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.inventoryAdjustStock, (_event, input) =>
+    stockAdjustmentResultSchema.parse(
+      inventory.adjustStock(stockAdjustmentInputSchema.parse(input)),
+    ),
   );
   handle(ipcChannels.productsSearch, (_event, input) =>
     productSearchResultSchema.parse(products.search(productSearchInputSchema.parse(input))),
@@ -440,6 +631,72 @@ export function registerIpcHandlers({
       purchaseOrders.cancel(purchaseOrderIdInputSchema.parse(input)),
     ),
   );
+  handle(ipcChannels.goodsReceivedPost, (_event, input) =>
+    postGoodsReceivedResultSchema.parse(
+      goodsReceived.post(postGoodsReceivedInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.goodsReceivedList, (_event, input) =>
+    goodsReceivedListResultSchema.parse(
+      goodsReceived.list(goodsReceivedListQuerySchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.goodsReceivedGet, (_event, input) =>
+    getGoodsReceivedResultSchema.parse(goodsReceived.get(goodsReceivedIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.goodsReceivedLowMargin, (_event, input) =>
+    lowMarginResultSchema.parse(goodsReceived.lowMargin(goodsReceivedIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.goodsReceivedLastCost, (_event, input) =>
+    goodsReceivedLastCostResultSchema.parse(
+      goodsReceived.lastCost(goodsReceivedLastCostInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsPost, (_event, input) =>
+    postPurchaseReturnResultSchema.parse(
+      purchaseReturns.post(postPurchaseReturnInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsList, (_event, input) =>
+    purchaseReturnListResultSchema.parse(
+      purchaseReturns.list(purchaseReturnListQuerySchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsGet, (_event, input) =>
+    getPurchaseReturnResultSchema.parse(
+      purchaseReturns.get(purchaseReturnIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsReturnable, (_event, input) =>
+    purchaseReturnableResultSchema.parse(
+      purchaseReturns.returnable(purchaseReturnableInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsFromNote, (_event, input) =>
+    purchaseReturnableNoteResultSchema.parse(
+      purchaseReturns.fromNote(purchaseReturnIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsSavePdf, async (_event, input) =>
+    savePurchaseReturnPdfResultSchema.parse(
+      await purchaseReturnDocuments.savePdf(purchaseReturnIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseReturnsPrint, async (_event, input) =>
+    printPurchaseReturnResultSchema.parse(
+      await purchaseReturnDocuments.print(purchaseReturnIdInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseHistoryProduct, (_event, input) =>
+    productPurchaseHistoryResultSchema.parse(
+      purchaseHistory.forProduct(productPurchaseHistoryQuerySchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.purchaseHistorySupplier, (_event, input) =>
+    supplierPurchaseHistoryResultSchema.parse(
+      purchaseHistory.forSupplier(supplierPurchaseHistoryQuerySchema.parse(input)),
+    ),
+  );
   handle(ipcChannels.purchaseOrdersSavePdf, async (_event, input) =>
     savePurchaseOrderPdfResultSchema.parse(
       await purchaseOrderDocuments.savePdf(purchaseOrderIdInputSchema.parse(input)),
@@ -449,6 +706,12 @@ export function registerIpcHandlers({
     printPurchaseOrderResultSchema.parse(
       await purchaseOrderDocuments.print(purchaseOrderIdInputSchema.parse(input)),
     ),
+  );
+  handle(ipcChannels.invoicesSavePdf, async (_event, input) =>
+    saveInvoicePdfResultSchema.parse(await saleInvoices.savePdf(saleIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.invoicesPrint, async (_event, input) =>
+    printInvoiceResultSchema.parse(await saleInvoices.print(saleIdInputSchema.parse(input))),
   );
   handle(ipcChannels.reportsSalesByDay, (_event, input) =>
     salesByDayResultSchema.parse(reports.salesByDay(reportRangeSchema.parse(input))),
@@ -502,6 +765,104 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.reportsShifts, (_event, input) =>
     reportShiftListSchema.parse(reports.reportShifts(reportRangeSchema.parse(input))),
+  );
+  handle(ipcChannels.reportsSalesTaxSummary, (_event, input) =>
+    salesTaxSummaryResultSchema.parse(reports.salesTaxSummary(reportRangeSchema.parse(input))),
+  );
+  handle(ipcChannels.reportsExportSalesTaxSummary, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportSalesTaxSummary(exportReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsDiscountsReturnsVoids, (_event, input) =>
+    discountsReturnsVoidsResultSchema.parse(
+      reports.discountsReturnsVoids(reportRangeSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportDiscountsReturnsVoids, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportDiscountsReturnsVoids(exportReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsGrossProfitByProduct, (_event, input) =>
+    grossProfitByProductResultSchema.parse(
+      reports.grossProfitByProduct(reportRangeSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportGrossProfitByProduct, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportGrossProfitByProduct(exportReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsGrossProfitByCategory, (_event, input) =>
+    grossProfitByCategoryResultSchema.parse(
+      reports.grossProfitByCategory(reportRangeSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportGrossProfitByCategory, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportGrossProfitByCategory(exportReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsStockOnHand, (_event, ...payload) => {
+    noPayloadSchema.parse(payload);
+    return stockOnHandResultSchema.parse(reports.stockOnHand());
+  });
+  handle(ipcChannels.reportsLowStock, (_event, ...payload) => {
+    noPayloadSchema.parse(payload);
+    return lowStockReportResultSchema.parse(reports.lowStock());
+  });
+  handle(ipcChannels.reportsNegativeStock, (_event, ...payload) => {
+    noPayloadSchema.parse(payload);
+    return negativeStockReportResultSchema.parse(reports.negativeStock());
+  });
+  handle(ipcChannels.reportsStockMovements, (_event, input) =>
+    stockMovementsReportResultSchema.parse(
+      reports.stockMovements(stockMovementsReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsPurchasesBySupplier, (_event, input) =>
+    purchasesBySupplierResultSchema.parse(
+      reports.purchasesBySupplier(reportRangeSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsPostedStocktakes, (_event, input) =>
+    postedStocktakesResultSchema.parse(reports.postedStocktakes(reportRangeSchema.parse(input))),
+  );
+  handle(ipcChannels.reportsStocktakeVariance, (_event, input) =>
+    stocktakeVarianceResultSchema.parse(
+      reports.stocktakeVariance(stocktakeVarianceReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportStockOnHand, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportStockOnHand(exportTodayReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportLowStock, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportLowStock(exportTodayReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportNegativeStock, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportNegativeStock(exportTodayReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportStockMovements, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportStockMovements(stockMovementsExportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportPurchasesBySupplier, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportPurchasesBySupplier(exportReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportStocktakeVariance, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportStocktakeVariance(stocktakeVarianceExportInputSchema.parse(input)),
+    ),
   );
   handle(ipcChannels.taxCategoriesList, () =>
     z.array(taxCategorySchema).parse(taxCategories.list()),
@@ -598,5 +959,39 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.salesGet, (_event, input) =>
     getOrderResultSchema.parse(sales.get(orderIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.auditList, (_event, input) =>
+    auditPageSchema.parse(auditLog.list(auditListQuerySchema.parse(input))),
+  );
+  handle(ipcChannels.auditUsers, () => auditUsersSchema.parse(auditLog.users()));
+  handle(ipcChannels.backupStatus, async () =>
+    backupStatusSchema.parse(await backupAdmin.status()),
+  );
+  handle(ipcChannels.backupRun, async () =>
+    backupNowResultSchema.parse(await backupAdmin.backupNow()),
+  );
+  handle(ipcChannels.backupChooseFile, async () =>
+    chosenBackupSchema.parse(await backupAdmin.chooseRestoreFile()),
+  );
+  handle(ipcChannels.backupRestore, async (_event, input) =>
+    restoreResultSchema.parse(await backupAdmin.restore(restoreInputSchema.parse(input))),
+  );
+  handle(ipcChannels.backupPasswordStatus, async () =>
+    backupPasswordStatusSchema.parse(await backupPassword.status()),
+  );
+  handle(ipcChannels.backupPasswordTurnOn, async (_event, input) =>
+    backupPasswordResultSchema.parse(
+      await backupPassword.turnOn(turnOnBackupPasswordInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.backupPasswordChange, async (_event, input) =>
+    backupPasswordResultSchema.parse(
+      await backupPassword.change(changeBackupPasswordInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.backupPasswordTurnOff, async (_event, input) =>
+    backupPasswordResultSchema.parse(
+      await backupPassword.turnOff(turnOffBackupPasswordInputSchema.parse(input)),
+    ),
   );
 }

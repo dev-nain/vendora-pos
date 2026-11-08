@@ -64,9 +64,14 @@ export const statusLabel = (isActive: boolean): string => (isActive ? "Active" :
 
 const grouped = (value: number): string => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
-export function pageRangeLabel(page: number, count: number, total: number): string {
+export function pageRangeLabel(
+  page: number,
+  count: number,
+  total: number,
+  pageSize = PRODUCT_PAGE_SIZE,
+): string {
   if (count === 0) return "Showing 0 of 0";
-  const first = page * PRODUCT_PAGE_SIZE + 1;
+  const first = page * pageSize + 1;
   return `Showing ${grouped(first)}–${grouped(first + count - 1)} of ${grouped(total)}`;
 }
 

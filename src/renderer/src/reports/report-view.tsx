@@ -1,4 +1,4 @@
-import { ChartColumnIcon, DownloadIcon } from "lucide-react";
+import { ChartColumnIcon, DownloadIcon, PackageSearchIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "@renderer/components/ui/button";
@@ -17,17 +17,16 @@ import {
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { ErrorLine } from "../users/form-parts";
 import { DateRangeControl } from "./date-range-control";
-import type { ReportData, ReportDefinition } from "./report-definitions";
-import { ReportTable } from "./report-table";
+import type { ReportDefinition, ReportQuery } from "./report-definitions";
+import { ReportProductField } from "./report-product-field";
+import { ReportStocktakeSelect } from "./report-stocktake-select";
 import { ShiftPicker } from "./shift-picker";
 
-interface ReportViewProps<
-  Row extends Record<string, string | number>,
-  Totals extends Record<string, number>,
-> {
-  definition: ReportDefinition<Row, Totals>;
+interface ReportViewProps<Result> {
+  definition: ReportDefinition<Result>;
   picker: ReactNode;
   onSessionEnded: () => void;
+  onOpenSale?: ((invoiceNo: string) => void) | undefined;
 }
 
 const rangeError = (from: string, to: string): string =>
@@ -37,22 +36,27 @@ const rangeError = (from: string, to: string): string =>
 
 const shortcuts: Record<string, ReportExportFormat> = { e: "csv", p: "pdf" };
 
-export function ReportView<
-  Row extends Record<string, string | number>,
-  Totals extends Record<string, number>,
->({ definition, picker, onSessionEnded }: ReportViewProps<Row, Totals>) {
+export function ReportView<Result>({
+  definition,
+  picker,
+  onSessionEnded,
+  onOpenSale,
+}: ReportViewProps<Result>) {
   const [preset, setPreset] = useState<ReportPreset>("today");
   const [initial] = useState(() => presetRange("today", new Date()));
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
-  const [reloadKey, setReloadKey] = useState(0);
+  const [productId, setProductId] = useState<string | null>(null);
+  const [stocktakeId, setStocktakeId] = useState<string | null>(null);
   const [shiftId, setShiftId] = useState<string | null>(null);
   const [loadedShifts, setLoadedShifts] = useState<{
     rangeKey: string;
     list: ReportShift[];
   } | null>(null);
-  const [result, setResult] = useState<ReportData<Row, Totals> | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [result, setResult] = useState<Result | null>(null);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
@@ -63,23 +67,21 @@ export function ReportView<
     const parsed = reportRangeSchema.safeParse({ from, to });
     return parsed.success ? parsed.data : null;
   }, [from, to]);
-  const key = range ? JSON.stringify([range, shiftId, reloadKey]) : null;
-  const shiftsApi = definition.shifts;
+  const isRange = (definition.period ?? "range") === "range";
+  const query = useMemo<ReportQuery | null>(() => {
+    const effective = isRange ? range : initial;
+    return effective ? { range: effective, productId, stocktakeId, shiftId } : null;
+  }, [isRange, range, initial, productId, stocktakeId, shiftId]);
+  const key = query
+    ? JSON.stringify([isRange ? query.range : null, productId, stocktakeId, shiftId, reloadKey])
+    : null;
 
-  const fail = useCallback(
-    (cause: unknown) => {
-      if (isSessionError(cause)) onSessionEnded();
-      else setLoadFailed(true);
-    },
-    [onSessionEnded],
-  );
-
+  const listShifts = definition.listShifts;
   useEffect(() => {
-    if (!range || !shiftsApi) return;
+    if (!range || !listShifts) return;
     let current = true;
     const rangeKey = JSON.stringify(range);
-    shiftsApi
-      .list(range)
+    listShifts(range)
       .then((list) => {
         if (current) setLoadedShifts({ rangeKey, list });
       })
@@ -91,15 +93,27 @@ export function ReportView<
     return () => {
       current = false;
     };
-  }, [range, shiftsApi, onSessionEnded]);
+  }, [range, listShifts, onSessionEnded]);
+  const shiftList =
+    range && loadedShifts?.rangeKey === JSON.stringify(range) ? loadedShifts.list : null;
+  const chosenShift = shiftList?.find((shift) => shift.id === shiftId) ?? null;
+
+  const fail = useCallback(
+    (cause: unknown) => {
+      if (isSessionError(cause)) onSessionEnded();
+      else setLoadFailed(true);
+    },
+    [onSessionEnded],
+  );
 
   useEffect(() => {
-    if (!range || !key) return;
+    if (!query || !key) return;
     const id = ++requestId.current;
-    (shiftsApi && shiftId ? shiftsApi.load(shiftId) : definition.load(range))
+    Promise.resolve(definition.load(query))
       .then((loaded) => {
         if (id !== requestId.current) return;
         setResult(loaded);
+        setWaiting(loaded === null);
         setLoadFailed(false);
         setLoadedKey(key);
       })
@@ -108,21 +122,24 @@ export function ReportView<
         setLoadedKey(key);
         fail(cause);
       });
-  }, [range, key, definition, shiftsApi, shiftId, fail]);
+  }, [query, key, definition, fail]);
 
-  const rows = result?.rows ?? [];
-  const canExport = range !== null && !exporting && loadedKey === key && rows.length > 0;
+  const canExport =
+    query !== null &&
+    !exporting &&
+    loadedKey === key &&
+    result !== null &&
+    !definition.isEmpty(result);
 
   const exportAs = useCallback(
     async (format: ReportExportFormat) => {
-      if (!range || !canExport) return;
+      if (!query || !canExport) return;
+      const pending = definition.exportTo(query, format);
+      if (pending === null) return;
       setExporting(true);
       setExportError(null);
       try {
-        const outcome =
-          shiftsApi && shiftId
-            ? await shiftsApi.exportTo({ shiftId, format })
-            : await definition.exportTo({ range, format });
+        const outcome = await pending;
         if (outcome.ok && outcome.status === "saved")
           setExportMessage(`Report saved to ${outcome.path}.`);
         else if (!outcome.ok) {
@@ -139,7 +156,7 @@ export function ReportView<
         setExporting(false);
       }
     },
-    [range, canExport, definition, shiftsApi, shiftId, onSessionEnded],
+    [query, canExport, definition, onSessionEnded],
   );
 
   useEffect(() => {
@@ -155,8 +172,8 @@ export function ReportView<
   }, [exportAs]);
 
   const choosePreset = (next: ReportPreset) => {
-    setShiftId(null);
     setPreset(next);
+    setShiftId(null);
     if (next === "custom") return;
     const nextRange = presetRange(next, new Date());
     setFrom(nextRange.from);
@@ -177,10 +194,8 @@ export function ReportView<
     </Button>
   );
 
-  const shiftList =
-    range && loadedShifts?.rangeKey === JSON.stringify(range) ? loadedShifts.list : null;
-  const chosenShift = shiftList?.find((shift) => shift.id === shiftId) ?? null;
   const busy = key !== null && loadedKey !== key;
+  const caption = result !== null && definition.caption ? definition.caption(result) : null;
 
   return (
     <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto_auto_minmax(0,1fr)] gap-x-300 gap-y-500">
@@ -189,36 +204,52 @@ export function ReportView<
       </h1>
       <div className="col-span-2 row-start-2 flex flex-wrap items-center gap-300">
         {picker}
-        <DateRangeControl
-          preset={preset}
-          from={from}
-          to={to}
-          error={range ? null : rangeError(from, to)}
-          onPreset={choosePreset}
-          onFromChange={(value) => {
-            setShiftId(null);
-            setFrom(value);
-          }}
-          onToChange={(value) => {
-            setShiftId(null);
-            setTo(value);
-          }}
-        >
-          {shiftsApi ? (
-            <ShiftPicker shifts={shiftList} value={shiftId} onChange={setShiftId} />
-          ) : null}
-        </DateRangeControl>
+        {isRange ? (
+          <DateRangeControl
+            preset={preset}
+            from={from}
+            to={to}
+            error={range ? null : rangeError(from, to)}
+            onPreset={choosePreset}
+            onFromChange={(value) => {
+              setShiftId(null);
+              setFrom(value);
+            }}
+            onToChange={(value) => {
+              setShiftId(null);
+              setTo(value);
+            }}
+          >
+            {definition.subject === "shift" ? (
+              <ShiftPicker shifts={shiftList} value={shiftId} onChange={setShiftId} />
+            ) : null}
+          </DateRangeControl>
+        ) : null}
+        {definition.subject === "product" ? (
+          <ReportProductField onChange={setProductId} onSessionEnded={onSessionEnded} />
+        ) : null}
+        {definition.subject === "stocktake" ? (
+          <ReportStocktakeSelect
+            range={range}
+            stocktakeId={stocktakeId}
+            onChange={setStocktakeId}
+            onSessionEnded={onSessionEnded}
+          />
+        ) : null}
       </div>
       <div className="col-start-2 row-start-1 flex items-center gap-200">
         {exportButton("csv", "Export CSV", "Ctrl+E")}
         {exportButton("pdf", "Export PDF", "Ctrl+P")}
       </div>
       <div className="col-span-2 row-start-3 grid gap-200">
-        {range ? (
+        {isRange && range ? (
           <p className="m-0 text-[length:var(--font-size-350)] text-secondary">
             {chosenShift ? `Shift ${formatShiftLabel(chosenShift)}` : formatRangeLabel(range)} ·
             Asia/Karachi time
           </p>
+        ) : null}
+        {caption ? (
+          <p className="m-0 text-[length:var(--font-size-350)] text-secondary">{caption}</p>
         ) : null}
         {exportMessage ? (
           <p role="status" className="m-0 text-[length:var(--font-size-350)] text-secondary">
@@ -236,11 +267,21 @@ export function ReportView<
         ) : null}
       </div>
       <div className="col-span-2 row-start-4 flex min-h-0 flex-col">
-        {result === null ? (
+        {waiting ? (
+          <div className="flex flex-col items-center gap-100 rounded-300 border border-line-card bg-surface-secondary py-1200 text-center">
+            <PackageSearchIcon
+              aria-hidden="true"
+              size={24}
+              strokeWidth={2}
+              className="text-icon-muted"
+            />
+            <p className="m-0 text-secondary">{definition.waitingText ?? ""}</p>
+          </div>
+        ) : result === null ? (
           loadFailed ? null : (
             <p className="m-0 text-secondary">Loading…</p>
           )
-        ) : rows.length === 0 ? (
+        ) : definition.isEmpty(result) ? (
           <div className="flex flex-col items-center gap-100 rounded-300 border border-line-card bg-surface-secondary py-1200 text-center">
             <ChartColumnIcon
               aria-hidden="true"
@@ -249,19 +290,14 @@ export function ReportView<
               className="text-icon-muted"
             />
             <p className="m-0 text-[length:var(--font-size-450)] font-semibold text-foreground">
-              No sales in this period
+              {definition.emptyTitle}
             </p>
-            <p className="m-0 text-secondary">Try another date range.</p>
+            <p className="m-0 text-secondary">
+              {definition.emptyHint ?? "Try another date range."}
+            </p>
           </div>
         ) : (
-          <ReportTable
-            label={`${definition.label} table`}
-            busy={busy}
-            columns={definition.columns}
-            rows={rows}
-            totals={result.totals}
-            footer={result.footer ?? []}
-          />
+          <definition.Body key={loadedKey} result={result} busy={busy} onOpenSale={onOpenSale} />
         )}
       </div>
     </div>

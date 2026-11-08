@@ -3,7 +3,7 @@ import { formatRupees } from "../../shared/money";
 import { purchaseOrderStatusLabels, type PurchaseOrder } from "../../shared/purchase-orders";
 import { formatQuantity } from "../../shared/quantity";
 import type { ReceiptSettings } from "../../shared/settings";
-import { buildStorePanel, labelled, present } from "./store-panel";
+import { formatDate, labelled, present, storePanel } from "./document-parts";
 
 export interface PurchaseOrderSupplier {
   contactPerson: string | null;
@@ -17,15 +17,8 @@ interface Input {
   supplier: PurchaseOrderSupplier;
 }
 
-const pad2 = (value: number) => String(value).padStart(2, "0");
-
-function formatDate(iso: string): string {
-  const date = new Date(iso);
-  return `${pad2(date.getDate())}-${pad2(date.getMonth() + 1)}-${date.getFullYear()}`;
-}
-
 export function buildPurchaseOrderDocument({ order, store, supplier }: Input): DocumentModel {
-  const storePanel = buildStorePanel(store);
+  const storeDetails = storePanel(store);
   const supplierPanel: DocumentPanel = {
     label: "Supplier",
     lines: [
@@ -44,7 +37,8 @@ export function buildPurchaseOrderDocument({ order, store, supplier }: Input): D
   return {
     title: "Purchase order",
     reference: order.orderNo,
-    panels: storePanel.lines.length > 0 ? [storePanel, supplierPanel] : [supplierPanel],
+    header: [],
+    panels: storeDetails.lines.length > 0 ? [storeDetails, supplierPanel] : [supplierPanel],
     facts,
     columns: [
       { label: "#", align: "left", width: "6%" },
@@ -61,6 +55,8 @@ export function buildPurchaseOrderDocument({ order, store, supplier }: Input): D
       { text: formatRupees(line.lineTotalPaisa) },
     ]),
     totals: [{ label: "Total", value: formatRupees(order.totalPaisa) }],
+    summaries: [],
     notes: present(order.notes) ? order.notes : null,
+    footer: [],
   };
 }
