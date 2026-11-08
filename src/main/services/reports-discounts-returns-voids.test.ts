@@ -1,4 +1,8 @@
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { DocumentModel } from "../../shared/document";
+import type { ReportExportFormat } from "../../shared/reports";
 import { reportDetailLimit } from "../../shared/discounts-returns-voids";
 import type { Bill, BillResult, CompleteSaleResult } from "../../shared/checkout";
 import { UnauthenticatedError } from "../auth/errors";
@@ -25,6 +29,10 @@ describe("discounts, returns and voids", () => {
   let kit: CheckoutKit;
   let service: ReturnType<typeof createReportsService>;
   let shiftId: string;
+  let toPdf: ReturnType<typeof vi.fn<(model: DocumentModel) => Promise<Buffer>>>;
+  let chooseSavePath: ReturnType<
+    typeof vi.fn<(name: string, format: ReportExportFormat) => Promise<string | null>>
+  >;
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -33,11 +41,13 @@ describe("discounts, returns and voids", () => {
     kit.signIn("cashier");
     shiftId = kit.openShift();
     kit.setMiscEnabled(true);
+    toPdf = vi.fn(async () => Buffer.from("%PDF-1.4 fake"));
+    chooseSavePath = vi.fn(async (name: string) => join(kit.dir, name));
     service = createReportsService({
       database: kit.database,
       sessions: kit.sessions,
-      renderer: { toPdf: async () => Buffer.from("%PDF"), print: async () => "printed" },
-      chooseSavePath: async () => null,
+      renderer: { toPdf, print: async () => "printed" },
+      chooseSavePath,
     });
   });
 
@@ -53,6 +63,8 @@ describe("discounts, returns and voids", () => {
       salePricePaisa,
       taxCategoryId: kit.taxCategoryId("Exempt"),
     });
+
+  const strayFiles = () => readdirSync(kit.dir).filter((name) => !name.startsWith("vendora.db"));
 
   const pay = (bill: Bill, amountPaisa = 1_000_000) =>
     okSale(kit.sales.complete({ draftId: bill.id, payments: [{ method: "cash", amountPaisa }] }));
@@ -338,5 +350,129 @@ describe("discounts, returns and voids", () => {
     kit.sessions.end();
 
     expect(() => service.discountsReturnsVoids(day)).toThrow(UnauthenticatedError);
+  });
+
+  describe("export", () => {
+    it("writes every row to the CSV as titled blocks in store time", async () => {
+      seedScenario();
+
+      const result = await service.exportDiscountsReturnsVoids({ range: day, format: "csv" });
+
+      const path = join(kit.dir, "discounts-returns-voids-2026-11-07.csv");
+      expect(result).toEqual({ ok: true, status: "saved", path });
+      const text = readFileSync(path, "utf8");
+      const titles = text
+        .slice(1)
+        .split("\r\n")
+        .filter((line) =>
+          [
+            "Discounts by user",
+            "Discounted bills",
+            "Returns summary",
+            "Returned lines",
+            "Deleted lines",
+            "Discarded bills",
+          ].includes(line),
+        );
+      expect(titles).toHaveLength(6);
+      expect(text).toContain("Invoice,Time,User,Bill total,Discount\r\n");
+      expect(text).toContain("Time,User,Item,Qty,Bill,Gross before discount\r\n");
+      expect(text).toContain("T1-000004,2026-11-07 13:30,");
+      expect(text).toContain("Without receipt");
+      expect(text).toContain(",Discarded,");
+      expect(text).toContain(",Not completed,");
+    });
+
+    it("writes rows beyond the screen cap to the CSV only", async () => {
+      const tea = product("Tea", 10000);
+      for (let index = 0; index < reportDetailLimit + 3; index++) {
+        at(
+          `2026-11-07T10:${String(Math.floor(index / 60)).padStart(2, "0")}:${String(index % 60).padStart(2, "0")}.000Z`,
+        );
+        const bill = okBill(kit.billDrafts.addProduct({ productId: tea.id }));
+        okBill(kit.billDrafts.deleteLine({ lineId: bill.lines[0]!.id }));
+      }
+
+      await service.exportDiscountsReturnsVoids({ range: day, format: "csv" });
+      await service.exportDiscountsReturnsVoids({ range: day, format: "pdf" });
+
+      const csv = readFileSync(join(kit.dir, "discounts-returns-voids-2026-11-07.csv"), "utf8");
+      expect(csv.split("\r\n").filter((line) => line.includes(",Tea,"))).toHaveLength(
+        reportDetailLimit + 3,
+      );
+      const deleted = toPdf.mock.calls[0]![0].sections!.find(
+        (section) => section.heading === "Deleted lines",
+      )!;
+      expect(deleted.rows).toHaveLength(reportDetailLimit);
+      expect(deleted.note).toBe(
+        `Showing the latest ${reportDetailLimit} of ${reportDetailLimit + 3}. The CSV export has every row.`,
+      );
+    }, 60_000);
+
+    it("renders the PDF as sections from database rows", async () => {
+      seedScenario();
+
+      const result = await service.exportDiscountsReturnsVoids({ range: day, format: "pdf" });
+
+      expect(result).toMatchObject({ ok: true, status: "saved" });
+      expect(readFileSync(join(kit.dir, "discounts-returns-voids-2026-11-07.pdf"), "utf8")).toBe(
+        "%PDF-1.4 fake",
+      );
+      const model = toPdf.mock.calls[0]![0];
+      expect(model).toMatchObject({
+        title: "Discounts, returns and voids",
+        landscape: true,
+        columns: [],
+      });
+      expect(model.sections!.map((section) => [section.heading, section.note])).toEqual([
+        ["Discounts by user", null],
+        ["Discounted bills", null],
+        ["Returns summary", null],
+        ["Returned lines", null],
+        ["Deleted lines", null],
+        ["Discarded bills", null],
+      ]);
+    });
+
+    it("returns cancelled and writes nothing when the dialog is cancelled", async () => {
+      chooseSavePath.mockResolvedValueOnce(null);
+
+      expect(await service.exportDiscountsReturnsVoids({ range: day, format: "csv" })).toEqual({
+        ok: true,
+        status: "cancelled",
+      });
+      expect(strayFiles()).toEqual([]);
+    });
+
+    it("returns failed and leaves no file when rendering fails", async () => {
+      toPdf.mockRejectedValueOnce(new Error("render"));
+
+      const result = await service.exportDiscountsReturnsVoids({ range: day, format: "pdf" });
+
+      expect(result).toEqual({
+        ok: false,
+        reason: "failed",
+        message: "Couldn't save the report. Check the folder and try again.",
+      });
+      expect(strayFiles()).toEqual([]);
+    });
+
+    it("returns failed when the folder cannot be written", async () => {
+      chooseSavePath.mockResolvedValueOnce(join(kit.dir, "missing", "report.csv"));
+
+      const result = await service.exportDiscountsReturnsVoids({ range: day, format: "csv" });
+
+      expect(result).toMatchObject({ ok: false, reason: "failed" });
+      expect(existsSync(join(kit.dir, "missing"))).toBe(false);
+    });
+
+    it("throws when signed out before the dialog", async () => {
+      kit.sessions.end();
+
+      await expect(
+        service.exportDiscountsReturnsVoids({ range: day, format: "csv" }),
+      ).rejects.toThrow(UnauthenticatedError);
+      expect(chooseSavePath).not.toHaveBeenCalled();
+    });
   });
 });

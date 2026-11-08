@@ -6,6 +6,7 @@ import type {
   DocumentCell,
   DocumentModel,
   DocumentPair,
+  DocumentSection,
   DocumentText,
 } from "@shared/document";
 
@@ -72,6 +73,26 @@ function buildTable(columns: DocumentColumn[], rows: DocumentCell[][]): HTMLElem
   return table;
 }
 
+function buildTotals(totals: DocumentPair[]): HTMLElement {
+  const node = element("div", "totals");
+  for (const total of totals) {
+    const row = element("div", "total");
+    row.append(element("span", "", total.label), element("span", "", total.value));
+    node.append(row);
+  }
+  return node;
+}
+
+function sectionNodes(section: DocumentSection): HTMLElement[] {
+  const nodes = [
+    element("h2", "section-heading", section.heading),
+    buildTable(section.columns, section.rows),
+    buildTotals(section.totals),
+  ];
+  if (section.note) nodes.push(element("div", "section-note", section.note));
+  return nodes;
+}
+
 function build(model: DocumentModel): HTMLElement[] {
   const head = element("div", "head");
   head.append(element("h1", "title", model.title), element("div", "reference", model.reference));
@@ -87,14 +108,10 @@ function build(model: DocumentModel): HTMLElement[] {
   const facts = element("div", "facts");
   facts.append(...model.facts.map((fact) => pair("fact", fact)));
 
-  const table = buildTable(model.columns, model.rows);
-
-  const totals = element("div", "totals");
-  for (const total of model.totals) {
-    const row = element("div", "total");
-    row.append(element("span", "", total.label), element("span", "", total.value));
-    totals.append(row);
-  }
+  const main =
+    model.columns.length > 0
+      ? [buildTable(model.columns, model.rows), buildTotals(model.totals)]
+      : [];
 
   const summaries = model.summaries.map((summary) => {
     const node = element("div", "summary");
@@ -107,9 +124,9 @@ function build(model: DocumentModel): HTMLElement[] {
     textLines("doc-header", model.header),
     panels,
     facts,
-    table,
-    totals,
+    ...main,
     ...summaries,
+    ...(model.sections ?? []).flatMap(sectionNodes),
   ].filter((node): node is HTMLElement => node !== null);
   if (model.landscape) nodes.push(element("style", "", "@page { size: A4 landscape; }"));
   if (model.notes) {

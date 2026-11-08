@@ -2044,6 +2044,22 @@ describe("reports ipc", () => {
       { range: { from: "2026-11-08", to: "2026-11-07" }, format: "pdf" },
     ],
     ["reports:export-sales-by-day", "exportSalesByDay", { range }],
+    [
+      "reports:discounts-returns-voids",
+      "discountsReturnsVoids",
+      { from: "2026-11-08", to: "2026-11-07" },
+    ],
+    ["reports:discounts-returns-voids", "discountsReturnsVoids", { ...range, extra: 1 }],
+    [
+      "reports:export-discounts-returns-voids",
+      "exportDiscountsReturnsVoids",
+      { range, format: "xlsx" },
+    ],
+    [
+      "reports:export-discounts-returns-voids",
+      "exportDiscountsReturnsVoids",
+      { range, format: "csv", extra: 1 },
+    ],
     ["reports:sales-tax-summary", "salesTaxSummary", { from: "2026-13-01", to: "2026-11-07" }],
     ["reports:sales-tax-summary", "salesTaxSummary", { from: "2026-11-08", to: "2026-11-07" }],
     ["reports:sales-tax-summary", "salesTaxSummary", { ...range, extra: 1 }],
@@ -2081,8 +2097,26 @@ describe("reports ipc", () => {
     });
   });
 
+  it("returns an empty discounts, returns and voids report and exports it", async () => {
+    expect(await invoke("reports:discounts-returns-voids", range)).toMatchObject({
+      discounts: { billCount: 0, bills: [] },
+      returns: { lineCount: 0, lines: [] },
+      voids: { deletedLines: { count: 0 }, discardedBills: { count: 0 } },
+    });
+    expect(
+      await invoke("reports:export-discounts-returns-voids", { range, format: "csv" }),
+    ).toEqual({
+      ok: true,
+      status: "saved",
+      path: join(kit.dir, "discounts-returns-voids-2026-11-01-to-2026-11-07.csv"),
+    });
+  });
+
   it("is refused when signed out", async () => {
     kit.sessions.end();
+    await expect(invoke("reports:discounts-returns-voids", range)).rejects.toThrow(
+      new Error(ipcErrorMessages.unauthenticated),
+    );
     await expect(invoke("reports:sales-by-day", range)).rejects.toThrow(
       new Error(ipcErrorMessages.unauthenticated),
     );

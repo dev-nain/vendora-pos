@@ -49,6 +49,7 @@ import {
   stockListQuerySchema,
   stockListResultSchema,
 } from "@shared/inventory";
+import { discountsReturnsVoidsResultSchema } from "@shared/discounts-returns-voids";
 import {
   exportReportInputSchema,
   exportReportResultSchema,
@@ -685,6 +686,16 @@ export function registerIpcHandlers({
   handle(ipcChannels.reportsExportSalesTaxSummary, async (_event, input) =>
     exportReportResultSchema.parse(
       await reports.exportSalesTaxSummary(exportReportInputSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsDiscountsReturnsVoids, (_event, input) =>
+    discountsReturnsVoidsResultSchema.parse(
+      reports.discountsReturnsVoids(reportRangeSchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.reportsExportDiscountsReturnsVoids, async (_event, input) =>
+    exportReportResultSchema.parse(
+      await reports.exportDiscountsReturnsVoids(exportReportInputSchema.parse(input)),
     ),
   );
   handle(ipcChannels.taxCategoriesList, () =>

@@ -98,27 +98,67 @@ export type ReportColumn<Row> = {
   key: Extract<keyof Row, string>;
   label: string;
   width?: string;
-} & ({ format: "day" | "text" | "count" | "money" } | { format: "quantity"; unit: ProductUnit });
+} & (
+  | { format: "day" | "text" | "count" | "money" | "time" }
+  | { format: "invoice"; linkKey?: Extract<keyof Row, string> }
+  | { format: "quantity"; unit: ProductUnit }
+  | { format: "quantity"; unitKey: Extract<keyof Row, string> }
+);
 
 export const isNumericColumn = <Row>(column: ReportColumn<Row>): boolean =>
-  column.format !== "day" && column.format !== "text";
+  column.format !== "day" &&
+  column.format !== "text" &&
+  column.format !== "time" &&
+  column.format !== "invoice";
 
 const MINUS = "−";
 
-export function formatReportCell<Row>(column: ReportColumn<Row>, value: string | number): string {
+const pad = (value: number): string => String(value).padStart(2, "0");
+
+function storeTimeParts(iso: string) {
+  const local = new Date(Date.parse(iso) + storeUtcOffsetMs);
+  return {
+    day: local.toISOString().slice(0, 10),
+    clock: `${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`,
+  };
+}
+
+export function formatStoreTime(iso: string): string {
+  const { day, clock } = storeTimeParts(iso);
+  return `${formatStoreDay(day)}, ${clock}`;
+}
+
+export function formatStoreTimeCsv(iso: string): string {
+  const { day, clock } = storeTimeParts(iso);
+  return `${day} ${clock}`;
+}
+
+export function formatReportCell<Row>(
+  column: ReportColumn<Row>,
+  value: string | number,
+  row?: Partial<Record<string, string | number>>,
+): string {
   switch (column.format) {
     case "day":
       return formatStoreDay(String(value));
+    case "time":
+      return formatStoreTime(String(value));
     case "money":
       return signedRupees(Number(value));
-    case "quantity":
-      return formatQuantity(Number(value), column.unit).replace("-", MINUS);
+    case "quantity": {
+      const unit =
+        "unitKey" in column
+          ? ((row?.[column.unitKey] as ProductUnit | undefined) ?? "piece")
+          : column.unit;
+      return formatQuantity(Number(value), unit).replace("-", MINUS);
+    }
     case "count": {
       const count = Number(value);
       const grouped = String(Math.abs(count)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
       return count < 0 ? `${MINUS}${grouped}` : grouped;
     }
     case "text":
+    case "invoice":
       return String(value);
   }
 }

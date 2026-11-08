@@ -1,4 +1,7 @@
-import { reportDetailLimit } from "../../shared/discounts-returns-voids";
+import {
+  discountsReturnsVoidsSections,
+  reportDetailLimit,
+} from "../../shared/discounts-returns-voids";
 import {
   exportReportFailedMessage,
   salesByDayColumns,
@@ -17,8 +20,8 @@ import type { VendoraDatabase } from "../db/client";
 import type { DocumentRenderer } from "../documents/document-window";
 import { writeAtomic } from "../documents/write-atomic";
 import { readDiscountsReturnsVoids } from "../reports/discounts-returns-voids";
-import { reportCsv } from "../reports/report-csv";
-import { buildReportDocument } from "../reports/report-document";
+import { reportCsv, reportCsvSections } from "../reports/report-csv";
+import { buildReportDocument, buildSectionedReportDocument } from "../reports/report-document";
 import { readSalesByDay } from "../reports/sales-by-day";
 import { readSalesTaxSummary } from "../reports/sales-tax-summary";
 import { getReceiptSettings } from "../settings/store-settings";
@@ -77,42 +80,70 @@ export function createReportsService({
     });
   }
 
-  async function exportTable<Row extends Record<string, string | number>>(
-    table: ExportTable<Row>,
+  async function exportFile(
+    file: Pick<ExportTable<never>, "fileStem" | "range" | "format">,
+    render: (storeId: string) => Buffer | Promise<Buffer>,
   ): Promise<ExportReportResult> {
     requireSession(sessions);
-    const path = await chooseSavePath(fileNameOf(table), table.format);
+    const path = await chooseSavePath(fileNameOf(file), file.format);
     if (path === null) return { ok: true, status: "cancelled" };
     const session = requireSession(sessions);
-    const { rows, totals } = table.read(session.storeId);
     try {
-      const bytes =
-        table.format === "csv"
-          ? Buffer.from(
-              reportCsv({ columns: table.columns, rows, totals, totalsLabel: "Total" }),
-              "utf8",
-            )
-          : await renderer.toPdf(
-              buildReportDocument({
-                title: table.title,
-                range: table.range,
-                store: getReceiptSettings(database.db, session.storeId),
-                columns: table.columns,
-                rows,
-                totals,
-              }),
-            );
-      await writeAtomic(path, bytes);
+      await writeAtomic(path, await render(session.storeId));
     } catch {
       return exportFailed;
     }
     return { ok: true, status: "saved", path };
   }
 
+  function exportTable<Row extends Record<string, string | number>>(
+    table: ExportTable<Row>,
+  ): Promise<ExportReportResult> {
+    return exportFile(table, (storeId) => {
+      const { rows, totals } = table.read(storeId);
+      return table.format === "csv"
+        ? Buffer.from(
+            reportCsv({ columns: table.columns, rows, totals, totalsLabel: "Total" }),
+            "utf8",
+          )
+        : renderer.toPdf(
+            buildReportDocument({
+              title: table.title,
+              range: table.range,
+              store: getReceiptSettings(database.db, storeId),
+              columns: table.columns,
+              rows,
+              totals,
+            }),
+          );
+    });
+  }
+
+  function exportDiscountsReturnsVoids({ range, format }: ExportReportInput) {
+    return exportFile({ fileStem: "discounts-returns-voids", range, format }, (storeId) => {
+      const sections = discountsReturnsVoidsSections(
+        readDiscountsReturnsVoids(database, storeId, range, {
+          limit: format === "csv" ? null : reportDetailLimit,
+        }),
+      );
+      return format === "csv"
+        ? Buffer.from(reportCsvSections(sections), "utf8")
+        : renderer.toPdf(
+            buildSectionedReportDocument({
+              title: "Discounts, returns and voids",
+              range,
+              store: getReceiptSettings(database.db, storeId),
+              sections,
+            }),
+          );
+    });
+  }
+
   return {
     salesByDay,
     discountsReturnsVoids,
     salesTaxSummary,
+    exportDiscountsReturnsVoids,
     exportSalesByDay: ({ range, format }: ExportReportInput) =>
       exportTable({
         title: "Sales by day",

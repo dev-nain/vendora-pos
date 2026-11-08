@@ -158,6 +158,7 @@ import type {
   UpdateProductInput,
   UpdateProductResult,
 } from "./products";
+import type { DiscountsReturnsVoidsResult } from "./discounts-returns-voids";
 import type {
   ExportReportInput,
   ExportReportResult,
@@ -258,6 +259,8 @@ export const ipcChannels = {
   productsExportCsv: "products:export-csv",
   reportsSalesByDay: "reports:sales-by-day",
   reportsExportSalesByDay: "reports:export-sales-by-day",
+  reportsDiscountsReturnsVoids: "reports:discounts-returns-voids",
+  reportsExportDiscountsReturnsVoids: "reports:export-discounts-returns-voids",
   productsGetMiscItem: "products:get-misc-item",
   categoriesList: "categories:list",
   categoriesCreate: "categories:create",
@@ -471,6 +474,8 @@ export interface VendoraApi {
   reports: {
     salesByDay: (range: ReportRange) => Promise<SalesByDayResult>;
     exportSalesByDay: (input: ExportReportInput) => Promise<ExportReportResult>;
+    discountsReturnsVoids: (range: ReportRange) => Promise<DiscountsReturnsVoidsResult>;
+    exportDiscountsReturnsVoids: (input: ExportReportInput) => Promise<ExportReportResult>;
     salesTaxSummary: (range: ReportRange) => Promise<SalesTaxSummaryResult>;
     exportSalesTaxSummary: (input: ExportReportInput) => Promise<ExportReportResult>;
   };

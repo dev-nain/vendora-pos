@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ReportColumn } from "../../shared/reports";
-import { reportCsv } from "./report-csv";
+import type { ReportSection } from "../../shared/discounts-returns-voids";
+import { reportCsv, reportCsvSections } from "./report-csv";
 
 type Row = { name: string; qty: number; amount: number; bills: number; day: string };
 
@@ -71,5 +72,64 @@ describe("reportCsv", () => {
   it("ends with a totals row labelled Total", () => {
     const text = csv([row()], { bills: 3, qty: 2500, amount: -12050 });
     expect(lines(text)[2]).toBe("Total,,3,2.5,-120.50");
+  });
+});
+
+describe("reportCsvSections", () => {
+  const sections: ReportSection[] = [
+    {
+      id: "discounts-by-user",
+      title: "Discounts by user",
+      rowKey: "userId",
+      columns: [
+        { key: "userName", label: "User", format: "text" },
+        { key: "discountPaisa", label: "Discount", format: "money" },
+      ],
+      rows: [{ userId: "u1", userName: "Ayesha", discountPaisa: 1500 }],
+      totals: { discountPaisa: 1500 },
+      shown: 1,
+      total: 1,
+    },
+    {
+      id: "deleted-lines",
+      title: "Deleted lines",
+      rowKey: "auditId",
+      columns: [
+        { key: "createdAt", label: "Time", format: "time" },
+        { key: "bill", label: "Bill", format: "invoice", linkKey: "invoiceNo" },
+        { key: "qtyMilli", label: "Qty", format: "quantity", unitKey: "unit" },
+      ],
+      rows: [
+        {
+          auditId: "a1",
+          createdAt: "2026-11-07T10:04:00.000Z",
+          bill: "Discarded",
+          invoiceNo: "",
+          unit: "kg",
+          qtyMilli: 1500,
+        },
+      ],
+      totals: null,
+      shown: 1,
+      total: 1,
+    },
+  ];
+
+  it("writes one titled block per table with a single BOM and a blank line between", () => {
+    const text = reportCsvSections(sections);
+    expect(text.codePointAt(0)).toBe(0xfeff);
+    expect(text.slice(1)).toBe(
+      [
+        "Discounts by user",
+        "User,Discount",
+        "Ayesha,15.00",
+        "Total,15.00",
+        "",
+        "Deleted lines",
+        "Time,Bill,Qty",
+        "2026-11-07 15:04,Discarded,1.5",
+        "",
+      ].join("\r\n"),
+    );
   });
 });

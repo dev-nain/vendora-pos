@@ -30,6 +30,14 @@ export interface DocumentTable {
   rows: DocumentCell[][];
 }
 
+export interface DocumentSection {
+  heading: string;
+  columns: DocumentColumn[];
+  rows: DocumentCell[][];
+  totals: DocumentPair[];
+  note: string | null;
+}
+
 export interface DocumentModel {
   title: string;
   reference: string;
@@ -40,6 +48,7 @@ export interface DocumentModel {
   rows: DocumentCell[][];
   totals: DocumentPair[];
   summaries: DocumentTable[];
+  sections?: DocumentSection[];
   notes: string | null;
   footer: DocumentText[];
   landscape?: boolean;

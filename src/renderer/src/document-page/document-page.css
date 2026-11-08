@@ -139,6 +139,22 @@ td.right {
   font-variant-numeric: tabular-nums;
 }
 
+.section-heading {
+  margin: 18pt 0 0;
+  font-size: 13pt;
+  font-weight: 600;
+  break-after: avoid;
+}
+
+.section-heading + table {
+  margin-top: 6pt;
+}
+
+.section-note {
+  margin-top: 6pt;
+  font-size: 9pt;
+}
+
 .notes {
   margin-top: 14pt;
   break-inside: avoid;
