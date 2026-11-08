@@ -3,7 +3,7 @@ import {
   salesByDayColumns,
   type ReportColumn,
   type SalesByDayRow,
-  type SalesByDayTotals,
+  type SalesByPeriodTotals,
 } from "../../shared/reports";
 import type { ReceiptSettings } from "../../shared/settings";
 import type { ReportSection } from "../../shared/discounts-returns-voids";
@@ -33,11 +33,10 @@ const emptyStore: ReceiptSettings = {
   footerUr: null,
 };
 
-const totals: SalesByDayTotals = {
+const totals: SalesByPeriodTotals = {
   billCount: 4,
-  pieceQtyMilli: 3000,
-  kgQtyMilli: 1500,
-  litreQtyMilli: 0,
+  grossPaisa: 40500,
+  returnsPaisa: 500,
   discountPaisa: 500,
   netPaisa: 40000,
   taxPaisa: 7200,
@@ -95,21 +94,20 @@ describe("buildReportDocument", () => {
     const model = build();
     expect(model.columns.map((column) => column.align)).toEqual([
       "left",
-      ...Array.from({ length: 9 }, () => "right"),
+      ...Array.from({ length: 8 }, () => "right"),
     ]);
     expect(model.rows[0]?.map((cell) => cell.text)).toEqual([
       "7 Nov 2026",
       "4",
-      "3 pcs",
-      "1.500 kg",
-      "0.000 L",
+      "Rs 405",
+      "Rs 5",
       "Rs 5",
       "Rs 400",
       "Rs 72",
       "−Rs 0.50",
       "Rs 471.50",
     ]);
-    expect(model.totals).toHaveLength(9);
+    expect(model.totals).toHaveLength(8);
     expect(model.totals[0]).toEqual({ label: "Bills", value: "4" });
     expect(model.totals.at(-1)).toEqual({ label: "Total", value: "Rs 471.50" });
   });

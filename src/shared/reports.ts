@@ -197,39 +197,59 @@ export const reportFooterRowSchema = z.strictObject({
 });
 export type ReportFooterRow = z.infer<typeof reportFooterRowSchema>;
 
-export const salesByDayTotalsSchema = z.strictObject({
+export const salesByPeriodTotalsSchema = z.strictObject({
   billCount: countSchema,
-  pieceQtyMilli: countSchema,
-  kgQtyMilli: countSchema,
-  litreQtyMilli: countSchema,
+  grossPaisa: countSchema,
+  returnsPaisa: countSchema,
   discountPaisa: countSchema,
   netPaisa: countSchema,
   taxPaisa: countSchema,
   roundingPaisa: countSchema,
   totalPaisa: countSchema,
 });
-export type SalesByDayTotals = z.infer<typeof salesByDayTotalsSchema>;
+export type SalesByPeriodTotals = z.infer<typeof salesByPeriodTotalsSchema>;
 
-export const salesByDayRowSchema = salesByDayTotalsSchema.extend({ day: storeDaySchema });
+export const salesByDayRowSchema = salesByPeriodTotalsSchema.extend({ day: storeDaySchema });
 export type SalesByDayRow = z.infer<typeof salesByDayRowSchema>;
 
 export const salesByDayResultSchema = z.strictObject({
   rows: z.array(salesByDayRowSchema),
-  totals: salesByDayTotalsSchema,
+  totals: salesByPeriodTotalsSchema,
 });
 export type SalesByDayResult = z.infer<typeof salesByDayResultSchema>;
 
-export const salesByDayColumns: ReportColumn<SalesByDayRow>[] = [
-  { key: "day", label: "Day", format: "day", width: "96px" },
-  { key: "billCount", label: "Bills", format: "count", width: "64px" },
-  { key: "pieceQtyMilli", label: "Pieces", format: "quantity", unit: "piece", width: "100px" },
-  { key: "kgQtyMilli", label: "Kg", format: "quantity", unit: "kg", width: "108px" },
-  { key: "litreQtyMilli", label: "Litres", format: "quantity", unit: "litre", width: "100px" },
-  { key: "discountPaisa", label: "Discount", format: "money", width: "108px" },
+export const salesByHourRowSchema = salesByPeriodTotalsSchema.extend({
+  hour: z.string().regex(/^([01]\d|2[0-3]):00$/),
+});
+export type SalesByHourRow = z.infer<typeof salesByHourRowSchema>;
+
+export const salesByHourResultSchema = z.strictObject({
+  rows: z.array(salesByHourRowSchema),
+  totals: salesByPeriodTotalsSchema,
+});
+export type SalesByHourResult = z.infer<typeof salesByHourResultSchema>;
+
+export const hourLabel = (hour: number): string => `${String(hour).padStart(2, "0")}:00`;
+
+const salesByPeriodColumns = [
+  { key: "billCount", label: "Bills", format: "count", width: "80px" },
+  { key: "grossPaisa", label: "Gross sales", format: "money", width: "136px" },
+  { key: "returnsPaisa", label: "Returns", format: "money", width: "120px" },
+  { key: "discountPaisa", label: "Discount", format: "money", width: "112px" },
   { key: "netPaisa", label: "Net sales", format: "money", width: "136px" },
-  { key: "taxPaisa", label: "Tax", format: "money", width: "108px" },
-  { key: "roundingPaisa", label: "Rounding", format: "money", width: "80px" },
+  { key: "taxPaisa", label: "Tax", format: "money", width: "112px" },
+  { key: "roundingPaisa", label: "Rounding", format: "money", width: "100px" },
   { key: "totalPaisa", label: "Total", format: "money", width: "136px" },
+] as const;
+
+export const salesByDayColumns: ReportColumn<SalesByDayRow>[] = [
+  { key: "day", label: "Day", format: "day", width: "104px" },
+  ...salesByPeriodColumns,
+];
+
+export const salesByHourColumns: ReportColumn<SalesByHourRow>[] = [
+  { key: "hour", label: "Hour", format: "text", width: "104px" },
+  ...salesByPeriodColumns,
 ];
 
 export const salesTaxSummaryTotalsSchema = z.strictObject({

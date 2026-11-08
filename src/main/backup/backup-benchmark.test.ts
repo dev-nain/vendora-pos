@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { backupRecords, saleLines } from "../db/schema";
+import { startBackgroundCheckpoints, type BackgroundCheckpoints } from "../db/checkpointer";
 import { createCheckoutKit, type CheckoutKit } from "../services/checkout-test-kit";
 import type { BackupSeal } from "./backup-cipher";
 import { createBackupService } from "./backup-service";
@@ -120,6 +121,8 @@ describe("backup benchmark", () => {
     return elapsed;
   };
 
+  let checkpoints: BackgroundCheckpoints;
+
   beforeAll(() => {
     kit = createCheckoutKit();
     const user = kit.signIn("cashier");
@@ -137,9 +140,16 @@ describe("backup benchmark", () => {
     const existing = kit.database.db.select().from(saleLines).all().length;
     cloneSaleLines(saleLineCount - existing);
     kit.database.sqlite.pragma("wal_checkpoint(TRUNCATE)");
+    checkpoints = startBackgroundCheckpoints(
+      kit.database,
+      resolve(process.cwd(), "src/main/db/checkpoint-worker.ts"),
+    );
   }, 300_000);
 
-  afterAll(() => kit.close());
+  afterAll(async () => {
+    await checkpoints.stop();
+    kit.close();
+  });
 
   it("keeps billing fast while a backup of 500,000 sale lines runs", async () => {
     const count = kit.database.sqlite.prepare("SELECT count(*) AS n FROM sale_lines").get() as {

@@ -11,6 +11,7 @@ import {
   type GrossProfitByCategoryResult,
   type GrossProfitByProductResult,
   salesByDayColumns,
+  salesByHourColumns,
   storeToday,
   salesTaxSummaryColumns,
   type ExportReportInput,
@@ -21,6 +22,7 @@ import {
   type ReportFooterRow,
   type ReportRange,
   type SalesByDayResult,
+  type SalesByHourResult,
   type SalesTaxSummaryResult,
 } from "../../shared/reports";
 import {
@@ -53,7 +55,7 @@ import { readDiscountsReturnsVoids } from "../reports/discounts-returns-voids";
 import { reportCsv, reportCsvSections } from "../reports/report-csv";
 import { buildReportDocument, buildSectionedReportDocument } from "../reports/report-document";
 import { readGrossProfitByCategory, readGrossProfitByProduct } from "../reports/gross-profit";
-import { readSalesByDay } from "../reports/sales-by-day";
+import { readSalesByDay, readSalesByHour } from "../reports/sales-by-day";
 import { readPurchasesBySupplier } from "../reports/purchases-by-supplier";
 import { readPostedStocktakes, readStocktakeVariance } from "../reports/stocktake-variance-report";
 import { readStockMovements } from "../reports/stock-movements";
@@ -104,6 +106,11 @@ export function createReportsService({
   function salesByDay(range: ReportRange): SalesByDayResult {
     const session = requireSession(sessions);
     return readSalesByDay(database, session.storeId, range);
+  }
+
+  function salesByHour(range: ReportRange): SalesByHourResult {
+    const session = requireSession(sessions);
+    return readSalesByHour(database, session.storeId, range);
   }
   function stockOnHand(): StockOnHandResult {
     const session = requireSession(sessions);
@@ -230,6 +237,16 @@ export function createReportsService({
 
   return {
     salesByDay,
+    salesByHour,
+    exportSalesByHour: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Sales by hour",
+        fileName: fileNameOf("sales-by-hour", range, format),
+        reference: () => formatRangeLabel(range),
+        format,
+        columns: salesByHourColumns,
+        read: (storeId) => readSalesByHour(database, storeId, range),
+      }),
     grossProfitByProduct,
     grossProfitByCategory,
     exportGrossProfitByProduct: ({ range, format }: ExportReportInput) =>

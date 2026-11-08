@@ -124,10 +124,17 @@ describe("sales by day", () => {
     const result = service.salesByDay(range("2026-11-06", "2026-11-07"));
 
     expect(result.rows).toMatchObject([
-      { day: "2026-11-06", billCount: 1, totalPaisa: 10000, pieceQtyMilli: 1000 },
-      { day: "2026-11-07", billCount: 1, totalPaisa: -10000, pieceQtyMilli: -1000 },
+      { day: "2026-11-06", billCount: 1, totalPaisa: 10000, grossPaisa: 10000, returnsPaisa: 0 },
+      {
+        day: "2026-11-07",
+        billCount: 1,
+        totalPaisa: -10000,
+        grossPaisa: 0,
+        returnsPaisa: 10000,
+        netPaisa: -10000,
+      },
     ]);
-    expect(result.totals).toMatchObject({ billCount: 2, totalPaisa: 0, pieceQtyMilli: 0 });
+    expect(result.totals).toMatchObject({ billCount: 2, totalPaisa: 0, netPaisa: 0 });
   });
 
   it.each([true, false])(
@@ -159,12 +166,12 @@ describe("sales by day", () => {
         roundingPaisa: direct.rounding,
         discountPaisa: direct.discount,
       });
+      expect(row!.grossPaisa - row!.returnsPaisa).toBe(row!.netPaisa);
       expect(row!.netPaisa + row!.taxPaisa + row!.roundingPaisa).toBe(row!.totalPaisa);
       expect(result.totals).toEqual({
         billCount: row!.billCount,
-        pieceQtyMilli: row!.pieceQtyMilli,
-        kgQtyMilli: row!.kgQtyMilli,
-        litreQtyMilli: row!.litreQtyMilli,
+        grossPaisa: row!.grossPaisa,
+        returnsPaisa: row!.returnsPaisa,
         discountPaisa: row!.discountPaisa,
         netPaisa: row!.netPaisa,
         taxPaisa: row!.taxPaisa,
@@ -175,30 +182,37 @@ describe("sales by day", () => {
     },
   );
 
-  it("splits quantity by unit and counts misc lines", () => {
-    kit.setMiscEnabled(true);
-    const soap = product("Soap", 5000);
-    const rice = product("Rice", 20000, { unit: "kg" });
-    const oil = product("Oil", 30000, { unit: "litre" });
-    sellAt("2026-11-07T08:00:00.000Z", soap.id, 2000);
-    sellAt("2026-11-07T08:10:00.000Z", rice.id, 1500);
-    sellAt("2026-11-07T08:20:00.000Z", oil.id, 2250);
-    clock = new Date("2026-11-07T08:30:00.000Z");
-    const misc = okBill(kit.billDrafts.addMisc({ name: "Loose", pricePaisa: 7000 }));
+  it("puts both sides of an exchange bill on the same day", () => {
+    const tea = product("Tea", 10000);
+    const soap = product("Soap", 4000);
+    const sale = sellAt("2026-11-06T10:00:00.000Z", tea.id);
+    const line = kit.database.sqlite
+      .prepare("SELECT id FROM sale_lines WHERE sale_id = ?")
+      .get(sale.id) as { id: string };
+    clock = new Date("2026-11-07T10:00:00.000Z");
+    const returned = okBill(
+      kit.returns.addFromSale({
+        saleId: sale.id,
+        lines: [{ saleLineId: line.id, qtyMilli: 1000 }],
+      }),
+    );
+    const exchange = okBill(kit.billDrafts.addProduct({ productId: soap.id, qtyMilli: 1000 }));
+    expect(returned.id).toBe(exchange.id);
     okSale(
       sellingService.complete({
-        draftId: misc.id,
-        payments: [{ method: "cash", amountPaisa: 7000 }],
+        draftId: exchange.id,
+        payments: [{ method: "cash", amountPaisa: 6000 }],
       }),
     );
 
-    const [row] = service.salesByDay(range("2026-11-07")).rows;
+    const [, day] = service.salesByDay(range("2026-11-06", "2026-11-07")).rows;
 
-    expect(row).toMatchObject({
-      billCount: 4,
-      pieceQtyMilli: 3000,
-      kgQtyMilli: 1500,
-      litreQtyMilli: 2250,
+    expect(day).toMatchObject({
+      day: "2026-11-07",
+      grossPaisa: 4000,
+      returnsPaisa: 10000,
+      netPaisa: -6000,
+      totalPaisa: -6000,
     });
   });
 
@@ -211,9 +225,8 @@ describe("sales by day", () => {
       rows: [],
       totals: {
         billCount: 0,
-        pieceQtyMilli: 0,
-        kgQtyMilli: 0,
-        litreQtyMilli: 0,
+        grossPaisa: 0,
+        returnsPaisa: 0,
         discountPaisa: 0,
         netPaisa: 0,
         taxPaisa: 0,
@@ -269,10 +282,10 @@ describe("sales by day", () => {
       const text = readFileSync(path, "utf8");
       expect(text.codePointAt(0)).toBe(0xfeff);
       expect(text).toContain(
-        "Day,Bills,Pieces,Kg,Litres,Discount,Net sales,Tax,Rounding,Total\r\n",
+        "Day,Bills,Gross sales,Returns,Discount,Net sales,Tax,Rounding,Total\r\n",
       );
-      expect(text).toContain("2026-11-07,1,1,0,0,0.00,100.00,0.00,0.00,100.00\r\n");
-      expect(text.endsWith("Total,1,1,0,0,0.00,100.00,0.00,0.00,100.00\r\n")).toBe(true);
+      expect(text).toContain("2026-11-07,1,100.00,0.00,0.00,100.00,0.00,0.00,100.00\r\n");
+      expect(text.endsWith("Total,1,100.00,0.00,0.00,100.00,0.00,0.00,100.00\r\n")).toBe(true);
     });
 
     it("uses one date in the file name for a single day", async () => {
