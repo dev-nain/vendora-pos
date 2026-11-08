@@ -23,6 +23,7 @@ export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
   const [error, setError] = useState<string | null>(null);
   const [area, setAreaState] = useState<Area>("sell");
   const [printerFocus, setPrinterFocus] = useState(false);
+  const [orderLink, setOrderLink] = useState<string | null>(null);
   const leaveGuard = useRef<LeaveGuard | null>(null);
   const [sellHints, setSellHints] = useState<Hint[]>([["Ctrl+L", "Switch user"]]);
 
@@ -40,10 +41,21 @@ export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
       if (next === area) return;
       guarded(() => {
         setPrinterFocus(false);
+        setOrderLink(null);
         setAreaState(next);
       });
     },
     [area, guarded],
+  );
+
+  const openSale = useCallback(
+    (invoiceNo: string) =>
+      guarded(() => {
+        setPrinterFocus(false);
+        setOrderLink(invoiceNo);
+        setAreaState("sell");
+      }),
+    [guarded],
   );
 
   const switchUser = useCallback(() => guarded(onSwitchUser), [guarded, onSwitchUser]);
@@ -94,6 +106,7 @@ export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
       />
       {area === "sell" ? (
         <SellArea
+          openInvoiceNo={orderLink}
           onSessionEnded={onLoggedOut}
           onHintsChange={setSellHints}
           onOpenPrinterSettings={openPrinterSettings}
@@ -103,6 +116,7 @@ export function AppShell({ user, onSwitchUser, onLoggedOut }: AppShellProps) {
           currentUserId={user.id}
           onSessionEnded={onLoggedOut}
           focusPrinter={printerFocus}
+          onOpenSale={openSale}
           guarded={guarded}
           registerLeaveGuard={registerLeaveGuard}
         />

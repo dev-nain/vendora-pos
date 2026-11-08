@@ -3,11 +3,7 @@ import type { LowStockQuery, LowStockResult } from "../../shared/inventory";
 import type { VendoraDatabase } from "../db/client";
 import { products, stockMovements } from "../db/schema";
 
-export function lowStockProducts(
-  database: VendoraDatabase,
-  storeId: string,
-  input: LowStockQuery,
-): LowStockResult {
+export function lowStockRows(database: VendoraDatabase, storeId: string, categoryId?: string) {
   const filters: SQL[] = [
     eq(products.storeId, storeId),
     isNull(products.deletedAt),
@@ -15,10 +11,10 @@ export function lowStockProducts(
     eq(products.isActive, true),
     isNotNull(products.lowStockThresholdMilli),
   ];
-  if (input.categoryId) filters.push(eq(products.categoryId, input.categoryId));
+  if (categoryId) filters.push(eq(products.categoryId, categoryId));
 
   const onHand = sql<number>`coalesce(sum(${stockMovements.qtyMilli}), 0)`;
-  const rows = database.db
+  return database.db
     .select({
       id: products.id,
       nameEn: products.nameEn,
@@ -35,12 +31,18 @@ export function lowStockProducts(
     .groupBy(products.id)
     .having(sql`${onHand} <= ${products.lowStockThresholdMilli}`)
     .orderBy(sql`lower(${products.nameEn})`, products.nameEn, products.id)
-    .all();
+    .all()
+    .map(({ thresholdMilli, ...row }) => {
+      const threshold = thresholdMilli ?? 0;
+      return { ...row, thresholdMilli: threshold, shortfallMilli: threshold - row.onHandMilli };
+    });
+}
 
-  const start = input.offset;
-  const items = rows.slice(start, start + input.limit).map(({ thresholdMilli, ...row }) => {
-    const threshold = thresholdMilli ?? 0;
-    return { ...row, thresholdMilli: threshold, shortfallMilli: threshold - row.onHandMilli };
-  });
-  return { items, total: rows.length };
+export function lowStockProducts(
+  database: VendoraDatabase,
+  storeId: string,
+  input: LowStockQuery,
+): LowStockResult {
+  const rows = lowStockRows(database, storeId, input.categoryId);
+  return { items: rows.slice(input.offset, input.offset + input.limit), total: rows.length };
 }
