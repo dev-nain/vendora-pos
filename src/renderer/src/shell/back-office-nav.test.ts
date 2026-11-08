@@ -15,6 +15,7 @@ describe("back office nav", () => {
       "goods-received",
       "purchase-returns",
       "suppliers",
+      "reports",
       "users",
       "audit",
       "backup",
