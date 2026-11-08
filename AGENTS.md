@@ -122,8 +122,10 @@ From `spec/technical-requirements.md`:
 # 7. Security & data boundaries
 
 - The renderer gets no Node access: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, no remote content.
+- Exception: recovery IPC (backup scan, restore, retry) works without a session, only while the database is damaged or can't be opened; main refuses it in any other mode.
 - Permission checks run in the main process for every gated action and record the approver in the audit log.
 - Passwords and PINs are hashed (argon2id). License data is encrypted at rest.
+- Exception: the backup password. Automatic backups run with nobody at the screen, so the app keeps a key derived from that password with argon2id and protected by Windows DPAPI. It never stores the raw password. All other passwords and PINs stay hashed.
 - No telemetry with business data.
 - Never log full receipts, passwords, PINs, or license keys.
 

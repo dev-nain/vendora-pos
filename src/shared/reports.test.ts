@@ -7,8 +7,10 @@ import {
   paymentMethodsQuerySchema,
   formatRangeLabel,
   formatReportCell,
+  formatStoreDateTime,
   formatStoreDay,
   hourLabel,
+  formatStoreTimeCsv,
   isNumericColumn,
   presetRange,
   reportRangeSchema,
@@ -195,9 +197,20 @@ describe("range labels", () => {
 });
 
 describe("formatReportCell", () => {
-  type Row = { a: string | number };
+  type Row = { a: string | number | null };
   type Spec =
-    | { format: "day" | "text" | "count" | "money" }
+    | {
+        format:
+          | "day"
+          | "text"
+          | "count"
+          | "money"
+          | "time"
+          | "invoice"
+          | "percent"
+          | "unit"
+          | "datetime";
+      }
     | { format: "quantity"; unit: ProductUnit };
   const column = (spec: Spec): ReportColumn<Row> => ({ key: "a", label: "A", ...spec });
 
@@ -211,12 +224,132 @@ describe("formatReportCell", () => {
     expect(formatReportCell(column({ format: "quantity", unit: "piece" }), 3000)).toBe("3 pcs");
   });
 
+  it("shows an instant in store time", () => {
+    expect(formatReportCell(column({ format: "time" }), "2026-11-07T10:04:00.000Z")).toBe(
+      "7 Nov 2026, 15:04",
+    );
+    expect(formatReportCell(column({ format: "time" }), "2026-11-07T19:00:00.000Z")).toBe(
+      "8 Nov 2026, 00:00",
+    );
+    expect(formatStoreTimeCsv("2026-11-07T10:04:00.000Z")).toBe("2026-11-07 15:04");
+  });
+
+  it("takes a quantity unit from the row", () => {
+    const byRow: ReportColumn<{ a: number; unit: string }> = {
+      key: "a",
+      label: "A",
+      format: "quantity",
+      unitKey: "unit",
+    };
+    expect(formatReportCell(byRow, 2500, { unit: "kg" })).toBe("2.500 kg");
+    expect(formatReportCell(byRow, -3000, { unit: "piece" })).toBe("−3 pcs");
+  });
+
+  it("shows an invoice as text", () => {
+    expect(formatReportCell(column({ format: "invoice" }), "T1-000004")).toBe("T1-000004");
+  });
+
   it("keeps the sign on negatives, even below one rupee", () => {
     expect(formatReportCell(column({ format: "money" }), -50)).toBe("−Rs 0.50");
     expect(formatReportCell(column({ format: "money" }), -12050)).toBe("−Rs 120.50");
     expect(formatReportCell(column({ format: "quantity", unit: "kg" }), -1500)).toBe("−1.500 kg");
     expect(formatReportCell(column({ format: "quantity", unit: "piece" }), -2000)).toBe("−2 pcs");
     expect(formatReportCell(column({ format: "count" }), -3)).toBe("−3");
+  });
+
+  it("marks time and invoice columns as not numeric", () => {
+    expect(isNumericColumn(column({ format: "time" }))).toBe(false);
+    expect(isNumericColumn(column({ format: "invoice" }))).toBe(false);
+  });
+
+  it("formats percent from basis points", () => {
+    expect(formatReportCell(column({ format: "percent" }), 2345)).toBe("23.45%");
+    expect(formatReportCell(column({ format: "percent" }), -500)).toBe("−5.00%");
+    expect(formatReportCell(column({ format: "percent" }), 0)).toBe("0.00%");
+    expect(formatReportCell(column({ format: "percent" }), 7)).toBe("0.07%");
+    expect(formatReportCell(column({ format: "percent" }), -7)).toBe("−0.07%");
+  });
+
+  it("shows an empty cell for null in every format", () => {
+    for (const format of ["day", "text", "count", "money", "percent"] as const)
+      expect(formatReportCell(column({ format }), null)).toBe("—");
+    expect(formatReportCell(column({ format: "quantity", unit: "kg" }), null)).toBe("—");
+  });
+
+  it("formats row-unit quantities by the row's own unit", () => {
+    type UnitRow = { unit: ProductUnit; qty: number };
+    const qty: ReportColumn<UnitRow> = {
+      key: "qty",
+      label: "Qty",
+      format: "quantity",
+      unitKey: "unit",
+      bare: true,
+    };
+    expect(formatReportCell(qty, 12000, { unit: "piece", qty: 12000 })).toBe("12");
+    expect(formatReportCell(qty, 1500, { unit: "kg", qty: 1500 })).toBe("1.500");
+    expect(formatReportCell(qty, 250, { unit: "litre", qty: 250 })).toBe("0.250");
+    expect(formatReportCell(qty, -1500, { unit: "kg", qty: -1500 })).toBe("−1.500");
+    expect(formatReportCell(qty, -2000, { unit: "piece", qty: -2000 })).toBe("−2");
+  });
+
+  it("counts a row-unit quantity in pieces when the row has no known unit", () => {
+    type UnitRow = { unit: string; qty: number };
+    const qty: ReportColumn<UnitRow> = {
+      key: "qty",
+      label: "Qty",
+      format: "quantity",
+      unitKey: "unit",
+      bare: true,
+    };
+    expect(formatReportCell(qty, 1000)).toBe("1");
+    expect(formatReportCell(qty, 1000, { unit: "box", qty: 1000 })).toBe("1");
+  });
+
+  it("formats unit columns", () => {
+    const unit: ReportColumn<{ a: string }> = { key: "a", label: "Unit", format: "unit" };
+    expect(formatReportCell(unit, "piece")).toBe("pcs");
+    expect(formatReportCell(unit, "kg")).toBe("kg");
+    expect(formatReportCell(unit, "litre")).toBe("L");
+  });
+
+  it("formats date-times as Asia/Karachi store time", () => {
+    const when: ReportColumn<{ a: string }> = { key: "a", label: "When", format: "datetime" };
+    expect(formatReportCell(when, "2026-11-07T10:05:00.000Z")).toBe("7 Nov 2026, 3:05 pm");
+    expect(formatReportCell(when, "2026-11-07T19:30:00.000Z")).toBe("8 Nov 2026, 12:30 am");
+    expect(formatReportCell(when, "2026-11-07T07:00:00.000Z")).toBe("7 Nov 2026, 12:00 pm");
+    expect(formatReportCell(when, "2026-11-06T18:59:00.000Z")).toBe("6 Nov 2026, 11:59 pm");
+  });
+
+  it("agrees with Intl for Asia/Karachi on dates either side of midnight UTC", () => {
+    const intl = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Karachi",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    for (const instant of [
+      "2026-01-01T00:00:00.000Z",
+      "2026-03-31T18:59:59.000Z",
+      "2026-03-31T19:00:00.000Z",
+      "2026-12-31T23:59:00.000Z",
+      "2026-07-15T07:07:00.000Z",
+    ]) {
+      const parts = intl.formatToParts(new Date(instant));
+      const part = (type: Intl.DateTimeFormatPartTypes) =>
+        parts.find((candidate) => candidate.type === type)?.value ?? "";
+      const expected = `${part("day")} ${part("month")} ${part("year")}, ${part("hour")}:${part("minute")} ${part("dayPeriod").toLowerCase()}`;
+      expect(formatStoreDateTime(instant)).toBe(expected);
+    }
+  });
+
+  it("marks unit and date-time columns as not numeric", () => {
+    expect(isNumericColumn(column({ format: "unit" }))).toBe(false);
+    expect(isNumericColumn(column({ format: "datetime" }))).toBe(false);
+    expect(isNumericColumn(column({ format: "count" }))).toBe(true);
+    expect(isNumericColumn(column({ format: "money" }))).toBe(true);
   });
 
   it("marks day and text columns as not numeric", () => {

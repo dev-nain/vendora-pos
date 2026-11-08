@@ -14,6 +14,8 @@ import {
   searchQueryFrom,
   selectAfterSearch,
 } from "./invoice-search";
+import { useInvoiceActions } from "./invoice-actions";
+import { invoiceShortcut } from "./invoice-shortcut";
 import { OrderDetail } from "./order-detail";
 import { OrderList } from "./order-list";
 import { ReturnPanel } from "./return-panel";
@@ -25,6 +27,8 @@ const listHints: Hint[] = [
   ["↑/↓", "Select"],
   ["Ctrl+P", "Reprint"],
   ["Ctrl+R", "Return items"],
+  ["Ctrl+Shift+P", "Print invoice"],
+  ["Ctrl+Shift+S", "Save invoice PDF"],
   ["Esc", "Back"],
   ...baseHints,
 ];
@@ -40,6 +44,7 @@ const emptyText: Record<Source, string> = {
 
 interface OrdersScreenProps {
   active: boolean;
+  initialInvoiceNo: string | null;
   onBack: () => void;
   onSessionEnded: () => void;
   onPrinterChanged: () => void;
@@ -49,6 +54,7 @@ interface OrdersScreenProps {
 
 export function OrdersScreen({
   active,
+  initialInvoiceNo,
   onBack,
   onSessionEnded,
   onPrinterChanged,
@@ -60,7 +66,7 @@ export function OrdersScreen({
   const [loadFailed, setLoadFailed] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<OrderDetailData | null>(null);
-  const [searchText, setSearchText] = useState("");
+  const [searchText, setSearchText] = useState(initialInvoiceNo ?? "");
   const [dateText, setDateText] = useState("");
   const [printing, setPrinting] = useState(false);
   const [result, setResult] = useState<PrintResult | null>(null);
@@ -76,6 +82,9 @@ export function OrdersScreen({
     },
     [onSessionEnded],
   );
+
+  const invoice = useInvoiceActions(selectedId, fail);
+  const { print: printInvoice, savePdf: saveInvoice } = invoice;
 
   const load = useCallback(
     (query: SalesListQuery, next: Source) => {
@@ -115,8 +124,11 @@ export function OrdersScreen({
     [load, showShift],
   );
 
+  const firstInvoiceNo = useRef(initialInvoiceNo);
   useEffect(() => {
-    load({ scope: "shift" }, "shift");
+    const query = firstInvoiceNo.current ? searchQueryFrom(firstInvoiceNo.current) : null;
+    if (query) load(query, "invoice");
+    else load({ scope: "shift" }, "shift");
   }, [load]);
 
   useEffect(() => {
@@ -210,8 +222,15 @@ export function OrdersScreen({
         }
         return;
       }
-      const plainCtrl = event.ctrlKey && !event.altKey && !event.metaKey;
-      if (plainCtrl && event.key.toLowerCase() === "p") {
+      const plainCtrl = event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey;
+      const invoiceAction = invoiceShortcut(event);
+      if (invoiceAction) {
+        event.preventDefault();
+        if (detail?.id === selectedId) {
+          if (invoiceAction === "print") printInvoice();
+          else saveInvoice();
+        }
+      } else if (plainCtrl && event.key.toLowerCase() === "p") {
         event.preventDefault();
         reprint();
       } else if (plainCtrl && event.key.toLowerCase() === "r") {
@@ -233,7 +252,19 @@ export function OrdersScreen({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [active, orders, returning, reprint, startReturn, leaveReturn, onBack]);
+  }, [
+    active,
+    orders,
+    returning,
+    detail,
+    selectedId,
+    printInvoice,
+    saveInvoice,
+    reprint,
+    startReturn,
+    leaveReturn,
+    onBack,
+  ]);
 
   useEffect(() => {
     if (!active) return;
@@ -349,6 +380,7 @@ export function OrdersScreen({
               canReturn={canReturn}
               onReprint={reprint}
               onReturn={startReturn}
+              invoice={invoice}
             />
           </aside>
         </div>
