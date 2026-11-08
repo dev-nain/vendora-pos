@@ -26,12 +26,19 @@ import {
 import {
   lowStockReportColumns,
   negativeStockReportColumns,
+  purchasesBySupplierColumns,
+  stockMovementsColumns,
   stockOnHandColumns,
   type ExportTodayReportInput,
+  type StockMovementsExportInput,
+  type StockMovementsReportInput,
+  type StockMovementsReportResult,
   type LowStockReportResult,
+  type PurchasesBySupplierResult,
   type NegativeStockReportResult,
   type StockOnHandResult,
 } from "../../shared/stock-reports";
+import { formatQuantity } from "../../shared/quantity";
 import { requireSession } from "../auth/guard";
 import type { SessionStore } from "../auth/session";
 import type { VendoraDatabase } from "../db/client";
@@ -42,6 +49,8 @@ import { reportCsv, reportCsvSections } from "../reports/report-csv";
 import { buildReportDocument, buildSectionedReportDocument } from "../reports/report-document";
 import { readGrossProfitByCategory, readGrossProfitByProduct } from "../reports/gross-profit";
 import { readSalesByDay } from "../reports/sales-by-day";
+import { readPurchasesBySupplier } from "../reports/purchases-by-supplier";
+import { readStockMovements } from "../reports/stock-movements";
 import { readLowStock, readNegativeStock, readStockOnHand } from "../reports/stock-position";
 import { readSalesTaxSummary } from "../reports/sales-tax-summary";
 import { getReceiptSettings } from "../settings/store-settings";
@@ -103,6 +112,16 @@ export function createReportsService({
   function negativeStock(): NegativeStockReportResult {
     const session = requireSession(sessions);
     return readNegativeStock(database, session.storeId, now());
+  }
+
+  function stockMovements(input: StockMovementsReportInput): StockMovementsReportResult {
+    const session = requireSession(sessions);
+    return readStockMovements(database, session.storeId, input);
+  }
+
+  function purchasesBySupplier(range: ReportRange): PurchasesBySupplierResult {
+    const session = requireSession(sessions);
+    return readPurchasesBySupplier(database, session.storeId, range);
   }
 
   const asOfReference = () => `As of ${formatStoreDateTime(now().toISOString())}`;
@@ -250,6 +269,47 @@ export function createReportsService({
           ...readStockOnHand(database, storeId, now()),
           facts: [{ label: "Valued at", value: "Current average cost" }],
         }),
+      }),
+    stockMovements,
+    exportStockMovements: ({ productId, range, format }: StockMovementsExportInput) => {
+      let productName = "";
+      return exportTable({
+        title: "Stock movements",
+        fileName: fileNameOf("stock-movements", range, format),
+        reference: () =>
+          productName ? `${productName} · ${formatRangeLabel(range)}` : formatRangeLabel(range),
+        format,
+        columns: stockMovementsColumns,
+        read: (storeId) => {
+          const result = readStockMovements(database, storeId, { productId, range });
+          productName = result.product?.nameEn ?? "";
+          return {
+            ...result,
+            facts: result.product
+              ? [
+                  {
+                    label: "Opening balance",
+                    value: formatQuantity(result.openingMilli, result.product.unit),
+                  },
+                  {
+                    label: "Closing balance",
+                    value: formatQuantity(result.closingMilli, result.product.unit),
+                  },
+                ]
+              : [],
+          };
+        },
+      });
+    },
+    purchasesBySupplier,
+    exportPurchasesBySupplier: ({ range, format }: ExportReportInput) =>
+      exportTable({
+        title: "Purchases by supplier",
+        fileName: fileNameOf("purchases-by-supplier", range, format),
+        reference: () => formatRangeLabel(range),
+        format,
+        columns: purchasesBySupplierColumns,
+        read: (storeId) => readPurchasesBySupplier(database, storeId, range),
       }),
     exportLowStock: ({ format }: ExportTodayReportInput) =>
       exportTable({
