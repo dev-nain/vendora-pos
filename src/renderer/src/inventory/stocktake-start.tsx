@@ -14,6 +14,7 @@ import {
 } from "@renderer/components/ui/select";
 import { isSessionError, serviceErrorMessage } from "../auth/messages";
 import { ErrorLine } from "../users/form-parts";
+import { PastStocktakes } from "./past-stocktakes";
 
 const ALL_PRODUCTS = "all";
 
@@ -21,6 +22,7 @@ interface StocktakeStartProps {
   cancelled: boolean;
   onStarted: (stocktake: StocktakeSummary) => void;
   onAlreadyOpen: () => void;
+  onOpenPast: (stocktakeId: string) => void;
   onSessionEnded: () => void;
 }
 
@@ -28,6 +30,7 @@ export function StocktakeStart({
   cancelled,
   onStarted,
   onAlreadyOpen,
+  onOpenPast,
   onSessionEnded,
 }: StocktakeStartProps) {
   const [categories, setCategories] = useState<{ id: string; name: string }[] | null>(null);
@@ -125,6 +128,7 @@ export function StocktakeStart({
           <Kbd>Enter</Kbd>
         </Button>
       </form>
+      <PastStocktakes onOpen={onOpenPast} onSessionEnded={onSessionEnded} />
     </div>
   );
 }

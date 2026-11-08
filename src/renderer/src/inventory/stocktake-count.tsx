@@ -10,6 +10,7 @@ import {
 
 import type { StocktakeLine, StocktakeSummary } from "@shared/stocktake";
 import { Button } from "@renderer/components/ui/button";
+import { Kbd } from "@renderer/components/ui/kbd";
 import {
   Table,
   TableBody,
@@ -40,6 +41,7 @@ interface StocktakeCountProps {
   stocktake: StocktakeSummary;
   onClosed: () => void;
   onCancelled: () => void;
+  onReview: () => void;
   onSessionEnded: () => void;
 }
 
@@ -63,6 +65,7 @@ export function StocktakeCount({
   stocktake,
   onClosed,
   onCancelled,
+  onReview,
   onSessionEnded,
 }: StocktakeCountProps) {
   const [countedCount, setCountedCount] = useState(stocktake.countedCount);
@@ -284,6 +287,29 @@ export function StocktakeCount({
     processRef.current = processScan;
   }, [processScan]);
 
+  const requestReview = useCallback(async () => {
+    const open = entryRef.current;
+    if (open) {
+      const read = readCountEntry(open.text, open.initialText, open.line.unit);
+      if (read.kind === "invalid") {
+        commitEntry({ ...open, error: read.message });
+        playScanError();
+        return;
+      }
+      if (read.kind === "valid") {
+        if (!(await save())) return;
+      } else {
+        commitEntry(null);
+      }
+    }
+    onReview();
+  }, [commitEntry, save, onReview]);
+
+  const reviewRef = useRef(requestReview);
+  useEffect(() => {
+    reviewRef.current = requestReview;
+  }, [requestReview]);
+
   useEffect(() => {
     queueRef.current = createScanQueue((code) => processRef.current(code));
   }, []);
@@ -328,6 +354,11 @@ export function StocktakeCount({
   useEffect(() => {
     if (cancelling) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "F9") {
+        event.preventDefault();
+        void reviewRef.current();
+        return;
+      }
       const isFind = event.ctrlKey && !event.altKey && !event.metaKey && event.key === "f";
       if (event.key !== "F2" && !isFind) return;
       event.preventDefault();
@@ -404,9 +435,15 @@ export function StocktakeCount({
             {countedCount} of {stocktake.lineCount} counted
           </p>
         </div>
-        <Button type="button" variant="secondary" onClick={() => setCancelling(true)}>
-          Cancel count
-        </Button>
+        <div className="flex items-center gap-200">
+          <Button type="button" variant="secondary" onClick={() => setCancelling(true)}>
+            Cancel count
+          </Button>
+          <Button type="button" onClick={() => void requestReview()}>
+            Review
+            <Kbd>F9</Kbd>
+          </Button>
+        </div>
       </div>
       <div className="sticky top-0 z-10 grid gap-200 bg-surface pb-200">
         <ScanField
