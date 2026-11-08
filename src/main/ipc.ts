@@ -1,4 +1,5 @@
 import { app, ipcMain, type IpcMainInvokeEvent } from "electron";
+import { recoveryScanSchema, startupStateSchema } from "@shared/recovery";
 import {
   authResultSchema,
   createFirstUserInputSchema,
@@ -227,6 +228,7 @@ import { toIpcError } from "./ipc-errors";
 import type { AuditLogService } from "./services/audit-log";
 import type { AuthService } from "./services/auth";
 import type { BillDraftsService } from "./services/bill-drafts";
+import type { RecoveryService } from "./services/recovery";
 import type { BackupAdminService } from "./services/backup-admin";
 import type { BackupPasswordService } from "./services/backup-password";
 import type { CatalogExportService } from "./services/catalog-export";
@@ -263,6 +265,19 @@ function handle(
       throw toIpcError(error);
     }
   });
+}
+
+export function registerStartupHandlers(recovery: RecoveryService): void {
+  handle(ipcChannels.appGetInfo, () => appInfoSchema.parse({ version: app.getVersion() }));
+  handle(ipcChannels.startupState, () => startupStateSchema.parse(recovery.state()));
+  handle(ipcChannels.recoveryScan, async () => recoveryScanSchema.parse(await recovery.scan()));
+  handle(ipcChannels.recoveryChooseFile, async () =>
+    chosenBackupSchema.parse(await recovery.chooseFile()),
+  );
+  handle(ipcChannels.recoveryRestore, async (_event, input) =>
+    restoreResultSchema.parse(await recovery.restore(restoreInputSchema.parse(input))),
+  );
+  handle(ipcChannels.recoveryRetry, () => recovery.retry());
 }
 
 interface IpcServices {
@@ -324,7 +339,6 @@ export function registerIpcHandlers({
   taxCategories,
   users,
 }: IpcServices): void {
-  handle(ipcChannels.appGetInfo, () => appInfoSchema.parse({ version: app.getVersion() }));
   handle(ipcChannels.authLogin, async (_event, input) =>
     authResultSchema.parse(await auth.login(loginInputSchema.parse(input))),
   );

@@ -9,6 +9,7 @@ import type {
   RestoreInput,
   RestoreResult,
 } from "./backup";
+import type { RecoveryScan, StartupState } from "./recovery";
 import type {
   AuthResult,
   CreateFirstUserInput,
@@ -323,10 +324,16 @@ export const ipcChannels = {
   backupPasswordTurnOn: "backup:password-turn-on",
   backupPasswordChange: "backup:password-change",
   backupPasswordTurnOff: "backup:password-turn-off",
+  startupState: "startup:state",
+  recoveryScan: "recovery:scan",
+  recoveryChooseFile: "recovery:choose-file",
+  recoveryRestore: "recovery:restore",
+  recoveryRetry: "recovery:retry",
 } as const;
 
 export const ipcErrorMessages = {
   unauthenticated: "Log in to continue.",
+  recoveryUnavailable: "This is only available when Vendora can't open its data.",
 } as const;
 
 export interface VendoraApi {
@@ -513,5 +520,14 @@ export interface VendoraApi {
     turnOnPassword: (password: string) => Promise<BackupPasswordResult>;
     changePassword: (current: string, next: string) => Promise<BackupPasswordResult>;
     turnOffPassword: (current: string) => Promise<BackupPasswordResult>;
+  };
+  startup: {
+    state: () => Promise<StartupState>;
+  };
+  recovery: {
+    scan: () => Promise<RecoveryScan>;
+    chooseFile: () => Promise<ChosenBackup>;
+    restore: (input: RestoreInput) => Promise<RestoreResult>;
+    retry: () => Promise<void>;
   };
 }
