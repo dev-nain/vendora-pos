@@ -94,12 +94,14 @@ export function formatRangeLabel(range: ReportRange): string {
     : `${formatStoreDay(range.from)} – ${formatStoreDay(range.to)}`;
 }
 
+export type ReportCellValue = string | number | null;
+
 export type ReportColumn<Row> = {
   key: Extract<keyof Row, string>;
   label: string;
   width?: string;
 } & (
-  | { format: "day" | "text" | "count" | "money" | "time" }
+  | { format: "day" | "text" | "count" | "money" | "time" | "percent" }
   | { format: "invoice"; linkKey?: Extract<keyof Row, string> }
   | { format: "quantity"; unit: ProductUnit }
   | { format: "quantity"; unitKey: Extract<keyof Row, string> }
@@ -112,6 +114,13 @@ export const isNumericColumn = <Row>(column: ReportColumn<Row>): boolean =>
   column.format !== "invoice";
 
 const MINUS = "−";
+const EMPTY_CELL = "—";
+
+export function formatPercentBps(bps: number): string {
+  const magnitude = Math.abs(Math.trunc(bps));
+  const hundredths = String(magnitude % 100).padStart(2, "0");
+  return `${bps < 0 ? MINUS : ""}${Math.trunc(magnitude / 100)}.${hundredths}%`;
+}
 
 const pad = (value: number): string => String(value).padStart(2, "0");
 
@@ -135,9 +144,10 @@ export function formatStoreTimeCsv(iso: string): string {
 
 export function formatReportCell<Row>(
   column: ReportColumn<Row>,
-  value: string | number,
-  row?: Partial<Record<string, string | number>>,
+  value: ReportCellValue,
+  row?: Partial<Record<string, ReportCellValue>>,
 ): string {
+  if (value === null) return EMPTY_CELL;
   switch (column.format) {
     case "day":
       return formatStoreDay(String(value));
@@ -157,6 +167,8 @@ export function formatReportCell<Row>(
       const grouped = String(Math.abs(count)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
       return count < 0 ? `${MINUS}${grouped}` : grouped;
     }
+    case "percent":
+      return formatPercentBps(Number(value));
     case "text":
     case "invoice":
       return String(value);
@@ -164,6 +176,12 @@ export function formatReportCell<Row>(
 }
 
 const countSchema = z.number().int();
+
+export const reportFooterRowSchema = z.strictObject({
+  label: z.string(),
+  values: z.record(z.string(), countSchema),
+});
+export type ReportFooterRow = z.infer<typeof reportFooterRowSchema>;
 
 export const salesByDayTotalsSchema = z.strictObject({
   billCount: countSchema,

@@ -7,31 +7,39 @@ import {
   TableHeader,
   TableRow,
 } from "@renderer/components/ui/table";
-import { formatReportCell, isNumericColumn, type ReportColumn } from "@shared/reports";
+import {
+  formatReportCell,
+  isNumericColumn,
+  type ReportCellValue,
+  type ReportColumn,
+  type ReportFooterRow,
+} from "@shared/reports";
 import { negativeClass } from "../inventory/stock-format";
 
-interface ReportTableProps<Row extends Record<string, string | number>> {
+interface ReportTableProps<Row extends Record<string, ReportCellValue>> {
   label: string;
   busy: boolean;
   columns: ReportColumn<Row>[];
   rows: Row[];
   rowKey: Extract<keyof Row, string>;
-  totals?: Record<string, number> | null;
+  totals?: Record<string, number | null> | null;
+  footer?: ReportFooterRow[];
   onOpenSale?: ((invoiceNo: string) => void) | undefined;
 }
 
-const cellClass = <Row,>(column: ReportColumn<Row>, value: string | number) =>
+const cellClass = <Row,>(column: ReportColumn<Row>, value: ReportCellValue) =>
   `px-200 whitespace-nowrap ${
     isNumericColumn(column) ? "text-right tabular-nums" : ""
   } ${typeof value === "number" ? negativeClass(value) : ""}`;
 
-export function ReportTable<Row extends Record<string, string | number>>({
+export function ReportTable<Row extends Record<string, ReportCellValue>>({
   label,
   busy,
   columns,
   rows,
   rowKey,
   totals,
+  footer = [],
   onOpenSale,
 }: ReportTableProps<Row>) {
   return (
@@ -68,7 +76,7 @@ export function ReportTable<Row extends Record<string, string | number>>({
         {rows.map((row) => (
           <TableRow key={String(row[rowKey])}>
             {columns.map((column) => {
-              const value = row[column.key] ?? "";
+              const value = row[column.key] ?? null;
               const text = formatReportCell(column, value, row);
               const invoiceNo =
                 column.format === "invoice" ? String(row[column.linkKey ?? column.key] ?? "") : "";
@@ -102,7 +110,7 @@ export function ReportTable<Row extends Record<string, string | number>>({
                   key={column.key}
                   className={`sticky bottom-0 bg-surface-secondary font-semibold ${cellClass(
                     column,
-                    value ?? "",
+                    value ?? null,
                   )}`}
                 >
                   {index === 0
@@ -114,6 +122,25 @@ export function ReportTable<Row extends Record<string, string | number>>({
               );
             })}
           </TableRow>
+          {footer.map((entry) => (
+            <TableRow key={entry.label}>
+              {columns.map((column, index) => {
+                const value = entry.values[column.key];
+                return (
+                  <TableCell
+                    key={column.key}
+                    className={`sticky bottom-0 bg-surface-secondary ${cellClass(column, value ?? null)}`}
+                  >
+                    {index === 0
+                      ? entry.label
+                      : value === undefined
+                        ? ""
+                        : formatReportCell(column, value)}
+                  </TableCell>
+                );
+              })}
+            </TableRow>
+          ))}
         </TableFooter>
       ) : null}
     </Table>

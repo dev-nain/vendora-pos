@@ -8,8 +8,10 @@ import {
   salesTaxSummaryColumns,
   type ExportReportInput,
   type ExportReportResult,
+  type ReportCellValue,
   type ReportColumn,
   type ReportExportFormat,
+  type ReportFooterRow,
   type ReportRange,
   type SalesByDayResult,
   type SalesTaxSummaryResult,
@@ -33,13 +35,17 @@ interface ReportsDeps {
   chooseSavePath: (fileName: string, format: ReportExportFormat) => Promise<string | null>;
 }
 
-interface ExportTable<Row extends Record<string, string | number>> {
+interface ExportTable<Row extends Record<string, ReportCellValue>> {
   title: string;
   fileStem: string;
   range: ReportRange;
   format: ReportExportFormat;
   columns: ReportColumn<Row>[];
-  read: (storeId: string) => { rows: Row[]; totals: Record<string, number> };
+  read: (storeId: string) => {
+    rows: Row[];
+    totals: Record<string, number | null>;
+    footer?: ReportFooterRow[];
+  };
 }
 
 const exportFailed = {
@@ -96,14 +102,14 @@ export function createReportsService({
     return { ok: true, status: "saved", path };
   }
 
-  function exportTable<Row extends Record<string, string | number>>(
+  function exportTable<Row extends Record<string, ReportCellValue>>(
     table: ExportTable<Row>,
   ): Promise<ExportReportResult> {
     return exportFile(table, (storeId) => {
-      const { rows, totals } = table.read(storeId);
+      const { rows, totals, footer = [] } = table.read(storeId);
       return table.format === "csv"
         ? Buffer.from(
-            reportCsv({ columns: table.columns, rows, totals, totalsLabel: "Total" }),
+            reportCsv({ columns: table.columns, rows, totals, totalsLabel: "Total", footer }),
             "utf8",
           )
         : renderer.toPdf(
@@ -114,6 +120,7 @@ export function createReportsService({
               columns: table.columns,
               rows,
               totals,
+              footer,
             }),
           );
     });

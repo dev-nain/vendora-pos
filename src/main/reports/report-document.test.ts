@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { salesByDayColumns, type SalesByDayRow, type SalesByDayTotals } from "../../shared/reports";
+import {
+  salesByDayColumns,
+  type ReportColumn,
+  type SalesByDayRow,
+  type SalesByDayTotals,
+} from "../../shared/reports";
 import type { ReceiptSettings } from "../../shared/settings";
 import type { ReportSection } from "../../shared/discounts-returns-voids";
 import { buildReportDocument, buildSectionedReportDocument } from "./report-document";
@@ -41,6 +46,20 @@ const totals: SalesByDayTotals = {
 };
 
 const row: SalesByDayRow = { day: "2026-11-07", ...totals };
+
+type ProfitRow = {
+  product: string;
+  netPaisa: number;
+  costPaisa: number | null;
+  marginBps: number | null;
+};
+
+const profitColumns: ReportColumn<ProfitRow>[] = [
+  { key: "product", label: "Product", format: "text" },
+  { key: "netPaisa", label: "Net sales", format: "money" },
+  { key: "costPaisa", label: "Cost", format: "money" },
+  { key: "marginBps", label: "Margin", format: "percent" },
+];
 
 const build = (store_: ReceiptSettings = store) =>
   buildReportDocument({
@@ -99,6 +118,30 @@ describe("buildReportDocument", () => {
     const widths = build().columns.map((column) => Number.parseFloat(column.width ?? "0"));
     expect(widths.every((width) => width > 0)).toBe(true);
     expect(widths.reduce((sum, width) => sum + width, 0)).toBeCloseTo(100, 0);
+  });
+
+  it("shows null cells and totals as a dash and appends footer rows", () => {
+    const model = buildReportDocument({
+      title: "Gross profit by product",
+      range: { from: "2026-11-07", to: "2026-11-07" },
+      store,
+      columns: profitColumns,
+      rows: [
+        { product: "Misc items (no cost)", netPaisa: 15000, costPaisa: null, marginBps: null },
+      ],
+      totals: { netPaisa: 15000, costPaisa: 0, marginBps: null },
+      footer: [{ label: "Rounding", values: { netPaisa: -50 } }],
+    });
+    expect(model.rows[0]?.map((cell) => cell.text).slice(-2)).toEqual(["—", "—"]);
+    expect(model.totals.find((total) => total.label === "Margin")).toEqual({
+      label: "Margin",
+      value: "—",
+    });
+    expect(model.totals.find((total) => total.label === "Rounding")).toEqual({
+      label: "Rounding",
+      value: "−Rs 0.50",
+    });
+    expect(model.columns).toHaveLength(4);
   });
 });
 
