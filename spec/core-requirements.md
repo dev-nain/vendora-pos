@@ -202,6 +202,7 @@ The database lives on one PC. Losing it means losing the business's records.
 - Second copy to a user-chosen folder (USB drive or a synced folder such as Google Drive); onboarding asks for it
 - Manual "Backup now"; **Restore** checks integrity and takes a backup of the current data first
 - Writes survive a power cut; the app checks database integrity at startup and tells the user exactly what to do if something is wrong
+- If the database file is damaged, a recovery screen (no login) shows the last good backup and restores it. The damaged file is kept, renamed aside, instead of being backed up first, because it can't be copied reliably
 - Optional password-protected backups
 
 ---
