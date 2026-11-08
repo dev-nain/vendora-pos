@@ -59,9 +59,13 @@ import {
 import { appInfoSchema, ipcChannels, type VendoraApi } from "@shared/ipc";
 import {
   cancelStocktakeResultSchema,
+  pastStocktakesResultSchema,
+  postStocktakeResultSchema,
   recordCountResultSchema,
   startStocktakeResultSchema,
   stocktakeLinesResultSchema,
+  stocktakeReviewLinesResultSchema,
+  stocktakeReviewResultSchema,
   stocktakeScanResultSchema,
   stocktakeSummarySchema,
 } from "@shared/stocktake";
@@ -295,6 +299,22 @@ const api: VendoraApi = {
     cancel: async (stocktakeId) =>
       cancelStocktakeResultSchema.parse(
         await ipcRenderer.invoke(ipcChannels.stocktakeCancel, { stocktakeId }),
+      ),
+    review: async (stocktakeId) =>
+      stocktakeReviewResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.stocktakeReview, { stocktakeId }),
+      ),
+    reviewLines: async (query) =>
+      stocktakeReviewLinesResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.stocktakeReviewLines, query),
+      ),
+    post: async (stocktakeId) =>
+      postStocktakeResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.stocktakePost, { stocktakeId }),
+      ),
+    listPast: async (query) =>
+      pastStocktakesResultSchema.parse(
+        await ipcRenderer.invoke(ipcChannels.stocktakeListPast, query),
       ),
   },
   products: {

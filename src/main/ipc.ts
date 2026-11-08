@@ -61,6 +61,9 @@ import {
 } from "@shared/reports";
 import {
   cancelStocktakeResultSchema,
+  pastStocktakesQuerySchema,
+  pastStocktakesResultSchema,
+  postStocktakeResultSchema,
   recordCountInputSchema,
   recordCountResultSchema,
   startStocktakeInputSchema,
@@ -68,6 +71,9 @@ import {
   stocktakeIdInputSchema,
   stocktakeLinesQuerySchema,
   stocktakeLinesResultSchema,
+  stocktakeReviewLinesQuerySchema,
+  stocktakeReviewLinesResultSchema,
+  stocktakeReviewResultSchema,
   stocktakeScanInputSchema,
   stocktakeScanResultSchema,
   stocktakeSummarySchema,
@@ -494,6 +500,20 @@ export function registerIpcHandlers({
   handle(ipcChannels.stocktakeCancel, (_event, input) =>
     cancelStocktakeResultSchema.parse(stocktake.cancel(stocktakeIdInputSchema.parse(input))),
   );
+  handle(ipcChannels.stocktakeReview, (_event, input) =>
+    stocktakeReviewResultSchema.parse(stocktake.review(stocktakeIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeReviewLines, (_event, input) =>
+    stocktakeReviewLinesResultSchema.parse(
+      stocktake.reviewLines(stocktakeReviewLinesQuerySchema.parse(input)),
+    ),
+  );
+  handle(ipcChannels.stocktakePost, (_event, input) =>
+    postStocktakeResultSchema.parse(stocktake.post(stocktakeIdInputSchema.parse(input))),
+  );
+  handle(ipcChannels.stocktakeListPast, (_event, input) =>
+    pastStocktakesResultSchema.parse(stocktake.listPast(pastStocktakesQuerySchema.parse(input))),
+  );
   handle(ipcChannels.inventoryNegativeStock, (_event, input) =>
     negativeStockResultSchema.parse(inventory.negativeStock(negativeStockQuerySchema.parse(input))),
   );
@@ -668,11 +688,6 @@ export function registerIpcHandlers({
   );
   handle(ipcChannels.invoicesPrint, async (_event, input) =>
     printInvoiceResultSchema.parse(await saleInvoices.print(saleIdInputSchema.parse(input))),
-  );
-  handle(ipcChannels.goodsReceivedPost, (_event, input) =>
-    postGoodsReceivedResultSchema.parse(
-      goodsReceived.post(postGoodsReceivedInputSchema.parse(input)),
-    ),
   );
   handle(ipcChannels.reportsSalesByDay, (_event, input) =>
     salesByDayResultSchema.parse(reports.salesByDay(reportRangeSchema.parse(input))),
