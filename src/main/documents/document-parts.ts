@@ -15,7 +15,7 @@ export function labelled(label: string, value: string | null): string[] {
   return present(value) ? [`${label}: ${value}`] : [];
 }
 
-export function buildStorePanel(store: ReceiptSettings): DocumentPanel {
+export function storePanel(store: ReceiptSettings): DocumentPanel {
   return {
     lines: [
       ...(present(store.name) ? [store.name] : []),

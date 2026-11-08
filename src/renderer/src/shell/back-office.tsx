@@ -2,8 +2,8 @@ import {
   BoxesIcon,
   ChartColumnIcon,
   ClipboardListIcon,
-  DatabaseBackupIcon,
   PackageCheckIcon,
+  DatabaseBackupIcon,
   PackageIcon,
   PackageMinusIcon,
   ScrollTextIcon,
@@ -24,18 +24,19 @@ import { CategoriesScreen } from "../categories/categories-screen";
 import { NegativeStockScreen } from "../inventory/negative-stock-screen";
 import { LowStockScreen } from "../inventory/low-stock-screen";
 import { StockScreen } from "../inventory/stock-screen";
-import { StocktakeScreen } from "../inventory/stocktake-screen";
 import { GoodsReceivedScreen } from "../purchasing/goods-received-screen";
+import { StocktakeScreen } from "../inventory/stocktake-screen";
 import { ProductsScreen } from "../products/products-screen";
 import type { LeaveGuard, OrderSeed } from "../purchasing/order-form-screen";
 import { PurchaseOrdersScreen } from "../purchasing/purchase-orders-screen";
-import { PurchaseReturnsScreen } from "../purchasing/purchase-returns-screen";
 import { ReportsScreen } from "../reports/reports-screen";
+import { PurchaseReturnsScreen } from "../purchasing/purchase-returns-screen";
 import { MiscItemSetting } from "../settings/misc-item-setting";
 import { BackupPasswordSetting } from "../settings/backup-password-setting";
 import { BackupSetting } from "../settings/backup-setting";
 import { PrinterSetting } from "../settings/printer-setting";
 import { ReceiptSetting } from "../settings/receipt-setting";
+import { MarginThresholdSetting } from "../settings/margin-threshold-setting";
 import { SecondCopyNotice } from "../settings/second-copy-notice";
 import { useSecondCopyStatus } from "../settings/use-second-copy-status";
 import { ShiftVarianceSetting } from "../settings/shift-variance-setting";
@@ -75,6 +76,7 @@ interface BackOfficeProps {
   currentUserId: string;
   onSessionEnded: () => void;
   focusPrinter?: boolean;
+  onOpenSale: (invoiceNo: string) => void;
   guarded: (go: () => void) => void;
   registerLeaveGuard: (guard: LeaveGuard | null) => void;
 }
@@ -83,11 +85,11 @@ export function BackOffice({
   currentUserId,
   onSessionEnded,
   focusPrinter,
+  onOpenSale,
   guarded,
   registerLeaveGuard,
 }: BackOfficeProps) {
   const [page, setPage] = useState<BackOfficePage>(focusPrinter ? "settings" : "products");
-  const secondCopy = useSecondCopyStatus();
   const [orderSeed, setOrderSeed] = useState<OrderSeed | null>(null);
   const clearOrderSeed = useCallback(() => setOrderSeed(null), []);
   const [returnSeed, setReturnSeed] = useState<string | null>(null);
@@ -105,6 +107,7 @@ export function BackOffice({
     if (next === page) return;
     guarded(() => setPage(next));
   };
+  const secondCopy = useSecondCopyStatus();
 
   return (
     <div
@@ -179,7 +182,7 @@ export function BackOffice({
         ) : page === "suppliers" ? (
           <SuppliersScreen onSessionEnded={onSessionEnded} />
         ) : page === "reports" ? (
-          <ReportsScreen onSessionEnded={onSessionEnded} />
+          <ReportsScreen onSessionEnded={onSessionEnded} onOpenSale={onOpenSale} />
         ) : page === "users" ? (
           <UsersScreen currentUserId={currentUserId} onSessionEnded={onSessionEnded} />
         ) : page === "audit" ? (
@@ -193,6 +196,7 @@ export function BackOffice({
             </h1>
             <MiscItemSetting />
             <ShiftVarianceSetting />
+            <MarginThresholdSetting />
             <PrinterSetting focusOnReady={focusPrinter === true} />
             <BackupSetting {...secondCopy} />
             <BackupPasswordSetting onSessionEnded={onSessionEnded} />

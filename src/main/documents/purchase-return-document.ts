@@ -3,7 +3,7 @@ import { formatRupees } from "../../shared/money";
 import { purchaseReturnReasonLabels, type PurchaseReturn } from "../../shared/purchase-returns";
 import { formatQuantity } from "../../shared/quantity";
 import type { ReceiptSettings } from "../../shared/settings";
-import { buildStorePanel, formatDate, labelled, present } from "./store-panel";
+import { formatDate, labelled, present, storePanel } from "./document-parts";
 import type { PurchaseOrderSupplier } from "./purchase-order-document";
 
 interface Input {
@@ -17,7 +17,7 @@ export function buildPurchaseReturnDocument({
   store,
   supplier,
 }: Input): DocumentModel {
-  const storeDetails = buildStorePanel(store);
+  const storeDetails = storePanel(store);
   const supplierPanel: DocumentPanel = {
     label: "Supplier",
     lines: [
@@ -42,6 +42,7 @@ export function buildPurchaseReturnDocument({
   return {
     title: "Purchase return",
     reference: purchaseReturn.returnNo,
+    header: [],
     panels: storeDetails.lines.length > 0 ? [storeDetails, supplierPanel] : [supplierPanel],
     facts,
     columns: [
@@ -59,6 +60,8 @@ export function buildPurchaseReturnDocument({
       { text: formatRupees(line.lineTotalPaisa) },
     ]),
     totals: [{ label: "Total", value: formatRupees(purchaseReturn.totalPaisa) }],
+    summaries: [],
     notes: present(purchaseReturn.notes) ? purchaseReturn.notes : null,
+    footer: [],
   };
 }

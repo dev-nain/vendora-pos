@@ -67,8 +67,8 @@ export const auditActionLabels: Record<AuditAction, string> = {
   purchase_order_confirm: "Purchase order confirmed",
   purchase_order_cancel: "Purchase order cancelled",
   goods_received_post: "Goods received",
-  purchase_return_post: "Purchase return",
   stocktake_post: "Stocktake posted",
+  purchase_return_post: "Purchase return posted",
 };
 
 export const AUDIT_PAGE_SIZE = 50;
