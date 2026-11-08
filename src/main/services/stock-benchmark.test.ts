@@ -441,9 +441,21 @@ describe("stock on-hand benchmark", () => {
     expect(reviewMs).toBeLessThan(3000);
     expect(pageMs).toBeLessThan(3000);
 
+    const walPages = () =>
+      (database.sqlite.pragma("wal_checkpoint(PASSIVE)") as { log: number }[])[0]!.log;
+    console.log(`diag: wal pages before pre-checkpoint ${walPages()}`);
+    const preStart = performance.now();
+    database.sqlite.pragma("wal_checkpoint(TRUNCATE)");
+    console.log(`diag: pre-post checkpoint ${(performance.now() - preStart).toFixed(0)} ms`);
+    database.sqlite.pragma("wal_autocheckpoint = 0");
     const postStart = performance.now();
     const posted = postStocktakeResultSchema.parse(stocktake.post({ stocktakeId }));
     const postMs = performance.now() - postStart;
+    console.log(`diag: post without checkpoint ${postMs.toFixed(0)} ms, wal pages ${walPages()}`);
+    const ckStart = performance.now();
+    database.sqlite.pragma("wal_checkpoint(TRUNCATE)");
+    console.log(`diag: post checkpoint ${(performance.now() - ckStart).toFixed(0)} ms`);
+    database.sqlite.pragma("wal_autocheckpoint = 1000");
     console.log(`stocktake post (5000 lines, all with a variance): ${postMs.toFixed(0)} ms`);
     expect(posted).toMatchObject({ ok: true, adjustmentCount: 5000, skippedCount: 0 });
     expect(postMs).toBeLessThan(2000);
