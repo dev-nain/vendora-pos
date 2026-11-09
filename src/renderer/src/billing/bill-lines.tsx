@@ -211,7 +211,7 @@ export function BillLines({
           strokeWidth={2}
           className="text-[var(--color-icon-secondary)]"
         />
-        <p className="m-0">Scan an item or pick one on the right.</p>
+        <p className="m-0">Scan an item or pick one on the left.</p>
       </div>
     );
   }

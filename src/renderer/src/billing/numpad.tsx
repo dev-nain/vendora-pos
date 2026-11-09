@@ -2,7 +2,6 @@ import { CheckIcon, CornerDownLeftIcon, DeleteIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@renderer/components/ui/button";
-import { Kbd } from "@renderer/components/ui/kbd";
 import { cn } from "@renderer/lib/utils";
 import type { NumpadMode } from "./numpad-entry";
 
@@ -46,23 +45,21 @@ function Key({
   );
 }
 
-const modeKeys: { mode: NumpadMode; label: string; keycap: string }[] = [
-  { mode: "qty", label: "Qty", keycap: "F3" },
-  { mode: "discount", label: "%", keycap: "F4" },
-  { mode: "price", label: "Price", keycap: "F5" },
+const modeKeys: { mode: NumpadMode; label: string }[] = [
+  { mode: "qty", label: "Qty" },
+  { mode: "discount", label: "%" },
+  { mode: "price", label: "Price" },
 ];
 
 function ModeKey({
   mode,
   label,
-  keycap,
   active,
   disabled,
   onMode,
 }: {
   mode: NumpadMode;
   label: string;
-  keycap: string;
   active: boolean;
   disabled: boolean;
   onMode: (mode: NumpadMode) => void;
@@ -76,7 +73,6 @@ function ModeKey({
     >
       {active ? <CheckIcon aria-hidden="true" size={14} strokeWidth={2} /> : null}
       {label}
-      <Kbd>{keycap}</Kbd>
     </Key>
   );
 }
