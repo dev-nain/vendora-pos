@@ -50,7 +50,7 @@ import { WeightDialog, type WeighedProduct } from "./weight-dialog";
 const SEARCH_DEBOUNCE_MS = 150;
 const NOTICE_MS = 4000;
 
-const idleHints = (miscEnabled: boolean, returnSelected: boolean): Hint[] => [
+const idleHints = (miscEnabled: boolean): Hint[] => [
   ["F2", "Search"],
   ["F3", "Qty"],
   ["F4", "Discount"],
@@ -59,11 +59,10 @@ const idleHints = (miscEnabled: boolean, returnSelected: boolean): Hint[] => [
   ["F10", "Hold"],
   ["F11", "Held bills"],
   ["F12", "Pay"],
-  ["Del", "Delete line"],
+  ["Del", "Delete"],
   ["Ctrl+Del", "Discard"],
-  ...(miscEnabled ? ([["Ctrl+M", "Misc item"]] as Hint[]) : []),
-  ["Ctrl+R", "Return item"],
-  ...(returnSelected ? ([["Ctrl+D", "Damaged"]] as Hint[]) : []),
+  ...(miscEnabled ? ([["Ctrl+M", "Misc"]] as Hint[]) : []),
+  ["Ctrl+R", "Return"],
   ["Ctrl+L", "Switch user"],
 ];
 
@@ -729,8 +728,7 @@ export function BillingScreen({
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [active, promptOpen, editingOpen]);
 
-  const returnSelected = selectedLine?.isReturn ?? false;
-  const idle = useMemo(() => idleHints(miscEnabled, returnSelected), [miscEnabled, returnSelected]);
+  const idle = useMemo(() => idleHints(miscEnabled), [miscEnabled]);
   const hints =
     step === "receipt"
       ? receiptAsking
@@ -780,48 +778,7 @@ export function BillingScreen({
   }
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[45%_minmax(0,1fr)]">
-      <section aria-label="Bill" className="flex min-h-0 flex-col border-r border-line">
-        <BillLines
-          lines={lines}
-          selectedId={view.selectedId}
-          editing={editing}
-          returningFrom={view.bill?.refund?.invoiceNo ?? null}
-          onSelect={selectLine}
-          onSetDamaged={(line, damaged) => void setDamaged(line, damaged)}
-          onFieldChange={(text) =>
-            setEditing(
-              (current) => current && { ...current, field: { text, fresh: false }, error: null },
-            )
-          }
-          onFieldKeyDown={onFieldKeyDown}
-        />
-        <BillTotals bill={view.bill} />
-        <div className="flex items-end justify-between gap-400 border-t border-line px-600 py-300">
-          <Numpad
-            mode={editing?.mode ?? null}
-            disabled={selectedLine === null}
-            onKey={pressKey}
-            onBackspace={pressBackspace}
-            onEnter={commit}
-            onMode={(mode) => openEditing(mode)}
-          />
-          <div className="min-w-0 flex-1">
-            <BillActions
-              hasLines={lines.length > 0}
-              canPay={canPay}
-              miscEnabled={miscEnabled}
-              heldCount={heldCount}
-              onBillDiscount={openBillDiscount}
-              onHold={() => void holdBill()}
-              onHeldBills={openHeld}
-              onMisc={openMisc}
-              onDiscard={openDiscard}
-              onPay={openPayment}
-            />
-          </div>
-        </div>
-      </section>
+    <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_44%]">
       <section aria-label="Find products" className="flex min-h-0 flex-col gap-300 p-400">
         <ScanField
           ref={scanRef}
@@ -841,6 +798,50 @@ export function BillingScreen({
           onResultsChange={setHasResults}
           onSessionEnded={onSessionEnded}
         />
+      </section>
+      <section aria-label="Bill" className="flex min-h-0 flex-col border-l border-line">
+        <BillLines
+          lines={lines}
+          selectedId={view.selectedId}
+          editing={editing}
+          returningFrom={view.bill?.refund?.invoiceNo ?? null}
+          onSelect={selectLine}
+          onSetDamaged={(line, damaged) => void setDamaged(line, damaged)}
+          onFieldChange={(text) =>
+            setEditing(
+              (current) => current && { ...current, field: { text, fresh: false }, error: null },
+            )
+          }
+          onFieldKeyDown={onFieldKeyDown}
+        />
+        <BillTotals bill={view.bill} />
+        <div className="flex items-stretch justify-between gap-400 border-t border-line px-600 py-300">
+          <Numpad
+            mode={editing?.mode ?? null}
+            disabled={selectedLine === null}
+            onKey={pressKey}
+            onBackspace={pressBackspace}
+            onEnter={commit}
+            onMode={(mode) => openEditing(mode)}
+          />
+          <div className="min-w-0 flex-1">
+            <BillActions
+              hasLines={lines.length > 0}
+              canPay={canPay}
+              canReturn={selectedLine !== null && !editing}
+              returnActive={selectedLine?.isReturn ?? false}
+              miscEnabled={miscEnabled}
+              heldCount={heldCount}
+              onBillDiscount={openBillDiscount}
+              onHold={() => void holdBill()}
+              onHeldBills={openHeld}
+              onMisc={openMisc}
+              onReturn={() => void toggleReturnSelected()}
+              onDiscard={openDiscard}
+              onPay={openPayment}
+            />
+          </div>
+        </div>
       </section>
       {prompt?.kind === "weight" ? (
         <WeightDialog
